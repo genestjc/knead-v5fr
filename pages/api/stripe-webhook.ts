@@ -40,14 +40,15 @@ export default async function handler(
   const metadata = object?.metadata;
   const user_address = metadata?.user_address;
 
-  // Initialize Thirdweb SDK with private key
+  // Initialize Thirdweb SDK with private key and Base RPC
   const privateKey = process.env.THIRDWEB_PRIVATE_KEY!;
   const provider = new ethers.Wallet(
     privateKey,
-    ethers.getDefaultProvider("base"),
+    new ethers.providers.JsonRpcProvider(
+      process.env.BASE_RPC_URL,
+    ),
   );
   const sdk = new ThirdwebSDK(provider);
-
   const contract = await sdk.getContract(CONTRACT_ADDRESS);
 
   try {
