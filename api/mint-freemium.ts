@@ -28,7 +28,7 @@ export default async function handler(
       CONTRACT_ADDRESS,
     );
 
-    // Call custom mint function
+    // Call custom mint function (admin-only)
     await contract.call("mint", [
       user_address,
       FREEMIUM_TOKEN_ID,
