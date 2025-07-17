@@ -1,0 +1,67 @@
+export const posts = [
+  {
+    id: "1",
+    title: "Blvck Svm: The Intersection of Music and Culinary Arts",
+    slug: "blvck-svm-music-culinary-arts",
+    excerpt: "How a Chicago-based musician is redefining the album experience through fine dining collaborations.",
+    coverImage: "/public/constant-practice-new.png",
+    date: "2024-11-15",
+    author: {
+      name: "Alex Johnson",
+      picture: "/placeholder.svg?height=100&width=100",
+    },
+    category: "Music",
+  },
+  {
+    id: "2",
+    title: "Digital Minimalism in Modern Creative Spaces",
+    slug: "digital-minimalism-creative-spaces",
+    excerpt: "Exploring how creators are embracing digital minimalism to enhance focus and productivity.",
+    coverImage: "/knead-cms-blog/public/digital-minimalism.png",
+    date: "2024-10-28",
+    author: {
+      name: "Maya Patel",
+      picture: "/placeholder.svg?height=100&width=100",
+    },
+    category: "Technology",
+  },
+  {
+    id: "3",
+    title: "The Revival of Analog: Vinyl Records in the Digital Age",
+    slug: "vinyl-records-digital-age",
+    excerpt: "Why vinyl records continue to captivate music enthusiasts in an era of streaming services.",
+    coverImage: "/knead-cms-blog/public/vinyl-records-camera.png",
+    date: "2024-10-12",
+    author: {
+      name: "James Wilson",
+      picture: "/placeholder.svg?height=100&width=100",
+    },
+    category: "Music",
+  },
+  {
+    id: "4",
+    title: "Sustainable Fashion: Beyond the Buzzword",
+    slug: "sustainable-fashion-beyond-buzzword",
+    excerpt: "How designers are genuinely incorporating sustainability into their creative processes.",
+    coverImage: "/knead-cms-blog/public/diverse-products-still-life.png",
+    date: "2024-09-30",
+    author: {
+      name: "Sophia Chen",
+      picture: "/placeholder.svg?height=100&width=100",
+    },
+    category: "Fashion",
+  },
+  {
+    id: "5",
+    title: "The Art of Slow Cooking: A Conversation with Chef Manning",
+    slug: "slow-cooking-chef-manning",
+    excerpt: "Richmond's renowned chef discusses his philosophy on patience and precision in the kitchen.",
+    coverImage: "/placeholder.svg?height=600&width=800",
+    date: "2024-09-15",
+    author: {
+      name: "Daniel Roberts",
+      picture: "/placeholder.svg?height=100&width=100",
+    },
+    category: "Food",
+  },
+]

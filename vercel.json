@@ -1,0 +1,52 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --no-cache",
+  "buildCommand": "npm run build",
+  "env": {
+    "VERCEL_FORCE_NO_BUILD_CACHE": "1",
+    "TURBO_FORCE": "true",
+    "NPM_CONFIG_CACHE": "/tmp/.npm"
+  },
+  "build": {
+    "env": {
+      "VERCEL_FORCE_NO_BUILD_CACHE": "1"
+    }
+  },
+  "functions": {
+    "app/api/mint-nft/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/subscribe/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/webhooks/stripe/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/send-confirmation-email/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/create-membership/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/check-membership/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/burn-nft/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/create-freemium-user/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
