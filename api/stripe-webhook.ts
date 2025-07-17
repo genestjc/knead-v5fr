@@ -45,7 +45,7 @@ export default async function handler(
   const provider = new ethers.Wallet(
     privateKey,
     ethers.getDefaultProvider("base"),
-  ); // or your custom RPC
+  );
   const sdk = new ThirdwebSDK(provider);
 
   const contract = await sdk.getContract(CONTRACT_ADDRESS);
