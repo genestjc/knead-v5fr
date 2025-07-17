@@ -21,7 +21,9 @@ export default async function handler(
     const privateKey = process.env.THIRDWEB_PRIVATE_KEY!;
     const provider = new ethers.Wallet(
       privateKey,
-      ethers.getDefaultProvider("base"),
+      new ethers.providers.JsonRpcProvider(
+        process.env.BASE_RPC_URL,
+      ),
     );
     const sdk = new ThirdwebSDK(provider);
     const contract = await sdk.getContract(
