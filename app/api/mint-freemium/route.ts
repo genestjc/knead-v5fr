@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const sdk = ThirdwebSDK.fromPrivateKey(
       process.env.THIRDWEB_PRIVATE_KEY!,
-      "base", // or your chain slug
+      "base",
     );
     const contract = await sdk.getContract(
       CONTRACT_ADDRESS,
