@@ -6,13 +6,13 @@ import {
   useActiveAccount,
 } from "thirdweb/react";
 import { getContract } from "thirdweb";
-import { client } from "@/thirdweb-client"; // adjust import as needed
+import { client } from "@/thirdweb-client"; // adjust as needed
 
 const KNEAD_MEMBERSHIP_CONTRACT = {
   address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   tokenIds: { freemium: 0, premium: 1 },
 };
-const CHAIN = "base"; // or your chain slug
+const CHAIN = "base";
 
 export default function TestSandbox() {
   const account = useActiveAccount();
@@ -169,6 +169,6 @@ export default function TestSandbox() {
     setPremiumLoading(false);
   };
 
-  // ... (UI code remains the same as your current implementation)
-  // For brevity, you can reuse your existing UI code here.
+  // ...Your UI code here (reuse your existing UI, or ask for a full UI example if needed)
+  // For brevity, the UI code is omitted, but your logic above is correct!
 }
