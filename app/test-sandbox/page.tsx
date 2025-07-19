@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { getContract } from "thirdweb"
+import { base } from "thirdweb/chains"
 import { client } from "@/thirdweb-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,11 +12,11 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Wallet, Shield, BookOpen, CreditCard, CheckCircle, XCircle } from "lucide-react"
 
-const KNEAD_MEMBERSHIP_CONTRACT = {
-  address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
-  tokenIds: { freemium: 0, premium: 1 },
-}
-const CHAIN = "base"
+const contract = getContract({
+  client,
+  address: KNEAD_MEMBERSHIP_CONTRACT.address,
+  chain: base,
+});
 
 export default function TestSandbox() {
   const account = useActiveAccount()
