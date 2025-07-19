@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { buffer } from "micro";
 import { ThirdwebSDK } from "thirdweb";
 
 export const config = { api: { bodyParser: false } };
@@ -14,7 +13,6 @@ const CONTRACT_ADDRESS =
 const PREMIUM_TOKEN_ID = 1;
 
 export async function POST(req: NextRequest) {
-  // Stripe requires the raw body to validate the signature
   const rawBody = await req.arrayBuffer();
   const sig = req.headers.get("stripe-signature") as string;
 
