@@ -59,6 +59,7 @@ export default function TestSandbox() {
           client,
           address: KNEAD_MEMBERSHIP_CONTRACT.address,
           chain: base,
+          type: "erc1155", // <-- Fix: specify contract type
         });
 
         const freemiumBalance =
