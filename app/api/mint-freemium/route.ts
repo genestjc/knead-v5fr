@@ -8,9 +8,13 @@ const FREEMIUM_TOKEN_ID = 0;
 
 export async function POST(req: NextRequest) {
   const { user_address } = await req.json();
-  if (!user_address) {
+
+  // Debug: log the address being used
+  console.log("Minting freemium NFT to:", user_address);
+
+  if (!user_address || !ethers.isAddress(user_address)) {
     return NextResponse.json(
-      { error: "Missing user_address" },
+      { error: "Missing or invalid user_address" },
       { status: 400 },
     );
   }
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
       wallet,
     );
 
-    // Call the mint function (admin-only)
+    // Mint to the user's address
     const tx = await contract.mint(
       user_address,
       FREEMIUM_TOKEN_ID,
@@ -39,6 +43,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error("Minting error:", error);
     return NextResponse.json(
       { error: error.message },
       { status: 500 },
