@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { ThirdwebSDK } from "thirdweb";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const bodyParser = false;
+
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+import { ethers } from "ethers";
+import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-04-10",
@@ -36,11 +37,18 @@ export async function POST(req: NextRequest) {
   const metadata = object?.metadata;
   const user_address = metadata?.user_address;
 
-  const sdk = ThirdwebSDK.fromPrivateKey(
-    process.env.THIRDWEB_PRIVATE_KEY!,
-    "base",
+  const provider = new ethers.JsonRpcProvider(
+    process.env.BASE_RPC_URL!,
   );
-  const contract = await sdk.getContract(CONTRACT_ADDRESS);
+  const wallet = new ethers.Wallet(
+    process.env.THIRDWEB_PRIVATE_KEY!,
+    provider,
+  );
+  const contract = new ethers.Contract(
+    CONTRACT_ADDRESS,
+    kneadMembershipABI,
+    wallet,
+  );
 
   try {
     if (
@@ -48,11 +56,12 @@ export async function POST(req: NextRequest) {
         event.type === "customer.subscription.created") &&
       user_address
     ) {
-      await contract.call("mint", [
+      const tx = await contract.mint(
         user_address,
         PREMIUM_TOKEN_ID,
         1,
-      ]);
+      );
+      await tx.wait();
     }
 
     if (
@@ -60,11 +69,12 @@ export async function POST(req: NextRequest) {
         event.type === "invoice.payment_failed") &&
       user_address
     ) {
-      await contract.call("adminBurn", [
+      const tx = await contract.adminBurn(
         user_address,
         PREMIUM_TOKEN_ID,
         1,
-      ]);
+      );
+      await tx.wait();
     }
   } catch (err: any) {
     return new NextResponse(err.message, { status: 500 });
