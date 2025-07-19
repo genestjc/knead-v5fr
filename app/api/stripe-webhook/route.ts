@@ -37,6 +37,21 @@ export async function POST(req: NextRequest) {
   const metadata = object?.metadata;
   const user_address = metadata?.user_address;
 
+  // Debug: log the event and address
+  console.log(
+    "Stripe event:",
+    event.type,
+    "User address:",
+    user_address,
+  );
+
+  if (!user_address || !ethers.isAddress(user_address)) {
+    return new NextResponse(
+      "Missing or invalid user_address in Stripe metadata",
+      { status: 400 },
+    );
+  }
+
   const provider = new ethers.JsonRpcProvider(
     process.env.BASE_RPC_URL!,
   );
@@ -62,6 +77,7 @@ export async function POST(req: NextRequest) {
         1,
       );
       await tx.wait();
+      console.log("Minted premium NFT to:", user_address);
     }
 
     if (
@@ -75,8 +91,10 @@ export async function POST(req: NextRequest) {
         1,
       );
       await tx.wait();
+      console.log("Burned premium NFT from:", user_address);
     }
   } catch (err: any) {
+    console.error("Stripe webhook mint/burn error:", err);
     return new NextResponse(err.message, { status: 500 });
   }
 
