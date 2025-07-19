@@ -26,7 +26,6 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://use.typekit.net/gne1bgd.css" />
       </head>
       <body className={inter.className}>
-        <SessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <WalletProvider>
               {children}
@@ -34,7 +33,6 @@ export default function RootLayout({
               <Toaster />
             </WalletProvider>
           </ThemeProvider>
-        </SessionProvider>
       </body>
     </html>
   )
