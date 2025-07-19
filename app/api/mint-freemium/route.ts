@@ -9,7 +9,6 @@ const FREEMIUM_TOKEN_ID = 0;
 export async function POST(req: NextRequest) {
   const { user_address } = await req.json();
 
-  // Debug: log the address being used
   console.log("Minting freemium NFT to:", user_address);
 
   if (!user_address || !ethers.isAddress(user_address)) {
@@ -33,7 +32,6 @@ export async function POST(req: NextRequest) {
       wallet,
     );
 
-    // Mint to the user's address
     const tx = await contract.mint(
       user_address,
       FREEMIUM_TOKEN_ID,
