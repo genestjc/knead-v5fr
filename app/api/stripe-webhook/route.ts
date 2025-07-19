@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
   const metadata = object?.metadata;
   const user_address = metadata?.user_address;
 
-  // Debug: log the event and address
   console.log(
     "Stripe event:",
     event.type,
