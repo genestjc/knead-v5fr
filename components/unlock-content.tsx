@@ -182,7 +182,7 @@ export function UnlockContent({ children, storySlug }: UnlockContentProps) {
 
   const checkFreemiumLimit = async (walletAddress: string) => {
     try {
-      const response = await fetch("/api/check-article-limit", {
+      const response = await fetch("/api/check-track-article", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
