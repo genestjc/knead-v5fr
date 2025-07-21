@@ -10,57 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Wallet, Shield, BookOpen, CreditCard, CheckCircle, XCircle, Lock, X } from "lucide-react"
+import { Loader2, Wallet, Shield, BookOpen, CreditCard, CheckCircle, XCircle, Lock } from "lucide-react"
 import { UnlockContent } from "@/components/unlock-content"
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json"
 
 const KNEAD_MEMBERSHIP_CONTRACT = {
   address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   tokenIds: { freemium: 0, premium: 1 },
-}
-
-// Stripe embedded checkout component
-function EmbeddedCheckout({ clientSecret, onClose }: { clientSecret: string; onClose: () => void }) {
-  useEffect(() => {
-    const script = document.createElement("script")
-    script.src = "https://js.stripe.com/v3/"
-    script.async = true
-    document.body.appendChild(script)
-
-    script.onload = () => {
-      const stripe = (window as any).Stripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-
-      const checkout = stripe.embeddedCheckout({
-        clientSecret: clientSecret,
-      })
-
-      checkout.mount("#checkout")
-    }
-
-    return () => {
-      document.body.removeChild(script)
-    }
-  }, [clientSecret])
-
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            Upgrade to Premium
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogTitle>
-          <DialogDescription>
-            Complete your subscription to unlock unlimited access. Use test card: 4242 4242 4242 4242
-          </DialogDescription>
-        </DialogHeader>
-        <div id="checkout" className="min-h-[400px]" />
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 export default function TestSandbox() {
@@ -74,8 +30,6 @@ export default function TestSandbox() {
   const [premiumLoading, setPremiumLoading] = useState(false)
   const [trackingRead, setTrackingRead] = useState(false)
   const [mintError, setMintError] = useState("")
-  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null)
-  const [paymentSuccess, setPaymentSuccess] = useState(false)
 
   useEffect(() => {
     if (!account) return
@@ -111,35 +65,6 @@ export default function TestSandbox() {
     fetchReadCount()
     // eslint-disable-next-line
   }, [account])
-
-  // Check for successful payment on page load
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const sessionId = urlParams.get("session_id")
-
-    if (sessionId) {
-      checkSessionStatus(sessionId)
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-    }
-  }, [])
-
-  const checkSessionStatus = async (sessionId: string) => {
-    try {
-      const res = await fetch(`/api/session-status?session_id=${sessionId}`)
-      const data = await res.json()
-
-      if (data.status === "complete" && data.payment_status === "paid") {
-        setPaymentSuccess(true)
-        // Refresh NFT status after successful payment
-        setTimeout(() => {
-          window.location.reload()
-        }, 2000)
-      }
-    } catch (error) {
-      console.error("Error checking session status:", error)
-    }
-  }
 
   const fetchReadCount = async () => {
     if (!account) return
@@ -226,10 +151,10 @@ export default function TestSandbox() {
       })
       const data = await res.json()
 
-      if (data.clientSecret) {
-        setCheckoutClientSecret(data.clientSecret)
+      if (data.url) {
+        window.location.href = data.url
       } else {
-        console.error("No client secret received")
+        console.error("No checkout URL received")
       }
     } catch (error) {
       console.error("Error starting premium flow:", error)
@@ -237,23 +162,9 @@ export default function TestSandbox() {
     setPremiumLoading(false)
   }
 
-  const closeCheckout = () => {
-    setCheckoutClientSecret(null)
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Payment Success Alert */}
-        {paymentSuccess && (
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              Payment successful! Your premium NFT will be minted shortly. Refreshing page...
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-slate-900">Knead Magazine</h1>
@@ -401,7 +312,7 @@ export default function TestSandbox() {
                     <CreditCard className="h-5 w-5" />
                     Upgrade to Premium
                   </CardTitle>
-                  <CardDescription>Unlock unlimited access with embedded Stripe checkout</CardDescription>
+                  <CardDescription>Unlock unlimited access with Stripe checkout</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -414,7 +325,6 @@ export default function TestSandbox() {
                     {premiumLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {hasPremium ? "Premium Active" : "Upgrade to Premium"}
                   </Button>
-                  <p className="text-xs text-slate-500 mt-2 text-center">Test with card: 4242 4242 4242 4242</p>
                 </CardContent>
               </Card>
             </div>
@@ -489,9 +399,6 @@ export default function TestSandbox() {
             </Card>
           </>
         )}
-
-        {/* Embedded Checkout Modal */}
-        {checkoutClientSecret && <EmbeddedCheckout clientSecret={checkoutClientSecret} onClose={closeCheckout} />}
       </div>
     </div>
   )
