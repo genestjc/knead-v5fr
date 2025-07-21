@@ -58,42 +58,37 @@ export default function TestSandbox() {
     setChecking(true);
 
     const checkNFTs = async () => {
-      try {
-        // 2. Pass the ABI to getContract
-        const contract = getContract({
-          client,
-          address: KNEAD_MEMBERSHIP_CONTRACT.address,
-          chain: base,
-          type: "erc1155",
-          abi: kneadMembershipABI, // <-- This is the key fix!
-        });
+  try {
+    const contract = getContract({
+      client,
+      address: KNEAD_MEMBERSHIP_CONTRACT.address,
+      chain: base,
+      type: "erc1155",
+      abi: kneadMembershipABI,
+    });
 
-        const freemiumBalance =
-          await contract.erc1155.balanceOf(
-            account.address,
-            KNEAD_MEMBERSHIP_CONTRACT.tokenIds.freemium,
-          );
-        const premiumBalance =
-          await contract.erc1155.balanceOf(
-            account.address,
-            KNEAD_MEMBERSHIP_CONTRACT.tokenIds.premium,
-          );
+    const freemiumBalance = await contract.read(
+      "balanceOf",
+      [
+        account.address,
+        KNEAD_MEMBERSHIP_CONTRACT.tokenIds.freemium,
+      ],
+    );
+    const premiumBalance = await contract.read(
+      "balanceOf",
+      [
+        account.address,
+        KNEAD_MEMBERSHIP_CONTRACT.tokenIds.premium,
+      ],
+    );
 
-        setHasFreemium(Number(freemiumBalance) > 0);
-        setHasPremium(Number(premiumBalance) > 0);
-      } catch (error) {
-        console.error(
-          "Error checking NFT balances:",
-          error,
-        );
-      }
-      setChecking(false);
-    };
-
-    checkNFTs();
-    fetchReadCount();
-    // eslint-disable-next-line
-  }, [account]);
+    setHasFreemium(Number(freemiumBalance) > 0);
+    setHasPremium(Number(premiumBalance) > 0);
+  } catch (error) {
+    console.error("Error checking NFT balances:", error);
+  }
+  setChecking(false);
+};
 
   const fetchReadCount = async () => {
     if (!account) return;
