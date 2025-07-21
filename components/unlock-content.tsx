@@ -182,22 +182,24 @@ export function UnlockContent({ children, storySlug }: UnlockContentProps) {
 
   const checkFreemiumLimit = async (walletAddress: string) => {
     try {
-      const response = await fetch("/api/check-track-article", {
+      const response = await fetch("/api/track-article", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          walletAddress: walletAddress.toLowerCase(),
-          storySlug,
+          user_address: walletAddress.toLowerCase(),
+          checkOnly: true, // Use your existing checkOnly flag
         }),
       })
 
       const result = await response.json()
 
-      if (result.canRead) {
-        setHasAccess(true)
-        setArticlesRemaining(result.articlesRemaining)
+      if (response.ok) {
+        // If reads < 3, they can access content
+        const canRead = result.reads < 3
+        setHasAccess(canRead)
+        setArticlesRemaining(3 - result.reads)
       } else {
         setHasAccess(false)
         setArticlesRemaining(0)
