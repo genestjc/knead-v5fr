@@ -32,6 +32,9 @@ import {
   XCircle,
 } from "lucide-react";
 
+// 1. Import your ABI
+import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+
 const KNEAD_MEMBERSHIP_CONTRACT = {
   address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   tokenIds: { freemium: 0, premium: 1 },
@@ -53,13 +56,16 @@ export default function TestSandbox() {
   useEffect(() => {
     if (!account) return;
     setChecking(true);
+
     const checkNFTs = async () => {
       try {
+        // 2. Pass the ABI to getContract
         const contract = getContract({
           client,
           address: KNEAD_MEMBERSHIP_CONTRACT.address,
           chain: base,
-          type: "erc1155", // <-- Fix: specify contract type
+          type: "erc1155",
+          abi: kneadMembershipABI, // <-- This is the key fix!
         });
 
         const freemiumBalance =
@@ -194,285 +200,274 @@ export default function TestSandbox() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-slate-900">
-            Knead Magazine
-          </h1>
-          <p className="text-lg text-slate-600">
-            Web3 Membership Test Sandbox
-          </p>
-        </div>
+    <div>
+      {/* Header */}
+      <h1 className="text-2xl font-bold mb-4">
+        Knead Magazine Web3 Membership Test Sandbox
+      </h1>
+      {/* Wallet Connection */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Wallet Connection
+          </CardTitle>
+          <CardDescription>
+            Connect your wallet to test the membership
+            platform
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center space-y-4">
+            <ConnectButton client={client} />
+            {account && (
+              <div className="text-center">
+                <p className="text-sm text-slate-600">
+                  Connected Address:
+                </p>
+                <code className="text-sm bg-slate-100 px-2 py-1 rounded">
+                  {account.address}
+                </code>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Wallet Connection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Wallet Connection
-            </CardTitle>
-            <CardDescription>
-              Connect your wallet to test the membership
-              platform
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center space-y-4">
-              <ConnectButton client={client} />
-              {account && (
-                <div className="text-center">
-                  <p className="text-sm text-slate-600">
-                    Connected Address:
-                  </p>
-                  <code className="text-sm bg-slate-100 px-2 py-1 rounded">
-                    {account.address}
-                  </code>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {account && (
-          <>
-            {/* NFT Ownership Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Membership Status
-                  {checking && (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  Your current NFT ownership on Base chain
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">
-                        Freemium NFT
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        Token ID: 0
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {hasFreemium ? (
-                        <>
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                          <Badge
-                            variant="default"
-                            className="bg-green-100 text-green-800"
-                          >
-                            Owned
-                          </Badge>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-5 w-5 text-red-500" />
-                          <Badge variant="secondary">
-                            Not Owned
-                          </Badge>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">
-                        Premium NFT
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        Token ID: 1
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {hasPremium ? (
-                        <>
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                          <Badge
-                            variant="default"
-                            className="bg-green-100 text-green-800"
-                          >
-                            Owned
-                          </Badge>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-5 w-5 text-red-500" />
-                          <Badge variant="secondary">
-                            Not Owned
-                          </Badge>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Article Read Count */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Article Read Count
-                </CardTitle>
-                <CardDescription>
-                  Track your reading activity
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
+      {account && (
+        <>
+          {/* NFT Ownership Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Membership Status
+                {checking && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+              </CardTitle>
+              <CardDescription>
+                Your current NFT ownership on Base chain
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
-                    <p className="text-2xl font-bold">
-                      {readCount}
-                    </p>
+                    <h3 className="font-medium">
+                      Freemium NFT
+                    </h3>
                     <p className="text-sm text-slate-600">
-                      Articles read
+                      Token ID: 0
                     </p>
                   </div>
-                  <Button
-                    onClick={trackRead}
-                    disabled={trackingRead}
-                    variant="outline"
-                  >
-                    {trackingRead && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="flex items-center gap-2">
+                    {hasFreemium ? (
+                      <>
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <Badge
+                          variant="default"
+                          className="bg-green-100 text-green-800"
+                        >
+                          Owned
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-5 w-5 text-red-500" />
+                        <Badge variant="secondary">
+                          Not Owned
+                        </Badge>
+                      </>
                     )}
-                    Track New Read
-                  </Button>
+                  </div>
                 </div>
-                {readError && (
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h3 className="font-medium">
+                      Premium NFT
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Token ID: 1
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasPremium ? (
+                      <>
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <Badge
+                          variant="default"
+                          className="bg-green-100 text-green-800"
+                        >
+                          Owned
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-5 w-5 text-red-500" />
+                        <Badge variant="secondary">
+                          Not Owned
+                        </Badge>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Article Read Count */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Article Read Count
+              </CardTitle>
+              <CardDescription>
+                Track your reading activity
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold">
+                    {readCount}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    Articles read
+                  </p>
+                </div>
+                <Button
+                  onClick={trackRead}
+                  disabled={trackingRead}
+                  variant="outline"
+                >
+                  {trackingRead && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Track New Read
+                </Button>
+              </div>
+              {readError && (
+                <Alert className="mt-4">
+                  <AlertDescription className="text-red-600">
+                    {readError}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          {/* Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Mint Freemium */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Mint Freemium NFT</CardTitle>
+                <CardDescription>
+                  Get your free membership NFT to start
+                  reading
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={mintFreemium}
+                  disabled={minting || hasFreemium}
+                  className="w-full"
+                  size="lg"
+                >
+                  {minting && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {hasFreemium
+                    ? "Already Owned"
+                    : "Mint Freemium NFT"}
+                </Button>
+                {mintError && (
                   <Alert className="mt-4">
                     <AlertDescription className="text-red-600">
-                      {readError}
+                      {mintError}
                     </AlertDescription>
                   </Alert>
                 )}
               </CardContent>
             </Card>
 
-            <Separator />
-
-            {/* Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Mint Freemium */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Mint Freemium NFT</CardTitle>
-                  <CardDescription>
-                    Get your free membership NFT to start
-                    reading
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={mintFreemium}
-                    disabled={minting || hasFreemium}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {minting && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    {hasFreemium
-                      ? "Already Owned"
-                      : "Mint Freemium NFT"}
-                  </Button>
-                  {mintError && (
-                    <Alert className="mt-4">
-                      <AlertDescription className="text-red-600">
-                        {mintError}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Upgrade to Premium */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5" />
-                    Upgrade to Premium
-                  </CardTitle>
-                  <CardDescription>
-                    Unlock unlimited access with Stripe
-                    checkout
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={startPremium}
-                    disabled={premiumLoading || hasPremium}
-                    className="w-full"
-                    size="lg"
-                    variant={
-                      hasPremium ? "secondary" : "default"
-                    }
-                  >
-                    {premiumLoading && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    {hasPremium
-                      ? "Premium Active"
-                      : "Upgrade to Premium"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Contract Info */}
+            {/* Upgrade to Premium */}
             <Card>
               <CardHeader>
-                <CardTitle>Contract Information</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Upgrade to Premium
+                </CardTitle>
                 <CardDescription>
-                  ERC1155 contract details for testing
+                  Unlock unlimited access with Stripe
+                  checkout
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium">
-                      Contract Address:
-                    </span>
-                    <code className="ml-2 bg-slate-100 px-2 py-1 rounded">
-                      {KNEAD_MEMBERSHIP_CONTRACT.address}
-                    </code>
-                  </div>
-                  <div>
-                    <span className="font-medium">
-                      Chain:
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className="ml-2"
-                    >
-                      Base
-                    </Badge>
-                  </div>
-                  <div>
-                    <span className="font-medium">
-                      Token IDs:
-                    </span>
-                    <span className="ml-2">
-                      Freemium: 0, Premium: 1
-                    </span>
-                  </div>
-                </div>
+                <Button
+                  onClick={startPremium}
+                  disabled={premiumLoading || hasPremium}
+                  className="w-full"
+                  size="lg"
+                  variant={
+                    hasPremium ? "secondary" : "default"
+                  }
+                >
+                  {premiumLoading && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {hasPremium
+                    ? "Premium Active"
+                    : "Upgrade to Premium"}
+                </Button>
               </CardContent>
             </Card>
-          </>
-        )}
-      </div>
+          </div>
+
+          {/* Contract Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contract Information</CardTitle>
+              <CardDescription>
+                ERC1155 contract details for testing
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="font-medium">
+                    Contract Address:
+                  </span>
+                  <code className="ml-2 bg-slate-100 px-2 py-1 rounded">
+                    {KNEAD_MEMBERSHIP_CONTRACT.address}
+                  </code>
+                </div>
+                <div>
+                  <span className="font-medium">
+                    Chain:
+                  </span>
+                  <Badge variant="outline" className="ml-2">
+                    Base
+                  </Badge>
+                </div>
+                <div>
+                  <span className="font-medium">
+                    Token IDs:
+                  </span>
+                  <span className="ml-2">
+                    Freemium: 0, Premium: 1
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
