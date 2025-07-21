@@ -178,7 +178,24 @@ export default function TestSandbox() {
     setTrackingRead(false);
   };
 
-  // Embedded Stripe Checkout logic
+  // Helper to load Stripe Embedded Checkout script only once
+  const loadStripeScript = () => {
+    return new Promise<void>((resolve, reject) => {
+      if (document.getElementById("stripe-embedded-js")) {
+        resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.id = "stripe-embedded-js";
+      script.src = "https://js.stripe.com/v3/embedded.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () =>
+        reject(new Error("Failed to load Stripe script"));
+      document.body.appendChild(script);
+    });
+  };
+
   const startPremium = async () => {
     if (!account) return;
     setPremiumLoading(true);
@@ -203,17 +220,34 @@ export default function TestSandbox() {
           data.error || "Failed to create Stripe session",
         );
 
-      // 2. Load Stripe Embedded Checkout JS if not already loaded
-      if (!document.getElementById("stripe-embedded-js")) {
-        const script = document.createElement("script");
-        script.id = "stripe-embedded-js";
-        script.src = "https://js.stripe.com/v3/embedded.js";
-        script.async = true;
-        script.onload = () =>
-          mountStripeCheckout(data.clientSecret);
-        document.body.appendChild(script);
+      // 2. Load Stripe Embedded Checkout JS
+      await loadStripeScript();
+
+      // 3. Mount the Stripe Embedded Checkout
+      // Clear the container before mounting
+      const container = document.getElementById(
+        "stripe-checkout",
+      );
+      if (container) container.innerHTML = "";
+
+      // @ts-ignore
+      if (
+        window.Stripe &&
+        window.Stripe.initEmbeddedCheckout
+      ) {
+        // @ts-ignore
+        window.Stripe.initEmbeddedCheckout({
+          clientSecret: data.clientSecret,
+          appearance: { theme: "flat" },
+          onComplete: () => {
+            window.location.href =
+              "/test-sandbox?success=1";
+          },
+        }).mount("#stripe-checkout");
       } else {
-        mountStripeCheckout(data.clientSecret);
+        setStripeError(
+          "Stripe Embedded Checkout failed to initialize.",
+        );
       }
     } catch (error: any) {
       setStripeError(
@@ -222,26 +256,6 @@ export default function TestSandbox() {
       setShowStripe(false);
     }
     setPremiumLoading(false);
-  };
-
-  // Mount the Stripe Embedded Checkout
-  const mountStripeCheckout = (clientSecret: string) => {
-    // @ts-ignore
-    if (
-      window.Stripe &&
-      window.Stripe.initEmbeddedCheckout
-    ) {
-      // @ts-ignore
-      window.Stripe.initEmbeddedCheckout({
-        clientSecret,
-        // The container must be empty before mounting
-        appearance: { theme: "flat" },
-        onComplete: () => {
-          // Optionally, you can refetch balances or redirect
-          window.location.href = "/test-sandbox?success=1";
-        },
-      }).mount("#stripe-checkout");
-    }
   };
 
   return (
