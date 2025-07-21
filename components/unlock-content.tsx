@@ -15,7 +15,7 @@ const client = createThirdwebClient({
 // NFT Collections that provide access to all content
 const MEMBERSHIP_CONTRACTS = [
   {
-    address: process.env.NEXT_PUBLIC_THIRDWEB_NFT_CONTRACT_ADDRESS!, // Main Knead Membership
+    address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!, // Main Knead Membership
     name: "Knead Membership",
     type: "erc1155",
     tokenIds: {
