@@ -8,7 +8,7 @@ import {
 } from "@stripe/react-stripe-js";
 
 const stripePromise = loadStripe(
-  "pk_test_51RT7RWLFxM3QV6cipWySqQ7Z9960apeyI2R7RVu29xSY2N1CT1dZwvagvZwEsbsEvbildSwuxota3BmfvxFapV0D00wpWvlVjJ",
+  "pk_live_51RT7RWLFxM3QV6cigTQXxvlbx83XWvkE4Vdi2bfFV0rMkAYxAJMg954ce3rHqyaNHYq3gzCfyfKsVJA4duJu3CtY00wRDys2zh",
 );
 
 function SubscriptionForm({
