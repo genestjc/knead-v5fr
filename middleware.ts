@@ -38,16 +38,16 @@ export function middleware(request: NextRequest) {
 
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://vercel.live;
-    style-src 'self' 'unsafe-inline' https://use.typekit.net;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://vercel.live https://use.typekit.net;
+    style-src 'self' 'unsafe-inline' https://use.typekit.net https://p.typekit.net;
     img-src 'self' blob: data: https://cdn.sanity.io https://lh3.googleusercontent.com;
-    font-src 'self' https://use.typekit.net;
+    font-src 'self' https://use.typekit.net https://p.typekit.net;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
-    frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://embedded-wallet.thirdweb.com;
-    connect-src 'self' https://api.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com;
+    frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://embedded-wallet.thirdweb.com https://vercel.live;
+    connect-src 'self' https://api.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com;
     upgrade-insecure-requests;
   `;
 
