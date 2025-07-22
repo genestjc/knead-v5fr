@@ -74,7 +74,7 @@ function SubscriptionForm({
           fonts: [
             {
               cssSrc:
-                "https://use.typekit.net/your-adonis-kit.css", // Replace with your Typekit kit
+                "https://use.typekit.net/gne1bgd.css",
             },
             {
               cssSrc:
