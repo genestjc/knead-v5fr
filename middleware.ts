@@ -18,9 +18,37 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  return NextResponse.next()
+  // Add Content Security Policy for all routes
+  const response = NextResponse.next()
+
+  const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' blob: data: https://cdn.sanity.io https://lh3.googleusercontent.com;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    frame-src 'self' https://js.stripe.com https://hooks.stripe.com;
+    connect-src 'self' https://api.stripe.com;
+    upgrade-insecure-requests;
+  `
+
+  response.headers.set("Content-Security-Policy", cspHeader.replace(/\s{2,}/g, " ").trim())
+
+  return response
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
 }
