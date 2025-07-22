@@ -45,7 +45,7 @@ export function middleware(request: NextRequest) {
     form-action 'self';
     frame-ancestors 'none';
     frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://embedded-wallet.thirdweb.com https://vercel.live;
-    connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com;
+    connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com https://use.typekit.net https://fonts.googleapis.com;
     upgrade-insecure-requests;
   `
     .replace(/\s{2,}/g, " ")
