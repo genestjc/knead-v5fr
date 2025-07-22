@@ -1,17 +1,13 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+// app/api/create-subscription/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-04-10",
 });
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method !== "POST") return res.status(405).end();
-
-  const { email, user_address } = req.body;
+export async function POST(req: NextRequest) {
+  const { email, user_address } = await req.json();
 
   try {
     // 1. Create or retrieve customer
@@ -40,11 +36,14 @@ export default async function handler(
     const paymentIntent = (
       subscription.latest_invoice as any
     ).payment_intent;
-    res.status(200).json({
+    return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
       subscriptionId: subscription.id,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 },
+    );
   }
 }
