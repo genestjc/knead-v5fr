@@ -33,10 +33,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Extract relevant data from the event
   const object = event.data.object as any;
   const metadata = object?.metadata;
   const user_address = metadata?.user_address;
 
+  // Set up ethers provider and contract
   const provider = new ethers.JsonRpcProvider(
     process.env.BASE_RPC_URL!,
   );
@@ -51,9 +53,10 @@ export async function POST(req: NextRequest) {
   );
 
   try {
+    // Mint NFT on subscription creation or successful payment
     if (
-      (event.type === "checkout.session.completed" ||
-        event.type === "customer.subscription.created") &&
+      (event.type === "customer.subscription.created" ||
+        event.type === "invoice.payment_succeeded") &&
       user_address
     ) {
       const tx = await contract.mint(
@@ -64,6 +67,7 @@ export async function POST(req: NextRequest) {
       await tx.wait();
     }
 
+    // Burn/revoke NFT on subscription cancellation or payment failure
     if (
       (event.type === "customer.subscription.deleted" ||
         event.type === "invoice.payment_failed") &&
@@ -76,6 +80,11 @@ export async function POST(req: NextRequest) {
       );
       await tx.wait();
     }
+
+    // Optionally, handle subscription updates (e.g., upgrades/downgrades)
+    // if (event.type === "customer.subscription.updated") {
+    //   // Add custom logic here if needed
+    // }
   } catch (err: any) {
     return new NextResponse(err.message, { status: 500 });
   }
