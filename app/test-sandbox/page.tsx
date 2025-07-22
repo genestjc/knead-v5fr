@@ -5,7 +5,7 @@ import {
   ConnectButton,
   useActiveAccount,
 } from "thirdweb/react";
-import { getContract } from "thirdweb";
+import { getContract, readContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client } from "@/thirdweb-client";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { UnlockContent } from "@/components/unlock-content";
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+import StripeSubscription from "@/components/StripeSubscription";
 
 const KNEAD_MEMBERSHIP_CONTRACT = {
   address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
@@ -48,12 +49,8 @@ export default function TestSandbox() {
   const [readError, setReadError] = useState("");
   const [minting, setMinting] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [premiumLoading, setPremiumLoading] =
-    useState(false);
   const [trackingRead, setTrackingRead] = useState(false);
   const [mintError, setMintError] = useState("");
-  const [showStripe, setShowStripe] = useState(false);
-  const [stripeError, setStripeError] = useState("");
 
   useEffect(() => {
     if (!account) return;
@@ -67,21 +64,25 @@ export default function TestSandbox() {
           abi: kneadMembershipABI,
         });
 
-        // Call balanceOf directly using the generic read method
-        const freemiumBalance = await contract.read(
-          "balanceOf",
-          [
+        const freemiumBalance = await readContract({
+          contract,
+          method:
+            "function balanceOf(address, uint256) view returns (uint256)",
+          params: [
             account.address,
             KNEAD_MEMBERSHIP_CONTRACT.tokenIds.freemium,
           ],
-        );
-        const premiumBalance = await contract.read(
-          "balanceOf",
-          [
+        });
+
+        const premiumBalance = await readContract({
+          contract,
+          method:
+            "function balanceOf(address, uint256) view returns (uint256)",
+          params: [
             account.address,
             KNEAD_MEMBERSHIP_CONTRACT.tokenIds.premium,
           ],
-        );
+        });
 
         setHasFreemium(Number(freemiumBalance) > 0);
         setHasPremium(Number(premiumBalance) > 0);
@@ -173,84 +174,6 @@ export default function TestSandbox() {
       console.error("Error tracking read:", error);
     }
     setTrackingRead(false);
-  };
-
-  // Stripe Embedded Checkout logic
-  const loadStripeScript = () => {
-    return new Promise<void>((resolve, reject) => {
-      if (document.getElementById("stripe-embedded-js")) {
-        resolve();
-        return;
-      }
-      const script = document.createElement("script");
-      script.id = "stripe-embedded-js";
-      script.src = "https://js.stripe.com/v3/embedded.js";
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () =>
-        reject(new Error("Failed to load Stripe script"));
-      document.body.appendChild(script);
-    });
-  };
-
-  const startPremium = async () => {
-    if (!account) return;
-    setPremiumLoading(true);
-    setStripeError("");
-    setShowStripe(true);
-
-    try {
-      // Use your new endpoint for embedded checkout
-      const res = await fetch(
-        "/api/create-stripe-session",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_address: account.address,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok || !data.clientSecret)
-        throw new Error(
-          data.error || "Failed to create Stripe session",
-        );
-
-      await loadStripeScript();
-
-      // Clear the container before mounting
-      const container = document.getElementById(
-        "stripe-checkout",
-      );
-      if (container) container.innerHTML = "";
-
-      // @ts-ignore
-      if (
-        window.Stripe &&
-        window.Stripe.initEmbeddedCheckout
-      ) {
-        // @ts-ignore
-        window.Stripe.initEmbeddedCheckout({
-          clientSecret: data.clientSecret,
-          appearance: { theme: "flat" },
-          onComplete: () => {
-            window.location.href =
-              "/test-sandbox?success=1";
-          },
-        }).mount("#stripe-checkout");
-      } else {
-        setStripeError(
-          "Stripe Embedded Checkout failed to initialize.",
-        );
-      }
-    } catch (error: any) {
-      setStripeError(
-        error.message || "Error starting premium flow",
-      );
-      setShowStripe(false);
-    }
-    setPremiumLoading(false);
   };
 
   return (
@@ -467,48 +390,29 @@ export default function TestSandbox() {
                   </CardTitle>
                   <CardDescription>
                     Unlock unlimited access with Stripe
-                    Embedded Checkout
+                    Subscription
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {!showStripe ? (
+                  {hasPremium ? (
                     <Button
-                      onClick={startPremium}
-                      disabled={
-                        premiumLoading || hasPremium
-                      }
+                      disabled
                       className="w-full"
                       size="lg"
-                      variant={
-                        hasPremium ? "secondary" : "default"
-                      }
+                      variant="secondary"
                     >
-                      {premiumLoading && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      {hasPremium
-                        ? "Premium Active"
-                        : "Upgrade to Premium"}
+                      Premium Active
                     </Button>
                   ) : (
-                    <div>
-                      <div
-                        id="stripe-checkout"
-                        className="w-full"
-                      />
-                      <p className="text-xs text-slate-500 mt-2">
-                        Use Stripe test card{" "}
-                        <b>4242 4242 4242 4242</b> with any
-                        future date, CVC, and ZIP.
-                      </p>
-                      {stripeError && (
-                        <Alert className="mt-4">
-                          <AlertDescription className="text-red-600">
-                            {stripeError}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
+                    <StripeSubscription
+                      email={
+                        account?.email || "user@example.com"
+                      } // Replace with actual user email if available
+                      user_address={account.address}
+                      onSuccess={() => {
+                        setHasPremium(true);
+                      }}
+                    />
                   )}
                 </CardContent>
               </Card>
