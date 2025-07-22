@@ -38,7 +38,7 @@ export function middleware(request: NextRequest) {
     default-src 'self';
     script-src 'self' 'unsafe-inline' https://js.stripe.com https://vercel.live https://use.typekit.net;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net https://p.typekit.net;
-    img-src 'self' blob: data: https://cdn.sanity.io https://lh3.googleusercontent.com;
+    img-src 'self' blob: data: https://cdn.sanity.io https://lh3.googleusercontent.com https://vercel.com;
     font-src 'self' https://fonts.gstatic.com https://use.typekit.net https://p.typekit.net;
     object-src 'none';
     base-uri 'self';
