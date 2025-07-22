@@ -7,7 +7,9 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-const stripePromise = loadStripe("pk_test_51RT7RWLFxM3QV6cipWySqQ7Z9960apeyI2R7RVu29xSY2N1CT1dZwvagvZwEsbsEvbildSwuxota3BmfvxFapV0D00wpWvlVjJ"); // Replace with your Stripe test publishable key
+const stripePromise = loadStripe(
+  "pk_test_51RT7RWLFxM3QV6cipWySqQ7Z9960apeyI2R7RVu29xSY2N1CT1dZwvagvZwEsbsEvbildSwuxota3BmfvxFapV0D00wpWvlVjJ",
+);
 
 function SubscriptionForm({
   onSuccess,
@@ -19,13 +21,18 @@ function SubscriptionForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track if PaymentElement is mounted
+  const [elementReady, setElementReady] = useState(false);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    if (!stripe || !elements) {
-      setError("Stripe is not loaded yet.");
+    if (!stripe || !elements || !elementReady) {
+      setError(
+        "Payment form is not ready. Please wait and try again.",
+      );
       setLoading(false);
       return;
     }
@@ -49,10 +56,12 @@ function SubscriptionForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <PaymentElement />
+      <PaymentElement
+        onReady={() => setElementReady(true)}
+      />
       <button
         type="submit"
-        disabled={!stripe || loading}
+        disabled={!stripe || loading || !elementReady}
         style={{ marginTop: 16 }}
       >
         {loading ? "Processing..." : "Subscribe"}
@@ -78,18 +87,24 @@ export default function StripeSubscription({
   const [clientSecret, setClientSecret] = useState<
     string | null
   >(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch("/api/create-subscription", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, user_address }),
     })
       .then((res) => res.json())
-      .then((data) => setClientSecret(data.clientSecret));
+      .then((data) => {
+        setClientSecret(data.clientSecret);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [email, user_address]);
 
-  if (!clientSecret)
+  if (loading || !clientSecret)
     return <div>Loading payment form...</div>;
 
   return (
