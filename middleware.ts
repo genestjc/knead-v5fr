@@ -36,16 +36,57 @@ export function middleware(request: NextRequest) {
   // Add Content Security Policy for all routes
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' https://js.stripe.com https://vercel.live https://use.typekit.net;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://use.typekit.net https://p.typekit.net;
-    img-src 'self' blob: data: https://cdn.sanity.io https://lh3.googleusercontent.com https://vercel.com;
-    font-src 'self' https://fonts.gstatic.com https://use.typekit.net https://p.typekit.net;
+    script-src 'self' 'unsafe-inline'
+      https://js.stripe.com
+      https://vercel.live
+      https://use.typekit.net
+      https://www.youtube.com
+      https://www.youtube-nocookie.com
+      https://platform.twitter.com
+      https://www.instagram.com
+      https://static.cdninstagram.com;
+    style-src 'self' 'unsafe-inline'
+      https://fonts.googleapis.com
+      https://use.typekit.net
+      https://p.typekit.net
+      https://www.instagram.com;
+    img-src 'self' blob: data:
+      https://cdn.sanity.io
+      https://lh3.googleusercontent.com
+      https://vercel.com
+      https://pbs.twimg.com
+      https://www.instagram.com
+      https://static.cdninstagram.com;
+    font-src 'self'
+      https://fonts.gstatic.com
+      https://use.typekit.net
+      https://p.typekit.net;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
-    frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://embedded-wallet.thirdweb.com https://vercel.live;
-    connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com https://use.typekit.net https://fonts.googleapis.com;
+    frame-src 'self'
+      https://js.stripe.com
+      https://hooks.stripe.com
+      https://checkout.stripe.com
+      https://embedded-wallet.thirdweb.com
+      https://vercel.live
+      https://www.youtube.com
+      https://www.youtube-nocookie.com
+      https://platform.twitter.com
+      https://twitter.com
+      https://www.instagram.com
+      https://static.cdninstagram.com;
+    connect-src 'self'
+      https://api.stripe.com
+      https://checkout.stripe.com
+      https://c.thirdweb.com
+      https://embedded-wallet.thirdweb.com
+      https://social.thirdweb.com
+      https://1.rpc.thirdweb.com
+      https://8453.rpc.thirdweb.com
+      https://use.typekit.net
+      https://fonts.googleapis.com;
     upgrade-insecure-requests;
   `
     .replace(/\s{2,}/g, " ")
