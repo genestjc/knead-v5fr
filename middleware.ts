@@ -46,8 +46,8 @@ export function middleware(request: NextRequest) {
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
-    frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://embedded-wallet.thirdweb.com https://vercel.live;
-    connect-src 'self' https://api.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com;
+    frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://embedded-wallet.thirdweb.com https://vercel.live;
+    connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://c.thirdweb.com https://embedded-wallet.thirdweb.com https://social.thirdweb.com https://1.rpc.thirdweb.com https://8453.rpc.thirdweb.com;
     upgrade-insecure-requests;
   `;
 
@@ -61,12 +61,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
