@@ -1,0 +1,50 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-04-10",
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST") return res.status(405).end();
+
+  const { email, user_address } = req.body;
+
+  try {
+    // 1. Create or retrieve customer
+    const customers = await stripe.customers.list({
+      email,
+      limit: 1,
+    });
+    let customer = customers.data[0];
+    if (!customer) {
+      customer = await stripe.customers.create({
+        email,
+        metadata: { user_address },
+      });
+    }
+
+    // 2. Create subscription with payment_behavior: "default_incomplete"
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: process.env.STRIPE_PRICE_ID! }],
+      payment_behavior: "default_incomplete",
+      expand: ["latest_invoice.payment_intent"],
+      metadata: { user_address },
+    });
+
+    // 3. Get client_secret from PaymentIntent
+    const paymentIntent = (
+      subscription.latest_invoice as any
+    ).payment_intent;
+    res.status(200).json({
+      clientSecret: paymentIntent.client_secret,
+      subscriptionId: subscription.id,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
