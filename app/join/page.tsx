@@ -1,77 +1,119 @@
+"use client"
+
+import { useState } from "react"
+import { useActiveAccount } from "thirdweb/react"
 import { Header } from "@/components/header"
-import { ExternalLink } from "lucide-react"
+import StripeSubscription from "@/components/StripeSubscription"
+import { Modal } from "@/components/modal"
+import { FAQDropdown } from "@/components/faq-dropdown"
+import { ThirdwebConnectButton } from "@/components/thirdweb-connect-button"
 
 export default function JoinPage() {
+  const account = useActiveAccount()
+  const [showStripe, setShowStripe] = useState(false)
+  const [email, setEmail] = useState("")
+
+  const handleSubscriptionSuccess = () => {
+    setShowStripe(false)
+    // Handle successful subscription
+  }
+
   return (
     <main className="min-h-screen">
       <Header />
 
       <section className="py-16 md:py-24">
         <div className="container-magazine">
-          <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float">Become a member</h1>
+          <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float">
+            Join Knead Monthly to have access to:
+          </h1>
 
-          <div className="prose max-w-none font-georgia-pro mb-12 cloud-float-delay-1">
-            <p className="text-lg">
-              Join The Breadwinner's Club to access exclusive stories, member events, and early access to our shop
-              drops.
-            </p>
+          <div className="mb-12 cloud-float-delay-1">
+            <ul className="space-y-4 font-georgia-pro text-lg">
+              <li>• Unlimited access to stories.</li>
+              <li>• Access to The Groupchat.</li>
+              <li>• Priority access to our shop, events, and other activations.</li>
+            </ul>
           </div>
 
           <div className="flex justify-center mb-12 cloud-float-delay-2">
-            {/* The Breadwinner's Club - Only Option */}
+            {/* Knead Monthly - Only Option */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full">
-              <h3 className="font-adonis text-2xl mb-4">The Breadwinner's Club</h3>
+              <h3 className="font-adonis text-2xl mb-4">Knead Monthly</h3>
               <p className="text-4xl font-adonis mb-4">
-                0.0042 ETH<span className="text-base font-adonis text-gray-600">/year</span>
+                $5<span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <p className="font-georgia-pro mb-4">
-                The Breadwinner's Club is our exclusive group chat hosted on Towns. Its benefits include:
+              <p className="font-georgia-pro mb-6">
+                Get unlimited access to all our stories, join The Groupchat, and enjoy priority access to our shop and
+                events.
               </p>
-              <ul className="space-y-2 mb-6 font-georgia-pro">
-                <li>• A 2025 Knead Annual Membership, accessing all our exclusive stories</li>
-                <li>• Access to real-time interviews and AMAs</li>
-                <li>• Priority access to our shop, events, and other perks</li>
-              </ul>
-              <p className="text-sm italic mb-8 font-georgia-pro">
-                The Breadwinner's Club is issued in small batches, currently capped at 1,000 members.
-              </p>
-              <a
-                href="https://app.towns.com/t/0x0e70ab324e8761e97f131eecc4dd63dfde33cb72/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
-              >
-                Join The Breadwinner's Club
-                <ExternalLink size={16} />
-              </a>
+
+              {account?.address ? (
+                <button
+                  onClick={() => setShowStripe(true)}
+                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
+                >
+                  Subscribe to Knead Monthly
+                </button>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 font-georgia-pro mb-4">Connect your wallet to subscribe</p>
+                  <ThirdwebConnectButton />
+                </div>
+              )}
             </div>
           </div>
 
           {/* FAQ Section */}
           <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
-            <h3 className="font-adonis text-xl italic mb-4 cloud-float-delay-4">
-              What if I already signed up for a 2025 Annual or Shift Meal membership?
-            </h3>
-            <p className="mb-8 font-georgia-pro">
-              Those memberships are already included in our paywall. Connect your wallet to verify.
-            </p>
+            <h2 className="font-adonis text-3xl mb-8 text-center">Frequently Asked Questions</h2>
 
-            <h3 className="font-adonis text-xl italic mb-4">How do I use my Breadwinner's Club membership?</h3>
-            <p className="mb-4 font-georgia-pro">
-              You need to transfer the NFT into a wallet compatible with ThirdWeb (I.E., MetaMask, Rainbow Wallet,
-              etc).
-            </p>
+            <div className="max-w-3xl mx-auto space-y-2">
+              <FAQDropdown
+                question="What if I already signed up for a 2025 Annual or Shift Meal membership?"
+                answer="Those memberships are already included in our paywall. Connect your wallet to verify your existing membership status."
+              />
 
-            <h3 className="font-adonis text-xl italic mb-4">My membership isn't working.</h3>
-            <p className="mb-8 font-georgia-pro">
-              Email us at{" "}
-              <a href="mailto:info@kneadmag.com" className="text-blue-600 hover:underline">
-                info@kneadmag.com
-              </a>
-            </p>
+              <FAQDropdown
+                question="How do I use my Knead Monthly membership?"
+                answer="You need to transfer the NFT into a wallet compatible with ThirdWeb (I.E., MetaMask, Rainbow Wallet, etc). Once connected, your membership will be automatically verified."
+              />
+
+              <FAQDropdown
+                question="My membership isn't working."
+                answer="Email us at info@kneadmag.com and we'll help resolve any issues with your membership access."
+              />
+
+              <FAQDropdown
+                question="Can I cancel my subscription anytime?"
+                answer="Yes, you can cancel your Knead Monthly subscription at any time. Your access will continue until the end of your current billing period."
+              />
+
+              <FAQDropdown
+                question="What is The Groupchat?"
+                answer="The Groupchat is our exclusive member community where you can connect with other food enthusiasts, participate in discussions, and get early access to content and events."
+              />
+
+              <FAQDropdown
+                question="Do you offer student discounts?"
+                answer="We currently don't offer student discounts, but we occasionally run promotional pricing. Follow us on social media or subscribe to our newsletter to stay updated on special offers."
+              />
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Stripe Modal */}
+      <Modal open={showStripe} onClose={() => setShowStripe(false)}>
+        <div className="pt-4">
+          <h2 className="text-2xl mb-6 text-center text-black font-adonis">Join Knead Monthly</h2>
+          <p className="text-center text-gray-600 font-georgia-pro mb-6">$5/month • Cancel anytime</p>
+
+          {account?.address && (
+            <StripeSubscription email={email} user_address={account.address} onSuccess={handleSubscriptionSuccess} />
+          )}
+        </div>
+      </Modal>
     </main>
   )
 }

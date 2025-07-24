@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { WalletProvider } from "@/components/wallet-provider"
 import { Footer } from "@/components/footer"
 import { Toaster } from "@/components/ui/toaster"
+import { MembershipProvider } from "@/components/membership-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,13 +27,15 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://use.typekit.net/gne1bgd.css" />
       </head>
       <body className={inter.className}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <WalletProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <WalletProvider>
+            <MembershipProvider>
               {children}
               <Footer />
               <Toaster />
-            </WalletProvider>
-          </ThemeProvider>
+            </MembershipProvider>
+          </WalletProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
