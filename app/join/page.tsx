@@ -7,11 +7,12 @@ import StripeSubscription from "@/components/StripeSubscription"
 import { Modal } from "@/components/modal"
 import { FAQDropdown } from "@/components/faq-dropdown"
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
+import { useMembership } from "@/components/membership-provider"
 
 export default function JoinPage() {
   const account = useActiveAccount()
+  const { userEmail } = useMembership()
   const [showStripe, setShowStripe] = useState(false)
-  const [email, setEmail] = useState("")
 
   const handleSubscriptionSuccess = () => {
     setShowStripe(false)
@@ -110,7 +111,11 @@ export default function JoinPage() {
           <p className="text-center text-gray-600 font-georgia-pro mb-6">$5/month • Cancel anytime</p>
 
           {account?.address && (
-            <StripeSubscription email={email} user_address={account.address} onSuccess={handleSubscriptionSuccess} />
+            <StripeSubscription
+              email={userEmail || ""}
+              user_address={account.address}
+              onSuccess={handleSubscriptionSuccess}
+            />
           )}
         </div>
       </Modal>

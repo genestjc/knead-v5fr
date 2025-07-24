@@ -167,22 +167,6 @@ export default async function PostPage({ params }: PostPageProps) {
       }
     }
 
-    // Extract text content safely
-    const getTextContent = () => {
-      try {
-        if (post.body && Array.isArray(post.body)) {
-          const text = extractTextFromBlocks(post.body)
-          return text || post.excerpt || "Article content is being prepared..."
-        }
-        return post.excerpt || "Article content is being prepared..."
-      } catch (error) {
-        console.error("Error extracting text content:", error)
-        return post.excerpt || "Article content is being prepared..."
-      }
-    }
-
-    const textContent = getTextContent()
-
     return (
       <>
         <Header />
