@@ -6,7 +6,7 @@ import { Header } from "@/components/header"
 import StripeSubscription from "@/components/StripeSubscription"
 import { Modal } from "@/components/modal"
 import { FAQDropdown } from "@/components/faq-dropdown"
-import { ThirdwebConnectButton } from "@/components/thirdweb-connect-button"
+import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
 
 export default function JoinPage() {
   const account = useActiveAccount()
@@ -58,7 +58,7 @@ export default function JoinPage() {
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 font-georgia-pro mb-4">Connect your wallet to subscribe</p>
-                  <ThirdwebConnectButton />
+                  <ThirdWebConnectButton />
                 </div>
               )}
             </div>
