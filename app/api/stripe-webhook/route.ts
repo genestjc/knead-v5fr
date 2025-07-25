@@ -1,141 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
-import { ethers } from "ethers";
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
-import { sendEmail } from "@/lib/sendEmail";
-import {
-  premiumWelcomeEmail,
-  cancellationEmail,
-} from "@/lib/emailTemplates";
+import { upsertPaidUser } from "@/lib/supabaseUser";
+// Import your NFT mint/burn logic here
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-04-10",
+  apiVersion: "2023-08-16",
 });
 
-const CONTRACT_ADDRESS =
-  "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
-const PREMIUM_TOKEN_ID = 1;
+export const config = { api: { bodyParser: false } };
 
-export async function POST(req: NextRequest) {
-  const rawBody = await req.arrayBuffer();
-  const sig = req.headers.get("stripe-signature") as string;
-
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  const sig = req.headers["stripe-signature"]!;
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(
-      Buffer.from(rawBody),
+      req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!,
     );
-  } catch (err: any) {
-    console.error(
-      "Stripe webhook signature verification failed:",
-      err,
-    );
-    return new NextResponse(
-      `Webhook Error: ${err.message}`,
-      { status: 400 },
-    );
+  } catch (err) {
+    return res
+      .status(400)
+      .send(`Webhook Error: ${(err as Error).message}`);
   }
 
-  const object = event.data.object as any;
-  const metadata = object?.metadata;
-  const user_address = metadata?.user_address;
+  if (event.type === "checkout.session.completed") {
+    const session = event.data
+      .object as Stripe.Checkout.Session;
+    const wallet = session.metadata?.wallet_address;
+    const email = session.customer_email;
 
-  // Try to get email from event object or fetch from Stripe if needed
-  let email =
-    object?.customer_email ||
-    object?.email ||
-    metadata?.email;
-  if (!email && object?.customer) {
-    try {
-      const customer = await stripe.customers.retrieve(
-        object.customer,
-      );
-      if (typeof customer === "object" && customer.email) {
-        email = customer.email;
-      }
-    } catch (e) {
-      // Ignore, email will be undefined if not found
+    if (wallet && email) {
+      await upsertPaidUser(wallet, email);
+      // Mint premium NFT to wallet here
     }
   }
 
-  const provider = new ethers.JsonRpcProvider(
-    process.env.BASE_RPC_URL!,
-  );
-  const wallet = new ethers.Wallet(
-    process.env.THIRDWEB_PRIVATE_KEY!,
-    provider,
-  );
-  const contract = new ethers.Contract(
-    CONTRACT_ADDRESS,
-    kneadMembershipABI,
-    wallet,
-  );
-
-  try {
-    // Mint NFT on subscription creation or successful payment
-    if (
-      (event.type === "customer.subscription.created" ||
-        event.type === "invoice.payment_succeeded") &&
-      user_address
-    ) {
-      const tx = await contract.mint(
-        user_address,
-        PREMIUM_TOKEN_ID,
-        1,
-      );
-      await tx.wait();
-
-      // Send premium welcome email
-      if (email) {
-        await sendEmail({
-          to: email,
-          subject: "Welcome to Knead Monthly",
-          html: premiumWelcomeEmail(),
-        });
-      }
-    }
-
-    // Burn/revoke NFT at end of paid period (after cancellation)
-    if (
-      event.type === "customer.subscription.deleted" &&
-      user_address
-    ) {
-      const tx = await contract.adminBurn(
-        user_address,
-        PREMIUM_TOKEN_ID,
-        1,
-      );
-      await tx.wait();
-
-      // Send cancellation email
-      if (email) {
-        await sendEmail({
-          to: email,
-          subject: "We’re sorry to see you go.",
-          html: cancellationEmail(),
-        });
-      }
-    }
-
-    // Burn/revoke NFT immediately on payment failure
-    if (
-      event.type === "invoice.payment_failed" &&
-      user_address
-    ) {
-      const tx = await contract.adminBurn(
-        user_address,
-        PREMIUM_TOKEN_ID,
-        1,
-      );
-      await tx.wait();
-      // (Optional: send a payment failed email here)
-    }
-  } catch (err: any) {
-    console.error("NFT mint/burn error:", err);
-    return new NextResponse(err.message, { status: 500 });
+  if (
+    event.type === "customer.subscription.deleted" ||
+    event.type === "invoice.payment_failed"
+  ) {
+    // Burn premium NFT from wallet here
   }
 
-  return NextResponse.json({ received: true });
+  res.status(200).json({ received: true });
 }
