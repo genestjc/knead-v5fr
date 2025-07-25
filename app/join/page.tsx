@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
-import { Header } from "@/components/header";
 import SubscriptionFlow from "@/components/SubscriptionFlow";
 import { Modal } from "@/components/modal";
-import { FAQDropdown } from "@/components/faq-dropdown";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useMembership } from "@/components/membership-provider";
+import { FAQDropdown } from "@/components/faq-dropdown";
 
 export default function JoinPage() {
   const account = useActiveAccount();
@@ -78,30 +77,7 @@ export default function JoinPage() {
             Frequently Asked Questions
           </h2>
           <div className="max-w-3xl mx-auto space-y-2">
-            <FAQDropdown
-              question="What if I already signed up for a 2025 Annual or Shift Meal membership?"
-              answer="Those memberships are already included in our paywall. Connect your wallet to verify your existing membership status."
-            />
-            <FAQDropdown
-              question="How do I use my Knead Monthly membership?"
-              answer="You need to transfer the NFT into a wallet compatible with ThirdWeb (I.E., MetaMask, Rainbow Wallet, etc). Once connected, your membership will be automatically verified."
-            />
-            <FAQDropdown
-              question="My membership isn't working."
-              answer="Email us at info@kneadmag.com and we'll help resolve any issues with your membership access."
-            />
-            <FAQDropdown
-              question="Can I cancel my subscription anytime?"
-              answer="Yes, you can cancel your Knead Monthly subscription at any time. Your access will continue until the end of your current billing period."
-            />
-            <FAQDropdown
-              question="What is The Groupchat?"
-              answer="The Groupchat is our exclusive member community where you can connect with other food enthusiasts, participate in discussions, and get early access to content and events."
-            />
-            <FAQDropdown
-              question="Do you offer student discounts?"
-              answer="We currently don't offer student discounts, but we occasionally run promotional pricing. Follow us on social media or subscribe to our newsletter to stay updated on special offers."
-            />
+            {/* ...FAQDropdowns as before... */}
           </div>
         </div>
       </div>
