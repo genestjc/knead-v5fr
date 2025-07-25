@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
-import { upsertPaidUser } from "@/lib/supabaseUser";
+import {
+  upsertPaidUser,
+  getUserByStripeCustomerId,
+} from "@/lib/supabaseUser";
 import {
   mintPremiumNFT,
   burnPremiumNFT,
@@ -40,6 +43,22 @@ export default async function handler(
       .send(`Webhook Error: ${(err as Error).message}`);
   }
 
+  // Helper to get wallet address from metadata or Supabase
+  async function getWalletAddressFromEvent(
+    eventObj: any,
+  ): Promise<string | null> {
+    if (eventObj.metadata?.wallet_address)
+      return eventObj.metadata.wallet_address;
+    if (eventObj.customer) {
+      // Try to look up in Supabase by Stripe customer ID
+      const user = await getUserByStripeCustomerId(
+        eventObj.customer,
+      );
+      return user?.wallet || null;
+    }
+    return null;
+  }
+
   // Handle successful payment (subscription created/paid)
   if (event.type === "checkout.session.completed") {
     const session = event.data
@@ -63,6 +82,10 @@ export default async function handler(
           .status(500)
           .json({ error: "Internal error" });
       }
+    } else {
+      console.warn(
+        "Missing wallet or email in checkout.session.completed event",
+      );
     }
   }
 
@@ -71,11 +94,10 @@ export default async function handler(
     event.type === "customer.subscription.deleted" ||
     event.type === "invoice.payment_failed"
   ) {
-    // You may need to look up the wallet address from Supabase using the Stripe customer ID
     const subscription = event.data
       .object as Stripe.Subscription;
-    // If you store wallet in metadata, use that; otherwise, look up in Supabase
-    const wallet = subscription.metadata?.wallet_address;
+    const wallet =
+      subscription.metadata?.wallet_address || null;
 
     if (wallet) {
       try {
@@ -87,8 +109,18 @@ export default async function handler(
           .status(500)
           .json({ error: "Internal error" });
       }
+    } else {
+      console.warn(
+        "Missing wallet in subscription cancellation event",
+      );
     }
   }
+
+  // (Optional) Handle recurring payments
+  // if (event.type === "invoice.paid") {
+  //   const invoice = event.data.object as Stripe.Invoice;
+  //   // You can mint or update NFT here if you want to handle recurring payments
+  // }
 
   res.status(200).json({ received: true });
 }
