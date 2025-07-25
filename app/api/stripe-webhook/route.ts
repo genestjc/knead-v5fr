@@ -7,7 +7,7 @@ import {
 } from "@/lib/nftActions";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-08-16",
+  apiVersion: "2025-04-30", // Match your Stripe dashboard version
 });
 
 export const config = { api: { bodyParser: false } };
@@ -34,54 +34,64 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Handle successful payment (subscription created/paid)
-  if (event.type === "checkout.session.completed") {
-    const session = event.data
-      .object as Stripe.Checkout.Session;
-    const wallet = session.metadata?.wallet_address;
-    const email = session.customer_email;
-
-    if (wallet && email) {
-      try {
-        await mintPremiumNFT(wallet);
-        await upsertPaidUser(wallet, email);
-        console.log(
-          `Minted premium NFT and stored user: ${wallet} / ${email}`,
-        );
-      } catch (err) {
-        console.error(
-          "Error minting NFT or storing user:",
-          err,
-        );
-        return new Response(
-          JSON.stringify({ error: "Internal error" }),
-          { status: 500 },
-        );
+  switch (event.type) {
+    case "invoice.payment_succeeded": {
+      const invoice = event.data.object as Stripe.Invoice;
+      // Only mint NFT on the first payment for a new subscription
+      if (
+        invoice.billing_reason === "subscription_create"
+      ) {
+        const subscription = invoice.subscription as string;
+        const customer = invoice.customer as string;
+        // Retrieve subscription to get metadata
+        const sub =
+          await stripe.subscriptions.retrieve(subscription);
+        const wallet = sub.metadata?.wallet_address;
+        const email =
+          invoice.customer_email || sub.metadata?.email;
+        if (wallet && email) {
+          try {
+            await mintPremiumNFT(wallet);
+            await upsertPaidUser(wallet, email);
+            console.log(
+              `Minted premium NFT and stored user: ${wallet} / ${email}`,
+            );
+          } catch (err) {
+            console.error(
+              "Error minting NFT or storing user:",
+              err,
+            );
+            return new Response(
+              JSON.stringify({ error: "Internal error" }),
+              { status: 500 },
+            );
+          }
+        }
       }
+      break;
     }
-  }
-
-  // Handle subscription cancellation or payment failure
-  if (
-    event.type === "customer.subscription.deleted" ||
-    event.type === "invoice.payment_failed"
-  ) {
-    const subscription = event.data
-      .object as Stripe.Subscription;
-    const wallet = subscription.metadata?.wallet_address;
-
-    if (wallet) {
-      try {
-        await burnPremiumNFT(wallet);
-        console.log(`Burned premium NFT for: ${wallet}`);
-      } catch (err) {
-        console.error("Error burning NFT:", err);
-        return new Response(
-          JSON.stringify({ error: "Internal error" }),
-          { status: 500 },
-        );
+    case "invoice.payment_failed":
+    case "customer.subscription.deleted": {
+      const subscription = event.data
+        .object as Stripe.Subscription;
+      const wallet = subscription.metadata?.wallet_address;
+      if (wallet) {
+        try {
+          await burnPremiumNFT(wallet);
+          console.log(`Burned premium NFT for: ${wallet}`);
+        } catch (err) {
+          console.error("Error burning NFT:", err);
+          return new Response(
+            JSON.stringify({ error: "Internal error" }),
+            { status: 500 },
+          );
+        }
       }
+      break;
     }
+    // Optionally handle other events
+    default:
+      break;
   }
 
   return new Response(JSON.stringify({ received: true }), {
