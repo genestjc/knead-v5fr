@@ -1,14 +1,10 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import {
-  upsertPaidUser,
-  getUserByStripeCustomerId,
-} from "@/lib/supabaseUser";
+import { upsertPaidUser } from "@/lib/supabaseUser";
 import {
   mintPremiumNFT,
   burnPremiumNFT,
 } from "@/lib/nftActions";
-import getRawBody from "raw-body";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16",
@@ -16,20 +12,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export const config = { api: { bodyParser: false } };
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method !== "POST")
-    return res.status(405).end("Method Not Allowed");
-
+export async function POST(req: NextRequest) {
+  const sig = req.headers.get("stripe-signature") as string;
+  const rawBody = await req.arrayBuffer();
   let event: Stripe.Event;
-  const sig = req.headers["stripe-signature"] as string;
 
   try {
-    const rawBody = await getRawBody(req);
     event = stripe.webhooks.constructEvent(
-      rawBody,
+      Buffer.from(rawBody),
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!,
     );
@@ -38,25 +28,10 @@ export default async function handler(
       "Stripe webhook signature verification failed.",
       err,
     );
-    return res
-      .status(400)
-      .send(`Webhook Error: ${(err as Error).message}`);
-  }
-
-  // Helper to get wallet address from metadata or Supabase
-  async function getWalletAddressFromEvent(
-    eventObj: any,
-  ): Promise<string | null> {
-    if (eventObj.metadata?.wallet_address)
-      return eventObj.metadata.wallet_address;
-    if (eventObj.customer) {
-      // Try to look up in Supabase by Stripe customer ID
-      const user = await getUserByStripeCustomerId(
-        eventObj.customer,
-      );
-      return user?.wallet || null;
-    }
-    return null;
+    return new Response(
+      `Webhook Error: ${(err as Error).message}`,
+      { status: 400 },
+    );
   }
 
   // Handle successful payment (subscription created/paid)
@@ -78,14 +53,11 @@ export default async function handler(
           "Error minting NFT or storing user:",
           err,
         );
-        return res
-          .status(500)
-          .json({ error: "Internal error" });
+        return new Response(
+          JSON.stringify({ error: "Internal error" }),
+          { status: 500 },
+        );
       }
-    } else {
-      console.warn(
-        "Missing wallet or email in checkout.session.completed event",
-      );
     }
   }
 
@@ -96,8 +68,7 @@ export default async function handler(
   ) {
     const subscription = event.data
       .object as Stripe.Subscription;
-    const wallet =
-      subscription.metadata?.wallet_address || null;
+    const wallet = subscription.metadata?.wallet_address;
 
     if (wallet) {
       try {
@@ -105,22 +76,15 @@ export default async function handler(
         console.log(`Burned premium NFT for: ${wallet}`);
       } catch (err) {
         console.error("Error burning NFT:", err);
-        return res
-          .status(500)
-          .json({ error: "Internal error" });
+        return new Response(
+          JSON.stringify({ error: "Internal error" }),
+          { status: 500 },
+        );
       }
-    } else {
-      console.warn(
-        "Missing wallet in subscription cancellation event",
-      );
     }
   }
 
-  // (Optional) Handle recurring payments
-  // if (event.type === "invoice.paid") {
-  //   const invoice = event.data.object as Stripe.Invoice;
-  //   // You can mint or update NFT here if you want to handle recurring payments
-  // }
-
-  res.status(200).json({ received: true });
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+  });
 }
