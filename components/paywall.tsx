@@ -15,12 +15,11 @@ export default function Paywall() {
 
   const handleStripeSuccess = () => {
     setShowStripeModal(false);
-    window.location.reload(); // Optionally refresh membership status
+    window.location.reload();
   };
 
-  if (isLoading) return null; // Or show a spinner
+  if (isLoading) return null;
 
-  // If user has access, don't show paywall
   if (hasAccess()) return null;
 
   return (
