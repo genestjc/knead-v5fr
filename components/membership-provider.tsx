@@ -77,21 +77,13 @@ export function MembershipProvider({
   const [isLoading, setIsLoading] = useState(true);
   const [articlesRemaining, setArticlesRemaining] =
     useState(0);
+
+  // Only set userEmail for premium (Stripe) users
   const [userEmail, setUserEmail] = useState<string | null>(
     null,
   );
 
-  // Optionally, try to get email from Thirdweb Embedded Wallet (social sign-in)
-  useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      (window as any).thirdweb
-    ) {
-      const user = (window as any).thirdweb.user;
-      if (user?.email) setUserEmail(user.email);
-    }
-  }, []);
-
+  // Check membership on wallet connect
   const checkMembership = async (walletAddress: string) => {
     setIsLoading(true);
     try {
@@ -173,6 +165,7 @@ export function MembershipProvider({
     }
   };
 
+  // Check freemium article limit
   const checkFreemiumLimit = async (
     walletAddress: string,
   ) => {
