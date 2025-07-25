@@ -3,15 +3,13 @@
 import { useState } from "react"
 import { useActiveAccount } from "thirdweb/react"
 import { Header } from "@/components/header"
-import StripeSubscription from "@/components/StripeSubscription"
+import SubscriptionFlow from "@/components/SubscriptionFlow"
 import { Modal } from "@/components/modal"
 import { FAQDropdown } from "@/components/faq-dropdown"
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
-import { useMembership } from "@/components/membership-provider"
 
 export default function JoinPage() {
   const account = useActiveAccount()
-  const { userEmail } = useMembership()
   const [showStripe, setShowStripe] = useState(false)
 
   const handleSubscriptionSuccess = () => {
@@ -110,13 +108,7 @@ export default function JoinPage() {
           <h2 className="text-2xl mb-6 text-center text-black font-adonis">Join Knead Monthly</h2>
           <p className="text-center text-gray-600 font-georgia-pro mb-6">$5/month • Cancel anytime</p>
 
-          {account?.address && (
-            <StripeSubscription
-              email={userEmail || ""}
-              user_address={account.address}
-              onSuccess={handleSubscriptionSuccess}
-            />
-          )}
+          <SubscriptionFlow onSuccess={handleSubscriptionSuccess} />
         </div>
       </Modal>
     </main>

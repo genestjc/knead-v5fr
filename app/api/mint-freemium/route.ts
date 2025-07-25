@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+import { sendEmail } from "@/lib/sendEmail";
+import { freemiumWelcomeEmail } from "@/lib/emailTemplates";
 
 const CONTRACT_ADDRESS =
   "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
 const FREEMIUM_TOKEN_ID = 0;
 
 export async function POST(req: NextRequest) {
-  const { user_address } = await req.json();
-  if (!user_address) {
+  const { user_address, email } = await req.json();
+  if (!user_address || !email) {
     return NextResponse.json(
-      { error: "Missing user_address" },
+      { error: "Missing user_address or email" },
       { status: 400 },
     );
   }
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
       wallet,
     );
 
-    // Mint freemium NFT
+    // Call the mint function (admin-only)
     const tx = await contract.mint(
       user_address,
       FREEMIUM_TOKEN_ID,
@@ -37,7 +39,13 @@ export async function POST(req: NextRequest) {
     );
     await tx.wait();
 
-    // No email sending for freemium
+    // Send welcome email
+    await sendEmail({
+      to: email,
+      subject: "Welcome to Knead",
+      html: freemiumWelcomeEmail(),
+    });
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
