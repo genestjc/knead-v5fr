@@ -1,4 +1,5 @@
 "use client";
+
 import { useActiveAccount } from "thirdweb/react";
 import { useState, useEffect } from "react";
 import { useMembership } from "./membership-provider";
