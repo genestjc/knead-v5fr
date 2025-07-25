@@ -1,4 +1,3 @@
-// lib/membership.ts
 import {
   createThirdwebClient,
   getContract,
