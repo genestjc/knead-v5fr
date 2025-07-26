@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       payment_method_types: ["card"],
       mode: "subscription",
       line_items: [
-        { price: "STRIPE_PRICE_ID", quantity: 1 }, // Replace with your Stripe price ID
+        { price: STRIPE_PRICE_ID!, quantity: 1 },
       ],
       customer_email: email,
       metadata: { wallet_address, email },
