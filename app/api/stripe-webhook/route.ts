@@ -6,7 +6,6 @@ import {
   mintPremiumNFT,
   burnPremiumNFT,
 } from "@/lib/nftActions";
-// Optionally: import your email sending function
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!;
 const STRIPE_WEBHOOK_SECRET =
@@ -39,11 +38,8 @@ export async function POST(req: NextRequest) {
       const session = event.data
         .object as Stripe.Checkout.Session;
       const wallet = session.metadata?.wallet_address;
-      const email =
-        session.metadata?.email || session.customer_email;
       if (wallet) {
         await mintPremiumNFT(wallet);
-        // Optionally: send confirmation email here
       }
       break;
     }
@@ -54,6 +50,18 @@ export async function POST(req: NextRequest) {
       const wallet = subscription.metadata?.wallet_address;
       if (wallet) {
         await burnPremiumNFT(wallet);
+      }
+      break;
+    }
+    case "invoice.payment_succeeded": {
+      // Optional: handle recurring payments
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscription = invoice.subscription as string;
+      const sub =
+        await stripe.subscriptions.retrieve(subscription);
+      const wallet = sub.metadata?.wallet_address;
+      if (wallet) {
+        await mintPremiumNFT(wallet);
       }
       break;
     }
