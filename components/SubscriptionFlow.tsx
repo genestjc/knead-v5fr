@@ -17,7 +17,6 @@ export default function SubscriptionFlow({
     setLoading(true);
     setError(null);
 
-    // Get the current path for dynamic redirect
     const returnTo = window.location.pathname;
 
     const res = await fetch(
