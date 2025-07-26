@@ -29,7 +29,7 @@ export default function SubscriptionFlow() {
     setLoading(false);
 
     if (data.url) {
-      window.location.href = data.url; // Redirect to Stripe Checkout
+      window.location.href = data.url;
     } else {
       setError(data.error || "Failed to start checkout.");
     }
