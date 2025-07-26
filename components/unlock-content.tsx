@@ -6,7 +6,7 @@ import { createThirdwebClient, getContract } from "thirdweb"
 import { balanceOf } from "thirdweb/extensions/erc1155"
 import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721"
 import { base } from "thirdweb/chains"
-import { Paywall } from "./paywall"
+import Paywall from "./paywall"
 import StripeSubscription from "./StripeSubscription"
 import { useMembership } from "@/components/membership-provider"
 
