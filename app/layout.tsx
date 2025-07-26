@@ -12,10 +12,10 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Knead - Stories worth savoring",
+  title: "Knead",
   description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
   openGraph: {
-    title: "Knead - Stories worth savoring",
+    title: "Knead",
     description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
     type: "website",
     url: "https://kneadmag.com",
@@ -23,10 +23,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Knead - Stories worth savoring",
+    title: "Knead",
     description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
   },
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({

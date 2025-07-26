@@ -9,6 +9,7 @@ export function WalletSummary() {
   const { disconnect } = useDisconnect()
   const [copied, setCopied] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const handleCopy = async () => {
@@ -24,16 +25,16 @@ export function WalletSummary() {
   }
 
   const handleSignOut = async () => {
+    if (isSigningOut) return
+
+    setIsSigningOut(true)
     try {
-      await disconnect()
+      disconnect()
       setIsDropdownOpen(false)
-      // Force a page refresh to ensure clean state
-      window.location.reload()
     } catch (error) {
       console.error("Failed to disconnect:", error)
-      // Fallback: still close dropdown and refresh
-      setIsDropdownOpen(false)
-      window.location.reload()
+    } finally {
+      setIsSigningOut(false)
     }
   }
 
@@ -70,16 +71,16 @@ export function WalletSummary() {
 
       {/* Dropdown menu */}
       {isDropdownOpen && (
-        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+        <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="py-1">
             {/* Copy option */}
             <button
               onClick={handleCopy}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="flex items-center w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors"
               style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}
             >
-              <Copy className="w-4 h-4 mr-2" />
-              {copied ? "Copied!" : "Copy Membership ID"}
+              <Copy className="w-3 h-3 mr-2" />
+              {copied ? "Copied!" : "Copy Membership"}
             </button>
 
             {/* Divider */}
@@ -88,11 +89,12 @@ export function WalletSummary() {
             {/* Sign out option */}
             <button
               onClick={handleSignOut}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              disabled={isSigningOut}
+              className="flex items-center w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
               style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
+              <LogOut className="w-3 h-3 mr-2" />
+              {isSigningOut ? "Signing Out..." : "Sign Out"}
             </button>
           </div>
         </div>
