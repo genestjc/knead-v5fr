@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useMembership } from "@/components/membership-provider";
 import { FAQDropdown } from "@/components/faq-dropdown";
+import { CheckoutStatusBanner } from "@/components/CheckoutStatusBanner";
 
 export default function JoinPage() {
   const account = useActiveAccount();
@@ -21,6 +22,7 @@ export default function JoinPage() {
   return (
     <section className="py-16 md:py-24">
       <div className="container-magazine">
+        <CheckoutStatusBanner />
         <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float">
           Join Knead Monthly to have access to:
         </h1>
