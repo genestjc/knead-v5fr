@@ -2,7 +2,11 @@
 import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 
-export default function SubscriptionFlow() {
+export default function SubscriptionFlow({
+  onSuccess,
+}: {
+  onSuccess?: () => void;
+}) {
   const account = useActiveAccount();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -13,6 +17,9 @@ export default function SubscriptionFlow() {
     setLoading(true);
     setError(null);
 
+    // Get the current path for dynamic redirect
+    const returnTo = window.location.pathname;
+
     const res = await fetch(
       "/api/create-checkout-session",
       {
@@ -21,6 +28,7 @@ export default function SubscriptionFlow() {
         body: JSON.stringify({
           email,
           wallet_address: account?.address,
+          returnTo,
         }),
       },
     );
@@ -30,6 +38,7 @@ export default function SubscriptionFlow() {
 
     if (data.url) {
       window.location.href = data.url;
+      if (onSuccess) onSuccess();
     } else {
       setError(data.error || "Failed to start checkout.");
     }
