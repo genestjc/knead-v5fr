@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import SubscriptionFlow from "@/components/SubscriptionFlow";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useMembership } from "@/components/membership-provider";
+import { CheckoutStatusBanner } from "@/components/CheckoutStatusBanner";
 
 export default function Paywall() {
   const account = useActiveAccount();
@@ -19,11 +20,11 @@ export default function Paywall() {
   };
 
   if (isLoading) return null;
-
   if (hasAccess()) return null;
 
   return (
     <div className="max-w-md mx-auto my-12 p-8 bg-white rounded shadow">
+      <CheckoutStatusBanner />
       <h2 className="text-2xl font-adonis mb-4 text-center">
         Premium Content
       </h2>
