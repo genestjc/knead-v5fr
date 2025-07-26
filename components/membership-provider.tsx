@@ -11,7 +11,6 @@ import {
   getMembershipType,
   MembershipType,
 } from "@/lib/membership";
-import { getUserByWallet } from "@/lib/supabaseUser";
 
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -21,8 +20,8 @@ interface MembershipContextType {
   membershipType: MembershipType;
   isLoading: boolean;
   walletAddress: string | undefined;
-  userEmail: string | null;
   refreshMembership: () => Promise<void>;
+  hasAccess: (type: MembershipType) => boolean;
 }
 
 const MembershipContext = createContext<
@@ -38,14 +37,10 @@ export function MembershipProvider({
   const [membershipType, setMembershipType] =
     useState<MembershipType>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(
-    null,
-  );
 
   const refreshMembership = async () => {
     if (!account?.address) {
       setMembershipType(null);
-      setUserEmail(null);
       setIsLoading(false);
       return;
     }
@@ -55,13 +50,6 @@ export function MembershipProvider({
       account.address,
     );
     setMembershipType(type);
-
-    if (type === "premium") {
-      const user = await getUserByWallet(account.address);
-      setUserEmail(user?.email ?? null);
-    } else {
-      setUserEmail(null);
-    }
     setIsLoading(false);
   };
 
@@ -70,14 +58,25 @@ export function MembershipProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.address]);
 
+  const hasAccess = (type: MembershipType) => {
+    if (type === "premium")
+      return membershipType === "premium";
+    if (type === "freemium")
+      return (
+        membershipType === "premium" ||
+        membershipType === "freemium"
+      );
+    return false;
+  };
+
   return (
     <MembershipContext.Provider
       value={{
         membershipType,
         isLoading,
         walletAddress: account?.address,
-        userEmail,
         refreshMembership,
+        hasAccess,
       }}
     >
       {children}
