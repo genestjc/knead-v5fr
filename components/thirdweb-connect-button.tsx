@@ -22,11 +22,14 @@ export function ThirdWebConnectButton() {
           backgroundColor: "#000000",
           color: "#ffffff",
           border: "none",
-          borderRadius: "4px",
-          padding: "8px 16px",
+          borderRadius: "16px",
+          padding: "4px 10px",
           fontFamily: "'Georgia Pro', serif",
-          fontSize: "14px",
+          fontSize: "11px",
           cursor: "pointer",
+          minWidth: "60px",
+          height: "24px",
+          fontWeight: "400",
         },
       }}
       connectModal={{

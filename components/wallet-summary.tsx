@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
-
 import { useActiveAccount, useDisconnect } from "thirdweb/react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Copy, LogOut } from "lucide-react"
 
 export function WalletSummary() {
@@ -14,6 +12,8 @@ export function WalletSummary() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const handleCopy = async () => {
+    if (!account?.address) return
+
     try {
       await navigator.clipboard.writeText(account.address)
       setCopied(true)
@@ -23,9 +23,18 @@ export function WalletSummary() {
     }
   }
 
-  const handleSignOut = () => {
-    disconnect()
-    setIsDropdownOpen(false)
+  const handleSignOut = async () => {
+    try {
+      await disconnect()
+      setIsDropdownOpen(false)
+      // Force a page refresh to ensure clean state
+      window.location.reload()
+    } catch (error) {
+      console.error("Failed to disconnect:", error)
+      // Fallback: still close dropdown and refresh
+      setIsDropdownOpen(false)
+      window.location.reload()
+    }
   }
 
   const shortenAddress = (address: string) => {
