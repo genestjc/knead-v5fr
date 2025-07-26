@@ -24,19 +24,20 @@ export function WalletSummary() {
     }
   }
 
-  const handleSignOut = async () => {
-    if (isSigningOut) return
+const handleSignOut = async () => {
+  if (isSigningOut) return;
 
-    setIsSigningOut(true)
-    try {
-      disconnect()
-      setIsDropdownOpen(false)
-    } catch (error) {
-      console.error("Failed to disconnect:", error)
-    } finally {
-      setIsSigningOut(false)
-    }
+  setIsSigningOut(true);
+  try {
+    await disconnect();
+    setIsDropdownOpen(false);
+  } catch (error) {
+    console.error("Failed to disconnect:", error);
+  } finally {
+    setIsSigningOut(false);
   }
+};
+
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
