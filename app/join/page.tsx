@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import SubscriptionFlow from "@/components/SubscriptionFlow";
 import { Modal } from "@/components/modal";
@@ -22,7 +22,10 @@ export default function JoinPage() {
   return (
     <section className="py-16 md:py-24">
       <div className="container-magazine">
-        <CheckoutStatusBanner />
+        {/* Wrap CheckoutStatusBanner in Suspense */}
+        <Suspense fallback={null}>
+          <CheckoutStatusBanner />
+        </Suspense>
         <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float">
           Join Knead Monthly to have access to:
         </h1>
