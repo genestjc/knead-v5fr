@@ -78,7 +78,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const account = useActiveAccount()
   const { membershipType, isLoading, walletAddress, hasAccess } = useMembership()
   const [canAccess, setCanAccess] = useState(false)
-  const [showStripeSubscription, setShowStripeSubscription] = useState(false)
+  const [showSubscriptionFlow, setShowSubscriptionFlow] = useState(false);
   const [userEmail, setUserEmail] = useState("")
 
   useEffect(() => {
