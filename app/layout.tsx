@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     title: "Knead",
     description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
   },
-  generator: "v0.dev",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
