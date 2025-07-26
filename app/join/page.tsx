@@ -9,7 +9,6 @@ import { useMembership } from "@/components/membership-provider";
 import { FAQDropdown } from "@/components/faq-dropdown";
 import { CheckoutStatusBanner } from "@/components/CheckoutStatusBanner";
 import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
 
 export default function JoinPage() {
   const account = useActiveAccount();
@@ -123,7 +122,6 @@ export default function JoinPage() {
           </div>
         </Modal>
       </section>
-      <Footer />
     </>
   );
 }
