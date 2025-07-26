@@ -2,25 +2,18 @@ export const runtime = "nodejs";
 
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import { upsertPaidUser } from "@/lib/supabaseUser";
 import {
   mintPremiumNFT,
   burnPremiumNFT,
 } from "@/lib/nftActions";
+// Optionally: import your email sending function
 
-// Runtime check for required environment variables
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!;
 const STRIPE_WEBHOOK_SECRET =
-  process.env.STRIPE_WEBHOOK_SECRET;
-
-if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET) {
-  throw new Error(
-    "Missing Stripe environment variables. Please set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in your Vercel dashboard.",
-  );
-}
+  process.env.STRIPE_WEBHOOK_SECRET!;
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2025-04-30", // Ensure your Stripe SDK supports this version
+  apiVersion: "2025-04-30",
 });
 
 export async function POST(req: NextRequest) {
@@ -35,10 +28,6 @@ export async function POST(req: NextRequest) {
       STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
-    console.error(
-      "Stripe webhook signature verification failed.",
-      err,
-    );
     return new Response(
       `Webhook Error: ${(err as Error).message}`,
       { status: 400 },
@@ -46,38 +35,15 @@ export async function POST(req: NextRequest) {
   }
 
   switch (event.type) {
-    case "invoice.payment_succeeded": {
-      const invoice = event.data.object as Stripe.Invoice;
-      // Only mint NFT on the first payment for a new subscription
-      if (
-        invoice.billing_reason === "subscription_create"
-      ) {
-        const subscription = invoice.subscription as string;
-        const customer = invoice.customer as string;
-        // Retrieve subscription to get metadata
-        const sub =
-          await stripe.subscriptions.retrieve(subscription);
-        const wallet = sub.metadata?.wallet_address;
-        const email =
-          invoice.customer_email || sub.metadata?.email;
-        if (wallet && email) {
-          try {
-            await mintPremiumNFT(wallet);
-            await upsertPaidUser(wallet, email);
-            console.log(
-              `Minted premium NFT and stored user: ${wallet} / ${email}`,
-            );
-          } catch (err) {
-            console.error(
-              "Error minting NFT or storing user:",
-              err,
-            );
-            return new Response(
-              JSON.stringify({ error: "Internal error" }),
-              { status: 500 },
-            );
-          }
-        }
+    case "checkout.session.completed": {
+      const session = event.data
+        .object as Stripe.Checkout.Session;
+      const wallet = session.metadata?.wallet_address;
+      const email =
+        session.metadata?.email || session.customer_email;
+      if (wallet) {
+        await mintPremiumNFT(wallet);
+        // Optionally: send confirmation email here
       }
       break;
     }
@@ -87,20 +53,10 @@ export async function POST(req: NextRequest) {
         .object as Stripe.Subscription;
       const wallet = subscription.metadata?.wallet_address;
       if (wallet) {
-        try {
-          await burnPremiumNFT(wallet);
-          console.log(`Burned premium NFT for: ${wallet}`);
-        } catch (err) {
-          console.error("Error burning NFT:", err);
-          return new Response(
-            JSON.stringify({ error: "Internal error" }),
-            { status: 500 },
-          );
-        }
+        await burnPremiumNFT(wallet);
       }
       break;
     }
-    // Optionally handle other events
     default:
       break;
   }
