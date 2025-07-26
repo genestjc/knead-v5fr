@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import { ConnectButton } from "thirdweb/react"
-import { client } from "@/thirdweb-client"
-import { WalletSummary } from "./wallet-summary"
-import { useActiveAccount } from "thirdweb/react"
+import { ConnectButton } from "thirdweb/react";
+import { client } from "@/thirdweb-client";
+import { WalletSummary } from "./wallet-summary";
+import { useActiveAccount } from "thirdweb/react";
 
 export function ThirdWebConnectButton() {
-  const account = useActiveAccount()
+  const account = useActiveAccount();
 
   if (account) {
-    return <WalletSummary />
+    return <WalletSummary />;
   }
 
   return (
@@ -22,14 +22,15 @@ export function ThirdWebConnectButton() {
           backgroundColor: "#000000",
           color: "#ffffff",
           border: "none",
-          borderRadius: "12px",
-          padding: "2px 8px",
+          borderRadius: "10px",
+          padding: "1px 6px",
           fontFamily: "'Georgia Pro', serif",
-          fontSize: "10px",
+          fontSize: "8px",
           cursor: "pointer",
-          minWidth: "45px",
-          height: "20px",
+          minWidth: "30px",
+          height: "16px",
           fontWeight: "400",
+          lineHeight: "1",
         },
       }}
       connectModal={{
@@ -38,5 +39,5 @@ export function ThirdWebConnectButton() {
         titleIcon: "",
       }}
     />
-  )
+  );
 }
