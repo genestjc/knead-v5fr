@@ -5,10 +5,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
-const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID; // <-- Add this line
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
 
 export async function POST(req: NextRequest) {
-  const { email, wallet_address } = await req.json();
+  const { email, wallet_address, returnTo } =
+    await req.json();
 
   if (!email || !wallet_address) {
     return NextResponse.json(
@@ -27,6 +28,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Construct dynamic URLs
+  const baseUrl = "https://kneadmag.com";
+  const successUrl = returnTo
+    ? `${baseUrl}${returnTo}?checkout=success`
+    : `${baseUrl}/success`;
+  const cancelUrl = returnTo
+    ? `${baseUrl}${returnTo}?checkout=cancel`
+    : `${baseUrl}/cancel`;
+
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -34,8 +44,8 @@ export async function POST(req: NextRequest) {
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
       customer_email: email,
       metadata: { wallet_address, email },
-      success_url: "https://kneadmag.com/success",
-      cancel_url: "https://kneadmag.com/cancel",
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
 
     return NextResponse.json({ url: session.url });
