@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Menu } from "@/components/menu"
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
+import { WalletSummary } from "@/components/wallet-summary"
 import { useActiveAccount } from "thirdweb/react"
 
 export function Header() {
@@ -57,12 +58,18 @@ export function Header() {
       <header
         className="header-container"
         style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
           opacity: headerOpacity,
           backgroundColor: isScrolled ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.8)",
           backdropFilter: "blur(10px)",
           borderBottom: isScrolled ? "1px solid rgba(0, 0, 0, 0.1)" : "1px solid transparent",
           boxShadow: isScrolled ? "0 2px 20px rgba(0, 0, 0, 0.08)" : "none",
           transform: `translateY(${scrollY > 400 ? -100 : 0}px)`,
+          transition: "all 0.3s ease",
         }}
       >
         <div className="max-w-[90%] mx-auto w-full flex justify-between items-center py-6">
@@ -79,8 +86,8 @@ export function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
-            {/* ThirdWeb Connect Button */}
-            <ThirdWebConnectButton theme="light" size="compact" />
+            {/* Show WalletSummary if connected, otherwise show connect button */}
+            {account ? <WalletSummary /> : <ThirdWebConnectButton theme="light" size="compact" />}
 
             {/* Hamburger Menu */}
             <div

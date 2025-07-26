@@ -1,14 +1,17 @@
 "use client"
 
+import { useEffect } from "react"
+
 import { useActiveAccount, useDisconnect } from "thirdweb/react"
-import { useState } from "react"
+import { useState, useRef } from "react"
+import { Copy, LogOut } from "lucide-react"
 
 export function WalletSummary() {
   const account = useActiveAccount()
   const { disconnect } = useDisconnect()
   const [copied, setCopied] = useState(false)
-
-  if (!account) return null
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const handleCopy = async () => {
     try {
@@ -20,30 +23,71 @@ export function WalletSummary() {
     }
   }
 
+  const handleSignOut = () => {
+    disconnect()
+    setIsDropdownOpen(false)
+  }
+
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
+  const handleClickOutside = (event: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      setIsDropdownOpen(false)
+    }
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  if (!account) return null
+
   return (
-    <div className="flex flex-col items-start space-y-3" style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}>
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-600">Membership ID:</span>
-        <span className="text-sm font-mono">{shortenAddress(account.address)}</span>
-        <button
-          onClick={handleCopy}
-          className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-          style={{ fontFamily: "'Georgia Pro', serif" }}
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
+    <div className="relative" ref={dropdownRef}>
+      {/* Clickable shortened address */}
       <button
-        onClick={() => disconnect()}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors text-sm"
-        style={{ fontFamily: "'Georgia Pro', serif" }}
+        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+        className="text-sm font-mono text-black hover:text-gray-600 transition-colors cursor-pointer"
+        style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}
       >
-        Sign Out
+        {shortenAddress(account.address)}
       </button>
+
+      {/* Dropdown menu */}
+      {isDropdownOpen && (
+        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          <div className="py-1">
+            {/* Copy option */}
+            <button
+              onClick={handleCopy}
+              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              {copied ? "Copied!" : "Copy Membership ID"}
+            </button>
+
+            {/* Divider */}
+            <div className="border-t border-gray-100 my-1"></div>
+
+            {/* Sign out option */}
+            <button
+              onClick={handleSignOut}
+              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              style={{ fontFamily: "Adonis, 'Georgia Pro', serif" }}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
