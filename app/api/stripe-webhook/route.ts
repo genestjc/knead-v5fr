@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { upsertPaidUser } from "@/lib/supabaseUser";
@@ -6,8 +8,19 @@ import {
   burnPremiumNFT,
 } from "@/lib/nftActions";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30", // Match your Stripe dashboard version
+// Runtime check for required environment variables
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET =
+  process.env.STRIPE_WEBHOOK_SECRET;
+
+if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET) {
+  throw new Error(
+    "Missing Stripe environment variables. Please set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in your Vercel dashboard.",
+  );
+}
+
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: "2025-04-30", // Ensure your Stripe SDK supports this version
 });
 
 export async function POST(req: NextRequest) {
@@ -19,7 +32,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(
       Buffer.from(rawBody),
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET!,
+      STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     console.error(
