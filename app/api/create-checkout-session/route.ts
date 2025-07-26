@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
       ],
       customer_email: email,
       metadata: { wallet_address, email },
-      success_url: "https://yourdomain.com/success",
-      cancel_url: "https://yourdomain.com/cancel",
+      success_url: "https://kneadmag.com/success",
+      cancel_url: "https://kneadmag.com/cancel",
     });
 
     return NextResponse.json({ url: session.url });
