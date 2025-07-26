@@ -279,22 +279,30 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     return <Paywall />
   }
 
-  // Show Stripe subscription modal if requested
-  if (showStripeSubscription && account?.address) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-adonis">Join Knead Monthly</h2>
-            <button onClick={() => setShowSubscriptionFlow(false)} className="text-gray-500 hover:text-gray-700">
-              ×
-            </button>
-          </div>
-          <SubscriptionFlow email={userEmail} user_address={account.address} onSuccess={handleSubscriptionSuccess} />
+  // Show SubscriptionFlow modal if requested
+if (showSubscriptionFlow && account?.address) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-adonis">
+            Join Knead Monthly
+          </h2>
+          <button
+            onClick={() => setShowSubscriptionFlow(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ×
+          </button>
         </div>
+        <SubscriptionFlow
+          email={userEmail}
+          user_address={account.address}
+          onSuccess={handleSubscriptionSuccess}
+        />
       </div>
-    )
-  }
-
+    </div>
+  );
+}
   return <>{children}</>
 }
