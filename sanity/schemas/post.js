@@ -24,6 +24,7 @@ export default {
       title: "Author",
       type: "reference",
       to: { type: "author" },
+      validation: (Rule) => Rule.required(),
     },
     {
       name: "mainImage",
@@ -43,6 +44,13 @@ export default {
       name: "publishedAt",
       title: "Published at",
       type: "datetime",
+      validation: (Rule) => Rule.required(),
+    },
+    {
+      name: "excerpt",
+      title: "Excerpt",
+      type: "text",
+      rows: 4,
     },
     {
       name: "body",
@@ -51,9 +59,9 @@ export default {
     },
     {
       name: "premium",
-      title: "Members-Only Content",
-      description: "Is this a members-only post that requires a membership to access?",
+      title: "Premium Content",
       type: "boolean",
+      description: "Check if this is premium content requiring membership",
       initialValue: false,
     },
   ],
@@ -69,7 +77,7 @@ export default {
       const { author, premium } = selection
       return {
         ...selection,
-        subtitle: `${premium ? "🔒 Members-Only" : ""} ${author ? `by ${author}` : ""}`.trim(),
+        subtitle: `${premium ? "🔒 Premium" : ""} ${author ? `by ${author}` : ""}`.trim(),
       }
     },
   },

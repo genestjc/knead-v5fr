@@ -40,4 +40,27 @@ export default defineConfig({
   },
 
   basePath: "/studio",
+
+  // Add CORS settings for production
+  cors: {
+    credentials: true,
+    origin: [
+      "http://localhost:3000",
+      "https://www.kneadmag.com",
+      "https://kneadmag.com",
+      "https://knead-v5fr.vercel.app",
+    ],
+  },
+
+  // Add API version
+  apiVersion: "2023-05-03",
+
+  // Studio authentication
+  auth: {
+    redirectOnSingle: false,
+    providers: [],
+  },
+
+  // Use write token for studio operations
+  token: process.env.SANITY_API_WRITE_TOKEN,
 })
