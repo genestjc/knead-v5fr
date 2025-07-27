@@ -3,7 +3,7 @@
  */
 
 import { defineConfig } from "sanity"
-import { deskTool } from "sanity/desk"
+import { structureTool } from "sanity/structure"
 import { visionTool } from "@sanity/vision"
 
 // Import schema types
@@ -12,6 +12,7 @@ import { structure } from "./sanity/desk-structure"
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "cs0gtnjr"
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production"
+const apiVersion = process.env.NEXT_PUBLIC_SANITY_API_VERSION || "2023-05-03"
 
 export default defineConfig({
   name: "default",
@@ -21,7 +22,7 @@ export default defineConfig({
   dataset,
 
   plugins: [
-    deskTool({
+    structureTool({
       structure,
     }),
     visionTool(),
@@ -53,7 +54,7 @@ export default defineConfig({
   },
 
   // Add API version
-  apiVersion: "2023-05-03",
+  apiVersion,
 
   // Studio authentication
   auth: {

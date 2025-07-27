@@ -33,6 +33,13 @@ export default {
       options: {
         hotspot: true,
       },
+      fields: [
+        {
+          name: "alt",
+          type: "string",
+          title: "Alternative Text",
+        },
+      ],
     },
     {
       name: "categories",
@@ -58,11 +65,38 @@ export default {
       type: "blockContent",
     },
     {
-      name: "premium",
+      name: "isPremium",
       title: "Premium Content",
       type: "boolean",
-      description: "Check if this is premium content requiring membership",
+      description: "Check this if the content requires membership to view",
       initialValue: false,
+    },
+    {
+      name: "featured",
+      title: "Featured",
+      type: "boolean",
+      description: "Featured posts appear prominently on the homepage",
+      initialValue: false,
+    },
+    {
+      name: "seo",
+      title: "SEO",
+      type: "object",
+      fields: [
+        {
+          name: "metaTitle",
+          title: "Meta Title",
+          type: "string",
+          validation: (Rule) => Rule.max(60).warning("Should be under 60 characters"),
+        },
+        {
+          name: "metaDescription",
+          title: "Meta Description",
+          type: "text",
+          rows: 3,
+          validation: (Rule) => Rule.max(160).warning("Should be under 160 characters"),
+        },
+      ],
     },
   ],
 
@@ -71,14 +105,31 @@ export default {
       title: "title",
       author: "author.name",
       media: "mainImage",
-      premium: "premium",
+      isPremium: "isPremium",
+      featured: "featured",
     },
     prepare(selection) {
-      const { author, premium } = selection
-      return {
-        ...selection,
-        subtitle: `${premium ? "🔒 Premium" : ""} ${author ? `by ${author}` : ""}`.trim(),
-      }
+      const { author, isPremium, featured } = selection
+      const subtitle = [author && `by ${author}`, isPremium && "🔒 Premium", featured && "⭐ Featured"]
+        .filter(Boolean)
+        .join(" • ")
+
+      return Object.assign({}, selection, {
+        subtitle,
+      })
     },
   },
+
+  orderings: [
+    {
+      title: "Published Date, New",
+      name: "publishedAtDesc",
+      by: [{ field: "publishedAt", direction: "desc" }],
+    },
+    {
+      title: "Published Date, Old",
+      name: "publishedAtAsc",
+      by: [{ field: "publishedAt", direction: "asc" }],
+    },
+  ],
 }
