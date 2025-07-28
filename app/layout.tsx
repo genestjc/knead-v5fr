@@ -13,10 +13,10 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Knead",
-  description: "A digital magazine exploring culture through thoughtful storytelling.",
+  description: "Nourishment for the creative spirit.",
   openGraph: {
     title: "Knead",
-    description: "A digital magazine exploring culture through thoughtful storytelling.",
+    description: "Nourishment for the creative spirit.",
     type: "website",
     url: "https://kneadmag.com",
     siteName: "Knead",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Knead",
-    description: "A digital magazine exploring culture through thoughtful storytelling.",
+    description: "Nourishment for the creative spirit.",
   },
     generator: 'v0.dev'
 }
