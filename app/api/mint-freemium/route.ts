@@ -1,6 +1,5 @@
+// app/api/mint-freemium/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { ethers } from "ethers";
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 const CONTRACT_ADDRESS =
   "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
@@ -16,27 +15,29 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const provider = new ethers.JsonRpcProvider(
-      process.env.BASE_RPC_URL!,
+    const res = await fetch(
+      `https://api.thirdweb.com/v1/contract/${CONTRACT_ADDRESS}/erc1155/mint-to`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.THIRDWEB_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: user_address,
+          tokenId: FREEMIUM_TOKEN_ID,
+          amount: 1,
+        }),
+      },
     );
-    const wallet = new ethers.Wallet(
-      process.env.THIRDWEB_PRIVATE_KEY!,
-      provider,
-    );
-    const contract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      kneadMembershipABI,
-      wallet,
-    );
-
-    const tx = await contract.mint(
-      user_address,
-      FREEMIUM_TOKEN_ID,
-      1,
-    );
-    await tx.wait();
-
-    return NextResponse.json({ success: true });
+    const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data.message || "Mint failed" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ success: true, tx: data });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message },
