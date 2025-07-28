@@ -12,19 +12,19 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Knead - Stories worth savoring",
-  description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
+  title: "Knead",
+  description: "A digital magazine exploring culture through thoughtful storytelling.",
   openGraph: {
-    title: "Knead - Stories worth savoring",
-    description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
+    title: "Knead",
+    description: "A digital magazine exploring culture through thoughtful storytelling.",
     type: "website",
     url: "https://kneadmag.com",
     siteName: "Knead",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Knead - Stories worth savoring",
-    description: "A digital magazine exploring food, culture, and community through thoughtful storytelling.",
+    title: "Knead",
+    description: "A digital magazine exploring culture through thoughtful storytelling.",
   },
     generator: 'v0.dev'
 }
