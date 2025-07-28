@@ -61,7 +61,7 @@ export default function JoinPage() {
               ) : account?.address ? (
                 <button
                   onClick={() => setShowStripe(true)}
-                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-start"
+                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
                 >
                   Subscribe to Knead Monthly
                 </button>
@@ -80,23 +80,51 @@ export default function JoinPage() {
             <div className="max-w-3xl mx-auto space-y-2 text-center">
               <FAQDropdown
                 question="How does the Knead Monthly subscription work?"
-                answer="We mint you a membership token that enables access to all paywalls, experiences, and other perks."
+                answer={
+                  <span className="faq-answer text-left block">
+                    We mint you a membership token that
+                    enables access to all paywalls,
+                    experiences, and other perks.
+                  </span>
+                }
               />
               <FAQDropdown
                 question="Where do I go to cancel my membership?"
-                answer="If you're interested in canceling your membership, click here."
+                answer={
+                  <span className="faq-answer text-left block">
+                    If you're interested in canceling your
+                    membership, click here.
+                  </span>
+                }
               />
               <FAQDropdown
                 question="Can I cancel my subscription at any time?"
-                answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
+                answer={
+                  <span className="faq-answer text-left block">
+                    Yes, and you'll still be granted access
+                    to our stories for the duration of your
+                    membership.
+                  </span>
+                }
               />
               <FAQDropdown
                 question="How are payments accepted?"
-                answer="We use Stripe to safely and securely process payments."
+                answer={
+                  <span className="faq-answer text-left block">
+                    We use Stripe to safely and securely
+                    process payments.
+                  </span>
+                }
               />
               <FAQDropdown
                 question="Will I get access immediately after subscribing?"
-                answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
+                answer={
+                  <span className="faq-answer text-left block">
+                    Absolutely. We mint you a membership
+                    token to access unlimited stories and
+                    other perks.
+                  </span>
+                }
               />
             </div>
           </div>
