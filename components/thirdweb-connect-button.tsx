@@ -18,7 +18,7 @@ export function ThirdWebConnectButton() {
           borderRadius: "4px",
           padding: "0 16px",
           color: "#fff",
-          background: "#000", // Your color
+          background: "#000",
           lineHeight: 1.15,
           fontSize: "14px",
           height: "36px",
