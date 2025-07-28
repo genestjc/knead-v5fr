@@ -1,4 +1,3 @@
-// app/api/mint-freemium/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 const CONTRACT_ADDRESS =
