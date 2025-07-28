@@ -1,51 +1,80 @@
-"use client";
+"use client"
 
-import { ConnectButton } from "thirdweb/react";
-import { client } from "@/thirdweb-client";
+import { ConnectButton } from "thirdweb/react"
+import { inAppWallet, createWallet } from "thirdweb/wallets"
+import { client } from "@/thirdweb-client"
 
-export function ThirdWebConnectButton() {
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
+    },
+  }),
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  createWallet("io.rabby"),
+  createWallet("io.zerion.wallet"),
+]
+
+interface ThirdWebConnectButtonProps {
+  className?: string
+  theme?: "light" | "dark"
+  size?: "compact" | "wide"
+}
+
+export function ThirdWebConnectButton({
+  className = "",
+  theme = "light",
+  size = "compact",
+}: ThirdWebConnectButtonProps) {
   return (
-    <ConnectButton
-      client={client}
-      theme="light"
-      connectButton={{
-        label: "Sign In",
-        style: {
-          display: "inline-block",
-          outline: "none",
-          cursor: "pointer",
-          fontSize: "16px",
-          lineHeight: "20px",
-          fontWeight: 600,
-          borderRadius: "8px",
-          padding: "14px 24px",
-          border: "none",
-          transition:
-            "box-shadow 0.2s ease 0s, -ms-transform 0.1s ease 0s, -webkit-transform 0.1s ease 0s, transform 0.1s ease 0s",
-          background:
-            "linear-gradient(to right, rgb(230, 30, 77) 0%, rgb(227, 28, 95) 50%, rgb(215, 4, 102) 100%)",
-          color: "#fff",
-          fontFamily: "'Georgia Pro', serif",
-          minWidth: "120px",
-          textAlign: "center",
-          textDecoration: "none",
-          letterSpacing: ".089em",
-          boxShadow:
-            "0px 3px 1px -2px rgb(0 0 0 / 20%), 0px 2px 2px 0px rgb(0 0 0 / 14%), 0px 1px 5px 0px rgb(0 0 0 / 12%)",
-          textTransform: "uppercase",
-        },
-        hoverStyle: {
-          background:
-            "linear-gradient(to right, rgb(215, 4, 102) 0%, rgb(227, 28, 95) 50%, rgb(230, 30, 77) 100%)",
-          boxShadow:
-            "0px 2px 4px -1px rgb(0 0 0 / 20%), 0px 4px 5px 0px rgb(0 0 0 / 14%), 0px 1px 10px 0px rgb(0 0 0 / 12%)",
-        },
-      }}
-      connectModal={{
-        size: "compact",
-        title: "Sign In to Knead",
-        titleIcon: "",
-      }}
-    />
-  );
+    <div className={className}>
+      <ConnectButton
+        client={client}
+        connectModal={{ size }}
+        theme={theme}
+        wallets={wallets}
+        connectButton={{
+          label: "Sign In",
+          style: {
+            backgroundColor: "#000",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            padding: "4px 20px",
+            fontFamily: "adonis-web, serif",
+            fontWeight: "300",
+            fontSize: "13px",
+            cursor: "pointer",
+            minWidth: "90px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            transition: "all 0.2s ease",
+          },
+        }}
+        detailsButton={{
+          style: {
+            backgroundColor: "#fff",
+            color: "#000",
+            border: "1px solid #e5e5e5",
+            borderRadius: "8px",
+            padding: "6px 14px",
+            fontFamily: "adonis-web, serif",
+            fontWeight: "300",
+            fontSize: "12px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            transition: "all 0.2s ease",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          },
+        }}
+      />
+    </div>
+  )
 }
