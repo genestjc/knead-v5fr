@@ -84,6 +84,10 @@ export default function JoinPage() {
                 answer="."
               />
               <FAQDropdown
+                question="Where do I go to cancel my membership?"
+                answer="If you're interested in canceling your membership, click here."
+              />
+              <FAQDropdown
                 question="Can I cancel my subscription at any time?"
                 answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
               <FAQDropdown
