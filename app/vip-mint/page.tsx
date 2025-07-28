@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 
 export default function VipMint() {
@@ -10,13 +9,40 @@ export default function VipMint() {
   const [address, setAddress] = useState("")
   const [email, setEmail] = useState("")
   const [status, setStatus] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [vipToken, setVipToken] = useState("")
 
-  function handleUnlock(e: React.FormEvent) {
+  async function handleUnlock(e: React.FormEvent) {
     e.preventDefault()
-    if (pw === "sn1ckleFrItz!420_eQ3416B00B$") {
-      setUnlocked(true)
-    } else {
-      setStatus("Incorrect password")
+    setLoading(true)
+    setStatus("")
+
+    try {
+      const response = await fetch("/api/verify-vip-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setUnlocked(true)
+        setVipToken(data.token)
+        setStatus("Access granted!")
+      } else {
+        if (response.status === 429) {
+          setStatus(
+            `Too many attempts. ${data.resetTime ? `Try again after ${new Date(data.resetTime).toLocaleTimeString()}` : "Please wait before trying again."}`,
+          )
+        } else {
+          setStatus(data.error || "Access denied")
+        }
+      }
+    } catch (error) {
+      setStatus("Network error. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -24,17 +50,24 @@ export default function VipMint() {
     e.preventDefault()
     setStatus("Minting...")
 
-    const res = await fetch("/api/mint-vip", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_address: address,
-        email,
-      }),
-    })
+    try {
+      const res = await fetch("/api/mint-vip", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${vipToken}`,
+        },
+        body: JSON.stringify({
+          user_address: address,
+          email,
+        }),
+      })
 
-    const data = await res.json()
-    setStatus(data.success ? "Minted!" : data.error)
+      const data = await res.json()
+      setStatus(data.success ? "Minted!" : data.error)
+    } catch (error) {
+      setStatus("Minting failed. Please try again.")
+    }
   }
 
   if (!unlocked) {
@@ -49,14 +82,22 @@ export default function VipMint() {
               onChange={(e) => setPw(e.target.value)}
               placeholder="VIP password"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
             />
             <button
               type="submit"
-              className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors"
+              disabled={loading || !pw.trim()}
+              className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Unlock
+              {loading ? "Verifying..." : "Unlock"}
             </button>
-            {status && <div className="text-red-600 text-center">{status}</div>}
+            {status && (
+              <div
+                className={`text-center text-sm ${status === "Access granted!" ? "text-green-600" : "text-red-600"}`}
+              >
+                {status}
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -84,7 +125,8 @@ export default function VipMint() {
           />
           <button
             type="submit"
-            className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors"
+            disabled={!address.trim() || !email.trim()}
+            className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Mint VIP Token
           </button>
