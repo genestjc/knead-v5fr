@@ -89,7 +89,7 @@ export function WalletSummary() {
               }}
             >
               <Copy className="w-4 h-4 mr-2" />
-              {copied ? "Copied!" : "Copy Membership ID"}
+              {copied ? "Copied!" : "Copy Membership"}
             </button>
             <div className="border-t border-gray-100 my-1"></div>
             <button
