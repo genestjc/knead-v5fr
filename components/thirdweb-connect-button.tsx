@@ -14,28 +14,29 @@ export function ThirdWebConnectButton() {
           display: "inline-block",
           outline: "none",
           cursor: "pointer",
-          fontWeight: 500,
-          borderRadius: "4px",
-          padding: "0 16px",
-          color: "#fff",
-          background: "#000",
-          lineHeight: 1.15,
-          fontSize: "14px",
-          height: "36px",
-          wordSpacing: "0px",
-          letterSpacing: ".0892857143em",
-          textDecoration: "none",
-          minWidth: "120px",
+          fontSize: "16px",
+          lineHeight: "20px",
+          fontWeight: 600,
+          borderRadius: "8px",
+          padding: "14px 24px",
           border: "none",
-          textAlign: "center",
+          transition:
+            "box-shadow 0.2s ease 0s, -ms-transform 0.1s ease 0s, -webkit-transform 0.1s ease 0s, transform 0.1s ease 0s",
+          background:
+            "linear-gradient(to right, rgb(230, 30, 77) 0%, rgb(227, 28, 95) 50%, rgb(215, 4, 102) 100%)",
+          color: "#fff",
           fontFamily: "'Georgia Pro', serif",
+          minWidth: "120px",
+          textAlign: "center",
+          textDecoration: "none",
+          letterSpacing: ".089em",
           boxShadow:
             "0px 3px 1px -2px rgb(0 0 0 / 20%), 0px 2px 2px 0px rgb(0 0 0 / 14%), 0px 1px 5px 0px rgb(0 0 0 / 12%)",
-          transition:
-            "box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1), background 0.2s, color 0.2s",
+          textTransform: "uppercase",
         },
         hoverStyle: {
-          background: "#222", // Slightly lighter black for hover
+          background:
+            "linear-gradient(to right, rgb(215, 4, 102) 0%, rgb(227, 28, 95) 50%, rgb(230, 30, 77) 100%)",
           boxShadow:
             "0px 2px 4px -1px rgb(0 0 0 / 20%), 0px 4px 5px 0px rgb(0 0 0 / 14%), 0px 1px 10px 0px rgb(0 0 0 / 12%)",
         },
