@@ -1,34 +1,13 @@
-import { createClient } from "next-sanity"
+import { createClient } from "@sanity/client"
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
-const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production"
+const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET!
 const apiVersion = "2023-05-03"
 
-// Read-only client for public data
-export const client = createClient({
+export const sanityClient = createClient({
   projectId,
   dataset,
   apiVersion,
   useCdn: true,
   token: process.env.SANITY_API_READ_TOKEN,
 })
-
-// Write client for admin operations
-export const writeClient = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: false,
-  token: process.env.SANITY_API_WRITE_TOKEN,
-})
-
-// Preview client for draft content
-export const previewClient = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: false,
-  token: process.env.SANITY_API_WRITE_TOKEN,
-})
-
-export const getClient = (usePreview = false) => (usePreview ? previewClient : client)

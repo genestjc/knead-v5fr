@@ -14,10 +14,7 @@ export default {
         { title: "H4", value: "h4" },
         { title: "Quote", value: "blockquote" },
       ],
-      lists: [
-        { title: "Bullet", value: "bullet" },
-        { title: "Numbered", value: "number" },
-      ],
+      lists: [{ title: "Bullet", value: "bullet" }],
       marks: {
         decorators: [
           { title: "Strong", value: "strong" },

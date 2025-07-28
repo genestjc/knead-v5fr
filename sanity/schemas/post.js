@@ -51,7 +51,7 @@ export default {
       name: "publishedAt",
       title: "Published at",
       type: "datetime",
-      initialValue: () => new Date().toISOString(),
+      validation: (Rule) => Rule.required(),
     },
     {
       name: "excerpt",
@@ -63,19 +63,20 @@ export default {
       name: "body",
       title: "Body",
       type: "blockContent",
+      validation: (Rule) => Rule.required(),
     },
     {
       name: "isPremium",
       title: "Premium Content",
       type: "boolean",
-      description: "Check this if the post requires membership to view",
+      description: "Check if this post requires membership to view",
       initialValue: false,
     },
     {
       name: "featured",
       title: "Featured",
       type: "boolean",
-      description: "Featured posts appear prominently on the homepage",
+      description: "Mark as featured post",
       initialValue: false,
     },
   ],
@@ -97,13 +98,13 @@ export default {
 
   orderings: [
     {
-      title: "Published Date, New",
-      name: "publishedAtDesc",
+      title: "Publishing date new–old",
+      name: "publishingDateAsc",
       by: [{ field: "publishedAt", direction: "desc" }],
     },
     {
-      title: "Published Date, Old",
-      name: "publishedAtAsc",
+      title: "Publishing date old–new",
+      name: "publishingDateDesc",
       by: [{ field: "publishedAt", direction: "asc" }],
     },
   ],
