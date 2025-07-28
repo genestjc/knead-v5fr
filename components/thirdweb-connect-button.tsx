@@ -1,17 +1,7 @@
-"use client"
-
-import { ConnectButton } from "thirdweb/react"
-import { client } from "@/thirdweb-client"
-import { WalletSummary } from "./wallet-summary"
-import { useActiveAccount } from "thirdweb/react"
+import { ConnectButton } from "thirdweb/react";
+import { client } from "@/thirdweb-client";
 
 export function ThirdWebConnectButton() {
-  const account = useActiveAccount()
-
-  if (account) {
-    return <WalletSummary />
-  }
-
   return (
     <ConnectButton
       client={client}
@@ -38,5 +28,5 @@ export function ThirdWebConnectButton() {
         titleIcon: "",
       }}
     />
-  )
+  );
 }
