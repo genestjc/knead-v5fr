@@ -24,9 +24,7 @@ export default function JoinPage() {
     <>
       <Header />
       <section className="py-16 md:py-24">
-        {/* Remove mx-auto or center classes from container-magazine */}
         <div className="container-magazine text-left">
-          {/* Remove text-center from h1 */}
           <Suspense fallback={null}>
             <CheckoutStatusBanner />
           </Suspense>
@@ -42,7 +40,6 @@ export default function JoinPage() {
               </li>
             </ul>
           </div>
-          {/* Remove justify-center, use items-start for flex alignment */}
           <div className="flex items-start mb-12 cloud-float-delay-2">
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
               <h3 className="font-adonis text-2xl mb-4 text-left">
@@ -75,37 +72,35 @@ export default function JoinPage() {
               )}
             </div>
           </div>
-          {
-  /* FAQ Section */
-}
-<div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
-  <h2 className="font-adonis text-3xl mb-8 text-center">
-    Frequently Asked Questions
-  </h2>
-  <div className="max-w-3xl mx-auto space-y-2 text-center">
-    <FAQDropdown
-      question="How does the Knead Monthly subscription work?"
-      answer="We mint you a membership token that enables access to all paywalls, experiences, and other perks."
-    />
-    <FAQDropdown
-      question="Where do I go to cancel my membership?"
-      answer="If you're interested in canceling your membership, click here."
-    />
-    <FAQDropdown
-      question="Can I cancel my subscription at any time?"
-      answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
-    />
-    <FAQDropdown
-      question="How are payments accepted?"
-      answer="We use Stripe to safely and securely process payments."
-    />
-    <FAQDropdown
-      question="Will I get access immediately after subscribing?"
-      answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
-    />
-  </div>
-</div>
-
+          {/* FAQ Section */}
+          <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
+            <h2 className="font-adonis text-3xl mb-8 text-center">
+              Frequently Asked Questions
+            </h2>
+            <div className="max-w-3xl mx-auto space-y-2 text-center">
+              <FAQDropdown
+                question="How does the Knead Monthly subscription work?"
+                answer="We mint you a membership token that enables access to all paywalls, experiences, and other perks."
+              />
+              <FAQDropdown
+                question="Where do I go to cancel my membership?"
+                answer="If you're interested in canceling your membership, click here."
+              />
+              <FAQDropdown
+                question="Can I cancel my subscription at any time?"
+                answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
+              />
+              <FAQDropdown
+                question="How are payments accepted?"
+                answer="We use Stripe to safely and securely process payments."
+              />
+              <FAQDropdown
+                question="Will I get access immediately after subscribing?"
+                answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
+              />
+            </div>
+          </div>
+        </div>
         {/* Stripe Modal */}
         <Modal
           open={showStripe}
