@@ -3,14 +3,12 @@
 import {
   useActiveAccount,
   useDisconnect,
-  useActiveWallet,
 } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut } from "lucide-react";
 
 export function WalletSummary() {
   const account = useActiveAccount();
-  const activeWallet = useActiveWallet();
   const { disconnect } = useDisconnect();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] =
@@ -31,15 +29,8 @@ export function WalletSummary() {
 
   const handleSignOut = async () => {
     try {
-      if (activeWallet) {
-        await disconnect({ wallet: activeWallet });
-      } else {
-        await disconnect();
-      }
+      await disconnect(); // No arguments needed!
       setIsDropdownOpen(false);
-      // Optionally clear storage for embedded wallet edge cases
-      // localStorage.clear();
-      // sessionStorage.clear();
       window.location.reload();
     } catch (error) {
       console.error("Failed to disconnect:", error);
