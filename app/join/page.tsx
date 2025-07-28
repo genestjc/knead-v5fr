@@ -35,9 +35,7 @@ export default function JoinPage() {
           <div className="mb-12 cloud-float-delay-1">
             <ul className="space-y-4 font-georgia-pro text-lg">
               <li>• Unlimited access to stories.</li>
-              <li>• Access to The Groupchat.</li>
-              <li>
-                • Priority access to our shop, events, and
+              <li> • Priority access to our shop, events, and
                 other activations.
               </li>
             </ul>
@@ -54,8 +52,7 @@ export default function JoinPage() {
                 </span>
               </p>
               <p className="font-georgia-pro mb-6">
-                Get unlimited access to all our stories,
-                join The Groupchat, and enjoy priority
+                Get unlimited access to all our stories, and enjoy priority
                 access to our shop and events.
               </p>
               {isLoading ? null : hasAccess("premium") ? (
@@ -71,9 +68,6 @@ export default function JoinPage() {
                 </button>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 font-georgia-pro mb-4">
-                    Connect your wallet to subscribe
-                  </p>
                   <ThirdWebConnectButton />
                 </div>
               )}
@@ -87,19 +81,18 @@ export default function JoinPage() {
             <div className="max-w-3xl mx-auto space-y-2">
               <FAQDropdown
                 question="How does the Knead Monthly subscription work?"
-                answer="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque euismod, urna eu tincidunt consectetur, nisi nisl aliquam nunc, eget aliquam massa nisl quis neque."
+                answer="."
               />
               <FAQDropdown
                 question="Can I cancel my subscription at any time?"
-                answer="Yes! Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse malesuada lacus ex, sit amet blandit leo lobortis eget."
-              />
+                answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
               <FAQDropdown
-                question="What payment methods are accepted?"
-                answer="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus lacinia odio vitae vestibulum vestibulum."
+                question="How are payments accepted?"
+                answer="We use Stripe to safely and securely process payments."
               />
               <FAQDropdown
                 question="Will I get access immediately after subscribing?"
-                answer="Absolutely. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin ac neque nec sapien dictum placerat."
+                answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
               />
             </div>
           </div>
