@@ -1,46 +1,73 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server"
+import { createThirdwebClient, getContract } from "thirdweb"
+import { privateKeyToAccount } from "thirdweb/wallets"
+import { mintTo } from "thirdweb/extensions/erc1155"
+import { base } from "thirdweb/chains"
+import { verifyVipToken } from "@/lib/verify-vip-token"
 
-const CONTRACT_ADDRESS =
-  "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
-const PREMIUM_TOKEN_ID = 1;
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+})
+
+const account = privateKeyToAccount({
+  client,
+  privateKey: process.env.THIRDWEB_PRIVATE_KEY!,
+})
 
 export async function POST(req: NextRequest) {
-  const { user_address, email } = await req.json();
-  if (!user_address || !email) {
-    return NextResponse.json(
-      { error: "Missing user_address or email" },
-      { status: 400 },
-    );
-  }
-
   try {
-    const res = await fetch(
-      `https://api.thirdweb.com/v1/contract/${CONTRACT_ADDRESS}/erc1155/mint-to`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.THIRDWEB_SECRET_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          to: user_address,
-          tokenId: PREMIUM_TOKEN_ID,
-          amount: 1,
-        }),
-      },
-    );
-    const data = await res.json();
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: data.message || "Mint failed" },
-        { status: 500 },
-      );
+    // Verify VIP access token
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Missing or invalid authorization header" }, { status: 401 })
     }
-    return NextResponse.json({ success: true, tx: data });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 },
-    );
+
+    const token = authHeader.substring(7) // Remove "Bearer " prefix
+    if (!verifyVipToken(token)) {
+      return NextResponse.json({ error: "Invalid or expired VIP access token" }, { status: 401 })
+    }
+
+    const { user_address, email } = await req.json()
+
+    if (!user_address || !email) {
+      return NextResponse.json({ error: "Missing user_address or email" }, { status: 400 })
+    }
+
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(user_address)) {
+      return NextResponse.json({ error: "Invalid wallet address format" }, { status: 400 })
+    }
+
+    const contract = getContract({
+      client,
+      chain: base,
+      address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
+    })
+
+    // Mint premium membership token (token ID 1)
+    const transaction = mintTo({
+      contract,
+      to: user_address,
+      tokenId: BigInt(1), // Premium membership
+      quantity: BigInt(1),
+    })
+
+    const result = await transaction({
+      account,
+    })
+
+    console.log("VIP mint successful:", {
+      user_address,
+      email,
+      transactionHash: result.transactionHash,
+    })
+
+    return NextResponse.json({
+      success: true,
+      transactionHash: result.transactionHash,
+    })
+  } catch (error) {
+    console.error("VIP mint error:", error)
+    return NextResponse.json({ error: "Failed to mint VIP token" }, { status: 500 })
   }
 }
