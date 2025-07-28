@@ -55,9 +55,7 @@ export default function JoinPage() {
                 </span>
               </p>
               <p className="font-georgia-pro mb-6 text-left">
-                Get unlimited access to all our stories, and
-                enjoy priority access to our shop and
-                events.
+                Get unlimited access.
               </p>
               {isLoading ? null : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
@@ -71,7 +69,7 @@ export default function JoinPage() {
                   Subscribe to Knead Monthly
                 </button>
               ) : (
-                <div className="space-y-4 text-left">
+                <div className="space-y-4 text-center">
                   <ThirdWebConnectButton />
                 </div>
               )}
