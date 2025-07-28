@@ -11,9 +11,6 @@ export default function ShopPage() {
 
           <div className="bg-gray-50 rounded-lg border border-gray-100 p-12 text-center">
             <h2 className="font-adonis text-3xl mb-4">Coming Soon</h2>
-            <p className="font-georgia-pro text-lg text-gray-600 max-w-2xl mx-auto">
-              We anticipate to drop our first drop, S-Tier, Fall 2025.
-            </p>
           </div>
         </div>
       </section>
