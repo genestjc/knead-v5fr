@@ -104,7 +104,7 @@ export default function JoinPage() {
       answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
     />
   </div>
-</div>;
+</div>
 
         {/* Stripe Modal */}
         <Modal
