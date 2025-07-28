@@ -1,40 +1,28 @@
-import { createClient } from "@sanity/client"
+import { createClient } from "next-sanity"
 import imageUrlBuilder from "@sanity/image-url"
 
-const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
-const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET!
-const apiVersion = process.env.NEXT_PUBLIC_SANITY_API_VERSION || "2023-05-03"
+export const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
+export const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production"
+export const apiVersion = "2023-05-03"
 
-// Read-only client for public content
-export const sanityClient = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: true,
-  token: process.env.SANITY_API_READ_TOKEN,
-})
-
-// Write client for studio and preview mode
-export const sanityWriteClient = createClient({
+// Create a standard client for fetching data
+export const client = createClient({
   projectId,
   dataset,
   apiVersion,
   useCdn: false,
-  token: process.env.SANITY_API_WRITE_TOKEN,
 })
 
-// Function to get the appropriate client based on preview mode
-export function getClient(preview?: boolean) {
-  return preview ? sanityWriteClient : sanityClient
-}
+// Helper function to get the client
+export const getClient = (preview = false) => client
 
-// Image URL builder
-const builder = imageUrlBuilder(sanityClient)
+// Set up the image URL builder
+const builder = imageUrlBuilder(client)
 
-// Helper function for image URLs
-export function urlFor(source: any) {
+// Helper function to get image URLs
+export const urlFor = (source: any) => {
   return builder.image(source)
 }
 
-// Export default client
-export default sanityClient
+// v6-safe helper for draft document IDs (replaces the removed getDraftId import)
+export const getDraftId = (id: string) => (id.startsWith("drafts.") ? id : `drafts.${id}`)

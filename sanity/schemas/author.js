@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   name: "author",
   title: "Author",
   type: "document",
@@ -17,7 +17,6 @@ export default {
         source: "name",
         maxLength: 96,
       },
-      validation: (Rule) => Rule.required(),
     },
     {
       name: "image",
