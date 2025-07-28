@@ -90,6 +90,7 @@ export default function JoinPage() {
               <FAQDropdown
                 question="Can I cancel my subscription at any time?"
                 answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
+              />  
               <FAQDropdown
                 question="How are payments accepted?"
                 answer="We use Stripe to safely and securely process payments."
