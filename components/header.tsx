@@ -100,11 +100,12 @@ export function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
-            {/* WalletSummary if connected */}
-            {account && <WalletSummary />}
-
-            {/* Always show the connect button */}
-            <ThirdWebConnectButton />
+            {/* Show only one: WalletSummary if connected, else Sign In button */}
+            {account ? (
+              <WalletSummary />
+            ) : (
+              <ThirdWebConnectButton />
+            )}
 
             {/* Hamburger Menu */}
             <div
