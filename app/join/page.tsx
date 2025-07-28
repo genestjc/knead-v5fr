@@ -77,35 +77,37 @@ export default function JoinPage() {
               )}
             </div>
           </div>
-          {/* FAQ Section */}
-          <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3 text-left">
-            <h2 className="font-adonis text-3xl mb-8 text-left">
-              Frequently Asked Questions
-            </h2>
-            <div className="max-w-3xl space-y-2 text-left">
-              <FAQDropdown
-                question="How does the Knead Monthly subscription work?"
-                answer="."
-              />
-              <FAQDropdown
-                question="Where do I go to cancel my membership?"
-                answer="If you're interested in canceling your membership, click here."
-              />
-              <FAQDropdown
-                question="Can I cancel my subscription at any time?"
-                answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
-              />
-              <FAQDropdown
-                question="How are payments accepted?"
-                answer="We use Stripe to safely and securely process payments."
-              />
-              <FAQDropdown
-                question="Will I get access immediately after subscribing?"
-                answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
-              />
-            </div>
-          </div>
-        </div>
+          {
+  /* FAQ Section */
+}
+<div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
+  <h2 className="font-adonis text-3xl mb-8 text-center">
+    Frequently Asked Questions
+  </h2>
+  <div className="max-w-3xl mx-auto space-y-2 text-center">
+    <FAQDropdown
+      question="How does the Knead Monthly subscription work?"
+      answer="We mint you a membership token that enables access to all paywalls, experiences, and other perks."
+    />
+    <FAQDropdown
+      question="Where do I go to cancel my membership?"
+      answer="If you're interested in canceling your membership, click here."
+    />
+    <FAQDropdown
+      question="Can I cancel my subscription at any time?"
+      answer="Yes, and you'll still be granted access to our stories for the duration of your membership."
+    />
+    <FAQDropdown
+      question="How are payments accepted?"
+      answer="We use Stripe to safely and securely process payments."
+    />
+    <FAQDropdown
+      question="Will I get access immediately after subscribing?"
+      answer="Absolutely. We mint you a membership token to access unlimited stories and other perks."
+    />
+  </div>
+</div>;
+
         {/* Stripe Modal */}
         <Modal
           open={showStripe}
