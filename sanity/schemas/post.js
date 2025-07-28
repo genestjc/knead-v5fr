@@ -78,26 +78,6 @@ export default {
       description: "Featured posts appear prominently on the homepage",
       initialValue: false,
     },
-    {
-      name: "seo",
-      title: "SEO",
-      type: "object",
-      fields: [
-        {
-          name: "metaTitle",
-          title: "Meta Title",
-          type: "string",
-          validation: (Rule) => Rule.max(60).warning("Should be under 60 characters"),
-        },
-        {
-          name: "metaDescription",
-          title: "Meta Description",
-          type: "text",
-          rows: 3,
-          validation: (Rule) => Rule.max(160).warning("Should be under 160 characters"),
-        },
-      ],
-    },
   ],
 
   preview: {
@@ -106,16 +86,11 @@ export default {
       author: "author.name",
       media: "mainImage",
       isPremium: "isPremium",
-      featured: "featured",
     },
     prepare(selection) {
-      const { author, isPremium, featured } = selection
-      const subtitle = [author && `by ${author}`, isPremium && "🔒 Premium", featured && "⭐ Featured"]
-        .filter(Boolean)
-        .join(" • ")
-
+      const { author, isPremium } = selection
       return Object.assign({}, selection, {
-        subtitle,
+        subtitle: `${author ? `by ${author}` : "No author"}${isPremium ? " • Premium" : ""}`,
       })
     },
   },

@@ -54,7 +54,7 @@ export default defineConfig({
   },
 
   // Add API version
-  apiVersion,
+  apiVersion: "2023-05-03",
 
   // Studio authentication
   auth: {
