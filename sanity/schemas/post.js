@@ -24,6 +24,7 @@ export default {
       title: "Author",
       type: "reference",
       to: { type: "author" },
+      validation: (Rule) => Rule.required(),
     },
     {
       name: "mainImage",
@@ -32,6 +33,13 @@ export default {
       options: {
         hotspot: true,
       },
+      fields: [
+        {
+          name: "alt",
+          type: "string",
+          title: "Alternative Text",
+        },
+      ],
     },
     {
       name: "categories",
@@ -43,6 +51,13 @@ export default {
       name: "publishedAt",
       title: "Published at",
       type: "datetime",
+      initialValue: () => new Date().toISOString(),
+    },
+    {
+      name: "excerpt",
+      title: "Excerpt",
+      type: "text",
+      rows: 4,
     },
     {
       name: "body",
@@ -50,10 +65,17 @@ export default {
       type: "blockContent",
     },
     {
-      name: "premium",
-      title: "Members-Only Content",
-      description: "Is this a members-only post that requires a membership to access?",
+      name: "isPremium",
+      title: "Premium Content",
       type: "boolean",
+      description: "Check this if the post requires membership to view",
+      initialValue: false,
+    },
+    {
+      name: "featured",
+      title: "Featured",
+      type: "boolean",
+      description: "Featured posts appear prominently on the homepage",
       initialValue: false,
     },
   ],
@@ -63,14 +85,26 @@ export default {
       title: "title",
       author: "author.name",
       media: "mainImage",
-      premium: "premium",
+      isPremium: "isPremium",
     },
     prepare(selection) {
-      const { author, premium } = selection
-      return {
-        ...selection,
-        subtitle: `${premium ? "🔒 Members-Only" : ""} ${author ? `by ${author}` : ""}`.trim(),
-      }
+      const { author, isPremium } = selection
+      return Object.assign({}, selection, {
+        subtitle: `${author ? `by ${author}` : "No author"}${isPremium ? " • Premium" : ""}`,
+      })
     },
   },
+
+  orderings: [
+    {
+      title: "Published Date, New",
+      name: "publishedAtDesc",
+      by: [{ field: "publishedAt", direction: "desc" }],
+    },
+    {
+      title: "Published Date, Old",
+      name: "publishedAtAsc",
+      by: [{ field: "publishedAt", direction: "asc" }],
+    },
+  ],
 }

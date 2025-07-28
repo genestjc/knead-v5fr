@@ -3,7 +3,7 @@
  */
 
 import { defineConfig } from "sanity"
-import { deskTool } from "sanity/desk"
+import { structureTool } from "sanity/structure"
 import { visionTool } from "@sanity/vision"
 
 // Import schema types
@@ -21,7 +21,7 @@ export default defineConfig({
   dataset,
 
   plugins: [
-    deskTool({
+    structureTool({
       structure,
     }),
     visionTool(),
@@ -40,4 +40,24 @@ export default defineConfig({
   },
 
   basePath: "/studio",
+
+  // Add CORS settings for production
+  cors: {
+    credentials: true,
+    origin: [
+      "http://localhost:3000",
+      "https://www.kneadmag.com",
+      "https://kneadmag.com",
+      "https://knead-v5fr.vercel.app",
+    ],
+  },
+
+  // Add API version
+  apiVersion: "2023-05-03",
+
+  // Studio authentication
+  auth: {
+    redirectOnSingle: false,
+    providers: [],
+  },
 })
