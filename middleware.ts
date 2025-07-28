@@ -1,35 +1,53 @@
-import { type NextRequest, NextResponse } from "next/server"
+import {
+  type NextRequest,
+  NextResponse,
+} from "next/server";
+
+const SANITY_DOMAINS = [
+  "https://cdn.sanity.io",
+  "https://*.sanity.io",
+  "https://api.sanity.io",
+];
 
 export function middleware(request: NextRequest) {
-  // Skip middleware for Sanity Studio routes entirely
-  if (request.nextUrl.pathname.startsWith("/studio")) {
-    return NextResponse.next()
-  }
+  const { pathname } = request.nextUrl;
 
-  // Handle CORS for API routes
-  if (request.nextUrl.pathname.startsWith("/api/")) {
-    const response = NextResponse.next()
+  // Allow CORS for API and Studio routes
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/studio")
+  ) {
+    const response = NextResponse.next();
 
-    // Add CORS headers
-    response.headers.set("Access-Control-Allow-Origin", "*")
-    response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    // Allow your domains and Sanity domains for CORS
+    response.headers.set(
+      "Access-Control-Allow-Origin",
+      "*",
+    );
+    response.headers.set(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    );
+    response.headers.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization",
+    );
 
     // Handle preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 200,
         headers: response.headers,
-      })
+      });
     }
 
-    return response
+    return response;
   }
 
-  // Add Content Security Policy for all other routes (excluding studio)
+  // Content Security Policy for all routes (including /studio)
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval'
+    script-src 'self' 'unsafe-inline'
       https://js.stripe.com
       https://vercel.live
       https://use.typekit.net
@@ -38,28 +56,27 @@ export function middleware(request: NextRequest) {
       https://platform.twitter.com
       https://www.instagram.com
       https://static.cdninstagram.com
-      https://*.sanity.io
-      https://cdn.sanity.io;
+      https://cdn.sanity.io
+      https://*.sanity.io;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
       https://p.typekit.net
       https://www.instagram.com
-      https://*.sanity.io
-      https://cdn.sanity.io;
+      https://cdn.sanity.io
+      https://*.sanity.io;
     img-src 'self' blob: data:
       https://cdn.sanity.io
+      https://*.sanity.io
       https://lh3.googleusercontent.com
       https://vercel.com
       https://pbs.twimg.com
       https://www.instagram.com
-      https://static.cdninstagram.com
-      https://*.sanity.io;
+      https://static.cdninstagram.com;
     font-src 'self'
       https://fonts.gstatic.com
       https://use.typekit.net
-      https://p.typekit.net
-      https://*.sanity.io;
+      https://p.typekit.net;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
@@ -76,8 +93,8 @@ export function middleware(request: NextRequest) {
       https://twitter.com
       https://www.instagram.com
       https://static.cdninstagram.com
-      https://*.sanity.io
-      https://cdn.sanity.io;
+      https://cdn.sanity.io
+      https://*.sanity.io;
     connect-src 'self'
       https://api.stripe.com
       https://checkout.stripe.com
@@ -88,20 +105,27 @@ export function middleware(request: NextRequest) {
       https://8453.rpc.thirdweb.com
       https://use.typekit.net
       https://fonts.googleapis.com
-      https://*.sanity.io
       https://cdn.sanity.io
-      https://cs0gtnjr.api.sanity.io;
+      https://*.sanity.io
+      https://api.sanity.io
+      ws://localhost:*
+      wss://*.sanity.io;
     upgrade-insecure-requests;
   `
     .replace(/\s{2,}/g, " ")
-    .trim()
+    .trim();
 
-  const response = NextResponse.next()
-  response.headers.set("Content-Security-Policy", cspHeader)
+  const response = NextResponse.next();
+  response.headers.set(
+    "Content-Security-Policy",
+    cspHeader,
+  );
 
-  return response
+  return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-}
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
+};
