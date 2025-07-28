@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { ethers } from "ethers";
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 import { sendEmail } from "@/lib/sendEmail";
 import { cancellationEmail } from "@/lib/emailTemplates";
 
@@ -29,24 +27,29 @@ export async function POST(req: NextRequest) {
     // 1. Cancel the Stripe subscription
     await stripe.subscriptions.del(subscriptionId);
 
-    // 2. Burn/revoke the NFT
-    const provider = new ethers.JsonRpcProvider(
-      process.env.BASE_RPC_URL!,
+    // 2. Burn/revoke the NFT via thirdweb HTTP API
+    const res = await fetch(
+      `https://api.thirdweb.com/v1/contract/${CONTRACT_ADDRESS}/erc1155/burn`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.THIRDWEB_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: user_address,
+          tokenId: PREMIUM_TOKEN_ID,
+          amount: 1,
+        }),
+      },
     );
-    const wallet = new ethers.Wallet(
-      process.env.THIRDWEB_PRIVATE_KEY!,
-      provider,
-    );
-    const contract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      kneadMembershipABI,
-      wallet,
-    );
-    await contract.adminBurn(
-      user_address,
-      PREMIUM_TOKEN_ID,
-      1,
-    );
+    const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data.message || "Burn failed" },
+        { status: 500 },
+      );
+    }
 
     // 3. Send cancellation email
     await sendEmail({
