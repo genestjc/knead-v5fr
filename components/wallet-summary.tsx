@@ -30,11 +30,23 @@ export function WalletSummary() {
     try {
       // Only disconnect if account is present and not already disconnecting
       if (account && !isDisconnecting) {
-        await disconnect();
+        try {
+          await disconnect();
+        } catch (err: any) {
+          // If the error is the known "reading 'id'" bug, ignore it
+          if (
+            err?.message?.includes("reading 'id'") ||
+            err?.message?.includes(
+              "Cannot read properties of undefined",
+            )
+          ) {
+            // Already disconnected, ignore
+          } else {
+            throw err;
+          }
+        }
       }
-      // Do NOT clear localStorage here; let thirdweb SDK handle it for embedded wallets
       setIsDropdownOpen(false);
-      // Optionally, you can redirect or reload
       window.location.reload();
     } catch (error) {
       console.error("Failed to disconnect:", error);
