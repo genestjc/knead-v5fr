@@ -28,17 +28,11 @@ export function WalletSummary() {
 
   const handleSignOut = async () => {
     try {
-      // Only disconnect if account is present
-      if (account) {
+      // Only disconnect if account is present and not already disconnecting
+      if (account && !isDisconnecting) {
         await disconnect();
       }
-      // Clean up embedded wallet session data
-      localStorage.removeItem("thirdweb.wallet");
-      localStorage.removeItem("thirdweb.auth.session");
-      // Optionally clear any custom user data
-      if (account?.address) {
-        localStorage.removeItem(`email_${account.address}`);
-      }
+      // Do NOT clear localStorage here; let thirdweb SDK handle it for embedded wallets
       setIsDropdownOpen(false);
       // Optionally, you can redirect or reload
       window.location.reload();
