@@ -28,16 +28,23 @@ export function WalletSummary() {
   };
 
   const handleSignOut = async () => {
-    try {
-      await disconnect(); // No arguments needed!
-      setIsDropdownOpen(false);
-      window.location.reload();
-    } catch (error) {
-      console.error("Failed to disconnect:", error);
-      setIsDropdownOpen(false);
-      window.location.reload();
+  try {
+    await disconnect();
+    // Clear thirdweb in-app wallet session (if any)
+    localStorage.removeItem("thirdweb.wallet");
+    localStorage.removeItem("thirdweb.auth.session");
+    // Optionally clear any custom user data
+    if (account?.address) {
+      localStorage.removeItem(`email_${account.address}`);
     }
-  };
+    setIsDropdownOpen(false);
+    window.location.reload();
+  } catch (error) {
+    console.error("Failed to disconnect:", error);
+    setIsDropdownOpen(false);
+    window.location.reload();
+  }
+};
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
