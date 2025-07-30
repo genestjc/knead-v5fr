@@ -37,7 +37,7 @@ export default function SubscriptionFlow({
 
     if (data.url) {
       window.location.href = data.url;
-      if (onSuccess) onSuccess();
+      // No need to call onSuccess() here
     } else {
       setError(data.error || "Failed to start checkout.");
     }
