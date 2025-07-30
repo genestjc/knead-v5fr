@@ -108,6 +108,7 @@ export function middleware(request: NextRequest) {
       https://cdn.sanity.io
       https://*.sanity.io
       https://api.sanity.io
+      https://api.thirdweb.com
       ws://localhost:*
       wss://*.sanity.io;
     upgrade-insecure-requests;
