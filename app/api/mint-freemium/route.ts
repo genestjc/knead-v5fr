@@ -4,6 +4,7 @@ import {
   getContract,
 } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
+import { base } from "thirdweb/chains";
 
 // Your contract address and token ID
 const CONTRACT_ADDRESS =
