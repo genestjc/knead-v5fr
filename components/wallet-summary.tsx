@@ -9,7 +9,7 @@ import { Copy, LogOut } from "lucide-react";
 
 export function WalletSummary() {
   const account = useActiveAccount();
-  const { disconnect } = useDisconnect();
+  const { disconnect, isDisconnecting } = useDisconnect();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] =
     useState(false);
@@ -17,7 +17,6 @@ export function WalletSummary() {
 
   const handleCopy = async () => {
     if (!account?.address) return;
-
     try {
       await navigator.clipboard.writeText(account.address);
       setCopied(true);
@@ -28,23 +27,27 @@ export function WalletSummary() {
   };
 
   const handleSignOut = async () => {
-  try {
-    await disconnect();
-    // Clear thirdweb in-app wallet session (if any)
-    localStorage.removeItem("thirdweb.wallet");
-    localStorage.removeItem("thirdweb.auth.session");
-    // Optionally clear any custom user data
-    if (account?.address) {
-      localStorage.removeItem(`email_${account.address}`);
+    try {
+      // Only disconnect if account is present
+      if (account) {
+        await disconnect();
+      }
+      // Clean up embedded wallet session data
+      localStorage.removeItem("thirdweb.wallet");
+      localStorage.removeItem("thirdweb.auth.session");
+      // Optionally clear any custom user data
+      if (account?.address) {
+        localStorage.removeItem(`email_${account.address}`);
+      }
+      setIsDropdownOpen(false);
+      // Optionally, you can redirect or reload
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to disconnect:", error);
+      setIsDropdownOpen(false);
+      window.location.reload();
     }
-    setIsDropdownOpen(false);
-    window.location.reload();
-  } catch (error) {
-    console.error("Failed to disconnect:", error);
-    setIsDropdownOpen(false);
-    window.location.reload();
-  }
-};
+  };
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -101,13 +104,20 @@ export function WalletSummary() {
             <div className="border-t border-gray-100 my-1"></div>
             <button
               onClick={handleSignOut}
+              disabled={isDisconnecting}
               className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
               style={{
                 fontFamily: "Adonis, 'Georgia Pro', serif",
+                opacity: isDisconnecting ? 0.6 : 1,
+                cursor: isDisconnecting
+                  ? "not-allowed"
+                  : "pointer",
               }}
             >
               <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
+              {isDisconnecting
+                ? "Signing Out..."
+                : "Sign Out"}
             </button>
           </div>
         </div>
