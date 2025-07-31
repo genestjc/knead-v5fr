@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
+      // Existing checkout flow events
       case "checkout.session.completed": {
-        const session = event.data
-          .object as Stripe.Checkout.Session;
+        const session = event.data.object as Stripe.Checkout.Session;
         const wallet = session.metadata?.wallet_address;
         if (wallet) {
           await mintPremiumNFT(wallet);
@@ -30,8 +30,7 @@ export async function POST(req: NextRequest) {
       }
       case "invoice.payment_failed":
       case "customer.subscription.deleted": {
-        const subscription = event.data
-          .object as Stripe.Subscription;
+        const subscription = event.data.object as Stripe.Subscription;
         const wallet = subscription.metadata?.wallet_address;
         if (wallet) {
           await burnPremiumNFT(wallet);
@@ -41,16 +40,39 @@ export async function POST(req: NextRequest) {
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         const subscription = invoice.subscription as string;
-        const sub =
-          await stripe.subscriptions.retrieve(subscription);
+        const sub = await stripe.subscriptions.retrieve(subscription);
         const wallet = sub.metadata?.wallet_address;
         if (wallet) {
           await mintPremiumNFT(wallet);
         }
         break;
       }
+      
+      // New Payment Element flow events
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const wallet = paymentIntent.metadata?.wallet_address;
+        
+        // If this is for a subscription, handle accordingly
+        if (paymentIntent.metadata?.subscription_type === 'premium' && wallet) {
+          await mintPremiumNFT(wallet);
+        }
+        break;
+      }
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const wallet = paymentIntent.metadata?.wallet_address;
+        
+        // Handle failed payment if needed
+        if (wallet && paymentIntent.metadata?.subscription_type === 'premium') {
+          // Perhaps log the failure or notify the user
+          console.log(`Payment failed for wallet: ${wallet}`);
+        }
+        break;
+      }
+      
       default:
-        // Still acknowledge the webhook even for events we don't handle
+        console.log(`Unhandled event type: ${event.type}`);
         break;
     }
     
@@ -59,7 +81,6 @@ export async function POST(req: NextRequest) {
       status: 200,
     });
   } catch (err) {
-    // Log the error but still return a 200 response to acknowledge receipt
     console.error(`Error processing webhook: ${(err as Error).message}`);
     return new Response(JSON.stringify({ 
       received: true,
