@@ -23,7 +23,7 @@ export default function SubscriptionFlow({ onSuccess }: { onSuccess: () => void 
         },
         body: JSON.stringify({
           walletAddress: account.address,
-          priceId: 'price_YOUR_SUBSCRIPTION_PRICE_ID', // Replace with your actual price ID
+          priceId: 'price_1RhFCBLFxM3QV6ciPmZnxyfL', // Replace with your actual price ID
         }),
       });
       
