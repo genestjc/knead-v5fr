@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
+import { useSearchParams } from 'next/navigation';
 import SubscriptionFlow from "@/components/SubscriptionFlow";
+import { Modal } from "@/components/modal";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useMembership } from "@/components/membership-provider";
 import { FAQDropdown } from "@/components/faq-dropdown";
@@ -13,11 +15,23 @@ export default function JoinPage() {
   const account = useActiveAccount();
   const { hasAccess, isLoading } = useMembership();
   const [showStripe, setShowStripe] = useState(false);
+  const searchParams = useSearchParams();
+  
+  // Get success and canceled status from URL
+  const success = searchParams.get('success');
+  const canceled = searchParams.get('canceled');
 
   const handleSubscriptionSuccess = () => {
     setShowStripe(false);
     window.location.reload();
   };
+
+  // Handle successful subscription when returning from Stripe
+  useEffect(() => {
+    if (success === 'true') {
+      handleSubscriptionSuccess();
+    }
+  }, [success]);
 
   return (
     <>
@@ -27,6 +41,21 @@ export default function JoinPage() {
           <Suspense fallback={null}>
             <CheckoutStatusBanner />
           </Suspense>
+          
+          {/* Success message */}
+          {success === 'true' && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
+              Your subscription was successful! You now have access to premium content.
+            </div>
+          )}
+
+          {/* Canceled message */}
+          {canceled === 'true' && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded">
+              Payment was canceled. You can try again when you're ready.
+            </div>
+          )}
+          
           <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float text-left">
             Join Knead Monthly to have access to:
           </h1>
@@ -130,7 +159,7 @@ export default function JoinPage() {
         </div>
         {/* Stripe Modal */}
         <Modal
-          open={showStripe}
+          open={showStripe && !success}
           onClose={() => setShowStripe(false)}
         >
           <div className="pt-4 text-left">
