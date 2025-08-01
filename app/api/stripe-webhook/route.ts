@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import { createThirdwebClient, getContract, call } from "thirdweb";
+import { createThirdwebClient, getContract, writeContract } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
@@ -38,12 +38,12 @@ async function adminBurnPremiumNFT(walletAddress: string) {
     chain: base,
     abi: kneadMembershipABI,
   });
-  return call({
-    contract,
-    method: "function adminBurn(address from, uint256 id, uint256 amount)",
-    params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
-  });
-}
+  return writeContract({
+  contract,
+  method: "adminBurn",
+  params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
+});
+
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature") as string;
