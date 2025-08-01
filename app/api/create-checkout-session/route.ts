@@ -5,38 +5,42 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 });
 
+const SUBSCRIPTION_PRICE_ID = process.env.STRIPE_PRICE_ID || 'price_1RhFCBLFxM3QV6ciPmZnxyfL';
+
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, priceId, email } = await req.json();
+    const { walletAddress } = await req.json();
     
-    if (!walletAddress || !priceId) {
+    if (!walletAddress) {
       return NextResponse.json(
-        { error: 'Missing wallet address or price ID' },
+        { error: 'Missing wallet address' },
         { status: 400 }
       );
     }
 
-    // Create Checkout Session for subscription
+    // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price: priceId, // Your subscription price ID
+          price: SUBSCRIPTION_PRICE_ID,
           quantity: 1,
         },
       ],
       mode: 'subscription',
-      success_url: `${req.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.headers.get('origin')}/join?success=true`,
       cancel_url: `${req.headers.get('origin')}/join?canceled=true`,
       metadata: {
         wallet_address: walletAddress,
       },
-      customer_email: email, // Optional
       subscription_data: {
         metadata: {
           wallet_address: walletAddress,
         },
-      }
+      },
+      // Optional: Collect customer email
+      // billing_address_collection: 'auto',
+      // customer_email: email,
     });
 
     return NextResponse.json({ url: session.url });
