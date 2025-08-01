@@ -1,68 +1,48 @@
-"use client";
-import { useState } from "react";
+// components/SubscriptionFlow.tsx
+'use client';
+
+import { useState } from 'react';
+import StripePaymentForm from './StripePaymentForm';
 import { useActiveAccount } from "thirdweb/react";
 
-export default function SubscriptionFlow({
-  onSuccess,
-}: {
-  onSuccess?: () => void;
-}) {
+export default function SubscriptionFlow({ onSuccess }: { onSuccess: () => void }) {
   const account = useActiveAccount();
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isCompleted, setIsCompleted] = useState(false);
 
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const returnTo = window.location.pathname;
-
-    const res = await fetch(
-      "/api/create-checkout-session",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          wallet_address: account?.address,
-          returnTo,
-        }),
-      },
+  if (isCompleted) {
+    return (
+      <div className="text-center p-6 space-y-4">
+        <h3 className="font-adonis text-2xl">Thank you for subscribing!</h3>
+        <p className="font-georgia-pro">
+          You now have unlimited access to Knead Monthly content.
+        </p>
+        <button
+          onClick={onSuccess}
+          className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
+        >
+          Continue to Knead Magazine
+        </button>
+      </div>
     );
+  }
 
-    const data = await res.json();
-    setLoading(false);
-
-    if (data.url) {
-      window.location.href = data.url;
-      // No need to call onSuccess() here
-    } else {
-      setError(data.error || "Failed to start checkout.");
-    }
-  };
+  if (!account?.address) {
+    return (
+      <div className="text-center p-6 font-georgia-pro">
+        Please connect your wallet to continue.
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={handleSubscribe} className="space-y-4">
-      <input
-        type="email"
-        required
-        placeholder="Your email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="border p-2 w-full"
+    <div className="subscription-flow">
+      <StripePaymentForm 
+        walletAddress={account.address}
+        onSuccess={() => setIsCompleted(true)}
       />
-      <button
-        type="submit"
-        disabled={!account?.address || loading}
-        className="bg-black text-white px-4 py-2 rounded"
-      >
-        {loading
-          ? "Redirecting..."
-          : "Subscribe for $5/month"}
-      </button>
-      {error && <div className="text-red-500">{error}</div>}
-    </form>
+      <div className="mt-4 text-sm text-gray-600 font-georgia-pro">
+        By subscribing, you agree to our Terms of Service and Privacy Policy.
+      </div>
+    </div>
   );
 }
