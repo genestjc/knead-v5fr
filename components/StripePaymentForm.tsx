@@ -4,14 +4,10 @@ import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// Initialize Stripe outside of component (once)
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123');
+// Initialize Stripe outside of component
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-// The inner form component that uses the Stripe hooks
-function CheckoutForm({ onSuccess, walletAddress }: { 
-  onSuccess: () => void, 
-  walletAddress: string 
-}) {
+function CheckoutForm({ onSuccess }: { onSuccess: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +17,6 @@ function CheckoutForm({ onSuccess, walletAddress }: {
     e.preventDefault();
 
     if (!stripe || !elements) {
-      // Stripe.js hasn't loaded yet
       return;
     }
 
@@ -29,19 +24,14 @@ function CheckoutForm({ onSuccess, walletAddress }: {
     setErrorMessage(null);
 
     try {
-      // Confirm the payment
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         redirect: 'if_required',
-        confirmParams: {
-          return_url: `${window.location.origin}/membership-success`,
-        },
       });
 
       if (error) {
         setErrorMessage(error.message || 'Payment failed');
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        // Payment successful!
         onSuccess();
       } else {
         setErrorMessage('Payment status unknown. Please contact support.');
@@ -54,11 +44,11 @@ function CheckoutForm({ onSuccess, walletAddress }: {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="payment-form">
-      <PaymentElement />
+    <form onSubmit={handleSubmit} className="font-georgia-pro">
+      <PaymentElement className="mb-6" />
       
       {errorMessage && (
-        <div className="error-message mt-4 text-red-500">
+        <div className="text-red-600 mb-4">
           {errorMessage}
         </div>
       )}
@@ -66,31 +56,24 @@ function CheckoutForm({ onSuccess, walletAddress }: {
       <button
         type="submit"
         disabled={!stripe || isLoading}
-        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-gray-400"
+        className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
       >
-        {isLoading ? 'Processing...' : 'Subscribe Now'}
+        {isLoading ? 'Processing...' : 'Subscribe to Knead Monthly'}
       </button>
     </form>
   );
 }
 
-// The wrapper component that initializes Elements
-export default function PaymentForm({ 
-  walletAddress, 
-  amount = 2000, 
-  subscriptionType = 'premium',
-  email
+export default function StripePaymentForm({ 
+  walletAddress,
+  onSuccess
 }: {
   walletAddress: string;
-  amount?: number;
-  subscriptionType?: string;
-  email?: string;
+  onSuccess: () => void;
 }) {
   const [clientSecret, setClientSecret] = useState('');
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
-    // Create PaymentIntent as soon as the component mounts
     const createPaymentIntent = async () => {
       if (!walletAddress) return;
       
@@ -100,9 +83,8 @@ export default function PaymentForm({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             walletAddress,
-            amount,
-            subscriptionType,
-            email
+            amount: 500, // $5.00
+            subscriptionType: 'premium'
           }),
         });
         
@@ -120,44 +102,32 @@ export default function PaymentForm({
     };
 
     createPaymentIntent();
-  }, [walletAddress, amount, subscriptionType, email]);
-
-  const handleSuccess = () => {
-    setPaymentSuccess(true);
-  };
+  }, [walletAddress]);
 
   // Options for the Stripe Element
-  const options = {
+  const options = clientSecret ? {
     clientSecret,
     appearance: {
       theme: 'stripe',
       variables: {
-        colorPrimary: '#0a2540',
+        colorPrimary: '#000000', // Black to match your branding
         colorBackground: '#ffffff',
-        colorText: '#30313d',
+        colorText: '#000000',
+        fontFamily: '"Georgia Pro", Georgia, serif',
       },
     },
-  };
-
-  if (paymentSuccess) {
-    return (
-      <div className="success-message p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-        <h3 className="text-xl font-bold">Payment Successful!</h3>
-        <p>Thank you for your subscription.</p>
-      </div>
-    );
-  }
+  } : { clientSecret: '' };
 
   return (
-    <div className="payment-container max-w-md mx-auto p-4 border rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Complete Your Subscription</h2>
-      
+    <div>
       {clientSecret ? (
         <Elements stripe={stripePromise} options={options}>
-          <CheckoutForm onSuccess={handleSuccess} walletAddress={walletAddress} />
+          <CheckoutForm onSuccess={onSuccess} />
         </Elements>
       ) : (
-        <div className="loading">Loading payment form...</div>
+        <div className="text-center py-4 font-georgia-pro">
+          Loading payment form...
+        </div>
       )}
     </div>
   );
