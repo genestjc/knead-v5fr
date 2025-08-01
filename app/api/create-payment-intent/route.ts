@@ -7,51 +7,28 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, amount, subscriptionType, email } = await req.json();
+    const { walletAddress, amount, subscriptionType } = await req.json();
     
-    if (!walletAddress || !amount || !subscriptionType) {
+    if (!walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields: walletAddress, amount, or subscriptionType' },
+        { error: 'Missing wallet address' },
         { status: 400 }
       );
     }
 
-    // Optional: Create or retrieve a customer if you want to associate payments
-    let customerId;
-    if (email) {
-      const customers = await stripe.customers.list({
-        email: email,
-        limit: 1,
-      });
-      
-      if (customers.data.length > 0) {
-        customerId = customers.data[0].id;
-      } else {
-        const customer = await stripe.customers.create({
-          email: email,
-          metadata: {
-            wallet_address: walletAddress
-          }
-        });
-        customerId = customer.id;
-      }
-    }
-    
     // Create a PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: parseInt(amount), // Make sure amount is an integer (cents)
+      amount: amount || 500, // $5.00 monthly subscription
       currency: 'usd',
-      customer: customerId, // Optional: include if you created a customer
       automatic_payment_methods: { enabled: true },
       metadata: {
         wallet_address: walletAddress,
-        subscription_type: subscriptionType
+        subscription_type: subscriptionType || 'premium'
       }
     });
     
     return NextResponse.json({ 
-      clientSecret: paymentIntent.client_secret,
-      publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+      clientSecret: paymentIntent.client_secret
     });
   } catch (error: any) {
     console.error('Error creating payment intent:', error);
