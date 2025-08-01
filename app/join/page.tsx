@@ -5,7 +5,6 @@ import { useActiveAccount } from "thirdweb/react";
 import { useMembership } from "@/components/membership-provider";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { FAQDropdown } from "@/components/faq-dropdown";
-import { CheckoutStatusBanner } from "@/components/CheckoutStatusBanner";
 import { Header } from "@/components/header";
 
 export default function JoinPage() {
@@ -56,7 +55,6 @@ export default function JoinPage() {
       <Header />
       <section className="py-16 md:py-24">
         <div className="container-magazine text-left">
-          <CheckoutStatusBanner />
           <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float text-left">
             Join Knead Monthly to have access to:
           </h1>
