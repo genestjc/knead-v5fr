@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { createThirdwebClient, getContract, call } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json"; // <-- Import ABI JSON
+import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
