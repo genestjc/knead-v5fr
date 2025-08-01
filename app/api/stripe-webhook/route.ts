@@ -39,10 +39,11 @@ async function adminBurnPremiumNFT(walletAddress: string) {
     abi: kneadMembershipABI,
   });
   return writeContract({
-  contract,
-  method: "adminBurn",
-  params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
-});
+    contract,
+    method: "adminBurn",
+    params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
+  });
+}
 
 
 export async function POST(req: NextRequest) {
