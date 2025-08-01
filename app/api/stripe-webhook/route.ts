@@ -1,3 +1,22 @@
+import { NextRequest } from 'next/server';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+});
+
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+
+async function mintPremiumNFT(walletAddress: string) {
+  // Your existing NFT minting logic
+  console.log(`Minting NFT for wallet: ${walletAddress}`);
+}
+
+async function burnPremiumNFT(walletAddress: string) {
+  // Your existing NFT burning logic
+  console.log(`Burning NFT for wallet: ${walletAddress}`);
+}
+
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature") as string;
   const rawBody = await req.arrayBuffer();
@@ -56,6 +75,21 @@ export async function POST(req: NextRequest) {
         // If this is for a subscription, handle accordingly
         if (paymentIntent.metadata?.subscription_type === 'premium' && wallet) {
           await mintPremiumNFT(wallet);
+          
+          // Optional: Create a subscription after successful payment
+          // This is if you want to handle recurring billing
+          if (paymentIntent.customer) {
+            try {
+              const subscription = await stripe.subscriptions.create({
+                customer: paymentIntent.customer as string,
+                items: [{ price: 'price_1RhFCBLFxM3QV6ciPmZnxyfL' }], // Replace with your price ID
+                metadata: { wallet_address: wallet }
+              });
+              console.log(`Created subscription: ${subscription.id}`);
+            } catch (subError) {
+              console.error('Failed to create subscription:', subError);
+            }
+          }
         }
         break;
       }
@@ -63,9 +97,8 @@ export async function POST(req: NextRequest) {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const wallet = paymentIntent.metadata?.wallet_address;
         
-        // Handle failed payment if needed
-        if (wallet && paymentIntent.metadata?.subscription_type === 'premium') {
-          // Perhaps log the failure or notify the user
+        // Log the failure
+        if (wallet) {
           console.log(`Payment failed for wallet: ${wallet}`);
         }
         break;
