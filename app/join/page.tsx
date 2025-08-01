@@ -1,10 +1,8 @@
-// app/join/page.tsx
 "use client";
 
 import { useState, Suspense } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import SubscriptionFlow from "@/components/SubscriptionFlow";
-import { Modal } from "@/components/modal";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useMembership } from "@/components/membership-provider";
 import { FAQDropdown } from "@/components/faq-dropdown";
