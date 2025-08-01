@@ -3,6 +3,182 @@ import Stripe from "stripe";
 import { createThirdwebClient, getContract, call } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
+import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+
+const contractAbi = [const contract = getContract({
+  client,
+  address: CONTRACT_ADDRESS,
+  chain: base,
+  abi: kneadMembershipABI,
+});
+
+  {
+    inputs: [
+      { internalType: "string", name: "uri", type: "string" },
+      { internalType: "address", name: "initialOwner", type: "address" },
+    ],
+    stateMutability: "nonpayable",
+    type: "constructor",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "id", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+    ],
+    name: "mint",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "from", type: "address" },
+      { internalType: "uint256", name: "id", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+    ],
+    name: "adminBurn",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "id", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+    ],
+    name: "burn",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "FREEMIUM",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "PAID",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "owner",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "uri",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "account", type: "address" },
+      { internalType: "uint256", name: "id", type: "uint256" },
+    ],
+    name: "balanceOf",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address[]", name: "accounts", type: "address[]" },
+      { internalType: "uint256[]", name: "ids", type: "uint256[]" },
+    ],
+    name: "balanceOfBatch",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "operator",
+        type: "address",
+      },
+      { indexed: false, internalType: "bool", name: "approved", type: "bool" },
+    ],
+    name: "ApprovalForAll",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "operator",
+        type: "address",
+      },
+      { indexed: true, internalType: "address", name: "from", type: "address" },
+      { indexed: true, internalType: "address", name: "to", type: "address" },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "ids",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "values",
+        type: "uint256[]",
+      },
+    ],
+    name: "TransferBatch",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "operator",
+        type: "address",
+      },
+      { indexed: true, internalType: "address", name: "from", type: "address" },
+      { indexed: true, internalType: "address", name: "to", type: "address" },
+      { indexed: false, internalType: "uint256", name: "id", type: "uint256" },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "value",
+        type: "uint256",
+      },
+    ],
+    name: "TransferSingle",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, internalType: "string", name: "value", type: "string" },
+      { indexed: true, internalType: "uint256", name: "id", type: "uint256" },
+    ],
+    name: "URI",
+    type: "event",
+  },
+];
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -15,12 +191,14 @@ const PAID_TOKEN_ID = "1"; // This corresponds to PAID=1 in your smart contract
 
 const client = createThirdwebClient({ secretKey: ADMIN_SECRET });
 
+// Mint function (same as before)
 async function mintPremiumNFT(walletAddress: string) {
   try {
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
       chain: base,
+      abi: contractAbi,
     });
     const result = await mintTo({
       contract,
@@ -43,7 +221,9 @@ async function adminBurnPremiumNFT(walletAddress: string) {
       client,
       address: CONTRACT_ADDRESS,
       chain: base,
-    
+      abi: contractAbi,
+    });
+    // Call the custom adminBurn(address,uint256,uint256) function
     const result = await call({
       contract,
       method: "function adminBurn(address from, uint256 id, uint256 amount)",
