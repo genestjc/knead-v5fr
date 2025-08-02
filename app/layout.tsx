@@ -1,13 +1,15 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { WalletProvider } from "@/components/wallet-provider"
-import { MembershipProvider } from "@/components/membership-provider"
-import { OnboardFreemium } from "@/components/onboard-freemium"
-import { Footer } from "@/components/footer"
-import { Toaster } from "@/components/ui/toaster"
+import type React from "react";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { WalletProvider } from "@/components/wallet-provider";
+import { MembershipProvider } from "@/components/membership-provider";
+import { OnboardFreemium } from "@/components/onboard-freemium";
+import { Footer } from "@/components/footer";
+import { Toaster } from "@/components/ui/toaster";
+import { ThirdwebProvider } from "thirdweb/react";
+import { client } from "@/thirdweb-client";
 
 const inter = Inter({ subsets: ["latin"] })
 
