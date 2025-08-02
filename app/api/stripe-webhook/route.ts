@@ -90,13 +90,18 @@ async function adminBurnPremiumNFT(walletAddress: string) {
     });
     // Idempotency: only burn if owned
     if (!(await hasPremiumNFT(walletAddress))) return;
-    
-    await writeContract({
+
+    // Prepare the transaction for adminBurn
+    const transaction = prepareContractCall({
       contract,
-      method: "adminBurn",
+      method:
+        "function adminBurn(address from, uint256 id, uint256 amount)",
       params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
     });
-    
+
+    // Send the transaction using the server-side client
+    await sendTransaction({ account: client, transaction });
+
     // Update user status in Supabase if available
     try {
       await supabase
@@ -104,11 +109,17 @@ async function adminBurnPremiumNFT(walletAddress: string) {
         .update({ membership_status: "freemium" })
         .eq("wallet_address", walletAddress);
     } catch (dbError) {
-      console.error("Failed to update user status in Supabase:", dbError);
+      console.error(
+        "Failed to update user status in Supabase:",
+        dbError,
+      );
       // Continue even if db update fails - the NFT was burned
     }
   } catch (error) {
-    console.error(`Error burning premium NFT from ${walletAddress}:`, error);
+    console.error(
+      `Error burning premium NFT from ${walletAddress}:`,
+      error,
+    );
     throw error; // Re-throw to handle in the webhook handler
   }
 }
