@@ -25,8 +25,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const client = createThirdwebClient({ secretKey: ADMIN_SECRET });
-
 async function hasPremiumNFT(walletAddress: string) {
   try {
     const contract = getContract({
