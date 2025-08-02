@@ -28,7 +28,7 @@ export default function JoinPage() {
         },
         body: JSON.stringify({
           walletAddress: account.address,
-          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || "price_YOUR_PRICE_ID", // Replace with your actual price ID
+          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || "price_1RhFCBLFxM3QV6ciPmZnxyfL",
         }),
       });
 
@@ -56,22 +56,51 @@ export default function JoinPage() {
       <section className="py-16 md:py-24">
         <div className="container-magazine text-left">
           <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float text-left">
-            Join Knead Monthly to have access to:
+            Membership Options
           </h1>
           <div className="mb-12 cloud-float-delay-1">
             <ul className="space-y-4 font-georgia-pro text-lg text-left">
-              <li>• Unlimited access to stories.</li>
-              <li>• Priority access to our shop, events, and other activations.</li>
             </ul>
           </div>
-          <div className="flex items-start mb-12 cloud-float-delay-2">
+          
+          {/* Membership Cards - Flexbox container for responsive layout */}
+          <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0 mb-12 cloud-float-delay-2">
+            
+            {/* Free Membership Card */}
+            <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
+              <h3 className="font-adonis text-2xl mb-4 text-left">Free Membership</h3>
+              <p className="text-4xl font-adonis mb-4 text-left">
+                $0
+                <span className="text-base font-adonis text-gray-600">/month</span>
+              </p>
+              <p className="font-georgia-pro mb-6 text-left">
+                <li>• Read three free articles per month</li>
+              </p>
+              <p className="font-georgia-pro italic mb-4 text-left">
+                Sign In below to get started
+              </p>
+              {isLoading ? null : account?.address ? (
+                <div className="text-green-600 font-georgia-pro text-left">
+                  You're signed in!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <ThirdWebConnectButton label="Sign In" />
+                </div>
+              )}
+            </div>
+            
+            {/* Premium Membership Card */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
               <h3 className="font-adonis text-2xl mb-4 text-left">Knead Monthly</h3>
               <p className="text-4xl font-adonis mb-4 text-left">
                 $5
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <p className="font-georgia-pro mb-6 text-left">Get unlimited access.</p>
+              <p className="font-georgia-pro mb-6 text-left">
+                <li>• Unlimited access to stories</li>
+                <li>• Priority access to our shop, events, and other activations</li>
+              </p>
               {isLoading ? null : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
                   You are already a premium member!
@@ -91,6 +120,7 @@ export default function JoinPage() {
               )}
             </div>
           </div>
+          
           {/* FAQ Section */}
           <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
             <h2 className="font-adonis text-3xl mb-8 text-center">Frequently Asked Questions</h2>
