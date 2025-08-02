@@ -32,25 +32,36 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="stylesheet" href="https://use.typekit.net/gne1bgd.css" />
+        <link
+          rel="stylesheet"
+          href="https://use.typekit.net/gne1bgd.css"
+        />
       </head>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          <WalletProvider>
-            <MembershipProvider>
-              {children}
-              <Footer />
-              <OnboardFreemium />
-              <Toaster />
-            </MembershipProvider>
-          </WalletProvider>
-        </ThemeProvider>
+        <ThirdwebProvider client={client}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem={false}
+            disableTransitionOnChange
+          >
+            <WalletProvider>
+              <MembershipProvider>
+                {children}
+                <Footer />
+                <OnboardFreemium />
+                <Toaster />
+              </MembershipProvider>
+            </WalletProvider>
+          </ThemeProvider>
+        </ThirdwebProvider>
       </body>
     </html>
-  )
+  );
 }
+
