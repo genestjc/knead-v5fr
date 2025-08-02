@@ -7,7 +7,7 @@ import { balanceOf } from "thirdweb/extensions/erc1155"
 import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721"
 import { base } from "thirdweb/chains"
 import Paywall from "./paywall"
-import SubscriptionFlow from "./SubscriptionFlow";
+import SubscriptionFlow from "./SubscriptionFlow"
 import { useMembership } from "@/components/membership-provider"
 
 const client = createThirdwebClient({
@@ -76,29 +76,40 @@ interface UnlockContentProps {
 
 export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const account = useActiveAccount()
-  const { membershipType, isLoading, walletAddress, hasAccess } = useMembership()
-  const [canAccess, setCanAccess] = useState(false)
-  const [showSubscriptionFlow, setShowSubscriptionFlow] = useState(false);
-  const [userEmail, setUserEmail] = useState("")
+  const { membershipType, isLoading: membershipLoading, hasAccess } = useMembership()
+  const [canAccess, setCanAccess] = useState<boolean | null>(null)
+  const [articleCount, setArticleCount] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showSubscriptionFlow, setShowSubscriptionFlow] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!account?.address) {
       setCanAccess(false)
+      setIsLoading(false)
       return
     }
 
-    checkAccess(account.address)
+    checkAccess()
   }, [account?.address, contentId])
 
-  const checkAccess = async (walletAddress: string) => {
-    console.log("Checking access for wallet:", walletAddress)
+  const checkAccess = async () => {
+    if (!account?.address) return
 
+    setIsLoading(true)
+    setError(null)
+    
     try {
-      // First check if user has a single-story pass for this specific story
+      // First check if the user has a premium membership (fastest check)
+      if (hasAccess("premium")) {
+        setCanAccess(true)
+        setIsLoading(false)
+        return
+      }
+      
+      // Then check for single-story passes
       const singleStoryContract = SINGLE_STORY_PASSES[contentId]
       if (singleStoryContract) {
-        console.log(`Checking single-story pass for ${contentId}: ${singleStoryContract}`)
-
         try {
           const contractInstance = getContract({
             client,
@@ -108,124 +119,37 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
 
           const balance = await erc721BalanceOf({
             contract: contractInstance,
-            owner: walletAddress,
+            owner: account.address,
           })
 
           if (balance > 0n) {
-            console.log("Single-story pass access granted!")
             setCanAccess(true)
+            setIsLoading(false)
             return
           }
         } catch (error) {
-          console.error(`Error checking single-story pass for ${contentId}:`, error)
+          console.error(`Error checking single-story pass:`, error)
         }
       }
 
-      // Check all membership contracts for access
-      for (const contract of MEMBERSHIP_CONTRACTS) {
-        console.log(`Checking contract: ${contract.name} (${contract.address})`)
-
-        const contractInstance = getContract({
-          client,
-          chain: base,
-          address: contract.address,
-        })
-
-        if (contract.type === "erc1155") {
-          // For ERC1155 contracts, check specific token IDs
-          if (contract.tokenIds) {
-            // Check premium access first
-            if (contract.tokenIds.premium !== undefined) {
-              try {
-                const premiumBalance = await balanceOf({
-                  contract: contractInstance,
-                  owner: walletAddress,
-                  tokenId: BigInt(contract.tokenIds.premium),
-                })
-                console.log(`Premium balance for ${contract.name}:`, premiumBalance.toString())
-
-                if (premiumBalance > 0n) {
-                  console.log("Premium access granted!")
-                  setCanAccess(true)
-                  return
-                }
-              } catch (error) {
-                console.error(`Error checking premium balance for ${contract.name}:`, error)
-              }
-            }
-
-            // Check other token IDs (annual, shift, etc.)
-            for (const [tokenType, tokenId] of Object.entries(contract.tokenIds)) {
-              if (tokenType !== "premium" && tokenType !== "freemium") {
-                try {
-                  const balance = await balanceOf({
-                    contract: contractInstance,
-                    owner: walletAddress,
-                    tokenId: BigInt(tokenId),
-                  })
-                  console.log(`${tokenType} balance for ${contract.name}:`, balance.toString())
-
-                  if (balance > 0n) {
-                    console.log(`Premium access granted via ${tokenType}!`)
-                    setCanAccess(true)
-                    return
-                  }
-                } catch (error) {
-                  console.error(`Error checking ${tokenType} balance for ${contract.name}:`, error)
-                }
-              }
-            }
-
-            // Check freemium access last
-            if (contract.tokenIds.freemium !== undefined) {
-              try {
-                const freemiumBalance = await balanceOf({
-                  contract: contractInstance,
-                  owner: walletAddress,
-                  tokenId: BigInt(contract.tokenIds.freemium),
-                })
-                console.log(`Freemium balance for ${contract.name}:`, freemiumBalance.toString())
-
-                if (freemiumBalance > 0n) {
-                  console.log("Freemium access found, checking limits...")
-                  await checkFreemiumLimit(walletAddress)
-                  return
-                }
-              } catch (error) {
-                console.error(`Error checking freemium balance for ${contract.name}:`, error)
-              }
-            }
-          }
-        } else if (contract.type === "erc721") {
-          // For ERC721 contracts, check balance
-          try {
-            const balance = await erc721BalanceOf({
-              contract: contractInstance,
-              owner: walletAddress,
-            })
-            console.log(`ERC721 balance for ${contract.name}:`, balance.toString())
-
-            if (balance > 0n) {
-              console.log("Premium access granted via ERC721!")
-              setCanAccess(true)
-              return
-            }
-          } catch (error) {
-            console.error(`Error checking ERC721 balance for ${contract.name}:`, error)
-          }
-        }
+      // If user has freemium membership, check article count
+      if (hasAccess("freemium")) {
+        await checkFreemiumLimit()
+      } else {
+        setCanAccess(false)
+        setIsLoading(false)
       }
-
-      // No access found
-      console.log("No membership access found")
-      setCanAccess(false)
     } catch (error) {
       console.error("Error checking access:", error)
+      setError("Failed to verify your access. Please try again.")
       setCanAccess(false)
+      setIsLoading(false)
     }
   }
 
-  const checkFreemiumLimit = async (walletAddress: string) => {
+  const checkFreemiumLimit = async () => {
+    if (!account?.address) return
+
     try {
       const response = await fetch("/api/track-article", {
         method: "POST",
@@ -233,41 +157,62 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_address: walletAddress.toLowerCase(),
+          user_address: account.address.toLowerCase(),
           story_slug: contentId,
+          checkOnly: true, // Just check, don't record yet
         }),
       })
 
       const result = await response.json()
 
       if (response.ok) {
-        setCanAccess(result.success)
+        setArticleCount(result.reads || 0)
+        
+        // If user hasn't reached limit, record this view
+        if ((result.reads || 0) < 3) {
+          const trackResponse = await fetch("/api/track-article", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              user_address: account.address.toLowerCase(),
+              story_slug: contentId,
+            }),
+          })
+          
+          if (trackResponse.ok) {
+            setCanAccess(true)
+          } else {
+            setCanAccess(false)
+          }
+        } else {
+          setCanAccess(false)
+        }
       } else {
         setCanAccess(false)
+        setError(result.error || "Failed to check article limit")
       }
+      
+      setIsLoading(false)
     } catch (error) {
       console.error("Error checking freemium limit:", error)
       setCanAccess(false)
+      setIsLoading(false)
     }
   }
 
   const handleSubscribe = () => {
-    if (account?.address) {
-      // Try to get email from account or prompt for it
-      setUserEmail(account.address) // You might want to get actual email here
-      setShowSubscriptionFlow(true)
-    }
+    setShowSubscriptionFlow(true)
   }
 
   const handleSubscriptionSuccess = () => {
     setShowSubscriptionFlow(false)
-    // Refresh access check
-    if (account?.address) {
-      checkAccess(account.address)
-    }
+    checkAccess()
   }
 
-  if (isLoading) {
+  // Loading state
+  if (isLoading || membershipLoading) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -275,34 +220,68 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     )
   }
 
-  if (!walletAddress || !hasAccess("freemium")) {
-    return <Paywall />
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-red-600 mb-4">{error}</p>
+        <button 
+          onClick={checkAccess}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+        >
+          Try Again
+        </button>
+      </div>
+    )
   }
 
-  // Show SubscriptionFlow modal if requested
-if (showSubscriptionFlow && account?.address) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-adonis">
-            Join Knead Monthly
-          </h2>
-          <button
-            onClick={() => setShowSubscriptionFlow(false)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ×
-          </button>
-        </div>
-        <SubscriptionFlow
-          email={userEmail}
-          user_address={account.address}
-          onSuccess={handleSubscriptionSuccess}
-        />
+  // No wallet connected or no freemium access
+  if (!account?.address || !hasAccess("freemium")) {
+    return <Paywall onSubscribe={handleSubscribe} />
+  }
+
+  // User has freemium but reached article limit
+  if (canAccess === false && hasAccess("freemium") && articleCount >= 3) {
+    return (
+      <div className="paywall">
+        <h2 className="font-adonis text-2xl mb-4">You've reached your monthly limit</h2>
+        <p className="font-georgia-pro mb-6">
+          You've read 3 articles this month. Subscribe to Knead Monthly for unlimited access.
+        </p>
+        <button 
+          onClick={handleSubscribe}
+          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 font-adonis"
+        >
+          Subscribe Now
+        </button>
       </div>
-    </div>
-  );
-}
+    )
+  }
+
+  // Subscription modal
+  if (showSubscriptionFlow) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-adonis">
+              Join Knead Monthly
+            </h2>
+            <button
+              onClick={() => setShowSubscriptionFlow(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+          <SubscriptionFlow
+            onSuccess={handleSubscriptionSuccess}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // User has access
   return <>{children}</>
 }
