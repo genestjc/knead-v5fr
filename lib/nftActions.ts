@@ -1,13 +1,19 @@
 import { createThirdwebClient, getContract } from "thirdweb";
 import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
-import { writeContract } from "thirdweb";
+import { write as writeContract } from "thirdweb/contract"; // FIXED IMPORT
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../app/abi/kneadMembershipABI.json";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PREMIUM_TOKEN_ID = 1;
+
+// Check if secret key exists
+if (!process.env.THIRDWEB_SECRET_KEY) {
+  throw new Error("THIRDWEB_SECRET_KEY is not defined in environment variables");
+}
+
 const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
+  secretKey: process.env.THIRDWEB_SECRET_KEY!,
 });
 
 export async function mintPremiumNFT(walletAddress: string) {
