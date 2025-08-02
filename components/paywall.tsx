@@ -2,69 +2,94 @@
 
 import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
-import { Modal } from "@/components/modal";
-import SubscriptionFlow from "@/components/SubscriptionFlow";
-import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
-import { useMembership } from "@/components/membership-provider";
-import { CheckoutStatusBanner } from "@/components/CheckoutStatusBanner";
+import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 
-export default function Paywall() {
+interface PaywallProps {
+  onSubscribe?: () => void;
+  articleCount?: number;
+}
+
+export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps) {
   const account = useActiveAccount();
-  const { hasAccess, isLoading } = useMembership();
-  const [showStripeModal, setShowStripeModal] =
-    useState(false);
+  const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
 
-  const handleStripeSuccess = () => {
-    setShowStripeModal(false);
-    window.location.reload();
+  const handleSubscribeRedirect = async () => {
+    if (!account?.address) return;
+    
+    setIsLoadingCheckout(true);
+    
+    try {
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletAddress: account.address,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error("Error creating checkout session:", data.error);
+      } else if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error("Error creating checkout session:", err);
+    } finally {
+      setIsLoadingCheckout(false);
+    }
   };
 
-  if (isLoading) return null;
-  if (hasAccess()) return null;
+  // Case 1: Not signed in
+  if (!account?.address) {
+    return (
+      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+        <h2 className="font-adonis text-2xl mb-4">
+          This story is for members only
+        </h2>
+        
+        <div className="my-6 flex justify-center">
+          <ThirdWebConnectButton />
+        </div>
+        
+        <p className="font-georgia-pro text-gray-700 mt-4">
+          Not a member? Our free membership enables three free stories per month.
+        </p>
+      </div>
+    );
+  }
 
+  // Case 2: Signed in, freemium limit reached
   return (
-    <div className="max-w-md mx-auto my-12 p-8 bg-white rounded shadow">
-      <CheckoutStatusBanner />
-      <h2 className="text-2xl font-adonis mb-4 text-center">
-        Premium Content
+    <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+      <h2 className="font-adonis text-2xl mb-4">
+        You've reached your complimentary story limit for the month
       </h2>
-      <p className="mb-6 text-center font-georgia-pro text-gray-600">
-        This content is available to Knead Monthly
-        subscribers only.
+      
+      <p className="font-georgia-pro italic text-gray-700 mt-4 mb-6">
+        Want unlimited access?
       </p>
-      <div className="space-y-4">
-        {!account?.address ? (
+      
+      <button
+        onClick={onSubscribe || handleSubscribeRedirect}
+        disabled={isLoadingCheckout}
+        className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
+      >
+        {isLoadingCheckout ? (
           <>
-            <p className="font-georgia-pro text-sm text-gray-600 text-center">
-              Connect your wallet to get started
-            </p>
-            <ThirdWebConnectButton />
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Processing...
           </>
         ) : (
-          <button
-            onClick={() => setShowStripeModal(true)}
-            className="w-full bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
-          >
-            Subscribe for $5/month
-          </button>
+          "Sign up for Knead Monthly today"
         )}
-      </div>
-      <Modal
-        open={showStripeModal}
-        onClose={() => setShowStripeModal(false)}
-      >
-        <div className="pt-4">
-          <h2 className="text-2xl mb-6 text-center text-black font-adonis">
-            Join Knead Monthly
-          </h2>
-          <p className="text-center text-gray-600 font-georgia-pro mb-6">
-            $5/month • Cancel anytime
-          </p>
-          <SubscriptionFlow
-            onSuccess={handleStripeSuccess}
-          />
-        </div>
-      </Modal>
+      </button>
     </div>
   );
 }
