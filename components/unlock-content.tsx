@@ -235,27 +235,14 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     )
   }
 
-  // No wallet connected or no freemium access
-  if (!account?.address || !hasAccess("freemium")) {
-    return <Paywall onSubscribe={handleSubscribe} />
+  // No wallet connected - show visitor paywall
+  if (!account?.address) {
+    return <Paywall />
   }
 
-  // User has freemium but reached article limit
+  // Freemium user reached article limit - show limit paywall
   if (canAccess === false && hasAccess("freemium") && articleCount >= 3) {
-    return (
-      <div className="paywall">
-        <h2 className="font-adonis text-2xl mb-4">You've reached your monthly limit</h2>
-        <p className="font-georgia-pro mb-6">
-          You've read 3 articles this month. Subscribe to Knead Monthly for unlimited access.
-        </p>
-        <button 
-          onClick={handleSubscribe}
-          className="px-6 py-3 bg-black text-white rounded hover:bg-gray-800 font-adonis"
-        >
-          Subscribe Now
-        </button>
-      </div>
-    )
+    return <Paywall onSubscribe={handleSubscribe} articleCount={articleCount} />
   }
 
   // Subscription modal
