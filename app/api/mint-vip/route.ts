@@ -1,12 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo } from "thirdweb/extensions/erc1155";
+import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { verifyVipToken } from "@/lib/verify-vip-token";
+import { createClient } from "@supabase/supabase-js";
 
 const client = createThirdwebClient({
   secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
 });
+
+// Initialize Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,9 +36,9 @@ export async function POST(req: NextRequest) {
 
     const { user_address, email } = await req.json();
 
-    if (!user_address || !email) {
+    if (!user_address) {
       return NextResponse.json(
-        { error: "Missing user_address or email" },
+        { error: "Missing user_address" },
         { status: 400 },
       );
     }
@@ -50,6 +57,21 @@ export async function POST(req: NextRequest) {
       address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
     });
 
+    // Check if user already has a premium token (idempotence)
+    const balance = await balanceOf({
+      contract,
+      owner: user_address,
+      tokenId: 1n, // Premium membership
+    });
+
+    if (balance > 0n) {
+      return NextResponse.json({
+        success: true,
+        alreadyMinted: true,
+        message: "User already has a premium membership",
+      });
+    }
+
     // Mint premium membership token (token ID 1)
     await mintTo({
       contract,
@@ -58,8 +80,20 @@ export async function POST(req: NextRequest) {
       amount: 1n,
     });
 
+    // Record in Supabase
+    if (email) {
+      await supabase.from("users").upsert({
+        wallet_address: user_address,
+        email: email,
+        membership_status: "premium",
+        membership_type: "vip",
+        created_at: new Date().toISOString(),
+      });
+    }
+
     return NextResponse.json({
       success: true,
+      message: "VIP membership minted successfully",
     });
   } catch (error) {
     console.error("VIP mint error:", error);
