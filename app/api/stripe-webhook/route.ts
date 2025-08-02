@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
+import { createThirdwebClient, getContract } from "thirdweb";
+import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
 import {
   prepareContractCall,
   sendTransaction,
 } from "thirdweb";
-import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
-import { write as writeContract } from "thirdweb/contract";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
