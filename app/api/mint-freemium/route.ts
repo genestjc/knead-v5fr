@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
+import {
+  createThirdwebClient,
+  getContract,
+} from "thirdweb";
+import {
+  mintTo,
+  balanceOf,
+} from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
