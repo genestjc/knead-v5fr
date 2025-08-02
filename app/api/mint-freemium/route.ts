@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createThirdwebClient,
-  getContract,
-} from "thirdweb";
-import { mintTo } from "thirdweb/extensions/erc1155";
+import { createThirdwebClient, getContract } from "thirdweb";
+import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 
-// Your contract address and token ID
-const CONTRACT_ADDRESS =
-  "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
-
-// Optionally, specify the chain (e.g., "base", "polygon", "ethereum", or chainId)
-const CHAIN = "base"; // Change to your chain
+const client = createThirdwebClient({
+  secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
+});
 
 export async function POST(req: NextRequest) {
   const { user_address } = await req.json();
@@ -24,27 +19,30 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Initialize the thirdweb client with your secret key
-    const client = createThirdwebClient({
-      secretKey: process.env.THIRDWEB_SECRET_KEY,
-    });
-
-    // Get the contract instance
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
-      chain: CHAIN,
+      chain: base,
     });
 
-    // Mint the ERC1155 token to the user
-    const tx = await mintTo({
+    // Idempotency: only mint if not already owned
+    const balance = await balanceOf({
+      contract,
+      owner: user_address,
+      tokenId: 0n,
+    });
+    if (balance > 0n) {
+      return NextResponse.json({ success: true, alreadyMinted: true });
+    }
+
+    await mintTo({
       contract,
       to: user_address,
-      tokenId: BigInt(FREEMIUM_TOKEN_ID),
+      tokenId: 0n,
       amount: 1n,
     });
 
-    return NextResponse.json({ success: true, tx });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Mint error:", error);
     return NextResponse.json(
