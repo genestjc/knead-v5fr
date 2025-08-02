@@ -14,7 +14,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
-const ADMIN_SECRET = process.env.THIRDWEB_ADMIN_SECRET as string;
+const client = createThirdwebClient({
+  secretKey: process.env.THIRDWEB_SECRET_KEY!,
+});
 const PAID_TOKEN_ID = 1;
 
 // Initialize Supabase
