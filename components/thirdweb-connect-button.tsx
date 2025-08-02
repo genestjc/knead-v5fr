@@ -30,8 +30,8 @@ export function ThirdWebConnectButton({ className = "" }) {
         className={className}
         style={{
           fontFamily: "Adonis Heads, serif",
-          fontWeight: 700,
-          fontSize: "16px",
+          fontWeight: 300,
+          fontSize: "13px",
           background: "#000",
           color: "#fff",
           borderRadius: "8px",
