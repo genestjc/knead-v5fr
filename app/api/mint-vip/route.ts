@@ -1,12 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
+import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { verifyVipToken } from "@/lib/verify-vip-token";
-import { createClient } from "@supabase/supabase-js";
+
+// Check if secret key exists
+if (!process.env.THIRDWEB_SECRET_KEY) {
+  throw new Error("THIRDWEB_SECRET_KEY is not defined in environment variables");
+}
 
 const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
+  secretKey: process.env.THIRDWEB_SECRET_KEY!,
 });
 
 // Initialize Supabase
