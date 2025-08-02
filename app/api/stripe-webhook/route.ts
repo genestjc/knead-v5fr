@@ -1,20 +1,35 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import { createThirdwebClient, getContract, writeContract } from "thirdweb";
-import { mintTo } from "thirdweb/extensions/erc1155";
+import { createThirdwebClient, getContract } from "thirdweb";
+import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
+import { writeContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
-
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
 const ADMIN_SECRET = process.env.THIRDWEB_ADMIN_SECRET as string;
-const PAID_TOKEN_ID = "1"; // This corresponds to PAID=1 in your smart contract
+const PAID_TOKEN_ID = 1;
 
 const client = createThirdwebClient({ secretKey: ADMIN_SECRET });
+
+async function hasPremiumNFT(walletAddress: string) {
+  const contract = getContract({
+    client,
+    address: CONTRACT_ADDRESS,
+    chain: base,
+    abi: kneadMembershipABI,
+  });
+  const balance = await balanceOf({
+    contract,
+    owner: walletAddress,
+    tokenId: BigInt(PAID_TOKEN_ID),
+  });
+  return balance > 0n;
+}
 
 async function mintPremiumNFT(walletAddress: string) {
   const contract = getContract({
@@ -23,11 +38,13 @@ async function mintPremiumNFT(walletAddress: string) {
     chain: base,
     abi: kneadMembershipABI,
   });
-  return mintTo({
+  // Idempotency: only mint if not already owned
+  if (await hasPremiumNFT(walletAddress)) return;
+  await mintTo({
     contract,
     to: walletAddress,
     tokenId: BigInt(PAID_TOKEN_ID),
-    quantity: 1n,
+    amount: 1n,
   });
 }
 
@@ -38,13 +55,14 @@ async function adminBurnPremiumNFT(walletAddress: string) {
     chain: base,
     abi: kneadMembershipABI,
   });
-  return writeContract({
+  // Idempotency: only burn if owned
+  if (!(await hasPremiumNFT(walletAddress))) return;
+  await writeContract({
     contract,
     method: "adminBurn",
     params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
   });
 }
-
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature") as string;
@@ -70,7 +88,19 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const wallet = session.metadata?.wallet_address;
+        const wallet =
+          session.metadata?.wallet_address || session.metadata?.walletAddress;
+        if (wallet) {
+          await mintPremiumNFT(wallet);
+        }
+        break;
+      }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscription = invoice.subscription as string;
+        const sub = await stripe.subscriptions.retrieve(subscription);
+        const wallet =
+          sub.metadata?.wallet_address || sub.metadata?.walletAddress;
         if (wallet) {
           await mintPremiumNFT(wallet);
         }
@@ -82,7 +112,9 @@ export async function POST(req: NextRequest) {
           const subscription = await stripe.subscriptions.retrieve(
             invoice.subscription as string,
           );
-          const wallet = subscription.metadata?.wallet_address;
+          const wallet =
+            subscription.metadata?.wallet_address ||
+            subscription.metadata?.walletAddress;
           if (wallet) {
             await adminBurnPremiumNFT(wallet);
             console.log(
@@ -94,7 +126,9 @@ export async function POST(req: NextRequest) {
       }
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const wallet = subscription.metadata?.wallet_address;
+        const wallet =
+          subscription.metadata?.wallet_address ||
+          subscription.metadata?.walletAddress;
         if (wallet) {
           // Only burn if subscription period has ended
           const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -113,39 +147,23 @@ export async function POST(req: NextRequest) {
         }
         break;
       }
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subscription = invoice.subscription as string;
-        const sub = await stripe.subscriptions.retrieve(subscription);
-        const wallet = sub.metadata?.wallet_address;
-        if (wallet) {
-          await mintPremiumNFT(wallet);
-        }
-        break;
-      }
       case "payment_intent.succeeded": {
+        // Only mint if this is a one-off premium purchase (not subscription)
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const wallet = paymentIntent.metadata?.wallet_address;
+        const wallet =
+          paymentIntent.metadata?.wallet_address ||
+          paymentIntent.metadata?.walletAddress;
         if (paymentIntent.metadata?.subscription_type === "premium" && wallet) {
           await mintPremiumNFT(wallet);
-          if (paymentIntent.customer) {
-            try {
-              const subscription = await stripe.subscriptions.create({
-                customer: paymentIntent.customer as string,
-                items: [{ price: "price_1RhFCBLFxM3QV6ciPmZnxyfL" }],
-                metadata: { wallet_address: wallet },
-              });
-              console.log(`Created subscription: ${subscription.id}`);
-            } catch (subError) {
-              console.error("Failed to create subscription:", subError);
-            }
-          }
         }
         break;
       }
       case "payment_intent.payment_failed": {
+        // No NFT action needed, but log for audit
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const wallet = paymentIntent.metadata?.wallet_address;
+        const wallet =
+          paymentIntent.metadata?.wallet_address ||
+          paymentIntent.metadata?.walletAddress;
         if (wallet) {
           console.log(`Payment failed for wallet: ${wallet}`);
         }
@@ -160,6 +178,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error(`Error processing webhook: ${(err as Error).message}`);
+    // Always return 200 to Stripe to avoid retries, but log error
     return new Response(
       JSON.stringify({
         received: true,
