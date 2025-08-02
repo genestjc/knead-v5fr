@@ -5,6 +5,12 @@ import { base } from "thirdweb/chains";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
+
+// Make sure to check if the secret key exists
+if (!process.env.THIRDWEB_ADMIN_SECRET) {
+  throw new Error("THIRDWEB_ADMIN_SECRET is not defined in environment variables");
+}
+
 const client = createThirdwebClient({
   secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
 });
@@ -20,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const contract = getContract({
-      client,
+      client, // This should now have a valid secretKey
       address: CONTRACT_ADDRESS,
       chain: base,
     });
