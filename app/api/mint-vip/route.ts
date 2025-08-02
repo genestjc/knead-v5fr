@@ -1,12 +1,24 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo } from "thirdweb/extensions/erc1155";
+import {
+  type NextRequest,
+  NextResponse,
+} from "next/server";
+import {
+  createThirdwebClient,
+  getContract,
+} from "thirdweb";
+import {
+  mintTo,
+  balanceOf,
+} from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { verifyVipToken } from "@/lib/verify-vip-token";
+import { createClient } from "@supabase/supabase-js";
 
 // Check if secret key exists
 if (!process.env.THIRDWEB_SECRET_KEY) {
-  throw new Error("THIRDWEB_SECRET_KEY is not defined in environment variables");
+  throw new Error(
+    "THIRDWEB_SECRET_KEY is not defined in environment variables",
+  );
 }
 
 const client = createThirdwebClient({
@@ -16,7 +28,7 @@ const client = createThirdwebClient({
 // Initialize Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 export async function POST(req: NextRequest) {
@@ -25,7 +37,9 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
+        {
+          error: "Missing or invalid authorization header",
+        },
         { status: 401 },
       );
     }
@@ -58,7 +72,8 @@ export async function POST(req: NextRequest) {
     const contract = getContract({
       client,
       chain: base,
-      address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
+      address:
+        process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
     });
 
     // Check if user already has a premium token (idempotence)
