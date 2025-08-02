@@ -7,15 +7,15 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
 
 // Make sure to check if the secret key exists
-if (!process.env.THIRDWEB_ADMIN_SECRET) {
-  throw new Error("THIRDWEB_ADMIN_SECRET is not defined in environment variables");
+if (!process.env.THIRDWEB_SECRET_KEY) {
+  throw new Error("THIRDWEB_SECRET_KEY is not defined in environment variables");
 }
 
 const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_ADMIN_SECRET!,
+  secretKey: process.env.THIRDWEB_SECRET_KEY!,
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest){
   const { user_address } = await req.json();
   if (!user_address) {
     return NextResponse.json(
