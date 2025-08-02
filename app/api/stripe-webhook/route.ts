@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { createThirdwebClient, getContract } from "thirdweb";
 import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
-import {
-  prepareContractCall,
+import { prepareContractCall,
   sendTransaction,
 } from "thirdweb";
 import { base } from "thirdweb/chains";
