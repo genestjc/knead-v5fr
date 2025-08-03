@@ -74,7 +74,7 @@ export default function JoinPage() {
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
               <p className="font-georgia-pro mb-6 text-left">
-                <li>• Read three free articles per month</li>
+                <li>Read three free articles per month</li>
               </p>
               <p className="font-georgia-pro italic mb-4 text-left">
                 Sign In below to get started
@@ -100,8 +100,8 @@ export default function JoinPage() {
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
               <p className="font-georgia-pro mb-6 text-left">
-                <li>• Unlimited access to stories</li>
-                <li>• Priority access to our shop, events, and other activations</li>
+                <li>Unlimited access to stories</li>
+                <li>Priority access to our shop, events, and other activations</li>
               </p>
               {isLoading ? (
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
