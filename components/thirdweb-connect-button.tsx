@@ -1,82 +1,77 @@
+"use client";
+
+import { ConnectButton } from "thirdweb/react";
 import {
-  useActiveAccount,
-  useDisconnect,
-  useConnect,
-} from "thirdweb/react";
-import { inAppWallet } from "thirdweb/wallets";
+  inAppWallet,
+  createWallet,
+} from "thirdweb/wallets";
 import { client } from "@/thirdweb-client";
 
-const socialOptions = [
-  "email",
-  "google",
-  "apple",
-  "coinbase",
-  "passkey",
-  "phone",
-  "discord",
-  "telegram",
-  "farcaster",
-  "x",
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "apple",
+        "coinbase",
+        "passkey",
+        "phone",
+        "discord",
+        "telegram",
+        "farcaster",
+        "x",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  createWallet("io.rabby"),
+  createWallet("io.zerion.wallet"),
 ];
 
-export function ThirdWebConnectButton({ className = "" }) {
-  const account = useActiveAccount();
-  const { disconnect } = useDisconnect();
-  const { connect, isConnecting } = useConnect();
+interface ThirdWebConnectButtonProps {
+  className?: string;
+  theme?: "light" | "dark";
+  size?: "compact" | "wide";
+}
 
-  if (!account) {
-    return (
-      <button
-        className={className}
-        style={{
-          fontFamily: "Adonis Heads, serif",
-          fontWeight: 300,
-          fontSize: "13px",
-          background: "#000",
-          color: "#fff",
-          borderRadius: "8px",
-          padding: "8px 24px",
-        }}
-        onClick={() =>
-          connect(
-            inAppWallet({
-              auth: { options: socialOptions },
-            }),
-          )
-        }
-        disabled={isConnecting}
-      >
-        Sign In
-      </button>
-    );
-  }
-
+export function ThirdWebConnectButton({
+  className = "",
+  theme = "light",
+  size = "compact",
+}: ThirdWebConnectButtonProps) {
   return (
     <div className={className}>
-      <span
-        style={{
-          fontFamily: "Georgia Pro, serif",
-          fontWeight: 400,
-          fontSize: "15px",
+      <ConnectButton
+        client={client}
+        connectModal={{ size }}
+        theme={theme}
+        wallets={wallets}
+        connectButton={{
+          label: "Sign In",
+          style: {
+            backgroundColor: "#000",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            padding: "4px 20px",
+            fontFamily: "adonis-web, serif",
+            fontWeight: "300",
+            fontSize: "13px",
+            cursor: "pointer",
+            minWidth: "90px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            transition: "all 0.2s ease",
+          },
         }}
-      >
-        Signed in as: {account.address}
-      </span>
-      <button
-        onClick={disconnect}
-        style={{
-          fontFamily: "Adonis Heads, serif",
-          fontWeight: 700,
-          fontSize: "16px",
-          background: "#000",
-          color: "#fff",
-          borderRadius: "8px",
-          padding: "8px 24px",
-          marginLeft: "16px",
-        }}
-      >
-        Sign Out
-      </button>
+        // Hide wallet details for all wallet types
+        detailsButton={false}
+      />
     </div>
   );
 }
