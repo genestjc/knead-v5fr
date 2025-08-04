@@ -1,31 +1,18 @@
+import { NextRequest, NextResponse } from "next/server";
 import {
-  type NextRequest,
-  NextResponse,
-} from "next/server";
-import {
-  createThirdwebClient,
   getContract,
-} from "thirdweb";
-import {
-  mintTo,
+  prepareContractCall,
+  sendTransaction,
   balanceOf,
-} from "thirdweb/extensions/erc1155";
+} from "thirdweb";
 import { base } from "thirdweb/chains";
+import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { verifyVipToken } from "@/lib/verify-vip-token";
 import { createClient } from "@supabase/supabase-js";
+import { client, serverWallet } from "thirdweb-server-wallet";
 
-// Check if secret key exists
-if (!process.env.THIRDWEB_SECRET_KEY) {
-  throw new Error(
-    "THIRDWEB_SECRET_KEY is not defined in environment variables",
-  );
-}
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 
-const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_SECRET_KEY!,
-});
-
-// Initialize Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -33,18 +20,15 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify VIP access token
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        {
-          error: "Missing or invalid authorization header",
-        },
+        { error: "Missing or invalid authorization header" },
         { status: 401 },
       );
     }
 
-    const token = authHeader.substring(7); // Remove "Bearer " prefix
+    const token = authHeader.substring(7);
     if (!verifyVipToken(token)) {
       return NextResponse.json(
         { error: "Invalid or expired VIP access token" },
@@ -61,7 +45,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate wallet address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(user_address)) {
       return NextResponse.json(
         { error: "Invalid wallet address format" },
@@ -72,15 +55,14 @@ export async function POST(req: NextRequest) {
     const contract = getContract({
       client,
       chain: base,
-      address:
-        process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
+      address: CONTRACT_ADDRESS,
+      abi: kneadMembershipABI,
     });
 
-    // Check if user already has a premium token (idempotence)
     const balance = await balanceOf({
       contract,
       owner: user_address,
-      tokenId: 1n, // Premium membership
+      tokenId: 1n,
     });
 
     if (balance > 0n) {
@@ -91,23 +73,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Mint premium membership token (token ID 1)
-    await mintTo({
+    const transaction = prepareContractCall({
       contract,
-      to: user_address,
-      tokenId: 1n, // Premium membership
-      amount: 1n,
+      method: "function mint(address to, uint256 id, uint256 amount)",
+      params: [user_address, 1n, 1n],
     });
 
-    // Record in Supabase
+    await sendTransaction({
+      account: serverWallet,
+      transaction,
+    });
+
     if (email) {
-      await supabase.from("users").upsert({
-        wallet_address: user_address,
-        email: email,
-        membership_status: "premium",
-        membership_type: "vip",
-        created_at: new Date().toISOString(),
-      });
+      await supabase.from("users").upsert(
+        {
+          wallet_address: user_address.toLowerCase(),
+          email: email,
+          membership_status: "premium",
+          membership_type: "vip",
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: ["wallet_address"] },
+      );
     }
 
     return NextResponse.json({
