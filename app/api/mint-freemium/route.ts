@@ -1,27 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createThirdwebClient,
   getContract,
-} from "thirdweb";
-import {
-  mintTo,
+  prepareContractCall,
+  sendTransaction,
   balanceOf,
-} from "thirdweb/extensions/erc1155";
+} from "thirdweb";
 import { base } from "thirdweb/chains";
+import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
+import { client, serverWallet } from "/thirdweb-server-wallet"; // adjust path as needed
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
 
-// Make sure to check if the secret key exists
-if (!process.env.THIRDWEB_SECRET_KEY) {
-  throw new Error("THIRDWEB_SECRET_KEY is not defined in environment variables");
-}
-
-const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_SECRET_KEY!,
-});
-
-export async function POST(req: NextRequest){
+export async function POST(req: NextRequest) {
   const { user_address } = await req.json();
   if (!user_address) {
     return NextResponse.json(
@@ -32,12 +23,12 @@ export async function POST(req: NextRequest){
 
   try {
     const contract = getContract({
-      client, // This should now have a valid secretKey
+      client,
       address: CONTRACT_ADDRESS,
       chain: base,
+      abi: kneadMembershipABI,
     });
 
-    // Idempotency: only mint if not already owned
     const balance = await balanceOf({
       contract,
       owner: user_address,
@@ -47,11 +38,15 @@ export async function POST(req: NextRequest){
       return NextResponse.json({ success: true, alreadyMinted: true });
     }
 
-    await mintTo({
+    const transaction = prepareContractCall({
       contract,
-      to: user_address,
-      tokenId: 0n,
-      amount: 1n,
+      method: "function mint(address to, uint256 id, uint256 amount)",
+      params: [user_address, 0n, 1n],
+    });
+
+    await sendTransaction({
+      account: serverWallet,
+      transaction,
     });
 
     return NextResponse.json({ success: true });
