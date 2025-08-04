@@ -9,7 +9,7 @@ import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { verifyVipToken } from "@/lib/verify-vip-token";
 import { createClient } from "@supabase/supabase-js";
-import { client, serverWallet } from "thirdweb-server-wallet";
+import { client, serverWallet } from "../thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 
