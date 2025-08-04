@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getContract,
-  prepareContractCall,
-  sendTransaction,
-  balanceOf,
-} from "thirdweb";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { client, serverWallet } from "../../../thirdweb-server-wallet"; // adjust path as needed
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
