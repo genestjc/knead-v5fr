@@ -9,7 +9,7 @@ import {
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
-import { client, serverWallet } from "../thirdweb-server-wallet";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
