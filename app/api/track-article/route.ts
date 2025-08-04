@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
   try {
     const { user_address, story_slug, checkOnly } = await req.json();
     
-    if (!user_address) {
+    if (!user_address || !story_slug) {
       return NextResponse.json(
-        { error: "Missing user_address" },
+        { error: "Missing user_address or story_slug" },
         { status: 400 },
       );
     }
@@ -21,10 +21,43 @@ export async function POST(req: NextRequest) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Count articles read in the last 30 days
-    const { count, error } = await supabase
+    // First check if this specific article was already read
+    const { data: existingRead } = await supabase
       .from("article_reads")
-      .select("*", { count: "exact", head: true })
+      .select("*")
+      .eq("user_address", user_address.toLowerCase())
+      .eq("article_slug", story_slug)
+      .gte("read_at", thirtyDaysAgo.toISOString())
+      .single();
+
+    // If already read, don't count it again
+    if (existingRead) {
+      // Count unique articles read in the last 30 days
+      const { count: uniqueCount, error: countError } = await supabase
+        .from("article_reads")
+        .select("article_slug", { count: "exact", head: false })
+        .eq("user_address", user_address.toLowerCase())
+        .gte("read_at", thirtyDaysAgo.toISOString())
+        .limit(1000);
+
+      if (countError) {
+        console.error("Error fetching article reads:", countError);
+        return NextResponse.json(
+          { error: "Failed to check article reads" },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ 
+        reads: uniqueCount || 0,
+        alreadyRead: true 
+      });
+    }
+
+    // Count unique articles read in the last 30 days
+    const { data: uniqueArticles, error } = await supabase
+      .from("article_reads")
+      .select("article_slug")
       .eq("user_address", user_address.toLowerCase())
       .gte("read_at", thirtyDaysAgo.toISOString());
 
@@ -36,17 +69,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const safeCount = count ?? 0;
+    // Get unique article count (using Set to ensure uniqueness)
+    const uniqueArticleSet = new Set(uniqueArticles.map(item => item.article_slug));
+    const uniqueCount = uniqueArticleSet.size;
 
     // If just checking count, return it
     if (checkOnly) {
-      return NextResponse.json({ reads: safeCount });
+      return NextResponse.json({ reads: uniqueCount });
     }
 
     // Check if user has reached their limit
-    if (safeCount >= 3) {
+    if (uniqueCount >= 3) {
       return NextResponse.json(
-        { error: "Freemium limit reached", reads: safeCount },
+        { error: "Freemium limit reached", reads: uniqueCount },
         { status: 403 },
       );
     }
@@ -58,7 +93,7 @@ export async function POST(req: NextRequest) {
         { 
           user_address: user_address.toLowerCase(), 
           read_at: new Date().toISOString(),
-          article_slug: story_slug || "unknown" // Track which article was read
+          article_slug: story_slug
         },
       ]);
 
@@ -73,7 +108,7 @@ export async function POST(req: NextRequest) {
     // Return updated count
     return NextResponse.json({
       success: true,
-      reads: safeCount + 1,
+      reads: uniqueCount + 1,
     });
   } catch (error) {
     console.error("Error in track-article:", error);
