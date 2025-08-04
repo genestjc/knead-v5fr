@@ -1,27 +1,13 @@
-"use client";
+"use client"
 
-import { ConnectButton } from "thirdweb/react";
-import {
-  inAppWallet,
-  createWallet,
-} from "thirdweb/wallets";
-import { client } from "@/thirdweb-client";
+import { ConnectButton } from "thirdweb/react"
+import { inAppWallet, createWallet } from "thirdweb/wallets"
+import { client } from "@/thirdweb-client"
 
 const wallets = [
   inAppWallet({
     auth: {
-      options: [
-        "email",
-        "google",
-        "apple",
-        "coinbase",
-        "passkey",
-        "phone",
-        "discord",
-        "telegram",
-        "farcaster",
-        "x",
-      ],
+      options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
     },
   }),
   createWallet("io.metamask"),
@@ -29,12 +15,12 @@ const wallets = [
   createWallet("me.rainbow"),
   createWallet("io.rabby"),
   createWallet("io.zerion.wallet"),
-];
+]
 
 interface ThirdWebConnectButtonProps {
-  className?: string;
-  theme?: "light" | "dark";
-  size?: "compact" | "wide";
+  className?: string
+  theme?: "light" | "dark"
+  size?: "compact" | "wide"
 }
 
 export function ThirdWebConnectButton({
@@ -69,9 +55,26 @@ export function ThirdWebConnectButton({
             transition: "all 0.2s ease",
           },
         }}
-        // Hide wallet details for all wallet types
-        detailsButton={false}
+        detailsButton={{
+          style: {
+            backgroundColor: "#fff",
+            color: "#000",
+            border: "1px solid #e5e5e5",
+            borderRadius: "8px",
+            padding: "6px 14px",
+            fontFamily: "adonis-web, serif",
+            fontWeight: "300",
+            fontSize: "12px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            transition: "all 0.2s ease",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          },
+        }}
       />
     </div>
-  );
+  )
 }
