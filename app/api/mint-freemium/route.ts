@@ -7,7 +7,7 @@ import {
 } from "thirdweb";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import { client, serverWallet } from "/thirdweb-server-wallet"; // adjust path as needed
+import { client, serverWallet } from "/thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
