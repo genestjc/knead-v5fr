@@ -1,28 +1,27 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo, balanceOf } from "thirdweb/extensions/erc1155";
-import { prepareContractCall,
+import {
+  getContract,
+  prepareContractCall,
   sendTransaction,
+  balanceOf,
 } from "thirdweb";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
+import { client, serverWallet } from "../thirdweb-server-wallet";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
-const client = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_SECRET_KEY!,
-});
 const PAID_TOKEN_ID = 1;
 
 // Initialize Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 async function hasPremiumNFT(walletAddress: string) {
@@ -41,7 +40,7 @@ async function hasPremiumNFT(walletAddress: string) {
     return balance > 0n;
   } catch (error) {
     console.error("Error checking premium NFT:", error);
-    return false; // Safer to return false on error
+    return false;
   }
 }
 
@@ -53,29 +52,35 @@ async function mintPremiumNFT(walletAddress: string) {
       chain: base,
       abi: kneadMembershipABI,
     });
-    // Idempotency: only mint if not already owned
     if (await hasPremiumNFT(walletAddress)) return;
-    
-    await mintTo({
+
+    const transaction = prepareContractCall({
       contract,
-      to: walletAddress,
-      tokenId: BigInt(PAID_TOKEN_ID),
-      amount: 1n,
+      method: "function mint(address to, uint256 id, uint256 amount)",
+      params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
     });
-    
-    // Update user status in Supabase if available
+
+    await sendTransaction({
+      account: serverWallet,
+      transaction,
+    });
+
+    // Upsert user status in Supabase
     try {
-      await supabase
-        .from("users")
-        .update({ membership_status: "premium" })
-        .eq("wallet_address", walletAddress);
+      await supabase.from("users").upsert(
+        {
+          wallet_address: walletAddress.toLowerCase(),
+          membership_status: "premium",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: ["wallet_address"] },
+      );
     } catch (dbError) {
       console.error("Failed to update user status in Supabase:", dbError);
-      // Continue even if db update fails - the NFT was minted
     }
   } catch (error) {
     console.error(`Error minting premium NFT to ${walletAddress}:`, error);
-    throw error; // Re-throw to handle in the webhook handler
+    throw error;
   }
 }
 
@@ -87,39 +92,35 @@ async function adminBurnPremiumNFT(walletAddress: string) {
       chain: base,
       abi: kneadMembershipABI,
     });
-    // Idempotency: only burn if owned
     if (!(await hasPremiumNFT(walletAddress))) return;
 
-    // Prepare the transaction for adminBurn
     const transaction = prepareContractCall({
       contract,
-      method:
-        "function adminBurn(address from, uint256 id, uint256 amount)",
+      method: "function adminBurn(address from, uint256 id, uint256 amount)",
       params: [walletAddress, BigInt(PAID_TOKEN_ID), 1n],
     });
 
-    // Send the transaction using the server-side client
-    await sendTransaction({ account: client, transaction });
+    await sendTransaction({
+      account: serverWallet,
+      transaction,
+    });
 
-    // Update user status in Supabase if available
+    // Upsert user status in Supabase
     try {
-      await supabase
-        .from("users")
-        .update({ membership_status: "freemium" })
-        .eq("wallet_address", walletAddress);
-    } catch (dbError) {
-      console.error(
-        "Failed to update user status in Supabase:",
-        dbError,
+      await supabase.from("users").upsert(
+        {
+          wallet_address: walletAddress.toLowerCase(),
+          membership_status: "freemium",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: ["wallet_address"] },
       );
-      // Continue even if db update fails - the NFT was burned
+    } catch (dbError) {
+      console.error("Failed to update user status in Supabase:", dbError);
     }
   } catch (error) {
-    console.error(
-      `Error burning premium NFT from ${walletAddress}:`,
-      error,
-    );
-    throw error; // Re-throw to handle in the webhook handler
+    console.error(`Error burning premium NFT from ${walletAddress}:`, error);
+    throw error;
   }
 }
 
@@ -147,16 +148,20 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        // Get wallet from either metadata format
         const wallet =
           session.metadata?.wallet_address || session.metadata?.walletAddress;
-          
         if (!wallet) {
-          console.error("No wallet address found in session metadata:", session.id);
-          return new Response("No wallet address found in session metadata", { status: 200 });
+          console.error(
+            "No wallet address found in session metadata:",
+            session.id,
+          );
+          return new Response("No wallet address found in session metadata", {
+            status: 200,
+          });
         }
-        
-        console.log(`Processing checkout.session.completed for wallet ${wallet}`);
+        console.log(
+          `Processing checkout.session.completed for wallet ${wallet}`,
+        );
         await mintPremiumNFT(wallet);
         break;
       }
@@ -166,17 +171,22 @@ export async function POST(req: NextRequest) {
           console.log("No subscription found in invoice, skipping");
           break;
         }
-        
-        const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+        const subscription = await stripe.subscriptions.retrieve(
+          invoice.subscription as string,
+        );
         const wallet =
-          subscription.metadata?.wallet_address || subscription.metadata?.walletAddress;
-          
+          subscription.metadata?.wallet_address ||
+          subscription.metadata?.walletAddress;
         if (!wallet) {
-          console.error("No wallet address found in subscription metadata:", subscription.id);
+          console.error(
+            "No wallet address found in subscription metadata:",
+            subscription.id,
+          );
           break;
         }
-        
-        console.log(`Processing invoice.payment_succeeded for wallet ${wallet}`);
+        console.log(
+          `Processing invoice.payment_succeeded for wallet ${wallet}`,
+        );
         await mintPremiumNFT(wallet);
         break;
       }
@@ -186,43 +196,49 @@ export async function POST(req: NextRequest) {
           console.log("No subscription found in failed invoice, skipping");
           break;
         }
-        
-        // Only burn after several failed attempts to avoid temporary issues
         const attemptCount = invoice.attempt_count || 0;
         if (attemptCount < 3) {
-          console.log(`Payment failed but only attempt #${attemptCount}, not burning NFT yet`);
+          console.log(
+            `Payment failed but only attempt #${attemptCount}, not burning NFT yet`,
+          );
           break;
         }
-        
         const subscription = await stripe.subscriptions.retrieve(
           invoice.subscription as string,
         );
         const wallet =
-          subscription.metadata?.wallet_address || subscription.metadata?.walletAddress;
-          
+          subscription.metadata?.wallet_address ||
+          subscription.metadata?.walletAddress;
         if (!wallet) {
-          console.error("No wallet address found in subscription metadata:", subscription.id);
+          console.error(
+            "No wallet address found in subscription metadata:",
+            subscription.id,
+          );
           break;
         }
-        
-        console.log(`Processing invoice.payment_failed for wallet ${wallet} after ${attemptCount} attempts`);
+        console.log(
+          `Processing invoice.payment_failed for wallet ${wallet} after ${attemptCount} attempts`,
+        );
         await adminBurnPremiumNFT(wallet);
         break;
       }
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const wallet =
-          subscription.metadata?.wallet_address || subscription.metadata?.walletAddress;
-          
+          subscription.metadata?.wallet_address ||
+          subscription.metadata?.walletAddress;
         if (!wallet) {
-          console.error("No wallet address found in subscription metadata:", subscription.id);
+          console.error(
+            "No wallet address found in subscription metadata:",
+            subscription.id,
+          );
           break;
         }
-        
-        // Only burn if subscription period has ended
         const currentTimestamp = Math.floor(Date.now() / 1000);
         if (subscription.current_period_end < currentTimestamp) {
-          console.log(`Processing subscription.deleted for wallet ${wallet} - period ended`);
+          console.log(
+            `Processing subscription.deleted for wallet ${wallet} - period ended`,
+          );
           await adminBurnPremiumNFT(wallet);
         } else {
           console.log(
@@ -234,16 +250,14 @@ export async function POST(req: NextRequest) {
         break;
       }
       case "payment_intent.succeeded": {
-        // Only mint if this is a one-off premium purchase (not subscription)
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const wallet =
-          paymentIntent.metadata?.wallet_address || paymentIntent.metadata?.walletAddress;
-          
+          paymentIntent.metadata?.wallet_address ||
+          paymentIntent.metadata?.walletAddress;
         if (!wallet) {
           console.log("No wallet address in payment intent metadata, skipping");
           break;
         }
-        
         if (paymentIntent.metadata?.subscription_type === "premium") {
           console.log(`Processing one-time payment for wallet ${wallet}`);
           await mintPremiumNFT(wallet);
@@ -254,13 +268,11 @@ export async function POST(req: NextRequest) {
         console.log(`Unhandled event type: ${event.type}`);
         break;
     }
-    
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
     });
   } catch (err) {
     console.error(`Error processing webhook: ${(err as Error).message}`);
-    // Always return 200 to Stripe to avoid retries, but log error
     return new Response(
       JSON.stringify({
         received: true,
