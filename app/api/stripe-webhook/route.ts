@@ -1,15 +1,11 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
-import {
-  getContract,
-  prepareContractCall,
-  sendTransaction,
-  balanceOf,
-} from "thirdweb";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
-import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { client, serverWallet } from "../../../thirdweb-server-wallet"; // adjust path as needed
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
