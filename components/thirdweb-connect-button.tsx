@@ -3,6 +3,7 @@
 import { ConnectButton } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
+import { usePersistentWallet } from "@/hooks/use-persistent-wallet"
 
 const wallets = [
   inAppWallet({
