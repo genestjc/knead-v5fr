@@ -1,4 +1,5 @@
-import { useState, useEffect, type ReactNode } from "react"
+import React, { useState, useEffect } from "react"
+import type { ReactNode } from "react"
 import { useActiveAccount } from "thirdweb/react"
 import { createThirdwebClient, getContract } from "thirdweb"
 import { balanceOf } from "thirdweb/extensions/erc1155"
@@ -14,10 +15,46 @@ const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
 })
 
+// Membership contract addresses
+const MEMBERSHIP_CONTRACTS = {
+  KNEAD: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string,
+  ANNUAL_2025: "0xa4b1aF8cffEE71D71721cB69596c9A31ac449F13", 
+  SHIFT_MEAL: "0xa4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Same as ANNUAL_2025
+  BREADWINNERS_CLUB: "0x0e70AB324E8761E97f131Eecc4Dd63dFDE33cB72"
+}
+
 // Single-story pass contracts mapped to story slugs
 const SINGLE_STORY_PASSES: Record<string, string> = {
+  // Core story passes
   somehoodlum: "0x0d6bd8aa6acf52d2dd23d4f74fed88b7e3cfc2c6",
-  // ... other story passes
+  "how-luxury-has-led-web3": "0xc3b7aae8de9100554bbdea648cda311adcf3ef30",
+  "the-role-of-genetics-in-cannabis": "0x2ad4f2e44c2c2855997cded05b2b025be094ac46",
+  fvckrender: "0x5feff3c55cc6155ab80b92960c7be6a6961d977d",
+  "nicola-formichetti-talks-joining-syky": "0x3e58e2c69970a84f628347546de9fe774fadfd1a",
+  "dj-harrison": "0x093d46cd7d2b0785870a7092514bb27aae671d68",
+  mntge: "0xd18225e9d9292f94b3b8d69561b5d647711504b2",
+  "daniel-harthausen": "0x134f97ab28c727e42204feb75278526f87738ad0",
+  "young-flexico": "0x626ec0fcb91e873f149f53874309f79b87fb3317",
+  "sean-anderson-sol3mates": "0x2586346af2e1a0353cd5fee952e6673c96adb7d6",
+  "joey-khamis": "0x08249549c9c29631d2904bf1c0175c0145a27e60",
+  "evan-parker-mantel": "0x13b02c363e8eb8a0e0415005176c169d050c07f2",
+  "nina-chanel-abney": "0xa391369b07cf2c6fd9964b045f4468d8be38a22d",
+  "jeremiah-morris": "0x3b0b3fab4a4ef291ccaf516d4f1862bbb8108265",
+  meshfair: "0xcf456ea4400cb3236d686e77fa8d229d567e9edf",
+  "gmoney-9dcc-nines": "0x3ae58546ddd4144e698a54fd4cd5704b88ffab6d",
+  "clay-hoss-helens": "0x7b8fbf635c681aebd2ddc7ace79213b695dc7e72",
+  "dylan-abruscato-crypto-game": "0x048ac7715eb857e062a0d403e0e3dedbb48dc46f",
+  "julian-holguin-doodles": "0x25ac04f217a4a5f3c6149c8ee688e388cf8e29e7",
+  animal: "0xd7a11b5ae53949bdaac913b2423182a5afbbdd7a",
+  towns: "0x5d27b7ef465a1d5164649447aa8660f15cb463bb",
+  "decentraland-music-festival": "0x1c0765d04328dd6cae84a5fadb7371317b14c6ec",
+  "gmoney-9dcc-black-box": "0xb6a1f823c2ae46c63e1f0262bd6a0e473fa52f37",
+  "blvck-svm": "0x1ff6ccfd3b48aa1711f40aef2b7dd0134bc15d2d"
+}
+
+// Helper function to normalize slugs for comparison
+function normalizeSlug(slug: string): string {
+  return slug.toLowerCase().replace(/[^a-z0-9]/g, '-');
 }
 
 interface UnlockContentProps {
@@ -61,10 +98,16 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
       }
       
       // Then check for single-story passes
-      const singleStoryContract = SINGLE_STORY_PASSES[contentId]
+      // Normalize the contentId to handle different slug formats
+      const normalizedContentId = normalizeSlug(contentId)
+      const singleStoryContract = SINGLE_STORY_PASSES[normalizedContentId] || 
+                                  Object.entries(SINGLE_STORY_PASSES).find(
+                                    ([key]) => normalizeSlug(key) === normalizedContentId
+                                  )?.[1];
+      
       if (singleStoryContract) {
         try {
-          console.log(`Checking single-story pass for ${contentId}`)
+          console.log(`Checking single-story pass for ${contentId} at ${singleStoryContract}`)
           const contractInstance = getContract({
             client,
             chain: base,
