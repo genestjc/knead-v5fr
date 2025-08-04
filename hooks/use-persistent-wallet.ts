@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useConnect, useDisconnect, useActiveAccount } from "thirdweb/react";
-import { useLocalStorage } from "./use-local-storage";
 
-// Create a hook for local storage first
+// Create a hook for local storage
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
+    if (typeof window === "undefined") {
+      return initialValue;
+    }
     try {
-      if (typeof window === "undefined") {
-        return initialValue;
-      }
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
@@ -47,14 +46,14 @@ export function usePersistentWallet() {
       console.log("Attempting to reconnect wallet from previous session");
       connect();
     }
-  }, [shouldConnect, account, connectStatus]);
+  }, [shouldConnect, account, connectStatus, connect]);
 
   // Update connection state when wallet connects or disconnects
   useEffect(() => {
     if (account) {
       setShouldConnect(true);
     }
-  }, [account]);
+  }, [account, setShouldConnect]);
 
   const handleDisconnect = () => {
     disconnect();
