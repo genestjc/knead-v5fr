@@ -55,81 +55,101 @@ async function getMembershipType(walletAddress: string): Promise<MembershipType>
 
   try {
     // Check main Knead membership contract
-    const kneadContract = getContract({
-      client,
-      chain: base,
-      address: MEMBERSHIP_CONTRACTS.KNEAD,
-    });
+    try {
+      const kneadContract = getContract({
+        client,
+        chain: base,
+        address: MEMBERSHIP_CONTRACTS.KNEAD,
+      });
 
-    // Check premium token (ID: 1)
-    const premiumBalance = await balanceOf({
-      contract: kneadContract,
-      owner: walletAddress,
-      tokenId: 1n,
-    });
+      // Check premium token (ID: 1)
+      const premiumBalance = await balanceOf({
+        contract: kneadContract,
+        owner: walletAddress,
+        tokenId: 1n,
+      });
 
-    if (premiumBalance > 0n) {
-      const result = "premium" as MembershipType;
-      membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
-      return result;
+      if (premiumBalance > 0n) {
+        const result = "premium" as MembershipType;
+        membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
+        return result;
+      }
+      
+      // Check freemium token (ID: 0)
+      const freemiumBalance = await balanceOf({
+        contract: kneadContract,
+        owner: walletAddress,
+        tokenId: 0n,
+      });
+
+      if (freemiumBalance > 0n) {
+        const result = "freemium" as MembershipType;
+        membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
+        return result;
+      }
+    } catch (error) {
+      console.error("Error checking main contract:", error);
+      // Continue to other contracts
     }
     
-    // Check other premium membership contracts
-    
-    // Annual/Shift Meal
-    const annualContract = getContract({
-      client,
-      chain: base,
-      address: MEMBERSHIP_CONTRACTS.ANNUAL_2025,
-    });
-    
-    const annualBalance = await balanceOf({
-      contract: annualContract,
-      owner: walletAddress,
-      tokenId: 1n, // Annual token ID
-    });
-    
-    const shiftBalance = await balanceOf({
-      contract: annualContract,
-      owner: walletAddress,
-      tokenId: 2n, // Shift meal token ID
-    });
-    
-    if (annualBalance > 0n || shiftBalance > 0n) {
-      const result = "premium" as MembershipType;
-      membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
-      return result;
+    // Check other premium contracts - wrap each in try/catch
+    try {
+      // Annual/Shift Meal
+      const annualContract = getContract({
+        client,
+        chain: base,
+        address: MEMBERSHIP_CONTRACTS.ANNUAL_2025,
+      });
+      
+      const annualBalance = await balanceOf({
+        contract: annualContract,
+        owner: walletAddress,
+        tokenId: 1n, // Annual token ID
+      });
+      
+      if (annualBalance > 0n) {
+        const result = "premium" as MembershipType;
+        membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
+        return result;
+      }
+      
+      const shiftBalance = await balanceOf({
+        contract: annualContract,
+        owner: walletAddress,
+        tokenId: 2n, // Shift meal token ID
+      });
+      
+      if (shiftBalance > 0n) {
+        const result = "premium" as MembershipType;
+        membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
+        return result;
+      }
+    } catch (error) {
+      console.error("Error checking annual/shift contract:", error);
+      // Continue to next contract
     }
     
-    // Breadwinner's Club (ERC721)
-    const bwcContract = getContract({
-      client,
-      chain: base,
-      address: MEMBERSHIP_CONTRACTS.BREADWINNERS_CLUB,
-    });
-    
-    const bwcBalance = await erc721BalanceOf({
-      contract: bwcContract,
-      owner: walletAddress,
-    });
-    
-    if (bwcBalance > 0n) {
-      const result = "premium" as MembershipType;
-      membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
-      return result;
-    }
-
-    // Check freemium token (ID: 0)
-    const freemiumBalance = await balanceOf({
-      contract: kneadContract,
-      owner: walletAddress,
-      tokenId: 0n,
-    });
-
-    if (freemiumBalance > 0n) {
-      const result = "freemium" as MembershipType;
-      membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
-      return result;
+    try {
+      // Breadwinner's Club (ERC721)
+      const bwcContract = getContract({
+        client,
+        chain: base,
+        address: MEMBERSHIP_CONTRACTS.BREADWINNERS_CLUB,
+      });
+      
+      const bwcBalance = await erc721BalanceOf({
+        contract: bwcContract,
+        owner: walletAddress,
+      });
+      
+      if (bwcBalance > 0n) {
+        const result = "premium" as MembershipType;
+        membershipCache.set(walletAddress, { type: result, timestamp: Date.now() });
+        return result;
+      }
+    } catch (error) {
+      console.error("Error checking BWC contract:", error);
+      // Continue
     }
 
     membershipCache.set(walletAddress, { type: null, timestamp: Date.now() });
