@@ -72,7 +72,10 @@ export function middleware(request: NextRequest) {
       https://vercel.com
       https://pbs.twimg.com
       https://www.instagram.com
-      https://static.cdninstagram.com;
+      https://static.cdninstagram.com
+      https://*.ipfscdn.io
+      https://ipfs.io
+      https://ethereum.org;
     font-src 'self'
       https://fonts.gstatic.com
       https://use.typekit.net
@@ -103,6 +106,8 @@ export function middleware(request: NextRequest) {
       https://social.thirdweb.com
       https://1.rpc.thirdweb.com
       https://8453.rpc.thirdweb.com
+      https://*.ipfscdn.io
+      https://ipfs.io
       https://use.typekit.net
       https://fonts.googleapis.com
       https://cdn.sanity.io
@@ -117,6 +122,12 @@ export function middleware(request: NextRequest) {
     .trim();
 
   const response = NextResponse.next();
+  
+  // Set Cross-Origin headers to fix ThirdWeb popup issues
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
+  
+  // Set CSP header
   response.headers.set(
     "Content-Security-Policy",
     cspHeader,
