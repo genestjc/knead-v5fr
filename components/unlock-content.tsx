@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react"
 import type { ReactNode } from "react"
 import { useActiveAccount } from "thirdweb/react"
