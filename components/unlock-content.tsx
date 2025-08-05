@@ -20,8 +20,8 @@ const client = createThirdwebClient({
 // Membership contract addresses
 const MEMBERSHIP_CONTRACTS = {
   KNEAD: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string,
-  ANNUAL_2025: "0xa4b1af8cffee71d71721cb69596c9a31ac449f13", // Fixed checksum
-  SHIFT_MEAL: "0xa4b1af8cffee71d71721cb69596c9a31ac449f13", // Fixed checksum
+  ANNUAL_2025: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
+  SHIFT_MEAL: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
   BREADWINNERS_CLUB: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72"  // Fixed checksum
 };
 
