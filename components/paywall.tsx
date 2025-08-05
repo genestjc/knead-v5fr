@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
+import { useToast } from "@/hooks/use-toast";
 
 interface PaywallProps {
   onSubscribe?: () => void;
@@ -12,6 +13,7 @@ interface PaywallProps {
 export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps) {
   const account = useActiveAccount();
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
+  const { toast } = useToast();
 
   const handleSubscribeRedirect = async () => {
     if (!account?.address) return;
@@ -26,6 +28,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
         },
         body: JSON.stringify({
           walletAddress: account.address,
+          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || "price_1RhFCBLFxM3QV6ciPmZnxyfL",
         }),
       });
       
@@ -33,11 +36,27 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
       
       if (data.error) {
         console.error("Error creating checkout session:", data.error);
+        toast({
+          title: "Error",
+          description: `Failed to create checkout session: ${data.error}`,
+          variant: "destructive",
+        });
       } else if (data.url) {
         window.location.href = data.url;
+      } else {
+        toast({
+          title: "Error",
+          description: "Unexpected error. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Error creating checkout session:", err);
+      toast({
+        title: "Error",
+        description: "Failed to initialize checkout. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingCheckout(false);
     }
@@ -87,7 +106,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
             Processing...
           </>
         ) : (
-          "Sign up for Knead Monthly"
+          "Subscribe to Knead Monthly"
         )}
       </button>
     </div>
