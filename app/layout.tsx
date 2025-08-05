@@ -5,7 +5,6 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { WalletProvider } from "@/components/wallet-provider";
 import { MembershipProvider } from "@/components/membership-provider";
-import { OnboardFreemium } from "@/components/onboard-freemium";
 import { Footer } from "@/components/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { ThirdwebProvider } from "thirdweb/react";
@@ -28,7 +27,7 @@ export const metadata: Metadata = {
     title: "Knead",
     description: "Nourishment for the creative spirit.",
   },
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -56,7 +55,6 @@ export default function RootLayout({
               <MembershipProvider>
                 {children}
                 <Footer />
-                <OnboardFreemium />
                 <Toaster />
               </MembershipProvider>
             </WalletProvider>
@@ -66,4 +64,3 @@ export default function RootLayout({
     </html>
   );
 }
-
