@@ -6,11 +6,10 @@ import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
 
 interface PaywallProps {
-  onSubscribe?: () => void;
   articleCount?: number;
 }
 
-export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps) {
+export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const account = useActiveAccount();
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const { toast } = useToast();
@@ -21,6 +20,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
     setIsLoadingCheckout(true);
     
     try {
+      // Direct Stripe checkout - no modal
       const response = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: {
@@ -42,6 +42,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
           variant: "destructive",
         });
       } else if (data.url) {
+        // Direct redirect to Stripe
         window.location.href = data.url;
       } else {
         toast({
@@ -93,7 +94,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
       </p>
       
       <button
-        onClick={onSubscribe || handleSubscribeRedirect}
+        onClick={handleSubscribeRedirect}
         disabled={isLoadingCheckout}
         className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
       >
