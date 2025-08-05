@@ -8,7 +8,6 @@ import { balanceOf } from "thirdweb/extensions/erc1155"
 import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721"
 import { base } from "thirdweb/chains"
 import Paywall from "./paywall"
-import SubscriptionFlow from "./SubscriptionFlow"
 import { useMembership } from "@/components/membership-provider"
 import { useToast } from "@/hooks/use-toast"
 import { TOKEN_IDS, ARTICLE_LIMITS } from "@/lib/constants"
@@ -70,7 +69,6 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const [canAccess, setCanAccess] = useState<boolean | null>(null)
   const [articleCount, setArticleCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [showSubscriptionFlow, setShowSubscriptionFlow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
@@ -229,20 +227,6 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     }
   }
 
-  const handleSubscribe = () => {
-    setShowSubscriptionFlow(true)
-  }
-
-  const handleSubscriptionSuccess = () => {
-    setShowSubscriptionFlow(false)
-    toast({
-      title: "Success!",
-      description: "Your premium membership has been activated.",
-      variant: "default",
-    })
-    checkAccess()
-  }
-
   // Loading state
   if (isLoading || membershipLoading) {
     return (
@@ -274,31 +258,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
 
   // Freemium user reached article limit - show limit paywall
   if (canAccess === false && hasAccess("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
-    return <Paywall onSubscribe={handleSubscribe} articleCount={articleCount} />
-  }
-
-  // Subscription modal
-  if (showSubscriptionFlow) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-adonis">
-              Join Knead Monthly
-            </h2>
-            <button
-              onClick={() => setShowSubscriptionFlow(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ×
-            </button>
-          </div>
-          <SubscriptionFlow
-            onSuccess={handleSubscriptionSuccess}
-          />
-        </div>
-      </div>
-    )
+    return <Paywall articleCount={articleCount} />
   }
 
   // User has access
