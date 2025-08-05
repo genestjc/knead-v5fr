@@ -1,47 +1,136 @@
+"use client";
+
+import { useState } from "react";
+import { useActiveAccount } from "thirdweb/react";
+import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
+
 export default function CancelMembership() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const account = useActiveAccount();
+  const { toast } = useToast();
+
+  const handleCancel = async () => {
+    if (!account?.address) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to cancel your subscription",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Get email from localStorage if available
+      const email = localStorage.getItem(`email_${account.address}`);
+      
+      // Fetch subscription ID from user account (this is a simplified example)
+      const subscriptionResponse = await fetch(`/api/get-subscription?address=${account.address}`);
+      const subscriptionData = await subscriptionResponse.json();
+
+      if (!subscriptionResponse.ok || !subscriptionData.subscriptionId) {
+        throw new Error(subscriptionData.error || "No active subscription found");
+      }
+
+      const response = await fetch("/api/cancel-membership", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_address: account.address,
+          email: email,
+          subscriptionId: subscriptionData.subscriptionId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to cancel subscription");
+      }
+
+      setSuccess(true);
+      toast({
+        title: "Subscription Cancelled",
+        description: "Your membership has been cancelled and will end at the current billing period",
+      });
+    } catch (err: any) {
+      console.error("Error cancelling subscription:", err);
+      setError(err.message || "Something went wrong. Please try again.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel your subscription",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <main
-      style={{
-        fontFamily: "georgia-pro, serif",
-        padding: "2rem",
-      }}
-    >
-      <style>{`@import url("https://use.typekit.net/gne1bgd.css");`}</style>
-      <h1
-        style={{
-          fontFamily: "adonis, serif",
-          fontSize: "2.5rem",
-        }}
-      >
+    <main className="container-magazine py-16">
+      <h1 className="font-adonis text-4xl mb-8">
         Cancel Membership
       </h1>
-      <div
-        style={{ marginTop: "2rem", fontSize: "1.2rem" }}
-      >
-        <p>
-          We're sorry to see you go. If you wish to cancel
-          your Knead Monthly membership, please confirm
-          below.
+      <div className="prose prose-lg max-w-none">
+        <p className="font-georgia-pro">
+          We're sorry to see you go. If you wish to cancel your Knead Monthly membership, please confirm below.
         </p>
-        {/* Add your wallet authentication and cancellation logic here */}
-        <form method="POST" action="/api/cancel-membership">
-          <button
-            type="submit"
-            style={{
-              marginTop: "2rem",
-              padding: "1rem 2rem",
-              fontFamily: "adonis, serif",
-              fontSize: "1.2rem",
-              background: "#222",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Cancel Membership
-          </button>
-        </form>
+        
+        {!account?.address ? (
+          <div className="my-8">
+            <p className="font-georgia-pro mb-4">Please connect your wallet to manage your subscription.</p>
+            <ThirdWebConnectButton />
+          </div>
+        ) : success ? (
+          <div className="my-8 p-4 bg-green-50 border border-green-200 rounded">
+            <h2 className="font-adonis text-xl mb-2">Your membership has been cancelled</h2>
+            <p className="font-georgia-pro">
+              You'll still have access until the end of your current billing period. We hope to see you again soon!
+            </p>
+            <Link href="/" className="inline-block mt-4 bg-black text-white px-6 py-2 rounded font-adonis">
+              Return to Home
+            </Link>
+          </div>
+        ) : error ? (
+          <div className="my-8 p-4 bg-red-50 border border-red-200 rounded">
+            <h2 className="font-adonis text-xl mb-2">Error</h2>
+            <p className="font-georgia-pro">{error}</p>
+            <button 
+              onClick={() => setError(null)} 
+              className="inline-block mt-4 bg-black text-white px-6 py-2 rounded font-adonis"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : (
+          <div className="my-8">
+            <button
+              onClick={handleCancel}
+              disabled={isLoading}
+              className="bg-black text-white px-6 py-3 rounded font-adonis disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                "Cancel My Membership"
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
