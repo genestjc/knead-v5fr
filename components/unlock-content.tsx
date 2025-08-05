@@ -20,10 +20,10 @@ const client = createThirdwebClient({
 // Membership contract addresses
 const MEMBERSHIP_CONTRACTS = {
   KNEAD: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string,
-  ANNUAL_2025: "0xa4b1aF8cffEE71D71721cB69596c9A31ac449F13", 
-  SHIFT_MEAL: "0xa4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Same as ANNUAL_2025
-  BREADWINNERS_CLUB: "0x0e70AB324E8761E97f131Eecc4Dd63dFDE33cB72"
-}
+  ANNUAL_2025: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
+  SHIFT_MEAL: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
+  BREADWINNERS_CLUB: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72"  // Fixed checksum
+};
 
 // Single-story pass contracts mapped to story slugs
 const SINGLE_STORY_PASSES: Record<string, string> = {
