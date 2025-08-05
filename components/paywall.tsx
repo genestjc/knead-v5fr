@@ -56,7 +56,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
         </div>
         
         <p className="font-georgia-pro text-gray-700 mt-4">
-          Not a member? Our free membership enables three free stories per month.
+          Not a member? Sign up for our free membership to read.
         </p>
       </div>
     );
@@ -66,7 +66,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
   return (
     <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
       <h2 className="font-adonis text-2xl mb-4">
-        You've reached your complimentary story limit for the month
+        You've reached your story limit for the month.
       </h2>
       
       <p className="font-georgia-pro italic text-gray-700 mt-4 mb-6">
@@ -87,7 +87,7 @@ export default function Paywall({ onSubscribe, articleCount = 3 }: PaywallProps)
             Processing...
           </>
         ) : (
-          "Sign up for Knead Monthly today"
+          "Sign up for Knead Monthly"
         )}
       </button>
     </div>
