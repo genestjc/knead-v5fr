@@ -1,53 +1,60 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+
+// Mark as dynamic
+export const dynamic = 'force-dynamic';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
+  apiVersion: "2023-10-16",
 });
-
-const SUBSCRIPTION_PRICE_ID = process.env.STRIPE_PRICE_ID || 'price_1RhFCBLFxM3QV6ciPmZnxyfL';
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress } = await req.json();
-    
+    const { walletAddress, priceId } = await req.json();
+
     if (!walletAddress) {
       return NextResponse.json(
-        { error: 'Missing wallet address' },
+        { error: "Missing wallet address" },
         { status: 400 }
       );
     }
 
-    // Create Checkout Session
+    const price = priceId || process.env.STRIPE_PRICE_ID;
+    if (!price) {
+      return NextResponse.json(
+        { error: "No price specified" },
+        { status: 400 }
+      );
+    }
+
+    // Add extensive logging
+    console.log(`Creating checkout session for wallet: ${walletAddress} with price: ${price}`);
+
+    // Create checkout session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: ["card"],
       line_items: [
         {
-          price: SUBSCRIPTION_PRICE_ID,
+          price: price,
           quantity: 1,
         },
       ],
-      mode: 'subscription',
-      success_url: `${req.headers.get('origin')}/join?success=true`,
-      cancel_url: `${req.headers.get('origin')}/join?canceled=true`,
+      mode: "subscription",
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/membership/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/membership/canceled`,
       metadata: {
-        wallet_address: walletAddress,
+        walletAddress: walletAddress,
       },
-      subscription_data: {
-        metadata: {
-          wallet_address: walletAddress,
-        },
-      },
-      // Optional: Collect customer email
-      // billing_address_collection: 'auto',
-      // customer_email: email,
+      customer_email: null, // We don't require email, but you can add it if available
     });
 
+    console.log(`Checkout session created: ${session.id}`);
+
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
-    console.error('Error creating checkout session:', error);
+  } catch (err: any) {
+    console.error("Error creating checkout session:", err);
     return NextResponse.json(
-      { error: error.message || 'Failed to create checkout session' },
+      { error: err.message || "Failed to create checkout session" },
       { status: 500 }
     );
   }
