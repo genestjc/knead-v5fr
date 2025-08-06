@@ -1,16 +1,12 @@
 "use client";
 
-import {
-  useActiveAccount,
-  useDisconnect,
-} from "thirdweb/react";
+import { useActiveAccount } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function WalletSummary() {
   const account = useActiveAccount();
-  const { disconnect, isDisconnecting } = useDisconnect();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -28,62 +24,53 @@ export function WalletSummary() {
     }
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     if (isSigningOut) return; // Prevent multiple clicks
     
     try {
       setIsSigningOut(true);
       setIsDropdownOpen(false);
       
-      // Clear any local storage data first
-      if (account?.address) {
-        localStorage.removeItem(`email_${account.address}`);
-      }
+      // Clear ThirdWeb local storage items
+      const thirdwebKeys = Object.keys(localStorage).filter(key => 
+        key.includes('thirdweb') || 
+        key.includes('walletconnect') || 
+        key.startsWith('email_') ||
+        key.startsWith('tw-') ||
+        key.includes('wallet')
+      );
       
-      try {
-        // Wrap disconnect in a timeout to prevent UI freeze
-        const disconnectPromise = new Promise<void>((resolve) => {
-          setTimeout(async () => {
-            try {
-              if (account) {
-                await disconnect();
-              }
-              resolve();
-            } catch (err: any) {
-              // Known ThirdWeb error - ignore it
-              if (err?.message?.includes("reading 'id'") || 
-                  err?.message?.includes("Cannot read properties of undefined")) {
-                console.log("Ignoring known ThirdWeb disconnect error");
-              } else {
-                console.error("Unknown disconnect error:", err);
-              }
-              resolve();
-            }
-          }, 100);
-        });
-        
-        // Add a timeout to prevent hanging
-        await Promise.race([
-          disconnectPromise,
-          new Promise(resolve => setTimeout(resolve, 1500))
-        ]);
-        
-        // Toast and reload to ensure clean state
-        toast({
-          title: "Signed Out",
-          description: "You have been signed out successfully",
-        });
-      } catch (err) {
-        console.error("Disconnect error:", err);
-      }
+      console.log('Clearing the following localStorage keys:', thirdwebKeys);
       
-      // Force reload with a delay
+      thirdwebKeys.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      // Clear session storage too
+      const sessionKeys = Object.keys(sessionStorage).filter(key => 
+        key.includes('thirdweb') || 
+        key.includes('walletconnect') || 
+        key.startsWith('tw-') ||
+        key.includes('wallet')
+      );
+      
+      sessionKeys.forEach(key => {
+        sessionStorage.removeItem(key);
+      });
+      
+      // Show toast notification
+      toast({
+        title: "Signed Out",
+        description: "You have been signed out successfully"
+      });
+      
+      // Hard reload the page
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = '/'; // Use location.href to clear any route state
       }, 500);
     } catch (error) {
       console.error("Failed to sign out:", error);
-      // Still reload as a fallback
+      // Force reload anyway
       window.location.reload();
     }
   };
@@ -132,16 +119,16 @@ export function WalletSummary() {
               className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Copy className="w-4 h-4 mr-2" />
-              {copied ? "Copied!" : "Copy Membership"}
+              {copied ? "Copied!" : "Copy Address"}
             </button>
             <div className="border-t border-gray-100 my-1"></div>
             <button
               onClick={handleSignOut}
-              disabled={isDisconnecting || isSigningOut}
+              disabled={isSigningOut}
               className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LogOut className="w-4 h-4 mr-2" />
-              {isDisconnecting || isSigningOut ? "Signing Out..." : "Sign Out"}
+              {isSigningOut ? "Signing Out..." : "Sign Out"}
             </button>
           </div>
         </div>
