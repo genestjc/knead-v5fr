@@ -72,6 +72,16 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
+  // Safe membership check that won't cause errors
+  const safeMembershipCheck = (level: "premium" | "freemium"): boolean => {
+    try {
+      return hasAccess(level);
+    } catch (error) {
+      console.log(`Error checking ${level} membership, defaulting to false:`, error);
+      return false;
+    }
+  }
+
   useEffect(() => {
     if (!account?.address) {
       setCanAccess(false)
@@ -90,7 +100,8 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     
     try {
       // First check if the user has a premium membership (fastest check)
-      if (hasAccess("premium")) {
+      // Use our safe wrapper to prevent ThirdWeb errors
+      if (safeMembershipCheck("premium")) {
         console.log("Premium membership detected, granting access")
         setCanAccess(true)
         setIsLoading(false)
@@ -136,7 +147,8 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
       }
 
       // If user has freemium membership, check article count
-      if (hasAccess("freemium")) {
+      // Use our safe wrapper to prevent ThirdWeb errors
+      if (safeMembershipCheck("freemium")) {
         console.log("Freemium membership detected, checking article limit")
         await checkFreemiumLimit()
       } else {
@@ -257,7 +269,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   }
 
   // Freemium user reached article limit - show limit paywall
-  if (canAccess === false && hasAccess("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
+  if (canAccess === false && safeMembershipCheck("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
     return <Paywall articleCount={articleCount} />
   }
 
