@@ -4,10 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu } from "@/components/menu";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
+import { WalletSummary } from "@/components/wallet-summary";
+import { useActiveAccount } from "thirdweb/react";
 
 export function Header() {
   const [scrollY, setScrollY] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const account = useActiveAccount();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -97,8 +100,8 @@ export function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
-            {/* Only show the connect button for sign in/sign out */}
-            <ThirdWebConnectButton />
+            {/* Show WalletSummary when logged in, ConnectButton when logged out */}
+            {account ? <WalletSummary /> : <ThirdWebConnectButton />}
 
             {/* Hamburger Menu */}
             <div
