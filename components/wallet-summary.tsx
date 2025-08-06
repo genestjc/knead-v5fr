@@ -1,6 +1,9 @@
 "use client";
 
-import { useActiveAccount, useDisconnect } from "thirdweb/react";
+import {
+  useActiveAccount,
+  useDisconnect,
+} from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +13,7 @@ export function WalletSummary() {
   const { disconnect, isDisconnecting } = useDisconnect();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -25,41 +29,61 @@ export function WalletSummary() {
   };
 
   const handleSignOut = async () => {
+    if (isSigningOut) return; // Prevent multiple clicks
+    
     try {
-      if (!account) return;
-      
-      // Perform local cleanup first
-      localStorage.removeItem(`email_${account.address}`);
-      
-      // Set UI state to show disconnecting
+      setIsSigningOut(true);
       setIsDropdownOpen(false);
       
-      try {
-        // Use ThirdWeb disconnect with a timeout
-        const disconnectPromise = disconnect();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Disconnect timeout")), 2000)
-        );
-        
-        await Promise.race([disconnectPromise, timeoutPromise]);
-        
-        toast({
-          title: "Signed out successfully",
-          description: "You have been signed out of your account",
-        });
-      } catch (disconnectError) {
-        console.error("Disconnect error:", disconnectError);
-        // Fall back to manual reload
-        window.location.reload();
+      // Clear any local storage data first
+      if (account?.address) {
+        localStorage.removeItem(`email_${account.address}`);
       }
+      
+      try {
+        // Wrap disconnect in a timeout to prevent UI freeze
+        const disconnectPromise = new Promise<void>((resolve) => {
+          setTimeout(async () => {
+            try {
+              if (account) {
+                await disconnect();
+              }
+              resolve();
+            } catch (err: any) {
+              // Known ThirdWeb error - ignore it
+              if (err?.message?.includes("reading 'id'") || 
+                  err?.message?.includes("Cannot read properties of undefined")) {
+                console.log("Ignoring known ThirdWeb disconnect error");
+              } else {
+                console.error("Unknown disconnect error:", err);
+              }
+              resolve();
+            }
+          }, 100);
+        });
+        
+        // Add a timeout to prevent hanging
+        await Promise.race([
+          disconnectPromise,
+          new Promise(resolve => setTimeout(resolve, 1500))
+        ]);
+        
+        // Toast and reload to ensure clean state
+        toast({
+          title: "Signed Out",
+          description: "You have been signed out successfully",
+        });
+      } catch (err) {
+        console.error("Disconnect error:", err);
+      }
+      
+      // Force reload with a delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error) {
-      console.error("Sign out error:", error);
-      toast({
-        title: "Sign out issue",
-        description: "There was a problem signing out. Please try again.",
-        variant: "destructive",
-      });
-      // Force reload as last resort
+      console.error("Failed to sign out:", error);
+      // Still reload as a fallback
       window.location.reload();
     }
   };
@@ -78,21 +102,17 @@ export function WalletSummary() {
   };
 
   useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside,
+    );
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside,
+      );
     };
   }, []);
-
-  // Clean up connected state on unmount
-  useEffect(() => {
-    return () => {
-      // This helps ensure clean disconnect when component unmounts
-      if (account) {
-        disconnect().catch(console.error);
-      }
-    };
-  }, [account, disconnect]);
 
   if (!account) return null;
 
@@ -117,15 +137,11 @@ export function WalletSummary() {
             <div className="border-t border-gray-100 my-1"></div>
             <button
               onClick={handleSignOut}
-              disabled={isDisconnecting}
-              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
-              style={{
-                opacity: isDisconnecting ? 0.6 : 1,
-                cursor: isDisconnecting ? "not-allowed" : "pointer",
-              }}
+              disabled={isDisconnecting || isSigningOut}
+              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LogOut className="w-4 h-4 mr-2" />
-              {isDisconnecting ? "Signing Out..." : "Sign Out"}
+              {isDisconnecting || isSigningOut ? "Signing Out..." : "Sign Out"}
             </button>
           </div>
         </div>
