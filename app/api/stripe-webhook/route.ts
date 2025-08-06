@@ -40,6 +40,49 @@ async function hasPremiumNFT(walletAddress: string) {
   }
 }
 
+// NEW: Save subscription details to Supabase
+async function saveSubscription(walletAddress: string, subscriptionId: string, customerId: string, status = 'active') {
+  try {
+    // Get subscription details from Stripe
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    
+    await supabase.from("subscriptions").upsert(
+      {
+        wallet_address: walletAddress.toLowerCase(),
+        customer_id: customerId,
+        subscription_id: subscriptionId,
+        status: status,
+        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: ["wallet_address", "subscription_id"] },
+    );
+    
+    console.log(`Saved subscription ${subscriptionId} for wallet ${walletAddress}`);
+  } catch (error) {
+    console.error(`Error saving subscription: ${error}`);
+  }
+}
+
+// NEW: Update subscription status
+async function updateSubscriptionStatus(subscriptionId: string, status: string) {
+  try {
+    await supabase
+      .from("subscriptions")
+      .update({ 
+        status: status,
+        updated_at: new Date().toISOString() 
+      })
+      .eq("subscription_id", subscriptionId);
+      
+    console.log(`Updated subscription ${subscriptionId} status to ${status}`);
+  } catch (error) {
+    console.error(`Error updating subscription: ${error}`);
+  }
+}
+
 async function mintPremiumNFT(walletAddress: string) {
   try {
     const contract = getContract({
@@ -155,10 +198,20 @@ export async function POST(req: NextRequest) {
             status: 200,
           });
         }
-        console.log(
-          `Processing checkout.session.completed for wallet ${wallet}`,
-        );
+        
+        console.log(`Processing checkout.session.completed for wallet ${wallet}`);
+        
+        // Mint the NFT
         await mintPremiumNFT(wallet);
+        
+        // If the session created a subscription, save it to the database
+        if (session.subscription && session.customer) {
+          await saveSubscription(
+            wallet, 
+            session.subscription as string,
+            session.customer as string
+          );
+        }
         break;
       }
       case "invoice.payment_succeeded": {
@@ -183,7 +236,18 @@ export async function POST(req: NextRequest) {
         console.log(
           `Processing invoice.payment_succeeded for wallet ${wallet}`,
         );
+        
+        // Mint the NFT
         await mintPremiumNFT(wallet);
+        
+        // Save or update subscription details
+        if (invoice.customer) {
+          await saveSubscription(
+            wallet,
+            invoice.subscription as string,
+            invoice.customer as string
+          );
+        }
         break;
       }
       case "invoice.payment_failed": {
@@ -215,6 +279,11 @@ export async function POST(req: NextRequest) {
         console.log(
           `Processing invoice.payment_failed for wallet ${wallet} after ${attemptCount} attempts`,
         );
+        
+        // Update subscription status in database
+        await updateSubscriptionStatus(subscription.id, 'inactive');
+        
+        // Burn the NFT
         await adminBurnPremiumNFT(wallet);
         break;
       }
@@ -230,6 +299,10 @@ export async function POST(req: NextRequest) {
           );
           break;
         }
+        
+        // Update subscription status in database
+        await updateSubscriptionStatus(subscription.id, 'canceled');
+        
         const currentTimestamp = Math.floor(Date.now() / 1000);
         if (subscription.current_period_end < currentTimestamp) {
           console.log(
