@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useActiveAccount } from "thirdweb/react";
 import { useMembership } from "@/components/membership-provider";
 import { useToast } from "@/hooks/use-toast";
 
-export default function SuccessPage() {
+// Client component that uses useSearchParams
+function SuccessContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -163,5 +164,41 @@ export default function SuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback
+function LoadingFallback() {
+  return (
+    <div className="container mx-auto max-w-2xl px-4 py-12">
+      <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+        <div className="bg-green-50 px-6 py-8 border-b border-green-100">
+          <h1 className="text-3xl font-adonis text-center text-green-800">
+            Subscription Successful!
+          </h1>
+          <p className="mt-2 text-center text-green-600 font-georgia-pro">
+            Thank you for subscribing to Knead Premium.
+          </p>
+        </div>
+        
+        <div className="p-6">
+          <div className="flex flex-col items-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+            <p className="mt-4 font-georgia-pro text-gray-600">
+              Loading your membership details...
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <SuccessContent />
+    </Suspense>
   );
 }
