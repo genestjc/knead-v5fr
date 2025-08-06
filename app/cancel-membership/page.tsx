@@ -10,6 +10,7 @@ export default function CancelMembership() {
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasNFTOnly, setHasNFTOnly] = useState(false);
   const account = useActiveAccount();
   const { toast } = useToast();
 
@@ -25,14 +26,22 @@ export default function CancelMembership() {
 
     setIsLoading(true);
     setError(null);
+    setHasNFTOnly(false);
 
     try {
       // Get email from localStorage if available
       const email = localStorage.getItem(`email_${account.address}`);
       
-      // Fetch subscription ID from user account (this is a simplified example)
+      // Fetch subscription ID from user account
       const subscriptionResponse = await fetch(`/api/get-subscription?address=${account.address}`);
       const subscriptionData = await subscriptionResponse.json();
+
+      // Special case: User has NFT but no subscription record
+      if (subscriptionData.hasNFT && !subscriptionData.subscriptionId) {
+        setHasNFTOnly(true);
+        setIsLoading(false);
+        return;
+      }
 
       if (!subscriptionResponse.ok || !subscriptionData.subscriptionId) {
         throw new Error(subscriptionData.error || "No active subscription found");
@@ -98,6 +107,21 @@ export default function CancelMembership() {
             <Link href="/" className="inline-block mt-4 bg-black text-white px-6 py-2 rounded font-adonis">
               Return to Home
             </Link>
+          </div>
+        ) : hasNFTOnly ? (
+          <div className="my-8 p-4 bg-amber-50 border border-amber-200 rounded">
+            <h2 className="font-adonis text-xl mb-2">Special Membership Detected</h2>
+            <p className="font-georgia-pro">
+              You have an active membership NFT but no associated Stripe subscription in our records. This could be because:
+            </p>
+            <ul className="font-georgia-pro list-disc pl-6 my-4">
+              <li>Your NFT was granted directly rather than through a purchase</li>
+              <li>You purchased through a special promotion</li>
+              <li>There was a technical issue during your subscription setup</li>
+            </ul>
+            <p className="font-georgia-pro">
+              Please contact us at <a href="mailto:hello@kneadmag.com" className="underline">hello@kneadmag.com</a> to cancel your membership manually.
+            </p>
           </div>
         ) : error ? (
           <div className="my-8 p-4 bg-red-50 border border-red-200 rounded">
