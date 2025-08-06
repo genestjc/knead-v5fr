@@ -1,19 +1,17 @@
 "use client";
 
-import {
-  useActiveAccount,
-  useDisconnect,
-} from "thirdweb/react";
+import { useActiveAccount, useDisconnect } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export function WalletSummary() {
   const account = useActiveAccount();
   const { disconnect, isDisconnecting } = useDisconnect();
   const [copied, setCopied] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] =
-    useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const handleCopy = async () => {
     if (!account?.address) return;
@@ -28,29 +26,40 @@ export function WalletSummary() {
 
   const handleSignOut = async () => {
     try {
-      // Only disconnect if account is present and not already disconnecting
-      if (account && !isDisconnecting) {
-        try {
-          await disconnect();
-        } catch (err: any) {
-          // If the error is the known "reading 'id'" bug, ignore it
-          if (
-            err?.message?.includes("reading 'id'") ||
-            err?.message?.includes(
-              "Cannot read properties of undefined",
-            )
-          ) {
-            // Already disconnected, ignore
-          } else {
-            throw err;
-          }
-        }
+      if (!account) return;
+      
+      // Perform local cleanup first
+      localStorage.removeItem(`email_${account.address}`);
+      
+      // Set UI state to show disconnecting
+      setIsDropdownOpen(false);
+      
+      try {
+        // Use ThirdWeb disconnect with a timeout
+        const disconnectPromise = disconnect();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Disconnect timeout")), 2000)
+        );
+        
+        await Promise.race([disconnectPromise, timeoutPromise]);
+        
+        toast({
+          title: "Signed out successfully",
+          description: "You have been signed out of your account",
+        });
+      } catch (disconnectError) {
+        console.error("Disconnect error:", disconnectError);
+        // Fall back to manual reload
+        window.location.reload();
       }
-      setIsDropdownOpen(false);
-      window.location.reload();
     } catch (error) {
-      console.error("Failed to disconnect:", error);
-      setIsDropdownOpen(false);
+      console.error("Sign out error:", error);
+      toast({
+        title: "Sign out issue",
+        description: "There was a problem signing out. Please try again.",
+        variant: "destructive",
+      });
+      // Force reload as last resort
       window.location.reload();
     }
   };
@@ -69,17 +78,21 @@ export function WalletSummary() {
   };
 
   useEffect(() => {
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside,
-    );
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside,
-      );
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Clean up connected state on unmount
+  useEffect(() => {
+    return () => {
+      // This helps ensure clean disconnect when component unmounts
+      if (account) {
+        disconnect().catch(console.error);
+      }
+    };
+  }, [account, disconnect]);
 
   if (!account) return null;
 
@@ -87,10 +100,7 @@ export function WalletSummary() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="text-sm font-mono text-black hover:text-gray-600 transition-colors cursor-pointer"
-        style={{
-          fontFamily: "Adonis, 'Georgia Pro', serif",
-        }}
+        className="text-sm font-adonis text-black hover:text-gray-600 transition-colors cursor-pointer"
       >
         {shortenAddress(account.address)}
       </button>
@@ -99,10 +109,7 @@ export function WalletSummary() {
           <div className="py-1">
             <button
               onClick={handleCopy}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              style={{
-                fontFamily: "Adonis, 'Georgia Pro', serif",
-              }}
+              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Copy className="w-4 h-4 mr-2" />
               {copied ? "Copied!" : "Copy Membership"}
@@ -111,19 +118,14 @@ export function WalletSummary() {
             <button
               onClick={handleSignOut}
               disabled={isDisconnecting}
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
               style={{
-                fontFamily: "Adonis, 'Georgia Pro', serif",
                 opacity: isDisconnecting ? 0.6 : 1,
-                cursor: isDisconnecting
-                  ? "not-allowed"
-                  : "pointer",
+                cursor: isDisconnecting ? "not-allowed" : "pointer",
               }}
             >
               <LogOut className="w-4 h-4 mr-2" />
-              {isDisconnecting
-                ? "Signing Out..."
-                : "Sign Out"}
+              {isDisconnecting ? "Signing Out..." : "Sign Out"}
             </button>
           </div>
         </div>
