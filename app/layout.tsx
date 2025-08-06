@@ -9,6 +9,7 @@ import { Footer } from "@/components/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { ThirdwebProvider } from "thirdweb/react";
 import { client } from "@/thirdweb-client";
+import { ErrorBoundary } from "@/components/error-boundary"; // Add this import
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -44,22 +45,28 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        <ThirdwebProvider client={client}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem={false}
-            disableTransitionOnChange
-          >
-            <WalletProvider>
-              <MembershipProvider>
-                {children}
-                <Footer />
-                <Toaster />
-              </MembershipProvider>
-            </WalletProvider>
-          </ThemeProvider>
-        </ThirdwebProvider>
+        {/* Wrap ThirdwebProvider with ErrorBoundary */}
+        <ErrorBoundary>
+          <ThirdwebProvider client={client}>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="light"
+              enableSystem={false}
+              disableTransitionOnChange
+            >
+              <WalletProvider>
+                <MembershipProvider>
+                  {/* Wrap main content with ErrorBoundary */}
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
+                  <Footer />
+                  <Toaster />
+                </MembershipProvider>
+              </WalletProvider>
+            </ThemeProvider>
+          </ThirdwebProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
