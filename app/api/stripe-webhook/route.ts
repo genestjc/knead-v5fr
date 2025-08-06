@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       // Set up wallet for minting
       try {
         console.log("Setting up server wallet for minting...");
-        const privateKey = getPrivateKey(process.env.ADMIN_WALLET_PRIVATE_KEY!);
+        const privateKey = getPrivateKey(process.env.THIRDWEB_PRIVATE_KEY!);
         const serverWallet = privateKeyToAccount(privateKey);
 
         console.log("Getting contract...");
