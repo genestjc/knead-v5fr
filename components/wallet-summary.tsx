@@ -1,12 +1,13 @@
 "use client";
 
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useDisconnect } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function WalletSummary() {
   const account = useActiveAccount();
+  const disconnect = useDisconnect();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -24,12 +25,24 @@ export function WalletSummary() {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (isSigningOut) return; // Prevent multiple clicks
     
     try {
       setIsSigningOut(true);
       setIsDropdownOpen(false);
+      
+      // First try ThirdWeb's disconnect (but catch any errors)
+      try {
+        await disconnect();
+        console.log("ThirdWeb disconnect successful");
+      } catch (disconnectError) {
+        console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
+        // Continue with manual cleanup
+      }
+      
+      // Clear membership cache
+      localStorage.removeItem("knead_membership_cache");
       
       // Clear ThirdWeb local storage items
       const thirdwebKeys = Object.keys(localStorage).filter(key => 
@@ -41,10 +54,7 @@ export function WalletSummary() {
       );
       
       console.log('Clearing the following localStorage keys:', thirdwebKeys);
-      
-      thirdwebKeys.forEach(key => {
-        localStorage.removeItem(key);
-      });
+      thirdwebKeys.forEach(key => localStorage.removeItem(key));
       
       // Clear session storage too
       const sessionKeys = Object.keys(sessionStorage).filter(key => 
@@ -54,8 +64,14 @@ export function WalletSummary() {
         key.includes('wallet')
       );
       
-      sessionKeys.forEach(key => {
-        sessionStorage.removeItem(key);
+      sessionKeys.forEach(key => sessionStorage.removeItem(key));
+      
+      // Clear any ThirdWeb cookies
+      document.cookie.split(";").forEach(cookie => {
+        const [name] = cookie.trim().split("=");
+        if (name.includes("thirdweb") || name.includes("wallet")) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+        }
       });
       
       // Show toast notification
@@ -64,14 +80,15 @@ export function WalletSummary() {
         description: "You have been signed out successfully"
       });
       
-      // Hard reload the page
+      // Delay to ensure cleanup is complete
       setTimeout(() => {
-        window.location.href = '/'; // Use location.href to clear any route state
+        // Use stronger cache-busting reload
+        window.location.href = '/?nocache=' + new Date().getTime();
       }, 500);
     } catch (error) {
       console.error("Failed to sign out:", error);
-      // Force reload anyway
-      window.location.reload();
+      // Force reload anyway with cache busting
+      window.location.href = '/?forcereload=' + new Date().getTime();
     }
   };
 
