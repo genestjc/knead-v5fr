@@ -16,26 +16,46 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  console.log("🔍 onboard-user API called");
   const { walletAddress } = await req.json();
   
   if (!walletAddress) {
+    console.error("❌ Missing wallet address in request");
     return NextResponse.json(
       { error: "Missing wallet address" },
       { status: 400 },
     );
   }
 
+  console.log(`👤 Processing onboarding for wallet: ${walletAddress}`);
+
   try {
+    // Verify we have all required environment variables
+    if (!CONTRACT_ADDRESS) {
+      console.error("❌ Missing NFT contract address environment variable");
+      return NextResponse.json(
+        { error: "Server configuration error: Missing contract address" },
+        { status: 500 },
+      );
+    }
+    
+    // Log server wallet address for debugging
+    console.log(`🔐 Using server wallet: ${serverWallet.address}`);
+    
     const normalizedAddress = walletAddress.toLowerCase();
     
     // Check if user exists in our database
+    console.log(`📊 Checking if user exists in database: ${normalizedAddress}`);
     const { data: existingUser } = await supabase
       .from("users")
       .select("*")
       .eq("wallet_address", normalizedAddress)
       .single();
       
+    console.log(existingUser ? "📝 User found in database" : "📝 New user, not in database");
+      
     // Get the contract instance
+    console.log(`📜 Connecting to contract at ${CONTRACT_ADDRESS}`);
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
@@ -44,16 +64,21 @@ export async function POST(req: NextRequest) {
     });
     
     // Check current token balance
+    console.log(`⚖️ Checking if user already has freemium token (ID: ${FREEMIUM_TOKEN_ID})`);
     const balance = await balanceOf({
       contract,
       owner: walletAddress,
       tokenId: BigInt(FREEMIUM_TOKEN_ID),
     });
     
+    console.log(`🔢 Current token balance: ${balance.toString()}`);
+    
     // If user already has token, just return success
     if (balance > 0n) {
+      console.log("✅ User already has freemium token, skipping mint");
       // Make sure user is in database
       if (!existingUser) {
+        console.log("📊 Adding existing token holder to database");
         await supabase.from("users").insert([
           {
             wallet_address: normalizedAddress,
@@ -72,47 +97,85 @@ export async function POST(req: NextRequest) {
     }
     
     // Mint freemium token
-    const transaction = prepareContractCall({
-      contract,
-      method: "function mint(address to, uint256 id, uint256 amount)",
-      params: [walletAddress, BigInt(FREEMIUM_TOKEN_ID), 1n],
-    });
-
-    await sendTransaction({
-      account: serverWallet,
-      transaction,
-    });
+    console.log(`🪙 Preparing to mint freemium token to ${walletAddress}`);
     
-    // Update or create user in database
-    if (existingUser) {
-      await supabase
-        .from("users")
-        .update({
-          membership_status: "freemium",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("wallet_address", normalizedAddress);
-    } else {
-      await supabase.from("users").insert([
-        {
-          wallet_address: normalizedAddress,
-          membership_status: "freemium",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ]);
+    try {
+      const transaction = prepareContractCall({
+        contract,
+        method: "function mint(address to, uint256 id, uint256 amount)",
+        params: [walletAddress, BigInt(FREEMIUM_TOKEN_ID), 1n],
+      });
+
+      console.log("📤 Sending mint transaction...");
+      const result = await sendTransaction({
+        account: serverWallet,
+        transaction,
+      });
+      
+      console.log(`✅ Mint transaction sent! Hash: ${result.transactionHash}`);
+      console.log(`🔗 Transaction URL: https://basescan.org/tx/${result.transactionHash}`);
+
+      // Update or create user in database
+      if (existingUser) {
+        console.log("📊 Updating existing user in database");
+        await supabase
+          .from("users")
+          .update({
+            membership_status: "freemium",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("wallet_address", normalizedAddress);
+      } else {
+        console.log("📊 Adding new user to database");
+        await supabase.from("users").insert([
+          {
+            wallet_address: normalizedAddress,
+            membership_status: "freemium",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      }
+      
+      return NextResponse.json({ 
+        success: true,
+        userExists: !!existingUser,
+        transactionHash: result.transactionHash
+      });
+      
+    } catch (mintError: any) {
+      console.error("❌ Error minting token:", mintError);
+      
+      // Check for common errors
+      const errorMsg = mintError.message || String(mintError);
+      if (errorMsg.includes("insufficient funds")) {
+        console.error("💰 Server wallet has insufficient funds for gas");
+        return NextResponse.json(
+          { error: "Server wallet has insufficient funds for gas", success: false },
+          { status: 500 },
+        );
+      }
+      
+      if (errorMsg.includes("execution reverted")) {
+        console.error("🚫 Contract execution reverted - server wallet may not have minter role");
+        return NextResponse.json(
+          { error: "Contract execution reverted - check permissions", success: false },
+          { status: 500 },
+        );
+      }
+      
+      return NextResponse.json(
+        { error: `Mint failed: ${errorMsg}`, success: false },
+        { status: 500 },
+      );
     }
     
-    return NextResponse.json({ 
-      success: true,
-      userExists: !!existingUser
-    });
   } catch (error: any) {
-    console.error("Error onboarding user:", error);
+    console.error("❌ Error in onboarding process:", error);
     
     return NextResponse.json(
       { 
-        error: error.message || "Failed to onboard user",
+        error: `Failed to onboard user: ${error.message || String(error)}`,
         success: false
       },
       { status: 500 },
