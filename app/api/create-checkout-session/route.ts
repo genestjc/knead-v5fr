@@ -27,10 +27,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Add extensive logging
     console.log(`Creating checkout session for wallet: ${walletAddress} with price: ${price}`);
 
-    // Create checkout session
+    // Create checkout session - IMPORTANT: Don't include customer_email field
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -45,11 +44,10 @@ export async function POST(req: NextRequest) {
       metadata: {
         walletAddress: walletAddress,
       },
-      customer_email: null, // We don't require email, but you can add it if available
+      // Remove the customer_email field entirely rather than setting it to null
     });
 
     console.log(`Checkout session created: ${session.id}`);
-
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     console.error("Error creating checkout session:", err);
