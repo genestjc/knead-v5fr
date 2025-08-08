@@ -3,8 +3,8 @@ import {
   getContract,
   prepareContractCall,
   sendTransaction,
-  balanceOf,
 } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { verifyVipToken } from "@/lib/verify-vip-token";
