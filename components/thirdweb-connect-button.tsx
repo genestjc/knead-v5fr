@@ -1,9 +1,11 @@
 "use client"
 
-import { ConnectButton } from "thirdweb/react"
+import { useEffect } from "react"
+import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
 import { usePersistentWallet } from "@/hooks/use-persistent-wallet"
+import { useToast } from "@/hooks/use-toast"
 
 const wallets = [
   inAppWallet({
@@ -29,6 +31,47 @@ export function ThirdWebConnectButton({
   theme = "light",
   size = "compact",
 }: ThirdWebConnectButtonProps) {
+  // Get the active account to detect connection
+  const activeAccount = useActiveAccount()
+  const { toast } = useToast()
+
+  // Call the onboarding API when a wallet connects
+  useEffect(() => {
+    // Only proceed if we have a connected wallet
+    if (activeAccount?.address) {
+      console.log("Wallet connected, onboarding user:", activeAccount.address);
+      
+      // Call the onboarding API to mint the freemium NFT
+      fetch("/api/onboard-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletAddress: activeAccount.address,
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log("Onboarding response:", data);
+        if (data.success) {
+          // Show a welcome message
+          toast({
+            title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
+            description: data.alreadyMinted 
+              ? "You're already a member." 
+              : "You've been given free access to 3 articles per month.",
+          });
+        } else {
+          console.error("Onboarding error:", data);
+        }
+      })
+      .catch(err => {
+        console.error("Error onboarding user:", err);
+      });
+    }
+  }, [activeAccount?.address, toast]);
+
   return (
     <div className={className}>
       <ConnectButton
