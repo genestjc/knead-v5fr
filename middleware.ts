@@ -44,15 +44,16 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Set Cross-Origin headers to fix ThirdWeb popup issues - APPLY THESE FIRST
   const response = NextResponse.next();
-  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  
+  // Set Cross-Origin headers to fix ThirdWeb popup issues - APPLY THESE FIRST
+  response.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
   response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
   
   // Content Security Policy for all routes (including /studio)
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline'
+    script-src 'self' 'unsafe-inline' 'unsafe-eval'
       https://js.stripe.com
       https://vercel.live
       https://use.typekit.net
@@ -62,7 +63,8 @@ export function middleware(request: NextRequest) {
       https://www.instagram.com
       https://static.cdninstagram.com
       https://cdn.sanity.io
-      https://*.sanity.io;
+      https://*.sanity.io
+      https://*.thirdweb.com;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
@@ -80,7 +82,8 @@ export function middleware(request: NextRequest) {
       https://static.cdninstagram.com
       https://*.ipfscdn.io
       https://ipfs.io
-      https://ethereum.org;
+      https://ethereum.org
+      https://*.thirdweb.com;
     font-src 'self'
       https://fonts.gstatic.com
       https://use.typekit.net
@@ -94,6 +97,7 @@ export function middleware(request: NextRequest) {
       https://hooks.stripe.com
       https://checkout.stripe.com
       https://embedded-wallet.thirdweb.com
+      https://*.thirdweb.com
       https://vercel.live
       https://www.youtube.com
       https://www.youtube-nocookie.com
@@ -119,6 +123,7 @@ export function middleware(request: NextRequest) {
       https://*.sanity.io
       https://api.sanity.io
       https://api.thirdweb.com
+      https://*.thirdweb.com
       ws://localhost:*
       wss://*.sanity.io;
     upgrade-insecure-requests;
