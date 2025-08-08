@@ -32,55 +32,83 @@ export async function getMembershipType(
   client: any,
   address: string,
 ): Promise<MembershipType> {
-  for (const contract of MEMBERSHIP_CONTRACTS) {
-    const contractInstance = getContract({
-      client,
-      chain: base,
-      address: contract.address,
-    });
+  try {
+    for (const contract of MEMBERSHIP_CONTRACTS) {
+      try {
+        const contractInstance = getContract({
+          client,
+          chain: base,
+          address: contract.address,
+        });
 
-    if (contract.type === "erc1155" && contract.tokenIds) {
-      // Premium
-      if (contract.tokenIds.premium !== undefined) {
-        const premiumBalance = await balanceOf({
-          contract: contractInstance,
-          owner: address,
-          tokenId: BigInt(contract.tokenIds.premium),
-        });
-        if (premiumBalance > 0n) return "premium";
-      }
-      // Other tokens (annual, shift, etc.)
-      for (const [tokenType, tokenId] of Object.entries(
-        contract.tokenIds,
-      )) {
-        if (
-          tokenType !== "premium" &&
-          tokenType !== "freemium"
-        ) {
-          const balance = await balanceOf({
-            contract: contractInstance,
-            owner: address,
-            tokenId: BigInt(tokenId),
-          });
-          if (balance > 0n) return "premium";
+        if (contract.type === "erc1155" && contract.tokenIds) {
+          // Premium
+          if (contract.tokenIds.premium !== undefined) {
+            try {
+              const premiumBalance = await balanceOf({
+                contract: contractInstance,
+                owner: address,
+                tokenId: BigInt(contract.tokenIds.premium),
+              });
+              if (premiumBalance > 0n) return "premium";
+            } catch (err) {
+              console.error(`Error checking premium token for ${contract.name}:`, err);
+              // Continue checking other tokens
+            }
+          }
+          
+          // Other tokens (annual, shift, etc.)
+          for (const [tokenType, tokenId] of Object.entries(contract.tokenIds)) {
+            if (tokenType !== "premium" && tokenType !== "freemium") {
+              try {
+                const balance = await balanceOf({
+                  contract: contractInstance,
+                  owner: address,
+                  tokenId: BigInt(tokenId),
+                });
+                if (balance > 0n) return "premium";
+              } catch (err) {
+                console.error(`Error checking ${tokenType} token:`, err);
+                // Continue checking other tokens
+              }
+            }
+          }
+          
+          // Freemium
+          if (contract.tokenIds.freemium !== undefined) {
+            try {
+              const freemiumBalance = await balanceOf({
+                contract: contractInstance,
+                owner: address,
+                tokenId: BigInt(contract.tokenIds.freemium),
+              });
+              if (freemiumBalance > 0n) return "freemium";
+            } catch (err) {
+              console.error(`Error checking freemium token for ${contract.name}:`, err);
+              // Continue checking other contracts
+            }
+          }
+        } else if (contract.type === "erc721") {
+          try {
+            const balance = await erc721BalanceOf({
+              contract: contractInstance,
+              owner: address,
+            });
+            if (balance > 0n) return "premium";
+          } catch (err) {
+            console.error(`Error checking ERC721 balance for ${contract.name}:`, err);
+            // Continue checking other contracts
+          }
         }
+      } catch (contractErr) {
+        console.error(`Error with contract ${contract.name}:`, contractErr);
+        // Continue checking other contracts
       }
-      // Freemium
-      if (contract.tokenIds.freemium !== undefined) {
-        const freemiumBalance = await balanceOf({
-          contract: contractInstance,
-          owner: address,
-          tokenId: BigInt(contract.tokenIds.freemium),
-        });
-        if (freemiumBalance > 0n) return "freemium";
-      }
-    } else if (contract.type === "erc721") {
-      const balance = await erc721BalanceOf({
-        contract: contractInstance,
-        owner: address,
-      });
-      if (balance > 0n) return "premium";
     }
+    
+    return null;
+  } catch (error) {
+    console.error("Error in getMembershipType:", error);
+    throw error;
   }
-  return null;
 }
