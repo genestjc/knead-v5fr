@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
@@ -14,9 +14,20 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const { toast } = useToast();
 
+  // Log component mounting and account status
+  useEffect(() => {
+    console.log("Paywall component mounted, account:", account?.address);
+    console.log("Article count:", articleCount);
+    
+    return () => {
+      console.log("Paywall component unmounted");
+    }
+  }, [account, articleCount]);
+
   const handleSubscribeRedirect = async () => {
     if (!account?.address) return;
     
+    console.log("Initiating checkout redirect for", account.address);
     setIsLoadingCheckout(true);
     
     try {
@@ -32,7 +43,9 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         }),
       });
       
+      console.log("Checkout API response status:", response.status);
       const data = await response.json();
+      console.log("Checkout API response:", data);
       
       if (data.error) {
         console.error("Error creating checkout session:", data.error);
@@ -43,8 +56,10 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         });
       } else if (data.url) {
         // Direct redirect to Stripe
+        console.log("Redirecting to Stripe checkout:", data.url);
         window.location.href = data.url;
       } else {
+        console.error("Unexpected API response:", data);
         toast({
           title: "Error",
           description: "Unexpected error. Please try again.",
@@ -65,6 +80,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
 
   // Case 1: Not signed in
   if (!account?.address) {
+    console.log("Paywall: User not signed in");
     return (
       <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
         <h2 className="font-adonis text-2xl mb-4">
@@ -83,6 +99,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   }
 
   // Case 2: Signed in, freemium limit reached
+  console.log("Paywall: User signed in, showing premium upgrade option");
   return (
     <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
       <h2 className="font-adonis text-2xl mb-4">
