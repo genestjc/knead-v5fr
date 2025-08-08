@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getPrivateKey, privateKeyToAccount } from "thirdweb/wallets";
+import { privateKeyToAccount } from "thirdweb/wallets/private-key"; // Updated import
 import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { createClient } from "@supabase/supabase-js";
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     // Set up wallet for minting
     console.log("Setting up server wallet for minting...");
-    const privateKey = getPrivateKey(process.env.THIRDWEB_PRIVATE_KEY!);
+    const privateKey = process.env.THIRDWEB_PRIVATE_KEY!;
     const serverWallet = privateKeyToAccount(privateKey);
 
     console.log("Getting contract...");
