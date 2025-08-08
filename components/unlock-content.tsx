@@ -72,18 +72,29 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
+  // Log component mounting
+  useEffect(() => {
+    console.log(`UnlockContent mounted for ${contentId}, wallet:`, account?.address);
+    return () => {
+      console.log(`UnlockContent unmounted for ${contentId}`);
+    }
+  }, [contentId]);
+
   // Safe membership check that won't cause errors
   const safeMembershipCheck = (level: "premium" | "freemium"): boolean => {
     try {
-      return hasAccess(level);
+      const result = hasAccess(level);
+      console.log(`Membership check (${level}): ${result}`);
+      return result;
     } catch (error) {
-      console.log(`Error checking ${level} membership, defaulting to false:`, error);
+      console.error(`Error checking ${level} membership, defaulting to false:`, error);
       return false;
     }
   }
 
   useEffect(() => {
     if (!account?.address) {
+      console.log("No wallet connected, showing paywall");
       setCanAccess(false)
       setIsLoading(false)
       return
@@ -97,6 +108,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
 
     setIsLoading(true)
     setError(null)
+    console.log(`Checking access for ${contentId} with wallet ${account.address}`);
     
     try {
       // First check if the user has a premium membership (fastest check)
@@ -152,7 +164,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
         console.log("Freemium membership detected, checking article limit")
         await checkFreemiumLimit()
       } else {
-        console.log("No membership detected")
+        console.log("No membership detected, blocking access")
         setCanAccess(false)
         setIsLoading(false)
       }
@@ -173,6 +185,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     if (!account?.address) return
 
     try {
+      console.log("Checking freemium article limit for:", account.address);
       const response = await fetch("/api/track-article", {
         method: "POST",
         headers: {
@@ -186,12 +199,14 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
       })
 
       const result = await response.json()
+      console.log("Article limit check result:", result);
 
       if (response.ok) {
         setArticleCount(result.reads || 0)
         
         // If article already read, grant access without counting again
         if (result.alreadyRead) {
+          console.log("Article already read, granting access");
           setCanAccess(true)
           setIsLoading(false)
           return
@@ -199,6 +214,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
         
         // If user hasn't reached limit, record this view
         if ((result.reads || 0) < ARTICLE_LIMITS.FREEMIUM) {
+          console.log(`User under article limit (${result.reads}/${ARTICLE_LIMITS.FREEMIUM}), recording view`);
           const trackResponse = await fetch("/api/track-article", {
             method: "POST",
             headers: {
@@ -214,6 +230,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
             setCanAccess(true)
           } else {
             const trackResult = await trackResponse.json()
+            console.error("Failed to record article view:", trackResult);
             setError(trackResult.error || "Failed to record article view")
             setCanAccess(false)
           }
@@ -222,6 +239,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
           setCanAccess(false)
         }
       } else {
+        console.error("API error checking article limit:", result);
         setCanAccess(false)
         setError(result.error || "Failed to check article limit")
       }
@@ -265,14 +283,21 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
 
   // No wallet connected - show visitor paywall
   if (!account?.address) {
+    console.log("No wallet connected, showing visitor paywall");
     return <Paywall />
   }
 
-  // Freemium user reached article limit - show limit paywall
-  if (canAccess === false && safeMembershipCheck("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
-    return <Paywall articleCount={articleCount} />
+  // Access denied or undetermined (null) - show paywall
+  if (canAccess === false || canAccess === null) {
+    console.log(`Access denied or undetermined (${canAccess}), showing paywall`);
+    if (safeMembershipCheck("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
+      console.log("Freemium user hit article limit, showing limit paywall");
+      return <Paywall articleCount={articleCount} />
+    }
+    return <Paywall />
   }
 
   // User has access
+  console.log("Access granted, showing content");
   return <>{children}</>
 }
