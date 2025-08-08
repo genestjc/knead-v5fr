@@ -72,6 +72,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     try {
       setIsLoading(true);
       setError(null);
+      console.log("Fetching membership type for:", address);
       
       // First try to get cached membership
       const cachedMembership = getCachedMembership(address);
@@ -84,16 +85,26 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       // If no cache, call API with retries
       const fetchWithRetries = async (retries = 3): Promise<MembershipType> => {
         try {
+          console.log(`Attempt ${3-retries+1}/3: Calling check-membership API...`);
           const response = await fetch(`/api/check-membership?address=${address}`);
           
           if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`API returned error: ${response.status}`, errorText);
             throw new Error(`Failed to fetch membership: ${response.status}`);
           }
           
           const data = await response.json();
+          console.log("Membership API response:", data);
+          
+          if (!data.membershipType) {
+            throw new Error("No membership type returned");
+          }
+          
           return data.membershipType;
         } catch (err) {
           if (retries > 0) {
+            console.log(`Retrying membership check (${retries} attempts left)`);
             // Wait a bit before retrying (exponential backoff)
             await new Promise(r => setTimeout(r, 1000 * (3 - retries + 1)));
             return fetchWithRetries(retries - 1);
@@ -104,6 +115,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       
       // Try to fetch with retries
       const membershipResult = await fetchWithRetries();
+      console.log(`Membership result determined: ${membershipResult}`);
       
       // Cache the result
       cacheMembership(address, membershipResult);
@@ -114,13 +126,13 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       
       setError("Couldn't verify membership status");
       
-      // Default to freemium when errors occur (better user experience)
-      // This is a temporary fallback until verification succeeds
-      setMembershipType("freemium");
+      // On error, default to null (we'll handle gracefully in hasAccess)
+      setMembershipType(null);
       
       toast({
-        title: "Membership Status",
-        description: "Using free membership while we verify your status",
+        title: "Membership Status Error",
+        description: "We couldn't verify your membership status. Please refresh.",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
@@ -135,13 +147,24 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
+    console.log("Account changed, fetching membership for:", account.address);
     fetchMembershipType(account.address);
   }, [account?.address]);
 
   const hasAccess = (requiredLevel: "premium" | "freemium"): boolean => {
     try {
-      if (isLoading) return true; // Grant temporary access while loading
-      if (!account?.address) return false;
+      if (!account?.address) {
+        console.log("hasAccess: No account connected");
+        return false;
+      }
+      
+      // Only allow during loading if the error isn't set
+      if (isLoading && !error) {
+        console.log("hasAccess: Still loading, temporarily allowing access");
+        return true; // Grant temporary access while loading
+      }
+      
+      console.log(`hasAccess check: Required=${requiredLevel}, Current=${membershipType}`);
       
       if (requiredLevel === "premium") {
         return membershipType === "premium";
@@ -152,8 +175,8 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     } catch (error) {
       console.error("Error checking access:", error);
       
-      // Default to allowing freemium access on errors
-      return requiredLevel === "freemium";
+      // Default to denying access on errors
+      return false;
     }
   };
 
@@ -161,6 +184,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     if (account?.address) {
       // Clear cache before refreshing
       localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+      console.log("Manually refreshing membership data");
       await fetchMembershipType(account.address);
     }
   };
