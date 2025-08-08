@@ -136,8 +136,9 @@ export function middleware(request: NextRequest) {
   return response;
 }
 
+// Updated matcher to exclude webhook endpoints
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/stripe-webhook|api/webhook|api/retry-mint).*)",
   ],
 };
