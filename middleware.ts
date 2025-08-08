@@ -44,6 +44,11 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
+  // Set Cross-Origin headers to fix ThirdWeb popup issues - APPLY THESE FIRST
+  const response = NextResponse.next();
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
+  
   // Content Security Policy for all routes (including /studio)
   const cspHeader = `
     default-src 'self';
@@ -120,12 +125,6 @@ export function middleware(request: NextRequest) {
   `
     .replace(/\s{2,}/g, " ")
     .trim();
-
-  const response = NextResponse.next();
-  
-  // Set Cross-Origin headers to fix ThirdWeb popup issues
-  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-  response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
   
   // Set CSP header
   response.headers.set(
