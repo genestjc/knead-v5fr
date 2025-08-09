@@ -3,7 +3,16 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useToast } from "@/hooks/use-toast";
-import { useFreemiumMembership } from "@/hooks/use-freemium-membership"; // Import the hook
+import { createThirdwebClient, getContract } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
+import { base } from "thirdweb/chains";
+
+// Simplified client for balance checking
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+});
+
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
 
 type MembershipType = "premium" | "freemium" | null;
 
@@ -14,58 +23,139 @@ interface MembershipContextProps {
   hasAccess: (requiredLevel: "premium" | "freemium") => boolean;
   refreshMembership: () => Promise<void>;
   error: string | null;
-  mintFreemium: () => Promise<void>; // Add minting function
-  isMinting: boolean; // Add minting status
 }
 
 const MembershipContext = createContext<MembershipContextProps | undefined>(undefined);
 
+// Local storage key for membership cache
+const MEMBERSHIP_CACHE_KEY = "knead_membership_cache";
+
+interface CachedMembership {
+  type: MembershipType;
+  address: string;
+  expiresAt: number; // timestamp
+}
+
 export function MembershipProvider({ children }: { children: React.ReactNode }) {
   const account = useActiveAccount();
+  const [membershipType, setMembershipType] = useState<MembershipType>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  
-  // Use the new hook
-  const {
-    status,
-    checkMembership,
-    minting: isMinting,
-    mintFreemium: mintFreemiumNFT,
-    mintResult
-  } = useFreemiumMembership(account?.address || null);
-  
-  // Convert hook status to our existing membershipType format
-  const membershipType: MembershipType = 
-    status === "premium" ? "premium" : 
-    status === "freemium" ? "freemium" : null;
-    
-  const isLoading = status === "loading";
-  
-  // Automatically check membership when wallet changes
-  useEffect(() => {
-    if (account?.address) {
-      checkMembership();
-    }
-  }, [account?.address, checkMembership]);
-  
-  // Show toast notifications for mint results
-  useEffect(() => {
-    if (mintResult) {
-      if (mintResult.success) {
-        toast({
-          title: "Membership Activated",
-          description: "Your free membership has been activated successfully!",
-        });
-      } else {
-        setError(mintResult.error || "Failed to mint membership");
-        toast({
-          title: "Membership Error",
-          description: mintResult.error || "Failed to activate your membership",
-          variant: "destructive",
-        });
+
+  // Check membership directly from the contract
+  const checkMembershipFromContract = async (address: string): Promise<MembershipType> => {
+    try {
+      console.log("Checking membership from contract for:", address);
+      
+      const contract = getContract({
+        client,
+        address: CONTRACT_ADDRESS,
+        chain: base,
+      });
+      
+      // Check both tokens
+      const [premiumBalance, freemiumBalance] = await Promise.all([
+        balanceOf({
+          contract,
+          owner: address,
+          tokenId: 1n, // Premium token ID
+        }),
+        balanceOf({
+          contract,
+          owner: address,
+          tokenId: 0n, // Freemium token ID
+        }),
+      ]);
+      
+      if (premiumBalance > 0n) {
+        return "premium";
+      } else if (freemiumBalance > 0n) {
+        return "freemium";
       }
+      
+      return null;
+    } catch (err) {
+      console.error("Error checking membership from contract:", err);
+      // Default to allowing some access rather than blocking on errors
+      return "freemium";
     }
-  }, [mintResult, toast]);
+  };
+
+  // Check if there's a cached membership and it's still valid
+  const getCachedMembership = (address: string): CachedMembership | null => {
+    try {
+      const cachedData = localStorage.getItem(MEMBERSHIP_CACHE_KEY);
+      if (!cachedData) return null;
+      
+      const cache: CachedMembership = JSON.parse(cachedData);
+      
+      // Verify it's for the same wallet and not expired (24 hour cache)
+      if (cache.address === address && cache.expiresAt > Date.now()) {
+        console.log("Using cached membership data:", cache.type);
+        return cache;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error reading cached membership:", err);
+      return null;
+    }
+  };
+
+  // Cache the membership data
+  const cacheMembership = (address: string, type: MembershipType) => {
+    try {
+      const cacheData: CachedMembership = {
+        address,
+        type,
+        // Cache for 24 hours
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000)
+      };
+      localStorage.setItem(MEMBERSHIP_CACHE_KEY, JSON.stringify(cacheData));
+    } catch (err) {
+      console.error("Error caching membership:", err);
+    }
+  };
+
+  const fetchMembershipType = async (address: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // First try to get cached membership
+      const cachedMembership = getCachedMembership(address);
+      if (cachedMembership) {
+        setMembershipType(cachedMembership.type);
+        setIsLoading(false);
+        return;
+      }
+      
+      // No cached data, fetch directly from contract
+      const contractMembership = await checkMembershipFromContract(address);
+      
+      // Cache and set the result
+      cacheMembership(address, contractMembership);
+      setMembershipType(contractMembership);
+      
+    } catch (error: any) {
+      console.error("Error fetching membership:", error);
+      setError("Couldn't verify membership status");
+      setMembershipType(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!account?.address) {
+      setMembershipType(null);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    fetchMembershipType(account.address);
+  }, [account?.address]);
 
   const hasAccess = (requiredLevel: "premium" | "freemium"): boolean => {
     try {
@@ -73,9 +163,9 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         return false;
       }
       
-      // Allow during loading for better UX
+      // Only allow during loading if the error isn't set
       if (isLoading && !error) {
-        return true;
+        return true; // Grant temporary access while loading
       }
       
       if (requiredLevel === "premium") {
@@ -92,29 +182,9 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
 
   const refreshMembership = async () => {
     if (account?.address) {
-      await checkMembership();
-    }
-  };
-  
-  const mintFreemium = async () => {
-    if (!account?.address) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      await mintFreemiumNFT();
-    } catch (err) {
-      console.error("Error minting freemium:", err);
-      toast({
-        title: "Error",
-        description: "Failed to mint freemium membership",
-        variant: "destructive",
-      });
+      // Clear cache before refreshing
+      localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+      await fetchMembershipType(account.address);
     }
   };
 
@@ -125,8 +195,6 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     hasAccess,
     refreshMembership,
     error,
-    mintFreemium,
-    isMinting
   };
 
   return (
