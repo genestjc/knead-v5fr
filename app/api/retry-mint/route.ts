@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { privateKeyToAccount } from "thirdweb/wallets/private-key"; // Updated import
 import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { createClient } from "@supabase/supabase-js";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
 // Mark as dynamic
 export const dynamic = 'force-dynamic';
@@ -25,11 +26,6 @@ const PAID_TOKEN_ID = 1; // Premium token ID
 
 // Import ABI
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
-
-// Create ThirdWeb client for server operations
-const client = {
-  secretKey: process.env.THIRDWEB_SECRET_KEY!,
-};
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,8 +66,7 @@ export async function POST(req: NextRequest) {
 
     // Set up wallet for minting
     console.log("Setting up server wallet for minting...");
-    const privateKey = process.env.THIRDWEB_PRIVATE_KEY!;
-    const serverWallet = privateKeyToAccount(privateKey);
+    console.log("Server wallet address:", serverWallet.address);
 
     console.log("Getting contract...");
     const contract = getContract({
@@ -83,16 +78,12 @@ export async function POST(req: NextRequest) {
 
     console.log(`Preparing to mint premium NFT for ${walletAddress}...`);
     
-    // Check if user already has premium token
+    // Check if user already has premium token - FIXED PATTERN
     try {
-      const transaction = prepareContractCall({
+      const balance = await balanceOf({
         contract,
-        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-        params: [walletAddress, BigInt(PAID_TOKEN_ID)],
-      });
-
-      const balance = await sendTransaction({
-        transaction,
+        owner: walletAddress,
+        tokenId: BigInt(PAID_TOKEN_ID),
       });
 
       if (balance > 0n) {
@@ -119,7 +110,7 @@ export async function POST(req: NextRequest) {
       // Continue with mint attempt anyway
     }
 
-    // Prepare the mint transaction
+    // Prepare the mint transaction with explicit gas parameters
     console.log("Preparing mint transaction...");
     const transaction = prepareContractCall({
       contract,
@@ -132,9 +123,13 @@ export async function POST(req: NextRequest) {
     const transactionResult = await sendTransaction({
       account: serverWallet,
       transaction,
+      // Add explicit gas settings for Base network
+      gasLimit: 300000n,
     });
 
     console.log("NFT mint transaction successful:", transactionResult);
+    console.log(`Transaction hash: ${transactionResult.transactionHash}`);
+    console.log(`View on Basescan: https://basescan.org/tx/${transactionResult.transactionHash}`);
 
     // Update subscription in database with mint info
     await supabase
