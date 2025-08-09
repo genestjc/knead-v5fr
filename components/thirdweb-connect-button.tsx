@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
@@ -34,12 +34,16 @@ export function ThirdWebConnectButton({
   // Get the active account to detect connection
   const activeAccount = useActiveAccount()
   const { toast } = useToast()
+  const [isOnboarding, setIsOnboarding] = useState(false)
+  const [onboardingError, setOnboardingError] = useState<string | null>(null)
 
   // Call the onboarding API when a wallet connects
   useEffect(() => {
-    // Only proceed if we have a connected wallet
-    if (activeAccount?.address) {
+    // Only proceed if we have a connected wallet and we're not already onboarding
+    if (activeAccount?.address && !isOnboarding) {
       console.log("Wallet connected, onboarding user:", activeAccount.address);
+      setIsOnboarding(true);
+      setOnboardingError(null);
       
       // Call the onboarding API to mint the freemium NFT
       fetch("/api/onboard-user", {
@@ -51,7 +55,12 @@ export function ThirdWebConnectButton({
           walletAddress: activeAccount.address,
         }),
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+        return response.json();
+      })
       .then(data => {
         console.log("Onboarding response:", data);
         if (data.success) {
@@ -62,15 +71,36 @@ export function ThirdWebConnectButton({
               ? "You're already a member." 
               : "You've been given free access to 3 articles per month.",
           });
+          
+          // If the transaction was successful, add transaction hash to console for debugging
+          if (data.transactionHash) {
+            console.log(`Transaction hash: ${data.transactionHash}`);
+            console.log(`View on Basescan: https://basescan.org/tx/${data.transactionHash}`);
+          }
         } else {
           console.error("Onboarding error:", data);
+          setOnboardingError(data.error || "Failed to onboard");
+          toast({
+            title: "Onboarding Error",
+            description: data.error || "Failed to complete onboarding. Please refresh and try again.",
+            variant: "destructive",
+          });
         }
       })
       .catch(err => {
         console.error("Error onboarding user:", err);
+        setOnboardingError(err.message || "Network error");
+        toast({
+          title: "Connection Error",
+          description: "Failed to complete onboarding. Please refresh and try again.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+        setIsOnboarding(false);
       });
     }
-  }, [activeAccount?.address, toast]);
+  }, [activeAccount?.address, toast, isOnboarding]);
 
   return (
     <div className={className}>
@@ -80,7 +110,7 @@ export function ThirdWebConnectButton({
         theme={theme}
         wallets={wallets}
         connectButton={{
-          label: "Sign In",
+          label: isOnboarding ? "Processing..." : "Sign In",
           style: {
             backgroundColor: "#000",
             color: "#fff",
@@ -90,7 +120,8 @@ export function ThirdWebConnectButton({
             fontFamily: "adonis-web, serif",
             fontWeight: "300",
             fontSize: "13px",
-            cursor: "pointer",
+            cursor: isOnboarding ? "default" : "pointer",
+            opacity: isOnboarding ? 0.7 : 1,
             minWidth: "90px",
             display: "flex",
             alignItems: "center",
@@ -119,6 +150,11 @@ export function ThirdWebConnectButton({
           },
         }}
       />
+      {onboardingError && (
+        <div className="text-red-500 text-xs mt-1">
+          {onboardingError}
+        </div>
+      )}
     </div>
   )
 }
