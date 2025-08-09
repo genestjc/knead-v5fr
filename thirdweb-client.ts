@@ -49,4 +49,6 @@ export const LEGACY_MEMBERSHIP_CONTRACTS = [
     tokenIds: {
       annual: 1,
       shift: 2,
-};
+    },
+  },
+];
