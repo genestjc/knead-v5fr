@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getContract } from "thirdweb";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
+import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
-import { client } from "../../../thirdweb-client";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
+
+// Mark as dynamic to ensure fresh data
+export const dynamic = 'force-dynamic';
 
 // Initialize Supabase
 const supabase = createClient(
@@ -29,6 +33,27 @@ export async function POST(req: NextRequest) {
   console.log(`👤 Processing onboarding for wallet: ${walletAddress}`);
 
   try {
+    // Verify we have all required environment variables
+    if (!CONTRACT_ADDRESS) {
+      console.error("❌ Missing NFT contract address environment variable");
+      return NextResponse.json(
+        { error: "Server configuration error: Missing contract address" },
+        { status: 500 },
+      );
+    }
+    
+    // Verify server wallet is initialized
+    if (!serverWallet || !serverWallet.address) {
+      console.error("❌ Server wallet not properly initialized");
+      return NextResponse.json(
+        { error: "Server configuration error: Server wallet not initialized" },
+        { status: 500 },
+      );
+    }
+    
+    // Log server wallet address for debugging
+    console.log(`🔐 Using server wallet: ${serverWallet.address}`);
+    
     const normalizedAddress = walletAddress.toLowerCase();
     
     // Check if user exists in our database
@@ -47,6 +72,7 @@ export async function POST(req: NextRequest) {
       client,
       address: CONTRACT_ADDRESS,
       chain: base,
+      abi: kneadMembershipABI,
     });
     
     // Check current token balance
@@ -82,52 +108,126 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // If they don't have a token, call the mint-freemium endpoint
-    console.log("🪙 User has no token, calling mint-freemium endpoint");
-    const mintResponse = await fetch(new URL('/api/mint-freemium', req.url).toString(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ address: walletAddress }),
-    });
+    // Mint freemium token
+    console.log(`🪙 Preparing to mint freemium token to ${walletAddress}`);
     
-    if (!mintResponse.ok) {
-      const errorText = await mintResponse.text();
-      throw new Error(`Mint-freemium endpoint failed: ${mintResponse.status} - ${errorText}`);
-    }
-    
-    const mintResult = await mintResponse.json();
-    
-    // Update or create user in database
-    if (existingUser) {
-      console.log("📊 Updating existing user in database");
-      await supabase
-        .from("users")
-        .update({
-          membership_status: "freemium",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("wallet_address", normalizedAddress);
-    } else {
-      console.log("📊 Adding new user to database");
-      await supabase.from("users").insert([
-        {
-          wallet_address: normalizedAddress,
-          membership_status: "freemium",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ]);
-    }
-    
-    return NextResponse.json({ 
-      success: mintResult.success,
-      alreadyMinted: mintResult.alreadyMinted || false,
-      userExists: !!existingUser,
-      transactionHash: mintResult.transactionHash
-    });
+    try {
+      const transaction = prepareContractCall({
+        contract,
+        method: "function mint(address to, uint256 id, uint256 amount)",
+        params: [walletAddress, BigInt(FREEMIUM_TOKEN_ID), 1n],
+      });
+
+      console.log("📤 Sending mint transaction...");
+      const result = await sendTransaction({
+        account: serverWallet,
+        transaction,
+        // Add explicit gas settings for Base network
+        gasLimit: 300000n,
+      });
       
+      console.log(`✅ Mint transaction sent! Hash: ${result.transactionHash}`);
+      console.log(`🔗 Transaction URL: https://basescan.org/tx/${result.transactionHash}`);
+
+      // Add retry logic to verify the token was actually minted
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 2000; // 2 seconds
+      
+      let verificationSucceeded = false;
+      
+      for (let retry = 0; retry < MAX_RETRIES; retry++) {
+        try {
+          console.log(`🔍 Verifying mint (attempt ${retry + 1}/${MAX_RETRIES})...`);
+          // Wait a bit before checking
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          
+          // Check if token was minted
+          const newBalance = await balanceOf({
+            contract,
+            owner: walletAddress,
+            tokenId: BigInt(FREEMIUM_TOKEN_ID),
+          });
+          
+          if (newBalance > 0n) {
+            console.log("✅ Mint verification successful!");
+            verificationSucceeded = true;
+            break;
+          } else {
+            console.log("⚠️ Token not yet reflected in balance, retrying...");
+          }
+        } catch (verifyError) {
+          console.error(`❌ Verification attempt ${retry + 1} failed:`, verifyError);
+        }
+      }
+      
+      if (!verificationSucceeded) {
+        console.warn("⚠️ Could not verify token mint, but transaction was sent");
+      }
+
+      // Update or create user in database
+      if (existingUser) {
+        console.log("📊 Updating existing user in database");
+        await supabase
+          .from("users")
+          .update({
+            membership_status: "freemium",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("wallet_address", normalizedAddress);
+      } else {
+        console.log("📊 Adding new user to database");
+        await supabase.from("users").insert([
+          {
+            wallet_address: normalizedAddress,
+            membership_status: "freemium",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      }
+      
+      return NextResponse.json({ 
+        success: true,
+        userExists: !!existingUser,
+        transactionHash: result.transactionHash,
+        verified: verificationSucceeded
+      });
+      
+    } catch (mintError: any) {
+      console.error("❌ Error minting token:", mintError);
+      
+      // Check for common errors
+      const errorMsg = mintError.message || String(mintError);
+      if (errorMsg.includes("insufficient funds")) {
+        console.error("💰 Server wallet has insufficient funds for gas");
+        return NextResponse.json(
+          { 
+            error: "Server wallet has insufficient funds for gas", 
+            success: false,
+            walletAddress: serverWallet.address // Include for diagnostics
+          },
+          { status: 500 },
+        );
+      }
+      
+      if (errorMsg.includes("execution reverted")) {
+        console.error("🚫 Contract execution reverted - server wallet may not have minter role");
+        return NextResponse.json(
+          { 
+            error: "Contract execution reverted - check permissions", 
+            success: false,
+            walletAddress: serverWallet.address // Include for diagnostics
+          },
+          { status: 500 },
+        );
+      }
+      
+      return NextResponse.json(
+        { error: `Mint failed: ${errorMsg}`, success: false },
+        { status: 500 },
+      );
+    }
+    
   } catch (error: any) {
     console.error("❌ Error in onboarding process:", error);
     
