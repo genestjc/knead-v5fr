@@ -1,22 +1,30 @@
 import { createThirdwebClient } from "thirdweb";
 import { base } from "thirdweb/chains";
 
-// Use a fallback clientId for local/dev, but prefer the env var in production
-const clientId =
-  process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID ||
-  "44984f2bc038cebc6138d4ceb602c35d";
+// Client ID from environment with diagnostic checks
+const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
 
-if (!clientId) {
-  throw new Error(
-    "NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set",
-  );
+// Print diagnostic info on initialization, but only in non-production
+if (process.env.NODE_ENV !== 'production') {
+  if (!clientId) {
+    console.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set!");
+    console.warn("ThirdWeb functionality may be limited. Check your .env file.");
+  } else {
+    console.log("✅ ThirdWeb client ID configured correctly");
+  }
 }
 
-export const client = createThirdwebClient({ clientId });
+// Create client with proper error handling
+export const client = createThirdwebClient({ 
+  clientId: clientId || "44984f2bc038cebc6138d4ceb602c35d" // Fallback for development
+});
+
+// Log initialization status
+console.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
 // New Knead Membership Contract (Soulbound ERC1155)
 export const KNEAD_MEMBERSHIP_CONTRACT = {
-  address: "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
+  address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   name: "Knead Membership",
   type: "erc1155",
   tokenIds: {
@@ -50,4 +58,19 @@ export const STORY_COLLECTIONS: Record<string, string[]> = {
   ],
 };
 
+// Constants for easier imports elsewhere
 export const CHAIN = base;
+export const TOKEN_IDS = {
+  FREEMIUM: 0,
+  PREMIUM: 1,
+};
+
+// Configuration for API endpoints
+export const API_CONFIG = {
+  // Default retry settings for ThirdWeb transactions
+  RETRY_COUNT: 3,
+  RETRY_DELAY: 2000, // ms
+  
+  // Gas settings for Base network
+  GAS_LIMIT: 300000n,
+};
