@@ -12,16 +12,18 @@ import { useMembership } from "@/components/membership-provider"
 import { useToast } from "@/hooks/use-toast"
 import { TOKEN_IDS, ARTICLE_LIMITS } from "@/lib/constants"
 
+// Create ThirdWeb client with proper error handling
 const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
-})
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 
+    (process.env.NODE_ENV !== "production" ? "44984f2bc038cebc6138d4ceb602c35d" : undefined),
+});
 
 // Membership contract addresses
 const MEMBERSHIP_CONTRACTS = {
   KNEAD: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string,
-  ANNUAL_2025: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
-  SHIFT_MEAL: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13", // Fixed checksum
-  BREADWINNERS_CLUB: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72"  // Fixed checksum
+  ANNUAL_2025: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
+  SHIFT_MEAL: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
+  BREADWINNERS_CLUB: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72"
 };
 
 // Single-story pass contracts mapped to story slugs
@@ -58,6 +60,86 @@ function normalizeSlug(slug: string): string {
   return slug.toLowerCase().replace(/[^a-z0-9]/g, '-');
 }
 
+/**
+ * Helper function to check if a user has a single-story pass
+ * Using ThirdWeb's recommended pattern for ERC721 balance checking
+ */
+async function checkSingleStoryPass(
+  contractAddress: string,
+  walletAddress: string
+): Promise<boolean> {
+  try {
+    console.log(`Checking single-story pass at ${contractAddress} for wallet ${walletAddress}`);
+    
+    const contract = getContract({
+      client,
+      chain: base,
+      address: contractAddress,
+    });
+
+    const balance = await erc721BalanceOf({
+      contract,
+      owner: walletAddress,
+    });
+    
+    const hasPass = balance > 0n;
+    console.log(`Single-story pass check result: ${hasPass ? "Has pass" : "No pass"}`);
+    return hasPass;
+  } catch (error) {
+    console.error(`Error checking single-story pass at ${contractAddress}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Helper function to check membership tokens
+ * Using ThirdWeb's recommended pattern for checking multiple token IDs
+ */
+async function checkMembershipTokens(
+  contractAddress: string,
+  walletAddress: string
+): Promise<{ hasPremium: boolean, hasFreemium: boolean }> {
+  try {
+    console.log(`Checking membership tokens at ${contractAddress} for wallet ${walletAddress}`);
+    
+    const contract = getContract({
+      client,
+      chain: base,
+      address: contractAddress,
+    });
+    
+    // Check both FREEMIUM (0) and PREMIUM (1) tokens
+    const tokenIds = [0n, 1n];
+    const results = { hasPremium: false, hasFreemium: false };
+    
+    for (const tokenId of tokenIds) {
+      try {
+        const balance = await balanceOf({
+          contract,
+          owner: walletAddress,
+          tokenId,
+        });
+        
+        // Update results based on token ID
+        if (tokenId === 0n && balance > 0n) {
+          results.hasFreemium = true;
+          console.log(`User has freemium token (ID: 0)`);
+        } else if (tokenId === 1n && balance > 0n) {
+          results.hasPremium = true;
+          console.log(`User has premium token (ID: 1)`);
+        }
+      } catch (err) {
+        console.error(`Error checking token ID ${tokenId}:`, err);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error(`Error checking membership tokens:`, error);
+    return { hasPremium: false, hasFreemium: false };
+  }
+}
+
 interface UnlockContentProps {
   children: ReactNode
   contentId: string
@@ -78,7 +160,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     return () => {
       console.log(`UnlockContent unmounted for ${contentId}`);
     }
-  }, [contentId]);
+  }, [contentId, account?.address]);
 
   // Safe membership check that won't cause errors
   const safeMembershipCheck = (level: "premium" | "freemium"): boolean => {
@@ -114,7 +196,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
       // First check if the user has a premium membership (fastest check)
       // Use our safe wrapper to prevent ThirdWeb errors
       if (safeMembershipCheck("premium")) {
-        console.log("Premium membership detected, granting access")
+        console.log("Premium membership detected via membership-provider, granting access");
         setCanAccess(true)
         setIsLoading(false)
         return
@@ -129,55 +211,60 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
                                   )?.[1];
       
       if (singleStoryContract) {
+        // Using the new helper function with ThirdWeb's recommended pattern
+        const hasPass = await checkSingleStoryPass(singleStoryContract, account.address);
+        
+        if (hasPass) {
+          console.log(`Single-story pass found for ${contentId}`);
+          setCanAccess(true);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Check membership tokens directly as a fallback
+      // Only do this if membership-provider check didn't already find premium status
+      if (MEMBERSHIP_CONTRACTS.KNEAD) {
         try {
-          console.log(`Checking single-story pass for ${contentId} at ${singleStoryContract}`)
-          const contractInstance = getContract({
-            client,
-            chain: base,
-            address: singleStoryContract,
-          })
-
-          const balance = await erc721BalanceOf({
-            contract: contractInstance,
-            owner: account.address,
-          })
-
-          if (balance > 0n) {
-            console.log(`Single-story pass found for ${contentId}`)
-            setCanAccess(true)
-            setIsLoading(false)
-            return
+          const membershipStatus = await checkMembershipTokens(
+            MEMBERSHIP_CONTRACTS.KNEAD,
+            account.address
+          );
+          
+          if (membershipStatus.hasPremium) {
+            console.log("Premium token found via direct check, granting access");
+            setCanAccess(true);
+            setIsLoading(false);
+            return;
           }
-        } catch (error) {
-          console.error(`Error checking single-story pass for ${contentId}:`, error)
-          toast({
-            title: "Error",
-            description: "Failed to verify story pass. Please try refreshing.",
-            variant: "destructive",
-          })
+        } catch (err) {
+          console.error("Error in direct membership check:", err);
+          // Continue with other checks
         }
       }
 
       // If user has freemium membership, check article count
       // Use our safe wrapper to prevent ThirdWeb errors
-      if (safeMembershipCheck("freemium")) {
-        console.log("Freemium membership detected, checking article limit")
-        await checkFreemiumLimit()
+      if (safeMembershipCheck("freemium") || 
+          (MEMBERSHIP_CONTRACTS.KNEAD && 
+           await checkMembershipTokens(MEMBERSHIP_CONTRACTS.KNEAD, account.address)).hasFreemium) {
+        console.log("Freemium membership detected, checking article limit");
+        await checkFreemiumLimit();
       } else {
-        console.log("No membership detected, blocking access")
-        setCanAccess(false)
-        setIsLoading(false)
+        console.log("No membership detected, blocking access");
+        setCanAccess(false);
+        setIsLoading(false);
       }
     } catch (error) {
-      console.error("Error checking access:", error)
-      setError("Failed to verify your access. Please try again.")
+      console.error("Error checking access:", error);
+      setError("Failed to verify your access. Please try again.");
       toast({
         title: "Access Error",
         description: "We couldn't verify your membership status. Please try again.",
         variant: "destructive",
-      })
-      setCanAccess(false)
-      setIsLoading(false)
+      });
+      setCanAccess(false);
+      setIsLoading(false);
     }
   }
 
@@ -196,64 +283,64 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
           story_slug: contentId,
           checkOnly: true, // Just check, don't record yet
         }),
-      })
+      });
 
-      const result = await response.json()
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      const result = await response.json();
       console.log("Article limit check result:", result);
 
-      if (response.ok) {
-        setArticleCount(result.reads || 0)
-        
-        // If article already read, grant access without counting again
-        if (result.alreadyRead) {
-          console.log("Article already read, granting access");
-          setCanAccess(true)
-          setIsLoading(false)
-          return
-        }
-        
-        // If user hasn't reached limit, record this view
-        if ((result.reads || 0) < ARTICLE_LIMITS.FREEMIUM) {
-          console.log(`User under article limit (${result.reads}/${ARTICLE_LIMITS.FREEMIUM}), recording view`);
-          const trackResponse = await fetch("/api/track-article", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              user_address: account.address.toLowerCase(),
-              story_slug: contentId,
-            }),
-          })
-          
-          if (trackResponse.ok) {
-            setCanAccess(true)
-          } else {
-            const trackResult = await trackResponse.json()
-            console.error("Failed to record article view:", trackResult);
-            setError(trackResult.error || "Failed to record article view")
-            setCanAccess(false)
-          }
-        } else {
-          console.log(`User has reached article limit (${result.reads}/${ARTICLE_LIMITS.FREEMIUM})`)
-          setCanAccess(false)
-        }
-      } else {
-        console.error("API error checking article limit:", result);
-        setCanAccess(false)
-        setError(result.error || "Failed to check article limit")
+      setArticleCount(result.reads || 0);
+      
+      // If article already read, grant access without counting again
+      if (result.alreadyRead) {
+        console.log("Article already read, granting access");
+        setCanAccess(true);
+        setIsLoading(false);
+        return;
       }
       
-      setIsLoading(false)
+      // If user hasn't reached limit, record this view
+      if ((result.reads || 0) < ARTICLE_LIMITS.FREEMIUM) {
+        console.log(`User under article limit (${result.reads}/${ARTICLE_LIMITS.FREEMIUM}), recording view`);
+        const trackResponse = await fetch("/api/track-article", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_address: account.address.toLowerCase(),
+            story_slug: contentId,
+          }),
+        });
+        
+        if (trackResponse.ok) {
+          setCanAccess(true);
+        } else {
+          const trackResult = await trackResponse.json();
+          console.error("Failed to record article view:", trackResult);
+          setError(trackResult.error || "Failed to record article view");
+          setCanAccess(false);
+        }
+      } else {
+        console.log(`User has reached article limit (${result.reads}/${ARTICLE_LIMITS.FREEMIUM})`);
+        setCanAccess(false);
+      }
+      
+      setIsLoading(false);
     } catch (error) {
-      console.error("Error checking freemium limit:", error)
-      setCanAccess(false)
-      setIsLoading(false)
+      console.error("Error checking freemium limit:", error);
+      setCanAccess(false);
+      setIsLoading(false);
       toast({
         title: "Error",
         description: "Failed to check your article limit. Please try refreshing.",
         variant: "destructive",
-      })
+      });
     }
   }
 
@@ -263,7 +350,7 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
-    )
+    );
   }
 
   // Error state
@@ -278,13 +365,13 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
           Try Again
         </button>
       </div>
-    )
+    );
   }
 
   // No wallet connected - show visitor paywall
   if (!account?.address) {
     console.log("No wallet connected, showing visitor paywall");
-    return <Paywall />
+    return <Paywall />;
   }
 
   // Access denied or undetermined (null) - show paywall
@@ -292,12 +379,12 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
     console.log(`Access denied or undetermined (${canAccess}), showing paywall`);
     if (safeMembershipCheck("freemium") && articleCount >= ARTICLE_LIMITS.FREEMIUM) {
       console.log("Freemium user hit article limit, showing limit paywall");
-      return <Paywall articleCount={articleCount} />
+      return <Paywall articleCount={articleCount} />;
     }
-    return <Paywall />
+    return <Paywall />;
   }
 
   // User has access
   console.log("Access granted, showing content");
-  return <>{children}</>
+  return <>{children}</>;
 }
