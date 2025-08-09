@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { privateKeyToAccount } from "thirdweb/wallets/private-key";
 import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { createClient } from "@supabase/supabase-js";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
 // Mark as dynamic route - required for Next.js API routes that use Request
 export const dynamic = 'force-dynamic';
@@ -25,11 +26,6 @@ const PAID_TOKEN_ID = 1; // Premium token ID
 
 // Import ABI
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
-
-// Create ThirdWeb client for server operations
-const client = {
-  secretKey: process.env.THIRDWEB_SECRET_KEY!,
-};
 
 export async function POST(req: NextRequest) {
   // Get the webhook signature from headers
@@ -96,10 +92,6 @@ export async function POST(req: NextRequest) {
 
       // Set up wallet for minting
       try {
-        console.log("Setting up server wallet for minting...");
-        const privateKey = process.env.THIRDWEB_PRIVATE_KEY!;
-        const serverWallet = privateKeyToAccount(privateKey);
-
         console.log("Getting contract...");
         const contract = getContract({
           client,
@@ -110,16 +102,12 @@ export async function POST(req: NextRequest) {
 
         console.log(`Preparing to mint premium NFT for ${walletAddress}...`);
         
-        // Check if user already has premium token
+        // Check if user already has premium token - FIXED PATTERN
         try {
-          const transaction = prepareContractCall({
+          const balance = await balanceOf({
             contract,
-            method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-            params: [walletAddress, BigInt(PAID_TOKEN_ID)],
-          });
-
-          const balance = await sendTransaction({
-            transaction,
+            owner: walletAddress,
+            tokenId: BigInt(PAID_TOKEN_ID),
           });
 
           if (balance > 0n) {
@@ -135,7 +123,7 @@ export async function POST(req: NextRequest) {
           // Continue with mint attempt anyway
         }
 
-        // Prepare the mint transaction
+        // Prepare the mint transaction - FIXED WITH GAS PARAMS
         console.log("Preparing mint transaction...");
         const transaction = prepareContractCall({
           contract,
@@ -148,9 +136,13 @@ export async function POST(req: NextRequest) {
         const transactionResult = await sendTransaction({
           account: serverWallet,
           transaction,
+          // Add explicit gas settings for Base network
+          gasLimit: 300000n, // Higher than needed to ensure success
         });
 
         console.log("NFT mint transaction successful:", transactionResult);
+        console.log(`Transaction hash: ${transactionResult.transactionHash}`);
+        console.log(`View on Basescan: https://basescan.org/tx/${transactionResult.transactionHash}`);
 
         // Update subscription in database with mint info
         if (subscription) {
@@ -181,7 +173,46 @@ export async function POST(req: NextRequest) {
     } else if (event.type === "customer.subscription.deleted") {
       // Handle subscription cancellation here
       const subscription = event.data.object as Stripe.Subscription;
-      // You should implement the code to burn the NFT or mark it as inactive
+      
+      // Get wallet address from metadata or database
+      const walletAddress = subscription.metadata?.walletAddress;
+      if (!walletAddress) {
+        // Try to get wallet address from the database
+        const { data } = await supabase
+          .from("subscriptions")
+          .select("wallet_address")
+          .eq("subscription_id", subscription.id)
+          .single();
+          
+        if (!data?.wallet_address) {
+          console.error("Could not find wallet address for cancelled subscription:", subscription.id);
+          return NextResponse.json({ received: true });
+        }
+        
+        // Implement NFT burning code here (or call separate endpoint)
+        // This is commented out since it requires additional implementation
+        /*
+        try {
+          const result = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/burn-token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress: data.wallet_address, tokenId: PAID_TOKEN_ID })
+          });
+          console.log("Burn result:", await result.json());
+        } catch (err) {
+          console.error("Error burning token:", err);
+        }
+        */
+        
+        // Update subscription status in database
+        await supabase
+          .from("subscriptions")
+          .update({
+            status: "cancelled",
+            updated_at: new Date().toISOString()
+          })
+          .eq("subscription_id", subscription.id);
+      }
       
       console.log(`Subscription ${subscription.id} was canceled`);
       return NextResponse.json({ received: true });
