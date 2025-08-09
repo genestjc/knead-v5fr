@@ -5,7 +5,7 @@ import {
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
-import kneadMembershipABI from "@/abi/kneadMembershipABI.json";
+import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
 
 // Token IDs
