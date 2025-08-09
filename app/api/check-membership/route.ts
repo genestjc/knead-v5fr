@@ -8,18 +8,19 @@ import { base } from "thirdweb/chains";
 import kneadMembershipABI from "@/abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
 
-// Constants
+// Token IDs
+const FREEMIUM_TOKEN_ID = 0;
+const PREMIUM_TOKEN_ID = 1;
 const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
-const FREEMIUM_TOKEN_ID = 0; // Update if you have other token IDs for premium
 
-// Initialize Supabase
+// Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-// Initialize thirdweb client
+// thirdweb client
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
 });
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Check ERC1155 contract for freemium token
+    // 1. Check ERC1155 contract for premium token
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
@@ -45,23 +46,31 @@ export async function GET(req: NextRequest) {
       abi: kneadMembershipABI,
     });
 
+    // Check for premium token
+    const premiumBalance = await balanceOf({
+      contract,
+      owner: address,
+      tokenId: BigInt(PREMIUM_TOKEN_ID),
+    });
+    if (premiumBalance > 0n) {
+      return NextResponse.json({
+        membershipType: "premium",
+      });
+    }
+
+    // Check for freemium token
     const freemiumBalance = await balanceOf({
       contract,
       owner: address,
       tokenId: BigInt(FREEMIUM_TOKEN_ID),
     });
-
     if (freemiumBalance > 0n) {
       return NextResponse.json({
         membershipType: "freemium",
       });
     }
 
-    // TODO: Add premium token check here if you have a premium tokenId
-    // const premiumBalance = await balanceOf({ ... });
-    // if (premiumBalance > 0n) return NextResponse.json({ membershipType: "premium" });
-
-    // 2. Fallback: Check Supabase for active subscription
+    // 2. Fallback: Supabase premium subscription
     const { data: subscription } = await supabase
       .from("subscriptions")
       .select("*")
@@ -76,7 +85,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 3. Fallback: Check for article reads (freemium)
+    // 3. Fallback: Article reads (freemium)
     const { data: articleReads } = await supabase
       .from("article_reads")
       .select("*")
@@ -93,7 +102,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ membershipType: "none" });
   } catch (error) {
     console.error("Failed to check membership:", error);
-    // Default to freemium on any errors for better UX
+    // Default to freemium on any errors for best UX
     return NextResponse.json({
       membershipType: "freemium",
     });
