@@ -9,6 +9,9 @@ import { client, serverWallet } from "../../../thirdweb-server-wallet";
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
 
+// Mark as dynamic to ensure fresh data
+export const dynamic = 'force-dynamic';
+
 // Initialize Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -35,6 +38,15 @@ export async function POST(req: NextRequest) {
       console.error("❌ Missing NFT contract address environment variable");
       return NextResponse.json(
         { error: "Server configuration error: Missing contract address" },
+        { status: 500 },
+      );
+    }
+    
+    // Verify server wallet is initialized
+    if (!serverWallet || !serverWallet.address) {
+      console.error("❌ Server wallet not properly initialized");
+      return NextResponse.json(
+        { error: "Server configuration error: Server wallet not initialized" },
         { status: 500 },
       );
     }
@@ -110,10 +122,47 @@ export async function POST(req: NextRequest) {
       const result = await sendTransaction({
         account: serverWallet,
         transaction,
+        // Add explicit gas settings for Base network
+        gasLimit: 300000n,
       });
       
       console.log(`✅ Mint transaction sent! Hash: ${result.transactionHash}`);
       console.log(`🔗 Transaction URL: https://basescan.org/tx/${result.transactionHash}`);
+
+      // Add retry logic to verify the token was actually minted
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 2000; // 2 seconds
+      
+      let verificationSucceeded = false;
+      
+      for (let retry = 0; retry < MAX_RETRIES; retry++) {
+        try {
+          console.log(`🔍 Verifying mint (attempt ${retry + 1}/${MAX_RETRIES})...`);
+          // Wait a bit before checking
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          
+          // Check if token was minted
+          const newBalance = await balanceOf({
+            contract,
+            owner: walletAddress,
+            tokenId: BigInt(FREEMIUM_TOKEN_ID),
+          });
+          
+          if (newBalance > 0n) {
+            console.log("✅ Mint verification successful!");
+            verificationSucceeded = true;
+            break;
+          } else {
+            console.log("⚠️ Token not yet reflected in balance, retrying...");
+          }
+        } catch (verifyError) {
+          console.error(`❌ Verification attempt ${retry + 1} failed:`, verifyError);
+        }
+      }
+      
+      if (!verificationSucceeded) {
+        console.warn("⚠️ Could not verify token mint, but transaction was sent");
+      }
 
       // Update or create user in database
       if (existingUser) {
@@ -140,7 +189,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         success: true,
         userExists: !!existingUser,
-        transactionHash: result.transactionHash
+        transactionHash: result.transactionHash,
+        verified: verificationSucceeded
       });
       
     } catch (mintError: any) {
@@ -151,7 +201,11 @@ export async function POST(req: NextRequest) {
       if (errorMsg.includes("insufficient funds")) {
         console.error("💰 Server wallet has insufficient funds for gas");
         return NextResponse.json(
-          { error: "Server wallet has insufficient funds for gas", success: false },
+          { 
+            error: "Server wallet has insufficient funds for gas", 
+            success: false,
+            walletAddress: serverWallet.address // Include for diagnostics
+          },
           { status: 500 },
         );
       }
@@ -159,7 +213,11 @@ export async function POST(req: NextRequest) {
       if (errorMsg.includes("execution reverted")) {
         console.error("🚫 Contract execution reverted - server wallet may not have minter role");
         return NextResponse.json(
-          { error: "Contract execution reverted - check permissions", success: false },
+          { 
+            error: "Contract execution reverted - check permissions", 
+            success: false,
+            walletAddress: serverWallet.address // Include for diagnostics
+          },
           { status: 500 },
         );
       }
