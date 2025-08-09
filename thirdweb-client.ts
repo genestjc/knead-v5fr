@@ -1,5 +1,7 @@
-import { createThirdwebClient } from "thirdweb";
+import { createThirdwebClient, getNativeBalance } from "thirdweb";
 import { base } from "thirdweb/chains";
+import { balanceOf } from "thirdweb/extensions/erc1155";
+import { getContract } from "thirdweb";
 
 // Client ID from environment with diagnostic checks
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
@@ -47,30 +49,4 @@ export const LEGACY_MEMBERSHIP_CONTRACTS = [
     tokenIds: {
       annual: 1,
       shift: 2,
-    },
-  },
-];
-
-// Story-specific NFT collections for individual story access
-export const STORY_COLLECTIONS: Record<string, string[]> = {
-  "blvck-svm-michelinman-dinner": [
-    // Add story-specific contract addresses here when available
-  ],
-};
-
-// Constants for easier imports elsewhere
-export const CHAIN = base;
-export const TOKEN_IDS = {
-  FREEMIUM: 0,
-  PREMIUM: 1,
-};
-
-// Configuration for API endpoints
-export const API_CONFIG = {
-  // Default retry settings for ThirdWeb transactions
-  RETRY_COUNT: 3,
-  RETRY_DELAY: 2000, // ms
-  
-  // Gas settings for Base network
-  GAS_LIMIT: 300000n,
-};
+}
