@@ -1,145 +1,114 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
+import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
-import { useFreemiumMembership } from "@/hooks/use-freemium-membership"; // Import the hook
+import { useMembership } from "./membership-provider";
 
-type MembershipType = "premium" | "freemium" | null;
-
-interface MembershipContextProps {
-  walletAddress: string | null;
-  membershipType: MembershipType;
-  isLoading: boolean;
-  hasAccess: (requiredLevel: "premium" | "freemium") => boolean;
-  refreshMembership: () => Promise<void>;
-  error: string | null;
-  mintFreemium: () => Promise<void>; // Add minting function
-  isMinting: boolean; // Add minting status
+interface PaywallProps {
+  articleCount?: number;
 }
 
-const MembershipContext = createContext<MembershipContextProps | undefined>(undefined);
-
-export function MembershipProvider({ children }: { children: React.ReactNode }) {
+export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const account = useActiveAccount();
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const { toast } = useToast();
-  
-  // Use the new hook
-  const {
-    status,
-    checkMembership,
-    minting: isMinting,
-    mintFreemium: mintFreemiumNFT,
-    mintResult
-  } = useFreemiumMembership(account?.address || null);
-  
-  // Convert hook status to our existing membershipType format
-  const membershipType: MembershipType = 
-    status === "premium" ? "premium" : 
-    status === "freemium" ? "freemium" : null;
+  const { membershipType } = useMembership();
+
+  const handleSubscribeRedirect = async () => {
+    if (!account?.address) return;
     
-  const isLoading = status === "loading";
-  
-  // Automatically check membership when wallet changes
-  useEffect(() => {
-    if (account?.address) {
-      checkMembership();
-    }
-  }, [account?.address, checkMembership]);
-  
-  // Show toast notifications for mint results
-  useEffect(() => {
-    if (mintResult) {
-      if (mintResult.success) {
+    setIsLoadingCheckout(true);
+    
+    try {
+      // Direct Stripe checkout - no modal
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletAddress: account.address,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
         toast({
-          title: "Membership Activated",
-          description: "Your free membership has been activated successfully!",
+          title: "Error",
+          description: `Failed to create checkout session: ${data.error}`,
+          variant: "destructive",
         });
+      } else if (data.url) {
+        // Direct redirect to Stripe
+        window.location.href = data.url;
       } else {
-        setError(mintResult.error || "Failed to mint membership");
         toast({
-          title: "Membership Error",
-          description: mintResult.error || "Failed to activate your membership",
+          title: "Error",
+          description: "Unexpected error. Please try again.",
           variant: "destructive",
         });
       }
-    }
-  }, [mintResult, toast]);
-
-  const hasAccess = (requiredLevel: "premium" | "freemium"): boolean => {
-    try {
-      if (!account?.address) {
-        return false;
-      }
-      
-      // Allow during loading for better UX
-      if (isLoading && !error) {
-        return true;
-      }
-      
-      if (requiredLevel === "premium") {
-        return membershipType === "premium";
-      }
-      
-      // For freemium, either freemium or premium access is sufficient
-      return membershipType === "freemium" || membershipType === "premium";
-    } catch (error) {
-      console.error("Error checking access:", error);
-      return false;
-    }
-  };
-
-  const refreshMembership = async () => {
-    if (account?.address) {
-      await checkMembership();
-    }
-  };
-  
-  const mintFreemium = async () => {
-    if (!account?.address) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      await mintFreemiumNFT();
     } catch (err) {
-      console.error("Error minting freemium:", err);
       toast({
         title: "Error",
-        description: "Failed to mint freemium membership",
+        description: "Failed to initialize checkout. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoadingCheckout(false);
     }
   };
 
-  const value = {
-    walletAddress: account?.address || null,
-    membershipType,
-    isLoading,
-    hasAccess,
-    refreshMembership,
-    error,
-    mintFreemium,
-    isMinting
-  };
-
-  return (
-    <MembershipContext.Provider value={value}>
-      {children}
-    </MembershipContext.Provider>
-  );
-}
-
-export function useMembership() {
-  const context = useContext(MembershipContext);
-  if (context === undefined) {
-    throw new Error("useMembership must be used within a MembershipProvider");
+  // Case 1: Not signed in - show connect button
+  if (!account?.address) {
+    return (
+      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+        <h2 className="font-adonis text-2xl mb-4">
+          This story is for members only
+        </h2>
+        
+        <div className="my-6 flex justify-center">
+          <ThirdWebConnectButton />
+        </div>
+        
+        <p className="font-georgia-pro text-gray-700 mt-4">
+          Not a member? Sign in with your wallet to get free access.
+        </p>
+      </div>
+    );
   }
-  return context;
+
+  // Case 2: Signed in with freemium but hit article limit
+  return (
+    <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+      <h2 className="font-adonis text-2xl mb-4">
+        You've reached your story limit for the month.
+      </h2>
+      
+      <p className="font-georgia-pro italic text-gray-700 mt-4 mb-6">
+        Want unlimited access?
+      </p>
+      
+      <button
+        onClick={handleSubscribeRedirect}
+        disabled={isLoadingCheckout}
+        className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
+      >
+        {isLoadingCheckout ? (
+          <>
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Processing...
+          </>
+        ) : (
+          "Subscribe to Knead Monthly"
+        )}
+      </button>
+    </div>
+  );
 }
