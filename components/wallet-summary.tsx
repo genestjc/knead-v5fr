@@ -74,12 +74,6 @@ export function WalletSummary() {
         }
       });
       
-      // Show toast notification
-      toast({
-        title: "Signed Out",
-        description: "You have been signed out successfully"
-      });
-      
       // Delay to ensure cleanup is complete
       setTimeout(() => {
         // Use stronger cache-busting reload
