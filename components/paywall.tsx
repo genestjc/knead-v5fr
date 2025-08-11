@@ -5,6 +5,7 @@ import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
 import { useMembership } from "./membership-provider";
+import { useFreemiumMembership } from "@/hooks/use-freemium-membership"; // Import the hook
 
 interface PaywallProps {
   articleCount?: number;
@@ -15,6 +16,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const { toast } = useToast();
   const { membershipType } = useMembership();
+  const { status, minting } = useFreemiumMembership(account?.address || null); // Use the hook
 
   const handleSubscribeRedirect = async () => {
     if (!account?.address) return;
@@ -61,6 +63,23 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
       setIsLoadingCheckout(false);
     }
   };
+
+  // Show loading state while auto-minting is happening
+  if (minting) {
+    return (
+      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+        <h2 className="font-adonis text-2xl mb-4">
+          Setting up your membership...
+        </h2>
+        <div className="flex justify-center my-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+        <p className="font-georgia-pro text-gray-700">
+          Just a moment while we activate your access...
+        </p>
+      </div>
+    );
+  }
 
   // Case 1: Not signed in - show connect button
   if (!account?.address) {
