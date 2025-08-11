@@ -28,8 +28,7 @@ function getThirdwebClient() {
 
 function getServerWallet() {
   if (!serverWallet) {
-    const privateKey =
-      process.env.SERVER_WALLET_PRIVATE_KEY;
+    const privateKey = process.env.THIRDWEB_PRIVATE_KEY; // Use your existing env var
     if (!privateKey) {
       throw new Error(
         "Server wallet private key not found",
