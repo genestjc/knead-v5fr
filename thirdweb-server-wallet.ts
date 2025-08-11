@@ -25,9 +25,9 @@ export const serverWallet = privateKeyAccount({
   privateKey: process.env.THIRDWEB_PRIVATE_KEY,
 });
 
-// Your ERC1155 contract address here
+// Use contract address from env var for flexibility
 const ERC1155_CONTRACT_ADDRESS =
-  "YOUR_ERC1155_CONTRACT_ADDRESS";
+  process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 
 (async () => {
   try {
