@@ -1,51 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createThirdwebClient,
   getContract,
   prepareContractCall,
   sendTransaction,
 } from "thirdweb";
-import { privateKeyAccount } from "thirdweb/wallets";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
+import {
+  client,
+  serverWallet,
+} from "../../../thirdweb-server-wallet";
 
 const FREEMIUM_TOKEN_ID = 0;
-
-// Lazy-loaded client and wallet
-let client: any;
-let serverWallet: any;
-
-function getThirdwebClient() {
-  if (!client) {
-    client = createThirdwebClient({
-      clientId:
-        process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
-    });
-  }
-  return client;
-}
-
-function getServerWallet() {
-  if (!serverWallet) {
-    const privateKey = process.env.THIRDWEB_PRIVATE_KEY; // Use your existing env var
-    if (!privateKey) {
-      throw new Error(
-        "Server wallet private key not found",
-      );
-    }
-    serverWallet = privateKeyAccount({
-      client: getThirdwebClient(),
-      privateKey,
-    });
-  }
-  return serverWallet;
-}
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  // Move CONTRACT_ADDRESS inside the handler
   const CONTRACT_ADDRESS =
     process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
   const { address } = await req.json();
@@ -57,9 +28,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const client = getThirdwebClient();
-    const serverWallet = getServerWallet();
-
     if (!CONTRACT_ADDRESS) {
       throw new Error(
         "NFT contract address not configured",
