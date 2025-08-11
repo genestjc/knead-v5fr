@@ -11,6 +11,7 @@ import Paywall from "./paywall"
 import { useMembership } from "@/components/membership-provider"
 import { useToast } from "@/hooks/use-toast"
 import { TOKEN_IDS, ARTICLE_LIMITS } from "@/lib/constants"
+import { useFreemiumMembership } from "@/hooks/use-freemium-membership" // Add this import
 
 // Create ThirdWeb client with proper error handling
 const client = createThirdwebClient({
@@ -153,6 +154,8 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+  const { status, minting } = useFreemiumMembership(account?.address || null) // Add this hook
+
 
   // Log component mounting
   useEffect(() => {
@@ -345,8 +348,8 @@ export function UnlockContent({ children, contentId }: UnlockContentProps) {
   }
 
   // Loading state
-  if (isLoading || membershipLoading) {
-    return (
+if (isLoading || membershipLoading || minting) { 
+   return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
