@@ -72,7 +72,7 @@ async function mintPremiumNFT(
       .from("subscriptions")
       .update({
         token_minted: true,
-        token_id: PAID_TOKEN_ID,
+        token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
         mint_transaction_hash:
           transactionResult.transactionHash,
       })
@@ -81,6 +81,7 @@ async function mintPremiumNFT(
 
   return {
     transactionHash: transactionResult.transactionHash,
+    token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
   };
 }
 
