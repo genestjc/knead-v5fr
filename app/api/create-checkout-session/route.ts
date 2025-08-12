@@ -49,7 +49,12 @@ export async function POST(req: NextRequest) {
       success_url,
       cancel_url,
       metadata: {
-        walletAddress: walletAddress,
+        walletAddress: walletAddress, // For checkout.session.completed
+      },
+      subscription_data: {
+        metadata: {
+          walletAddress: walletAddress, // For invoice.payment_succeeded
+        },
       },
     });
 
