@@ -94,7 +94,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         </div>
         
         <p className="font-georgia-pro text-gray-700 mt-4">
-          Not a member? Sign in with your wallet to get free access.
+          Not a member? Sign in to create an account.
         </p>
       </div>
     );
