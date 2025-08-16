@@ -4,7 +4,9 @@ import { useActiveAccount } from "thirdweb/react";
 import { getContract, readContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import styled from "styled-components";
-import { ThirdwebConnectButton } from "@/components/thirdweb-connect-button";
+import { ThirdwebConnectButton } from "@/components/ThirdwebConnectButton";
+import { WelcomePopup } from "@/components/WelcomePopup";
+import { useFreemiumTimer } from "@/components/FreemiumTimer";
 
 // Membership contract details
 const MEMBERSHIP_CONTRACT =
@@ -12,35 +14,12 @@ const MEMBERSHIP_CONTRACT =
 const FREEMIUM_ID = 0n;
 const PREMIUM_ID = 1n;
 
-const AdonisHeading = styled.h1`
-  font-family: "Adonis", serif;
-  font-size: 2rem;
-  text-align: center;
-  margin-bottom: 1rem;
-`;
-
-const BodyText = styled.p`
-  font-family: "Georgia Pro", serif;
-  font-size: 1.1rem;
-  text-align: center;
-`;
-
-const Popup = styled.div`
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  padding: 2rem 1.5rem;
-  max-width: 420px;
-  margin: 2rem auto;
-  z-index: 10;
-  position: relative;
-`;
-
-const Overlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.12);
-  z-index: 9;
+const Centered = styled.div`
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 `;
 
 export default function ChatPage() {
@@ -83,93 +62,112 @@ export default function ChatPage() {
     })();
   }, [account]);
 
-  // UI
+  // Freemium timer
+  const { timeLeft, isOut, formatted } = useFreemiumTimer(
+    membership === "freemium",
+  );
+
   if (!account) {
     return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <AdonisHeading>
+      <Centered>
+        <h1
+          style={{
+            fontFamily: "Adonis, serif",
+            fontSize: "2rem",
+          }}
+        >
           Please sign in to access the chat
-        </AdonisHeading>
+        </h1>
         <ThirdwebConnectButton />
-      </div>
+      </Centered>
+    );
+  }
+
+  if (membership === "none") {
+    return (
+      <>
+        {showPopup && (
+          <WelcomePopup
+            membership={membership}
+            onClose={() => setShowPopup(false)}
+          />
+        )}
+        <Centered>
+          <h1
+            style={{
+              fontFamily: "Adonis, serif",
+              fontSize: "2rem",
+            }}
+          >
+            Access Denied
+          </h1>
+        </Centered>
+      </>
+    );
+  }
+
+  if (membership === "freemium" && isOut) {
+    return (
+      <Centered>
+        <h1
+          style={{
+            fontFamily: "Adonis, serif",
+            fontSize: "2rem",
+          }}
+        >
+          Time Limit Reached
+        </h1>
+        <p style={{ fontFamily: "Georgia Pro, serif" }}>
+          You have used your 2 hours of free chat viewing
+          for this month.
+          <br />
+          Upgrade to premium for unlimited access.
+        </p>
+      </Centered>
     );
   }
 
   return (
     <div>
       {showPopup && (
-        <>
-          <Overlay onClick={() => setShowPopup(false)} />
-          <Popup>
-            {membership === "freemium" && (
-              <>
-                <AdonisHeading>Welcome</AdonisHeading>
-                <BodyText>
-                  Free members can watch the chat for{" "}
-                  <b>2 hours per month</b>.
-                </BodyText>
-              </>
-            )}
-            {membership === "premium" && (
-              <>
-                <AdonisHeading>Welcome</AdonisHeading>
-                <BodyText>
-                  Members have <b>unlimited access</b> to
-                  reading the chat.
-                  <br />
-                  <br />
-                  <b>
-                    Here's how you can earn a contributor
-                    spot:
-                  </b>
-                  <ul
-                    style={{
-                      textAlign: "left",
-                      fontFamily: "Georgia Pro, serif",
-                      margin: "1rem 0 0 1.5rem",
-                    }}
-                  >
-                    <li>
-                      Earn 1,000 $TOWNS by receiving likes
-                      on your comments during open periods.
-                    </li>
-                    <li>
-                      Contributors can talk in any chat, DM
-                      others, and set an alias/bio (admin
-                      approved).
-                    </li>
-                    <li>
-                      Admins can also assign contributor
-                      status manually.
-                    </li>
-                  </ul>
-                </BodyText>
-              </>
-            )}
-            {membership === "none" && (
-              <>
-                <AdonisHeading>Access Denied</AdonisHeading>
-                <BodyText>
-                  You do not have a Knead membership NFT.
-                  <br />
-                  Please acquire one to access the chat.
-                </BodyText>
-              </>
-            )}
-          </Popup>
-        </>
+        <WelcomePopup
+          membership={membership}
+          onClose={() => setShowPopup(false)}
+        />
       )}
-      {/* Place Towns chat UI here after gating */}
+      {membership === "freemium" && (
+        <div
+          style={{
+            textAlign: "center",
+            margin: "1rem 0",
+            fontFamily: "Georgia Pro, serif",
+          }}
+        >
+          Time left this month: <b>{formatted}</b>
+        </div>
+      )}
+      {/* --- TOWNS PROTOCOL CHAT COMPONENT GOES HERE --- */}
       <div style={{ marginTop: "2rem" }}>
-        {/* <TownsChatComponent ... /> */}
+        {/* Example placeholder: */}
+        <div
+          style={{
+            borderRadius: 18,
+            background: "#fff",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+            padding: "2rem",
+            maxWidth: 700,
+            margin: "0 auto",
+            fontFamily: "Georgia Pro, serif",
+          }}
+        >
+          <h2 style={{ fontFamily: "Adonis, serif" }}>
+            Knead Chat (Towns Protocol)
+          </h2>
+          {/* Replace below with Towns SDK chat component */}
+          <p>
+            Chat UI will appear here for eligible users.
+          </p>
+        </div>
       </div>
     </div>
   );
