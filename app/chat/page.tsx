@@ -7,12 +7,16 @@ import styled from "styled-components";
 import { ThirdwebConnectButton } from "@/components/ThirdwebConnectButton";
 import { WelcomePopup } from "@/components/WelcomePopup";
 import { useFreemiumTimer } from "@/components/FreemiumTimer";
+import { TownsChat } from "@/components/TownsChat";
 
 // Membership contract details
 const MEMBERSHIP_CONTRACT =
   "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85";
 const FREEMIUM_ID = 0n;
 const PREMIUM_ID = 1n;
+
+// Example: replace with your actual spaceId for "Main"
+const MAIN_SPACE_ID = "0xYourMainSpaceId";
 
 const Centered = styled.div`
   min-height: 60vh;
@@ -29,7 +33,6 @@ export default function ChatPage() {
   >(null);
   const [showPopup, setShowPopup] = useState(true);
 
-  // Check membership on connect
   useEffect(() => {
     if (!account) {
       setMembership(null);
@@ -42,7 +45,6 @@ export default function ChatPage() {
         clientId:
           process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
       });
-      // Check balances for both IDs
       const [freemium, premium] = await Promise.all([
         readContract({
           contract,
@@ -62,7 +64,6 @@ export default function ChatPage() {
     })();
   }, [account]);
 
-  // Freemium timer
   const { timeLeft, isOut, formatted } = useFreemiumTimer(
     membership === "freemium",
   );
@@ -146,28 +147,11 @@ export default function ChatPage() {
           Time left this month: <b>{formatted}</b>
         </div>
       )}
-      {/* --- TOWNS PROTOCOL CHAT COMPONENT GOES HERE --- */}
       <div style={{ marginTop: "2rem" }}>
-        {/* Example placeholder: */}
-        <div
-          style={{
-            borderRadius: 18,
-            background: "#fff",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-            padding: "2rem",
-            maxWidth: 700,
-            margin: "0 auto",
-            fontFamily: "Georgia Pro, serif",
-          }}
-        >
-          <h2 style={{ fontFamily: "Adonis, serif" }}>
-            Knead Chat (Towns Protocol)
-          </h2>
-          {/* Replace below with Towns SDK chat component */}
-          <p>
-            Chat UI will appear here for eligible users.
-          </p>
-        </div>
+        <TownsChat
+          spaceId={MAIN_SPACE_ID}
+          userAddress={account.address}
+        />
       </div>
     </div>
   );
