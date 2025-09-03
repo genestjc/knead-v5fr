@@ -174,7 +174,7 @@ export default function JoinPage() {
                 question="Where do I go to cancel my membership?"
                 answer={
                   <span className="faq-answer text-left block">
-                    If you're interested in canceling your membership, click <a href="/account" className="underline">here</a>.
+                    If you're interested in canceling your membership, click <a href="https://www.kneadmag.com/cancel-membership" className="underline">here</a>.
                   </span>
                 }
               />
