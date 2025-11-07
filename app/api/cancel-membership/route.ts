@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
       // For immediate cancellation, we would burn the NFT now
       // For period-end cancellation, NFT will be burned when subscription actually ends
-      const shouldBurnNow = true; // Change to true if you want to burn immediately
+      const shouldBurnNow = false; // Change to true if you want to burn immediately
 
       if (shouldBurnNow) {
         try {
