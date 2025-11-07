@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Check ERC1155 contract for premium token
+    // 1. Check ERC1155 contract (PRIMARY source of truth)
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       abi: kneadMembershipABI,
     });
 
-    // Check for premium token
+    // Check for premium token FIRST (higher priority)
     const premiumBalance = await balanceOf({
       contract,
       owner: address,
@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Fallback: Supabase premium subscription
+    // 2. Fallback: Check Supabase for pending subscription
+    // (User paid via Stripe but NFT hasn't been minted yet)
     const { data: subscription } = await supabase
       .from("subscriptions")
       .select("*")
@@ -85,26 +86,18 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 3. Fallback: Article reads (freemium)
-    const { data: articleReads } = await supabase
-      .from("article_reads")
-      .select("*")
-      .eq("user_address", address.toLowerCase())
-      .limit(1);
-
-    if (articleReads && articleReads.length > 0) {
-      return NextResponse.json({
-        membershipType: "freemium",
-      });
-    }
-
-    // 4. Default: No membership found
+    // 3. No membership found - return "none"
+    // The frontend should trigger freemium NFT minting for new users
     return NextResponse.json({ membershipType: "none" });
+    
   } catch (error) {
     console.error("Failed to check membership:", error);
-    // Default to freemium on any errors for best UX
+    
+    // On blockchain errors, return "none" instead of assuming freemium
+    // This prevents false positives
     return NextResponse.json({
-      membershipType: "freemium",
-    });
+      membershipType: "none",
+      error: "Failed to verify membership"
+    }, { status: 500 });
   }
 }
