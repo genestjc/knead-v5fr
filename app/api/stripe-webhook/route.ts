@@ -103,8 +103,12 @@ async function burnPremiumNFT(
     tokenId: PAID_TOKEN_ID,
   });
 
-  if (balance.value === 0n) {
-    return { noTokenToBurn: true };
+  if (!balance || balance.value === 0n) {
+    return { 
+      success: true, 
+      noTokenToBurn: true,
+      message: "No premium token to burn" 
+    };
   }
 
   // Prepare and send burn transaction
@@ -124,7 +128,7 @@ async function burnPremiumNFT(
   // Update subscription in database with burn info
   if (subscriptionId) {
     try {
-      await supabase
+      const { error } = await supabase
         .from("subscriptions")
         .update({
           token_burned: true,
@@ -132,6 +136,13 @@ async function burnPremiumNFT(
             transactionResult.transactionHash,
         })
         .eq("subscription_id", subscriptionId);
+      
+      if (error) {
+        console.error(
+          `Database error updating burn info for subscription ${subscriptionId}:`,
+          error,
+        );
+      }
     } catch (dbError) {
       // Log database error but still return the transaction result
       console.error(
@@ -142,6 +153,7 @@ async function burnPremiumNFT(
   }
 
   return {
+    success: true,
     transactionHash: transactionResult.transactionHash,
     token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
   };
