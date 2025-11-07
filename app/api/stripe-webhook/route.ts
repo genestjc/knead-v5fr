@@ -123,14 +123,22 @@ async function burnPremiumNFT(
 
   // Update subscription in database with burn info
   if (subscriptionId) {
-    await supabase
-      .from("subscriptions")
-      .update({
-        token_burned: true,
-        burn_transaction_hash:
-          transactionResult.transactionHash,
-      })
-      .eq("subscription_id", subscriptionId);
+    try {
+      await supabase
+        .from("subscriptions")
+        .update({
+          token_burned: true,
+          burn_transaction_hash:
+            transactionResult.transactionHash,
+        })
+        .eq("subscription_id", subscriptionId);
+    } catch (dbError) {
+      // Log database error but still return the transaction result
+      console.error(
+        `Failed to update database with burn info for subscription ${subscriptionId}:`,
+        dbError,
+      );
+    }
   }
 
   return {
