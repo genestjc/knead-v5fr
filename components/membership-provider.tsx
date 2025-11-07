@@ -48,6 +48,15 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     try {
       console.log("Checking membership from contract for:", address);
       
+      // FIRST: Check if subscription is cancelled in database
+      const response = await fetch(`/api/check-membership?address=${address}`);
+      const data = await response.json();
+      
+      // If API says they have no membership or error, don't rely on cache
+      if (!response.ok || data.membershipType === "none") {
+        return null;
+      }
+      
       const contract = getContract({
         client,
         address: CONTRACT_ADDRESS,
@@ -67,7 +76,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
           tokenId: 0n, // Freemium token ID
         }),
       ]);
-      
+
       if (premiumBalance > 0n) {
         return "premium";
       } else if (freemiumBalance > 0n) {
@@ -90,7 +99,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       
       const cache: CachedMembership = JSON.parse(cachedData);
       
-      // Verify it's for the same wallet and not expired (24 hour cache)
+      // Verify it's for the same wallet and not expired (6 hour cache)
       if (cache.address === address && cache.expiresAt > Date.now()) {
         console.log("Using cached membership data:", cache.type);
         return cache;
@@ -108,8 +117,8 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       const cacheData: CachedMembership = {
         address,
         type,
-        // Cache for 24 hours
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000)
+        // Cache for 6 hours (reduced from 24 to catch burns faster)
+        expiresAt: Date.now() + (6 * 60 * 60 * 1000)
       };
       localStorage.setItem(MEMBERSHIP_CACHE_KEY, JSON.stringify(cacheData));
     } catch (err) {
@@ -125,6 +134,19 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       // First try to get cached membership
       const cachedMembership = getCachedMembership(address);
       if (cachedMembership) {
+        // Even with cache, verify it's still valid via API (quick check)
+        fetch(`/api/check-membership?address=${address}`)
+          .then(res => res.json())
+          .then(data => {
+            // If API says "none" but we have cache, clear cache and refetch
+            if (data.membershipType === "none" && cachedMembership.type !== null) {
+              console.log("Cache invalidated by API check, refetching...");
+              localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+              fetchMembershipType(address);
+            }
+          })
+          .catch(err => console.error("Background API check failed:", err));
+        
         setMembershipType(cachedMembership.type);
         setIsLoading(false);
         return;
@@ -166,6 +188,22 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       // Only allow during loading if the error isn't set
       if (isLoading && !error) {
         return true; // Grant temporary access while loading
+      }
+      
+      // For premium access, do a quick background check to ensure NFT still exists
+      if (membershipType === "premium" && requiredLevel === "premium") {
+        // Revalidate every time premium content is accessed (async, doesn't block)
+        fetch(`/api/check-membership?address=${account.address}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.membershipType !== "premium") {
+              console.log("Premium membership no longer valid, clearing cache");
+              localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+              // Force a refresh
+              fetchMembershipType(account.address);
+            }
+          })
+          .catch(err => console.error("Premium revalidation check failed:", err));
       }
       
       if (requiredLevel === "premium") {
