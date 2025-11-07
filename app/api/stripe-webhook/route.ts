@@ -85,6 +85,80 @@ async function mintPremiumNFT(
   };
 }
 
+async function burnPremiumNFT(
+  walletAddress: string,
+  subscriptionId?: string,
+) {
+  const contract = getContract({
+    client,
+    address: CONTRACT_ADDRESS,
+    chain: base,
+    abi: kneadMembershipABI,
+  });
+
+  // Check if user has premium token
+  const balance = await balanceOf({
+    contract,
+    owner: walletAddress,
+    tokenId: PAID_TOKEN_ID,
+  });
+
+  if (!balance || balance.value === 0n) {
+    return { 
+      success: true, 
+      noTokenToBurn: true,
+      message: "No premium token to burn" 
+    };
+  }
+
+  // Prepare and send burn transaction
+  const transaction = prepareContractCall({
+    contract,
+    method:
+      "function adminBurn(address from, uint256 id, uint256 amount)",
+    params: [walletAddress, PAID_TOKEN_ID, 1n],
+  });
+
+  const transactionResult = await sendTransaction({
+    account: serverWallet,
+    transaction,
+    gasLimit: 300000n,
+  });
+
+  // Update subscription in database with burn info
+  if (subscriptionId) {
+    try {
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({
+          token_burned: true,
+          burn_transaction_hash:
+            transactionResult.transactionHash,
+        })
+        .eq("subscription_id", subscriptionId);
+      
+      if (error) {
+        console.error(
+          `Database error updating burn info for subscription ${subscriptionId}:`,
+          error,
+        );
+      }
+    } catch (dbError) {
+      // Log database error but still return the transaction result
+      console.error(
+        `Failed to update database with burn info for subscription ${subscriptionId}:`,
+        dbError,
+      );
+    }
+  }
+
+  return {
+    success: true,
+    transactionHash: transactionResult.transactionHash,
+    token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
+  };
+}
+
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
@@ -233,6 +307,33 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("subscription_id", subscriptionId);
+
+      // Burn NFT if wallet address is available
+      if (walletAddress) {
+        try {
+          console.log(
+            `Attempting to burn NFT for wallet: ${walletAddress}`,
+          );
+          const burnResult = await burnPremiumNFT(
+            walletAddress,
+            subscriptionId,
+          );
+          console.log(
+            `NFT burn result:`,
+            JSON.stringify(burnResult),
+          );
+        } catch (error) {
+          // Log error but continue - don't fail the webhook
+          console.error(
+            `Failed to burn NFT for subscription ${subscriptionId}:`,
+            error,
+          );
+        }
+      } else {
+        console.warn(
+          `No wallet address found for subscription ${subscriptionId}, skipping NFT burn`,
+        );
+      }
 
       return NextResponse.json({ received: true });
     }
