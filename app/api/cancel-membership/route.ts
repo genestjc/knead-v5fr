@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
             tokenId: PREMIUM_TOKEN_ID,
           });
 
-          if (balance.value > 0n) {
+            if (balance > 0n) {
             console.log(
               `User ${user_address} has premium token, burning it`,
             );
