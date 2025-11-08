@@ -34,16 +34,16 @@ const MEMBERSHIP_CONTRACTS = [
   }, // KNEAD on Base
   {
     address: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
-    chain: zora,
-  }, // ANNUAL_2025 on Zora
+    chain: base,
+  }, // ANNUAL_2025 on Base
   {
     address: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
-    chain: zora,
-  }, // SHIFT_MEAL on Zora (same address as ANNUAL_2025)
+    chain: base,
+  }, // SHIFT_MEAL on Base (same address as ANNUAL_2025)
   {
     address: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72",
-    chain: zora,
-  }, // BREADWINNERS_CLUB on Zora
+    chain: base,
+  }, // BREADWINNERS_CLUB on Base
 ];
 
 // Single-story pass contracts mapped to story slugs (all on Zora)
