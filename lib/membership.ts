@@ -4,7 +4,7 @@ import {
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721";
-import { base } from "thirdweb/chains";
+import { base, zora } from "thirdweb/chains";
 
 const MEMBERSHIP_CONTRACTS = [
   {
@@ -12,17 +12,20 @@ const MEMBERSHIP_CONTRACTS = [
     name: "Knead Membership",
     type: "erc1155",
     tokenIds: { premium: 1, freemium: 0 },
+    chain: base,
   },
   {
     address: "0x0e70AB324E8761E97F131Eecc4Dd63dFDE33cB72",
     name: "Breadwinner's Club Membership",
     type: "erc721",
+    chain: zora,
   },
   {
     address: "0xa4b1aF8cffEE71D71721cB69596C9A31ac449F13",
     name: "2025 Annual + Shift Meal Membership",
     type: "erc1155",
     tokenIds: { annual: 1, shift: 2 },
+    chain: zora,
   },
 ] as const;
 
@@ -37,7 +40,7 @@ export async function getMembershipType(
       try {
         const contractInstance = getContract({
           client,
-          chain: base,
+          chain: contract.chain,
           address: contract.address,
         });
 
