@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { useMembership } from 'your-membership-provider'; // Replace with actual membership provider import
+import { useMembership } from '@/components/membership-provider';
 
 const ChatPage = () => {
   const { account } = useActiveAccount();
