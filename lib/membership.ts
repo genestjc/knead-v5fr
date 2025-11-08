@@ -38,6 +38,10 @@ export async function getMembershipType(
   try {
     console.log(`🔍 Starting comprehensive membership check for: ${address}`);
     
+    // PASS 1: Check all premium-tier memberships across all contracts
+    // Store freemium status but don't return yet
+    let hasFreemium = false;
+    
     for (const contract of MEMBERSHIP_CONTRACTS) {
       console.log(`📋 Checking contract: ${contract.name} on ${contract.chain.name || contract.chain.id}`);
       
@@ -49,7 +53,7 @@ export async function getMembershipType(
         });
 
         if (contract.type === "erc1155" && contract.tokenIds) {
-          // Premium
+          // Check premium token
           if (contract.tokenIds.premium !== undefined) {
             try {
               console.log(`⚡ Checking premium token (ID: ${contract.tokenIds.premium})`);
@@ -69,7 +73,7 @@ export async function getMembershipType(
             }
           }
           
-          // Other tokens (annual, shift, etc.)
+          // Check other premium tokens (annual, shift, etc.)
           for (const [tokenType, tokenId] of Object.entries(contract.tokenIds)) {
             if (tokenType !== "premium" && tokenType !== "freemium") {
               try {
@@ -91,7 +95,7 @@ export async function getMembershipType(
             }
           }
           
-          // Freemium
+          // Store freemium status but don't return yet
           if (contract.tokenIds.freemium !== undefined) {
             try {
               console.log(`⚡ Checking freemium token (ID: ${contract.tokenIds.freemium})`);
@@ -102,8 +106,8 @@ export async function getMembershipType(
               });
               console.log(`📊 Balance: ${freemiumBalance}`);
               if (freemiumBalance > 0n) {
-                console.log(`✅ Found freemium membership in ${contract.name}!`);
-                return "freemium";
+                console.log(`📝 Found freemium membership in ${contract.name} (will check other contracts for premium first)`);
+                hasFreemium = true;
               }
             } catch (err) {
               console.error(`Error checking freemium token for ${contract.name}:`, err);
@@ -111,6 +115,7 @@ export async function getMembershipType(
             }
           }
         } else if (contract.type === "erc721") {
+          // Check ERC721 (Breadwinner's Club) - this is premium
           try {
             console.log(`⚡ Checking ERC721 balance`);
             const balance = await erc721BalanceOf({
@@ -133,6 +138,13 @@ export async function getMembershipType(
       }
     }
     
+    // PASS 2: Only return freemium if no premium was found
+    if (hasFreemium) {
+      console.log(`✅ Returning freemium membership (no premium found)`);
+      return "freemium";
+    }
+    
+    // PASS 3: Nothing found
     console.log(`❌ No membership found`);
     return null;
   } catch (error) {
