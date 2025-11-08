@@ -3,16 +3,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useToast } from "@/hooks/use-toast";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
+import { createThirdwebClient } from "thirdweb";
+import { getMembershipType } from "@/lib/membership";
 
 // Simplified client for balance checking
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
 });
-
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
 
 type MembershipType = "premium" | "freemium" | null;
 
@@ -43,7 +40,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Check membership directly from the contract
+  // Check membership directly from the contract using the comprehensive function
   const checkMembershipFromContract = async (address: string): Promise<MembershipType> => {
     try {
       console.log("Checking membership from contract for:", address);
@@ -57,33 +54,11 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         return null;
       }
       
-      const contract = getContract({
-        client,
-        address: CONTRACT_ADDRESS,
-        chain: base,
-      });
+      // Use the comprehensive membership checker that checks all contracts
+      // including Breadwinner's Club (ERC721 on Zora) and Annual memberships
+      const membership = await getMembershipType(client, address);
       
-      // Check both tokens
-      const [premiumBalance, freemiumBalance] = await Promise.all([
-        balanceOf({
-          contract,
-          owner: address,
-          tokenId: 1n, // Premium token ID
-        }),
-        balanceOf({
-          contract,
-          owner: address,
-          tokenId: 0n, // Freemium token ID
-        }),
-      ]);
-
-      if (premiumBalance > 0n) {
-        return "premium";
-      } else if (freemiumBalance > 0n) {
-        return "freemium";
-      }
-      
-      return null;
+      return membership;
     } catch (err) {
       console.error("Error checking membership from contract:", err);
       // Default to allowing some access rather than blocking on errors
