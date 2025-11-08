@@ -36,7 +36,11 @@ export async function getMembershipType(
   address: string,
 ): Promise<MembershipType> {
   try {
+    console.log(`🔍 Starting comprehensive membership check for: ${address}`);
+    
     for (const contract of MEMBERSHIP_CONTRACTS) {
+      console.log(`📋 Checking contract: ${contract.name} on ${contract.chain.name || contract.chain.id}`);
+      
       try {
         const contractInstance = getContract({
           client,
@@ -48,12 +52,17 @@ export async function getMembershipType(
           // Premium
           if (contract.tokenIds.premium !== undefined) {
             try {
+              console.log(`⚡ Checking premium token (ID: ${contract.tokenIds.premium})`);
               const premiumBalance = await balanceOf({
                 contract: contractInstance,
                 owner: address,
                 tokenId: BigInt(contract.tokenIds.premium),
               });
-              if (premiumBalance > 0n) return "premium";
+              console.log(`📊 Balance: ${premiumBalance}`);
+              if (premiumBalance > 0n) {
+                console.log(`✅ Found premium membership in ${contract.name}!`);
+                return "premium";
+              }
             } catch (err) {
               console.error(`Error checking premium token for ${contract.name}:`, err);
               // Continue checking other tokens
@@ -64,12 +73,17 @@ export async function getMembershipType(
           for (const [tokenType, tokenId] of Object.entries(contract.tokenIds)) {
             if (tokenType !== "premium" && tokenType !== "freemium") {
               try {
+                console.log(`⚡ Checking ${tokenType} token (ID: ${tokenId})`);
                 const balance = await balanceOf({
                   contract: contractInstance,
                   owner: address,
                   tokenId: BigInt(tokenId),
                 });
-                if (balance > 0n) return "premium";
+                console.log(`📊 Balance: ${balance}`);
+                if (balance > 0n) {
+                  console.log(`✅ Found ${tokenType} membership in ${contract.name}!`);
+                  return "premium";
+                }
               } catch (err) {
                 console.error(`Error checking ${tokenType} token:`, err);
                 // Continue checking other tokens
@@ -80,12 +94,17 @@ export async function getMembershipType(
           // Freemium
           if (contract.tokenIds.freemium !== undefined) {
             try {
+              console.log(`⚡ Checking freemium token (ID: ${contract.tokenIds.freemium})`);
               const freemiumBalance = await balanceOf({
                 contract: contractInstance,
                 owner: address,
                 tokenId: BigInt(contract.tokenIds.freemium),
               });
-              if (freemiumBalance > 0n) return "freemium";
+              console.log(`📊 Balance: ${freemiumBalance}`);
+              if (freemiumBalance > 0n) {
+                console.log(`✅ Found freemium membership in ${contract.name}!`);
+                return "freemium";
+              }
             } catch (err) {
               console.error(`Error checking freemium token for ${contract.name}:`, err);
               // Continue checking other contracts
@@ -93,11 +112,16 @@ export async function getMembershipType(
           }
         } else if (contract.type === "erc721") {
           try {
+            console.log(`⚡ Checking ERC721 balance`);
             const balance = await erc721BalanceOf({
               contract: contractInstance,
               owner: address,
             });
-            if (balance > 0n) return "premium";
+            console.log(`📊 Balance: ${balance}`);
+            if (balance > 0n) {
+              console.log(`✅ Found ERC721 membership in ${contract.name}!`);
+              return "premium";
+            }
           } catch (err) {
             console.error(`Error checking ERC721 balance for ${contract.name}:`, err);
             // Continue checking other contracts
@@ -109,6 +133,7 @@ export async function getMembershipType(
       }
     }
     
+    console.log(`❌ No membership found`);
     return null;
   } catch (error) {
     console.error("Error in getMembershipType:", error);
