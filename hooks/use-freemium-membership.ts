@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
-import { createThirdwebClient, getContract } from "thirdweb"
-import { balanceOf } from "thirdweb/extensions/erc1155"
-import { base } from "thirdweb/chains"
+import { createThirdwebClient } from "thirdweb"
 import { useToast } from "./use-toast"
+import { getMembershipType } from "@/lib/membership"
 
 // Membership status types
 type MembershipStatus = "loading" | "none" | "freemium" | "premium" | "error"
@@ -57,32 +56,15 @@ export function useFreemiumMembership(userAddress: string | null) {
       setStatus("loading")
       console.log(`Checking membership for ${userAddress}`)
 
-      const contract = getContract({
-        client,
-        address: CONTRACT_ADDRESS,
-        chain: base,
-      })
-
-      // Check both tokens in parallel for efficiency
-      const [freemiumBalance, premiumBalance] = await Promise.all([
-        balanceOf({
-          contract,
-          owner: userAddress,
-          tokenId: BigInt(TOKEN_IDS.FREEMIUM),
-        }),
-        balanceOf({
-          contract,
-          owner: userAddress,
-          tokenId: BigInt(TOKEN_IDS.PREMIUM),
-        }),
-      ])
+      // Use comprehensive membership checker that checks ALL contracts
+      const membershipType = await getMembershipType(client, userAddress)
 
       // Determine membership type
-      if (premiumBalance > 0n) {
+      if (membershipType === "premium") {
         console.log(`User ${userAddress} has premium membership`)
         setStatus("premium")
         retryCount.current = 0; // Reset retry counter
-      } else if (freemiumBalance > 0n) {
+      } else if (membershipType === "freemium") {
         console.log(`User ${userAddress} has freemium membership`)
         setStatus("freemium")
         retryCount.current = 0; // Reset retry counter
