@@ -1,3 +1,19 @@
+/**
+ * Knead Chat System Configuration
+ * 
+ * This system integrates with Towns Protocol using Web3 wallet authentication.
+ * 
+ * Key Changes:
+ * - Towns uses Web3 wallet auth (no API key needed)
+ * - Treasury wallet is generated from THIRDWEB_PRIVATE_KEY (no manual address)
+ * - Withdrawals are fully automated via ThirdWeb (no manual processing)
+ * 
+ * Environment Variables Required:
+ * - THIRDWEB_SECRET_KEY: For ThirdWeb client
+ * - THIRDWEB_PRIVATE_KEY: For Treasury wallet
+ * - NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS: $TOWNS ERC20 contract on Base
+ */
+
 import type { ChatChannel, ActionType, EventType, ContributorType, ParticipantTier } from '@/types/chat';
 
 // Knead chat channels configuration

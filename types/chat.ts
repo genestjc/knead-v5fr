@@ -118,7 +118,7 @@ export interface TownsClaimRequest {
   id: string;
   userId: string;
   amount: number;
-  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'approved' | 'rejected';
   requestedAt: Date;
   processedAt?: Date;
   txHash?: string;
