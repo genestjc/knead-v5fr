@@ -25,6 +25,9 @@ export const serverWallet = privateKeyAccount({
   privateKey: process.env.THIRDWEB_PRIVATE_KEY,
 });
 
+// Export wallet address as constant for reference
+export const SERVER_WALLET_ADDRESS = serverWallet.address;
+
 // Use contract address from env var for flexibility
 const ERC1155_CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
