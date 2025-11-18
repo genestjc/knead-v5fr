@@ -1,80 +1,127 @@
 /**
- * Towns Protocol Client using Web3 Wallet Authentication
+ * Towns Protocol React SDK Integration
  * 
- * This module provides Towns Protocol integration WITHOUT API keys.
- * Instead, it uses Web3 wallet signatures for authentication.
+ * Wraps the @towns/react SDK hooks for use in Knead chat system.
+ * - Uses Web3 wallet authentication (no API key needed)
+ * - Must wrap app with TownsSyncProvider
+ * - Messages stored on Towns Protocol (decentralized)
+ * - Synced to Supabase for point tracking and moderation
  * 
- * Key features:
- * - useTownsConnection: React hook for client-side Web3 auth
- * - getTownsBearerToken: Server-side read-only access via API endpoint
+ * @example
+ * ```tsx
+ * import { useTownsConnection, useTownsChannel, useTownsSendMessage } from '@/lib/towns/client';
+ * 
+ * function ChatComponent() {
+ *   const { connect, isAuthenticated } = useTownsConnection();
+ *   const { messages } = useTownsChannel('general');
+ *   const { sendMessage } = useTownsSendMessage();
+ *   
+ *   return <div>...</div>;
+ * }
+ * ```
  */
 
-'use client';
-
-// Note: @towns/react package should be installed (@towns-protocol/react-sdk)
-// If not available, this will need to be implemented when the package is ready
+import { 
+  useAgentConnection,
+  useTownsAuthStatus,
+  useChannel,
+  useSendMessage,
+  useReactions,
+  useThreads,
+  TownsSyncProvider,
+} from '@towns/react';
 
 /**
- * React hook for Towns Protocol connection using Web3 wallet auth
- * 
- * This replaces the old API key-based authentication with wallet signatures.
- * 
- * @returns Connection state and methods
+ * Connect wallet to Towns Protocol
+ * Uses Web3 wallet signatures for authentication
  */
 export function useTownsConnection() {
-  // TODO: Implement when @towns/react package exports useAgentConnection
-  // For now, return a stub that can be implemented later
+  const { connect, disconnect } = useAgentConnection();
+  const { isAuthenticated, isLoading: isConnecting } = useTownsAuthStatus();
   
-  // Implementation should look like:
-  // import { useAgentConnection } from '@towns/react';
-  // import { useActiveAccount } from 'thirdweb/react'; // use your existing wallet hook
-  // 
-  // const account = useActiveAccount();
-  // const signer = account?.getSigner(); // or similar method to get signer
-  // 
-  // const { connect, disconnect, isConnected, agent } = useAgentConnection({
-  //   signer, // Use wallet signer for Web3 auth
-  // });
-
-  const connect = async () => {
-    console.log('[Towns] Connecting with Web3 wallet auth...');
-    // Connect using wallet signer instead of API key
-  };
-
-  const disconnect = () => {
-    console.log('[Towns] Disconnecting...');
-  };
-
   return {
     connect,
     disconnect,
-    isConnected: false,
-    agent: null,
+    isAuthenticated,
+    isConnecting,
+    error: null, // Towns SDK handles errors internally
   };
 }
 
 /**
- * Get Towns bearer token for server-side read-only access
+ * Subscribe to a Towns channel and receive messages in real-time
  * 
- * This is used for fetching data without wallet signatures.
- * The token is obtained from the server-side API endpoint.
- * 
- * @param walletAddress - User's wallet address
- * @returns Bearer token string
+ * @param channelId - Channel identifier (e.g., 'general', 'tech')
+ * @returns Channel messages, loading state, and error
  */
-export async function getTownsBearerToken(walletAddress: string): Promise<string> {
-  try {
-    // Fetch from server-side endpoint that generates read-only tokens
-    const response = await fetch(`/api/towns/auth?address=${walletAddress}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get Towns bearer token: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.token;
-  } catch (error) {
-    console.error('[Towns] Error getting bearer token:', error);
-    throw error;
-  }
+export function useTownsChannel(channelId: string) {
+  const { messages, isLoading, error } = useChannel(channelId);
+  
+  return {
+    messages: messages || [],
+    isLoading,
+    error,
+  };
 }
+
+/**
+ * Send messages to Towns Protocol channels
+ * Can include custom metadata for Knead point system
+ * 
+ * @example
+ * ```tsx
+ * const { sendMessage } = useTownsSendMessage();
+ * 
+ * sendMessage('general', 'Hello!', {
+ *   kneadUserId: 'uuid',
+ *   eventType: 'discussion',
+ * });
+ * ```
+ */
+export function useTownsSendMessage() {
+  const { sendMessage, isSending, error } = useSendMessage();
+  
+  return {
+    sendMessage: (channelId: string, content: string, metadata?: Record<string, any>) => {
+      return sendMessage(channelId, content, metadata);
+    },
+    isSending,
+    error,
+  };
+}
+
+/**
+ * Handle reactions/likes on Towns messages
+ * Can sync with Knead like/point system
+ * 
+ * @param messageId - Towns message ID
+ */
+export function useTownsReactions(messageId: string) {
+  const { reactions, addReaction, removeReaction } = useReactions(messageId);
+  
+  return {
+    reactions: reactions || [],
+    addReaction,
+    removeReaction,
+  };
+}
+
+/**
+ * Handle threaded replies on Towns messages
+ * 
+ * @param messageId - Parent message ID
+ */
+export function useTownsThreads(messageId: string) {
+  const { replies, isLoading } = useThreads(messageId);
+  
+  return {
+    replies: replies || [],
+    isLoading,
+  };
+}
+
+/**
+ * Re-export TownsSyncProvider for app-wide sync
+ * Wrap your app with this provider in app/providers.tsx
+ */
+export { TownsSyncProvider };
