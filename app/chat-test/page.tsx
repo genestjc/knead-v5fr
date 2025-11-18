@@ -23,7 +23,7 @@ export default function ChatTestPage() {
     isBanned: false,
   };
 
-  const viewAccess = canViewChat(mockUser, 0);
+  const viewAccess = canViewChannel(mockUser, selectedChannel, 0);
   const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
 
   if (!account?.address) {
