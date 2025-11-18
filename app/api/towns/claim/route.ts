@@ -142,11 +142,18 @@ export async function POST(req: NextRequest) {
       }
 
       // Deduct from user's personal earnings
+      // First get current withdrawn amount
+      const { data: currentWallet } = await supabase
+        .from('participant_wallets')
+        .select('personal_earnings_withdrawn')
+        .eq('user_id', userId)
+        .single();
+
       const { error: deductError } = await supabase
         .from('participant_wallets')
         .update({
           personal_earnings_available: wallet.personal_earnings_available - amount,
-          personal_earnings_withdrawn: supabase.rpc('increment', { amount }),
+          personal_earnings_withdrawn: (currentWallet?.personal_earnings_withdrawn || 0) + amount,
         })
         .eq('user_id', userId);
 
@@ -172,12 +179,20 @@ export async function POST(req: NextRequest) {
       
       // Update claim request to failed
       const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Get current retry count
+      const { data: currentClaim } = await supabase
+        .from('towns_claim_requests')
+        .select('retry_count')
+        .eq('id', claimRequest.id)
+        .single();
+
       const { error: updateError } = await supabase
         .from('towns_claim_requests')
         .update({
           status: 'failed',
           error_message: errorMessage,
-          retry_count: supabase.rpc('increment', { by: 1 }),
+          retry_count: (currentClaim?.retry_count || 0) + 1,
         })
         .eq('id', claimRequest.id);
 

@@ -40,7 +40,7 @@ export function getTreasuryWallet() {
 /**
  * Get the Treasury wallet address
  */
-export function getTreasuryAddress(): Address {
+export function getTreasuryAddress(): string {
   const wallet = getTreasuryWallet();
   return wallet.address;
 }
@@ -88,9 +88,11 @@ export async function sendTownsTokens(
       account: wallet,
     });
 
+    // Note: sendTransaction returns { transactionHash, chain, client }
+    // We'll get blockNumber from the receipt if needed in the future
     return {
       transactionHash: result.transactionHash,
-      blockNumber: result.blockNumber || 0n,
+      blockNumber: BigInt(0), // Block number can be fetched from receipt later if needed
     };
   } catch (error) {
     console.error("Error sending TOWNS tokens:", error);
