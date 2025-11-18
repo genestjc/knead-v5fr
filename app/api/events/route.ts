@@ -248,7 +248,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const formattedEvents: ChatEvent[] = events.map((event: any) => ({
+    const formattedEvents: ChatEvent[] = events.map((event) => ({
       id: event.id,
       title: event.title,
       description: event.description,

@@ -80,13 +80,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Get likes count for each message
-    const messageIds = data.map((msg: any) => msg.id);
+    const messageIds = data.map((msg) => msg.id);
     const { data: likesData } = await supabase
       .from('message_likes')
       .select('message_id')
       .in('message_id', messageIds);
 
-    const likesCounts = likesData?.reduce((acc: Record<string, number>, like: any) => {
+    const likesCounts = likesData?.reduce((acc: Record<string, number>, like) => {
       acc[like.message_id] = (acc[like.message_id] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {};
@@ -98,13 +98,13 @@ export async function GET(req: NextRequest) {
       .in('reply_to_id', messageIds)
       .eq('is_deleted', false);
 
-    const repliesCounts = repliesData?.reduce((acc: Record<string, number>, reply: any) => {
+    const repliesCounts = repliesData?.reduce((acc: Record<string, number>, reply) => {
       acc[reply.reply_to_id] = (acc[reply.reply_to_id] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {};
 
     // Format messages
-    const messages: ChatMessage[] = data.map((msg: any) => ({
+    const messages: ChatMessage[] = data.map((msg) => ({
       id: msg.id,
       channelId: msg.channel_id,
       userId: msg.user_id,

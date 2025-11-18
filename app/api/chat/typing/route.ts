@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const typers = data.map((item: any) => ({
+    const typers = data.map((item) => ({
       userId: item.user_id,
       displayName: item.chat_users.alias || item.chat_users.display_name,
       avatar: item.chat_users.avatar,

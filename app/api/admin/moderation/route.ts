@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       data: {
-        flaggedMessages: flaggedMessages.map((msg: any) => ({
+        flaggedMessages: flaggedMessages.map((msg) => ({
           id: msg.id,
           content: msg.content,
           createdAt: msg.created_at,
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
             address: msg.chat_users.address,
           },
         })),
-        logs: logs.map((log: any) => ({
+        logs: logs.map((log) => ({
           id: log.id,
           messageId: log.message_id,
           action: log.action,

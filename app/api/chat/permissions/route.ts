@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin, checkFreemiumTimeRemaining } from '@/lib/supabase/chat-client';
 import { getUserPermissions } from '@/lib/chat/permissions';
-import { getTierFromPoints } from '@/lib/chat/config';
 import type { ApiResponse, UserPermissions } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';

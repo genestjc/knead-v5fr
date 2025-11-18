@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const claimRequests: TownsClaimRequest[] = claims.map((claim: any) => ({
+    const claimRequests: TownsClaimRequest[] = claims.map((claim) => ({
       id: claim.id,
       userId: claim.user_id,
       amount: claim.amount,
