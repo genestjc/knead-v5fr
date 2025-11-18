@@ -1,133 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import type { ApiResponse, TownsClaimRequest } from '@/types/chat';
-import { getTreasuryBalance, sendTownsTokens } from '@/lib/thirdweb/treasury';
+import { createClient } from '@supabase/supabase-js';
+import { sendTownsTokens, getTreasuryBalance } from '@/lib/thirdweb/treasury';
+import type { Address } from 'thirdweb';
 
-export const dynamic = 'force-dynamic';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * POST /api/towns/claim
- * Create withdrawal request for contributor's personal earnings
+ * 
+ * Process automated withdrawal of $TOWNS tokens
+ * - Validates user has sufficient earnings
+ * - Checks Treasury has sufficient balance
+ * - Sends tokens immediately via ThirdWeb
+ * - Updates user earnings and claim status
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, amount, recipientAddress } = body;
+    const { userId, amount, recipientAddress } = await req.json();
 
+    // Validate input
     if (!userId || !amount || !recipientAddress) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing required fields: userId, amount, recipientAddress' },
+      return NextResponse.json(
+        { error: 'Missing required fields: userId, amount, recipientAddress' },
         { status: 400 }
       );
     }
 
-    if (amount <= 0) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Amount must be greater than 0' },
+    const claimAmount = parseFloat(amount);
+    if (isNaN(claimAmount) || claimAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid amount' },
         { status: 400 }
       );
     }
 
-    const supabase = createSupabaseAdmin();
-
-    // Get user
+    // Get user and check permissions
     const { data: user, error: userError } = await supabase
       .from('chat_users')
-      .select('*')
+      .select('role, personal_earnings_available')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
+      return NextResponse.json(
+        { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Only contributors can claim
-    if (user.role !== 'contributor' && user.role !== 'admin' && user.role !== 'master-admin') {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Only contributors can withdraw earnings' },
+    if (user.role !== 'contributor' && user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Only contributors can claim earnings' },
         { status: 403 }
       );
     }
 
-    // Check available balance
-    const { data: wallet, error: walletError } = await supabase
-      .from('participant_wallets')
-      .select('personal_earnings_available')
-      .eq('user_id', userId)
-      .single();
-
-    if (walletError || !wallet) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Wallet not found' },
-        { status: 404 }
-      );
-    }
-
-    if (wallet.personal_earnings_available < amount) {
-      return NextResponse.json<ApiResponse<null>>(
+    // Check user has sufficient earnings
+    const availableEarnings = parseFloat(user.personal_earnings_available || '0');
+    if (claimAmount > availableEarnings) {
+      return NextResponse.json(
         { 
-          success: false, 
-          error: `Insufficient balance. Available: ${wallet.personal_earnings_available}, Requested: ${amount}` 
+          error: 'Insufficient earnings',
+          available: availableEarnings,
+          requested: claimAmount
         },
         { status: 400 }
       );
     }
 
-    // Check Treasury balance
-    let treasuryBalance: number;
-    try {
-      const balanceStr = await getTreasuryBalance();
-      treasuryBalance = parseFloat(balanceStr);
-    } catch (error) {
-      console.error('Error getting Treasury balance:', error);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to check Treasury balance' },
-        { status: 500 }
-      );
-    }
-
-    if (treasuryBalance < amount) {
-      return NextResponse.json<ApiResponse<null>>(
+    // Check Treasury has sufficient balance
+    const treasuryBalanceStr = await getTreasuryBalance();
+    const treasuryBalance = parseFloat(treasuryBalanceStr);
+    
+    if (claimAmount > treasuryBalance) {
+      return NextResponse.json(
         { 
-          success: false, 
-          error: `Insufficient Treasury funds. Treasury balance: ${treasuryBalance} TOWNS, Requested: ${amount} TOWNS. Please contact admin to fund the Treasury.` 
+          error: 'Treasury has insufficient funds. Please contact admin.',
+          treasuryBalance,
+          requested: claimAmount
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
-    // Create claim request with status 'processing'
-    const { data: claimRequest, error: claimError } = await supabase
+    // Create claim record with 'processing' status
+    const { data: claim, error: claimError } = await supabase
       .from('towns_claim_requests')
       .insert({
         user_id: userId,
-        amount: amount,
-        status: 'processing',
+        amount: claimAmount.toString(),
         recipient_address: recipientAddress,
+        status: 'processing',
       })
       .select()
       .single();
 
-    if (claimError || !claimRequest) {
-      console.error('Error creating claim request:', claimError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to create claim request' },
-        { status: 500 }
-      );
+    if (claimError || !claim) {
+      throw new Error('Failed to create claim record');
     }
 
-    // Immediately process withdrawal via Treasury
     try {
+      // Send tokens via ThirdWeb Treasury
       const { transactionHash, blockNumber } = await sendTownsTokens(
-        recipientAddress,
-        amount.toString()
+        recipientAddress as Address,
+        claimAmount.toString()
       );
 
-      // Update claim request to completed
-      const { error: updateError } = await supabase
+      // Update claim to completed
+      await supabase
         .from('towns_claim_requests')
         .update({
           status: 'completed',
@@ -135,83 +118,53 @@ export async function POST(req: NextRequest) {
           block_number: blockNumber.toString(),
           processed_at: new Date().toISOString(),
         })
-        .eq('id', claimRequest.id);
+        .eq('id', claim.id);
 
-      if (updateError) {
-        console.error('Error updating claim request:', updateError);
-      }
-
-      // Deduct from user's personal earnings
-      // First get current withdrawn amount
-      const { data: currentWallet } = await supabase
-        .from('participant_wallets')
-        .select('personal_earnings_withdrawn')
-        .eq('user_id', userId)
-        .single();
-
-      const { error: deductError } = await supabase
-        .from('participant_wallets')
+      // Deduct from user's available earnings
+      const newBalance = availableEarnings - claimAmount;
+      await supabase
+        .from('chat_users')
         .update({
-          personal_earnings_available: wallet.personal_earnings_available - amount,
-          personal_earnings_withdrawn: (currentWallet?.personal_earnings_withdrawn || 0) + amount,
+          personal_earnings_available: newBalance.toString(),
+          personal_earnings_withdrawn: (
+            parseFloat(user.personal_earnings_available || '0') + claimAmount
+          ).toString(),
         })
-        .eq('user_id', userId);
+        .eq('id', userId);
 
-      if (deductError) {
-        console.error('Error deducting from balance:', deductError);
-      }
-
-      return NextResponse.json<ApiResponse<TownsClaimRequest>>({
+      return NextResponse.json({
         success: true,
         data: {
-          id: claimRequest.id,
-          userId: claimRequest.user_id,
-          amount: claimRequest.amount,
+          id: claim.id,
+          transactionHash,
+          blockNumber: blockNumber.toString(),
+          amount: claimAmount,
+          recipient: recipientAddress,
           status: 'completed',
-          requestedAt: new Date(claimRequest.created_at),
-          processedAt: new Date(),
-          txHash: transactionHash,
         },
-        message: `Withdrawal completed successfully! ${amount} TOWNS sent to ${recipientAddress}. Transaction: ${transactionHash}`,
+        message: `Successfully sent ${claimAmount} $TOWNS to ${recipientAddress}`,
       });
-    } catch (error) {
-      console.error('Error processing withdrawal:', error);
-      
-      // Update claim request to failed
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Get current retry count
-      const { data: currentClaim } = await supabase
-        .from('towns_claim_requests')
-        .select('retry_count')
-        .eq('id', claimRequest.id)
-        .single();
 
-      const { error: updateError } = await supabase
+    } catch (txError) {
+      // Transaction failed - update claim status
+      await supabase
         .from('towns_claim_requests')
         .update({
           status: 'failed',
-          error_message: errorMessage,
-          retry_count: (currentClaim?.retry_count || 0) + 1,
+          retry_count: 1,
         })
-        .eq('id', claimRequest.id);
+        .eq('id', claim.id);
 
-      if (updateError) {
-        console.error('Error updating failed claim request:', updateError);
-      }
-
-      return NextResponse.json<ApiResponse<null>>(
-        { 
-          success: false, 
-          error: `Withdrawal failed: ${errorMessage}. Claim request ID: ${claimRequest.id}` 
-        },
-        { status: 500 }
-      );
+      throw txError;
     }
+
   } catch (error) {
-    console.error('Error in POST /api/towns/claim:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
+    console.error('Claim processing error:', error);
+    return NextResponse.json(
+      { 
+        error: 'Failed to process claim',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
@@ -219,7 +172,8 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/towns/claim
- * Get user's claim history
+ * 
+ * Get claim history for a user
  */
 export async function GET(req: NextRequest) {
   try {
@@ -227,48 +181,34 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing userId parameter' },
+      return NextResponse.json(
+        { error: 'userId required' },
         { status: 400 }
       );
     }
 
-    const supabase = createSupabaseAdmin();
-
-    // Get claim requests
-    const { data: claims, error: claimsError } = await supabase
+    const { data: claims, error } = await supabase
       .from('towns_claim_requests')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (claimsError) {
-      console.error('Error fetching claim requests:', claimsError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to fetch claim requests' },
-        { status: 500 }
-      );
+    if (error) {
+      throw error;
     }
 
-    const claimRequests: TownsClaimRequest[] = claims.map((claim) => ({
-      id: claim.id,
-      userId: claim.user_id,
-      amount: claim.amount,
-      status: claim.status,
-      requestedAt: new Date(claim.created_at),
-      processedAt: claim.processed_at ? new Date(claim.processed_at) : undefined,
-      txHash: claim.tx_hash,
-      notes: claim.notes,
-    }));
-
-    return NextResponse.json<ApiResponse<TownsClaimRequest[]>>({
+    return NextResponse.json({
       success: true,
-      data: claimRequests,
+      data: claims,
     });
+
   } catch (error) {
-    console.error('Error in GET /api/towns/claim:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
+    console.error('Get claims error:', error);
+    return NextResponse.json(
+      { 
+        error: 'Failed to get claim history',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
