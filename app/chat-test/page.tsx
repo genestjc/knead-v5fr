@@ -5,7 +5,7 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { KNEAD_CHANNELS } from '@/lib/chat/config';
-import { canViewChat } from '@/lib/chat/permissions';
+import { canViewChannel } from '@/lib/chat/permissions';
 import type { ChatUser } from '@/types/chat';
 
 export default function ChatTestPage() {
