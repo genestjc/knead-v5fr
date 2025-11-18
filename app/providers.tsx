@@ -5,6 +5,7 @@ import { base } from "thirdweb/chains";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
+import { TownsSyncProvider } from "@/lib/towns/client";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
             supportedChains={[base]} 
             supportedWallets={[embeddedWallet()]}
           >
-            {children}
+            <TownsSyncProvider>
+              {children}
+            </TownsSyncProvider>
           </ThirdwebProvider>
         </ErrorBoundary>
       </ToastProvider>
