@@ -1,23 +1,65 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { moderateContent, shouldAutoFlag, shouldAutoReject } from '@/lib/chat/moderation';
+import type { ApiResponse, ModerationResult } from '@/types/chat';
 
-export async function POST(request: Request) {
-    const { message } = await request.json();
+export const dynamic = 'force-dynamic';
 
-    // Example moderation check logic
-    const inappropriateContent = ['hate', 'violence', 'sexual'];  // Placeholder for actual moderation keywords
-    let isAppropriate = true;
-    let reason = '';
+/**
+ * POST /api/chat/moderate
+ * Standalone content moderation check using OpenAI
+ * Useful for real-time preview/validation before posting
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { content } = body;
 
-    for (const term of inappropriateContent) {
-        if (message.includes(term)) {
-            isAppropriate = false;
-            reason = `Message contains inappropriate content: ${term}`;
-            break;
-        }
+    if (!content || typeof content !== 'string') {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Missing or invalid content parameter' },
+        { status: 400 }
+      );
     }
 
+    if (content.trim().length === 0) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Content cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    // Moderate content using OpenAI
+    const moderationResult = await moderateContent(content);
+
+    const response: ApiResponse<ModerationResult> = {
+      success: true,
+      data: {
+        flagged: moderationResult.flagged,
+        score: moderationResult.score,
+        categories: moderationResult.categories,
+        message: moderationResult.message,
+      },
+    };
+
+    // Add additional metadata
+    const shouldFlag = shouldAutoFlag(moderationResult);
+    const shouldReject = shouldAutoReject(moderationResult);
+
     return NextResponse.json({
-        isAppropriate,
-        reason,
+      ...response,
+      shouldFlag,
+      shouldReject,
+      recommendation: shouldReject 
+        ? 'reject' 
+        : shouldFlag 
+        ? 'flag' 
+        : 'approve',
     });
+  } catch (error) {
+    console.error('Error in POST /api/chat/moderate:', error);
+    return NextResponse.json<ApiResponse<null>>(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
