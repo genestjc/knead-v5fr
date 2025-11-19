@@ -7,14 +7,14 @@ import {
   createThirdwebClient,
   getContract,
 } from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
 import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721";
-import { base, zora } from "thirdweb/chains";
+import { zora } from "thirdweb/chains";
 import Paywall from "./paywall";
 import { useMembership } from "@/components/membership-provider";
 import { useToast } from "@/hooks/use-toast";
-import { TOKEN_IDS, ARTICLE_LIMITS } from "@/lib/constants";
+import { ARTICLE_LIMITS } from "@/lib/constants";
 import { useFreemiumMembership } from "@/hooks/use-freemium-membership";
+import { getMembershipType } from "@/lib/membership";
 
 // Create ThirdWeb client
 const client = createThirdwebClient({
@@ -24,27 +24,6 @@ const client = createThirdwebClient({
       ? "44984f2bc038cebc6138d4ceb602c35d"
       : undefined),
 });
-
-// Membership contracts with chain info
-const MEMBERSHIP_CONTRACTS = [
-  {
-    address: process.env
-      .NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string,
-    chain: base,
-  }, // KNEAD on Base
-  {
-    address: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
-    chain: zora,
-  }, // ANNUAL_2025 on Zora
-  {
-    address: "0xA4b1aF8cffEE71D71721cB69596c9A31ac449F13",
-    chain: zora,
-  }, // SHIFT_MEAL on Zora (same address as ANNUAL_2025)
-  {
-    address: "0x0E70AB324E8761E97f131Eecc4Dd63dFDE33cB72",
-    chain: zora,
-  }, // BREADWINNERS_CLUB on Zora
-];
 
 // Single-story pass contracts mapped to story slugs (all on Zora)
 const SINGLE_STORY_PASSES: Record<string, string> = {
@@ -117,42 +96,6 @@ async function checkSingleStoryPass(
   }
 }
 
-// Helper: Check membership tokens for a contract/chain
-async function checkMembershipTokens(
-  contractAddress: string,
-  walletAddress: string,
-  chain: any,
-): Promise<{ hasPremium: boolean; hasFreemium: boolean }> {
-  try {
-    const contract = getContract({
-      client,
-      chain,
-      address: contractAddress,
-    });
-    const tokenIds = [0n, 1n];
-    const results = {
-      hasPremium: false,
-      hasFreemium: false,
-    };
-    for (const tokenId of tokenIds) {
-      try {
-        const balance = await balanceOf({
-          contract,
-          owner: walletAddress,
-          tokenId,
-        });
-        if (tokenId === 0n && balance > 0n)
-          results.hasFreemium = true;
-        if (tokenId === 1n && balance > 0n)
-          results.hasPremium = true;
-      } catch (err) {}
-    }
-    return results;
-  } catch {
-    return { hasPremium: false, hasFreemium: false };
-  }
-}
-
 interface UnlockContentProps {
   children: ReactNode;
   contentId: string;
@@ -205,8 +148,11 @@ export function UnlockContent({
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Fastest: membership-provider
-      if (safeMembershipCheck("premium")) {
+      // 1. Use comprehensive membership checker (checks ALL contracts properly)
+      const membershipType = await getMembershipType(client, account.address);
+      
+      if (membershipType === "premium") {
+        console.log("✅ Premium access granted via comprehensive check");
         setCanAccess(true);
         setIsLoading(false);
         return;
@@ -233,47 +179,15 @@ export function UnlockContent({
         }
       }
 
-      // 3. Check all membership contracts (Base and Zora)
-      for (const {
-        address,
-        chain,
-      } of MEMBERSHIP_CONTRACTS) {
-        const membershipStatus =
-          await checkMembershipTokens(
-            address,
-            account.address,
-            chain,
-          );
-        if (membershipStatus.hasPremium) {
-          setCanAccess(true);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // 4. Freemium logic (check all contracts for freemium)
-      let hasFreemium = false;
-      for (const {
-        address,
-        chain,
-      } of MEMBERSHIP_CONTRACTS) {
-        const membershipStatus =
-          await checkMembershipTokens(
-            address,
-            account.address,
-            chain,
-          );
-        if (membershipStatus.hasFreemium) {
-          hasFreemium = true;
-          break;
-        }
-      }
-      if (safeMembershipCheck("freemium") || hasFreemium) {
+      // 3. Freemium logic
+      if (membershipType === "freemium") {
         await checkFreemiumLimit();
-      } else {
-        setCanAccess(false);
-        setIsLoading(false);
+        return;
       }
+      
+      // 4. No membership found
+      setCanAccess(false);
+      setIsLoading(false);
     } catch (error) {
       setError(
         "Failed to verify your access. Please try again.",
