@@ -5,10 +5,11 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { VideoStage } from '@/components/chat/VideoStage';
-import { useChat } from '@/hooks/useChat';
+import { useChannel, useSendMessage } from '@towns-protocol/react-sdk';
+import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import { canViewChannel, canPostInChannel } from '@/lib/chat/permissions';
 import { format, formatDistanceToNow } from 'date-fns';
-import type { ChatUser, ChatEvent } from '@/types/chat';
+import type { ChatUser } from '@/types/chat';
 
 interface EventPageProps {
   params: {
@@ -22,12 +23,16 @@ export default function EventPage({ params }: EventPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const [attendanceAwarded, setAttendanceAwarded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const account = useActiveAccount();
   const { membershipType, isLoading: membershipLoading } = useMembership();
+
+  // ✅ Towns Protocol for real-time messaging (NO POLLING!)
+  const { messages: townsMessages, isLoading: loadingMessages } = useChannel('live-interviews');
+  const { sendMessage, isSending } = useSendMessage();
+  useSyncTownsToSupabase('live-interviews');
 
   // Fetch event details
   useEffect(() => {
@@ -104,36 +109,14 @@ export default function EventPage({ params }: EventPageProps) {
     updatedAt: new Date(),
   };
 
-  // Use chat hook for live-interviews channel
-  const {
-    messages,
-    permissions,
-    loading: chatLoading,
-    error: chatError,
-    sendMessage,
-    refetch,
-  } = useChat({
-    channelId: 'live-interviews',
-    userId: realUser?.id,
-  });
-
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [townsMessages]);
 
-  // Poll for new messages
-  useEffect(() => {
-    if (!realUser?.id) return;
-    
-    const interval = setInterval(() => {
-      refetch();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [realUser?.id, refetch]);
+  // ✅ NO MORE POLLING! Removed setInterval - Towns handles real-time via WebSocket
 
   // Award attendance bonus (one time per event)
   useEffect(() => {
@@ -142,8 +125,7 @@ export default function EventPage({ params }: EventPageProps) {
     async function awardAttendanceBonus() {
       try {
         // Award 10 point attendance bonus
-        // This would ideally be done via a dedicated API endpoint
-        // For now, we just mark it as awarded
+        // TODO: Create /api/chat/award-attendance endpoint
         setAttendanceAwarded(true);
         console.log('✅ Attendance bonus awarded: 10 points');
       } catch (error) {
@@ -154,19 +136,20 @@ export default function EventPage({ params }: EventPageProps) {
     awardAttendanceBonus();
   }, [realUser?.id, event, attendanceAwarded]);
 
+  // ✅ Send message via Towns Protocol
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending || !realUser) return;
 
-    setIsSending(true);
     try {
-      const success = await sendMessage(messageInput.trim());
-      if (success) {
-        setMessageInput('');
-      }
+      await sendMessage('live-interviews', messageInput.trim(), {
+        kneadUserId: realUser.id,
+        eventId: params.id,
+        timestamp: new Date().toISOString(),
+      });
+      setMessageInput('');
     } catch (error) {
       console.error('Error sending message:', error);
-    } finally {
-      setIsSending(false);
+      alert('Failed to send message. Please try again.');
     }
   };
 
@@ -345,35 +328,49 @@ export default function EventPage({ params }: EventPageProps) {
           <div className="border-b border-gray-200 p-4">
             <h2 className="font-adonis text-xl">Live Chat</h2>
             <p className="font-georgia-pro text-xs text-gray-500">
-              {messages.length} messages
+              {townsMessages?.length || 0} messages
             </p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.slice().reverse().map((message) => {
-              const roleDisplay = getRoleDisplay(message.user?.role || 'viewer');
-              return (
-                <div key={message.id} className="flex gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
-                    {message.user?.displayName?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-georgia-pro font-semibold text-sm truncate">
-                        {message.user?.alias || message.user?.displayName || 'Anonymous'}
-                      </span>
-                      <span className="text-xs">{roleDisplay.icon}</span>
-                      <span className="font-georgia-pro text-xs text-gray-400">
-                        {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                      </span>
+            {loadingMessages ? (
+              <div className="text-center text-gray-500 py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-2"></div>
+                Loading messages...
+              </div>
+            ) : townsMessages && townsMessages.length > 0 ? (
+              townsMessages.slice().reverse().map((message) => {
+                const displayName = message.sender?.displayName || message.sender?.username || 'Anonymous';
+                const roleDisplay = getRoleDisplay('viewer'); // Default to viewer since Towns doesn't know Knead roles
+                
+                return (
+                  <div key={message.id} className="flex gap-2">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
-                    <p className="font-georgia-pro text-sm text-gray-800 break-words">
-                      {message.content}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-georgia-pro font-semibold text-sm truncate">
+                          {displayName}
+                        </span>
+                        <span className="text-xs">{roleDisplay.icon}</span>
+                        <span className="font-georgia-pro text-xs text-gray-400">
+                          {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="font-georgia-pro text-sm text-gray-800 break-words">
+                        {message.text || message.content}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p className="font-georgia-pro">No messages yet</p>
+                <p className="font-georgia-pro text-xs mt-2">Be the first to comment!</p>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
