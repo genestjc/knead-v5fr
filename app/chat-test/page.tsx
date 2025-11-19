@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 
 // Dynamically import the chat component with ssr: false
-const ChatTestClient = dynamic(() => import('./chat-test-client'), {
+const ChatTestClient = nextDynamic(() => import('./chat-test-client'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -16,6 +16,8 @@ const ChatTestClient = dynamic(() => import('./chat-test-client'), {
 });
 
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
 
 export default function ChatTestPage() {
   return <ChatTestClient />;
