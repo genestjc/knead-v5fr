@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getContract,
   prepareContractCall,
-  sendTransaction,
+  Engine,
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
@@ -77,11 +77,16 @@ export async function POST(req: NextRequest) {
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [user_address, 1n, 1n],
+      gasLimit: 300000n,
     });
 
-    await sendTransaction({
-      account: serverWallet,
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
+    });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
 
     if (email) {
@@ -99,6 +104,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      transactionHash,
+      transactionId,
       message: "VIP membership minted successfully",
     });
   } catch (error) {
