@@ -1,28 +1,35 @@
-"use client";
+'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { KNEAD_CHANNELS } from '@/lib/chat/config';
-import { canViewChannel, canPostInChannel, canAwardLikes } from '@/lib/chat/permissions';
-import { useChat } from '@/hooks/useChat';
-import type { ChatUser, ChatMessage } from '@/types/chat';
-import { formatDistanceToNow } from 'date-fns';
+import { useAgentConnection, useTownsAuthStatus, useChannel, useSendMessage } from '@towns/react';
+import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
+import type { ChatUser } from '@/types/chat';
 
 export default function ChatTestPage() {
-  const [selectedChannel, setSelectedChannel] = useState('main');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [realUser, setRealUser] = useState<ChatUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [messageInput, setMessageInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [selectedChannel, setSelectedChannel] = useState('main');
   const account = useActiveAccount();
-  const { membershipType, isLoading: membershipLoading } = useMembership();
 
-  // Fetch or create real user from database
+  // Towns Protocol - Wallet-based authentication
+  const { connect, disconnect } = useAgentConnection();
+  const { isAuthenticated, isLoading: isConnecting } = useTownsAuthStatus();
+
+  // Channel subscription (real-time messages)
+  const { messages: townsMessages, isLoading: loadingMessages } = useChannel(selectedChannel);
+
+  // Send message hook
+  const { sendMessage, isSending, error: sendError } = useSendMessage();
+
+  // Background sync to Supabase
+  const { isSyncing, syncedCount } = useSyncTownsToSupabase(selectedChannel);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch or create Knead user profile
   useEffect(() => {
     async function fetchUser() {
       if (!account?.address) {
@@ -30,158 +37,75 @@ export default function ChatTestPage() {
         return;
       }
 
-      // Wait for membership to load first
-      if (membershipLoading) {
-        return;
-      }
-
       try {
-        console.log('🔄 Fetching/creating user for:', account.address);
-        console.log('📊 Membership Type:', membershipType);
-
         const response = await fetch('/api/chat/get-or-create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             address: account.address,
-            membershipTier: membershipType || 'freemium',
           }),
         });
 
         const data = await response.json();
-        console.log('✅ User API Response:', data);
         
         if (data.success && data.user) {
-          setRealUser(data.user);
-          console.log('👤 Real User Loaded:', data.user);
-          console.log('🔑 User Role:', data.user.role);
-          console.log('💎 User Tier:', data.user.membershipTier);
-        } else {
-          console.error('❌ Failed to load user:', data.error);
+          setCurrentUser(data.user);
         }
       } catch (error) {
-        console.error('❌ Error fetching user:', error);
+        console.error('Error fetching user:', error);
       } finally {
         setLoading(false);
       }
     }
 
     fetchUser();
-  }, [account?.address, membershipType, membershipLoading]);
+  }, [account?.address]);
 
-  // Use real user if available, otherwise create temporary fallback
-  const currentUser: ChatUser = realUser || {
-    id: account?.address || '',
-    address: account?.address || '',
-    displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
-    role: 'viewer',
-    membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
-    contributorType: undefined,
-    isBanned: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  // Initialize chat hook with polling
-  const {
-    messages,
-    permissions,
-    loading: chatLoading,
-    error: chatError,
-    sendMessage,
-    awardLike,
-    refetch,
-  } = useChat({
-    channelId: selectedChannel,
-    userId: realUser?.id,
-  });
+  // Connect to Towns when wallet is connected
+  useEffect(() => {
+    if (account?.address && !isAuthenticated && !isConnecting) {
+      connect().catch(err => {
+        console.error('Failed to connect to Towns:', err);
+      });
+    }
+  }, [account?.address, isAuthenticated, isConnecting, connect]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [townsMessages]);
+
+  // Send message via Towns Protocol
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!messageInput.trim() || !currentUser || isSending || !isAuthenticated) {
+      return;
     }
-  }, [messages]);
 
-  // Poll for new messages every 3 seconds
-  useEffect(() => {
-    if (!realUser?.id) return;
-    
-    const interval = setInterval(() => {
-      refetch();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [realUser?.id, refetch]);
-
-  // Debug logs
-  console.log('=== CHAT TEST DEBUG ===');
-  console.log('Account Address:', account?.address);
-  console.log('Membership Type:', membershipType);
-  console.log('Real User:', realUser);
-  console.log('Current User:', currentUser);
-  console.log('Is Using Real User:', !!realUser);
-  
-  const viewAccess = canViewChannel(currentUser, selectedChannel, 0);
-  console.log('View Access Result:', viewAccess);
-
-  const postAccess = canPostInChannel(currentUser, selectedChannel);
-  const likeAccess = canAwardLikes(currentUser);
-
-  const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
-
-  // Handle message send
-  const handleSendMessage = async () => {
-    if (!messageInput.trim() || isSending || !realUser) return;
-
-    setIsSending(true);
     try {
-      const success = await sendMessage(messageInput.trim());
-      if (success) {
-        setMessageInput('');
-      }
+      // Send via Towns Protocol (wallet-signed, decentralized)
+      await sendMessage(selectedChannel, messageInput, {
+        kneadUserId: currentUser.id,
+        walletAddress: account?.address,
+        timestamp: new Date().toISOString(),
+      });
+
+      setMessageInput('');
+      
     } catch (error) {
-      console.error('Error sending message:', error);
-    } finally {
-      setIsSending(false);
+      console.error('Failed to send message:', error);
+      alert('Failed to send message. Please try again.');
     }
   };
 
-  // Handle Enter key
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  // Handle like
-  const handleLike = async (messageId: string) => {
-    if (!likeAccess.canAward) return;
-    await awardLike(messageId, 'insightful_response', 'discussion');
-  };
-
-  // Get role icon and label
-  const getRoleDisplay = (role: string) => {
-    switch (role) {
-      case 'master-admin':
-        return { icon: '👑', label: 'Master Admin' };
-      case 'admin':
-        return { icon: '🛡️', label: 'Admin' };
-      case 'contributor':
-        return { icon: '✍️', label: 'Contributor' };
-      default:
-        return { icon: '👤', label: 'Viewer' };
-    }
-  };
-
-  // Show loading state
-  if (loading || membershipLoading) {
+  // Loading state
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Loading chat...</p>
+          <p className="font-georgia-pro text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -194,7 +118,7 @@ export default function ChatTestPage() {
         <div className="text-center max-w-md px-4">
           <h1 className="font-adonis text-5xl mb-6">Knead Chat</h1>
           <p className="font-georgia-pro text-lg mb-8 text-gray-600">
-            Connect your wallet to access the community chat
+            Connect your wallet to join the conversation
           </p>
           <ThirdWebConnectButton />
         </div>
@@ -202,313 +126,153 @@ export default function ChatTestPage() {
     );
   }
 
-  // Access denied
-  if (!viewAccess.canView) {
+  // Wallet connected but Towns not authenticated
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">Access Restricted</h1>
-          <p className="font-georgia-pro text-lg mb-6 text-gray-600">{viewAccess.reason}</p>
-          <a 
-            href="/join" 
-            className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
-          >
-            Upgrade to Premium
-          </a>
+          <h1 className="font-adonis text-4xl mb-4">Connecting to Towns...</h1>
+          {isConnecting ? (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+              <p className="font-georgia-pro text-gray-600">
+                Please sign the message in your wallet to authenticate
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-georgia-pro text-gray-600 mb-6">
+                Towns Protocol requires wallet signature for authentication
+              </p>
+              <button
+                onClick={() => connect()}
+                className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+              >
+                Connect to Towns
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      <header className="border-b border-gray-200 p-4 flex items-center justify-between bg-white">
-        <h1 className="font-adonis text-3xl">Knead</h1>
-        <div className="flex items-center space-x-4">
-          <div className="text-right">
-            <span className="font-georgia-pro text-sm text-gray-600 block">
-              {currentUser.displayName}
-            </span>
-            {realUser && (
-              <span className="font-georgia-pro text-xs text-gray-400 block">
-                {currentUser.role === 'master-admin' ? '👑 Master Admin' : 
-                 currentUser.role === 'admin' ? '🛡️ Admin' :
-                 currentUser.role === 'contributor' ? '✍️ Contributor' : 
-                 '👤 Viewer'}
-              </span>
-            )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="font-adonis text-3xl">Knead Chat</h1>
+            <p className="font-georgia-pro text-sm text-gray-600">
+              {currentUser?.alias || currentUser?.displayName || 'Anonymous'}
+              {' · '}
+              <span className="text-xs">{currentUser?.membershipTier}</span>
+              {isAuthenticated && <span className="text-xs text-green-600 ml-2">● Towns Connected</span>}
+            </p>
           </div>
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex flex-col space-y-1.5 p-2 hover:bg-gray-50 rounded transition"
-            aria-label="Menu"
-          >
-            <span className={`w-6 h-0.5 bg-black transition-all ${isMenuOpen ? 'rotate-45 translate-y-2' : ''}`} />
-            <span className={`w-6 h-0.5 bg-black transition-all ${isMenuOpen ? 'opacity-0' : ''}`} />
-            <span className={`w-6 h-0.5 bg-black transition-all ${isMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
-          </button>
+          <div className="flex items-center gap-4">
+            {isSyncing && (
+              <span className="text-xs text-gray-500">Syncing... ({syncedCount} messages)</span>
+            )}
+            <button
+              onClick={() => disconnect()}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Disconnect Towns
+            </button>
+            <ThirdWebConnectButton />
+          </div>
         </div>
       </header>
 
-      {isMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity"
-          onClick={() => setIsMenuOpen(false)}
-        >
-          <div 
-            className="absolute right-0 top-0 h-full w-80 bg-white shadow-2xl p-8 transform transition-transform"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setIsMenuOpen(false)}
-              className="absolute top-6 right-6 text-3xl text-gray-400 hover:text-black transition"
-            >
-              ×
-            </button>
-            <nav className="mt-16 space-y-6">
-              <button className="font-adonis text-2xl block w-full text-left hover:text-gray-600 transition">
-                Settings
-              </button>
-              <button className="font-adonis text-2xl block w-full text-left hover:text-gray-600 transition">
-                Transfer Earnings
-              </button>
-              <button className="font-adonis text-2xl block w-full text-left hover:text-gray-600 transition">
-                View Profile
-              </button>
-              <div className="border-t border-gray-200 pt-6">
-                <a 
-                  href="/" 
-                  className="font-adonis text-2xl block w-full text-left hover:text-gray-600 transition"
-                >
-                  Return to Home
-                </a>
-              </div>
-            </nav>
-            
-            <div className="absolute bottom-8 left-8 right-8 border-t border-gray-200 pt-6">
-              <div className="font-georgia-pro text-sm text-gray-500 space-y-2">
-                <div className="flex justify-between">
-                  <span>Role:</span>
-                  <span className="font-semibold capitalize">{currentUser.role.replace('-', ' ')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Membership:</span>
-                  <span className="font-semibold capitalize">{currentUser.membershipTier}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>User Type:</span>
-                  <span className="font-semibold">{realUser ? '✅ Real' : '⚠️ Guest'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-72 border-r border-gray-200 flex flex-col bg-gray-50">
-          <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="font-adonis text-sm uppercase tracking-wider text-gray-500 mb-4">Channels</h2>
-            <div className="space-y-1">
-              {KNEAD_CHANNELS.map(channel => (
+      <div className="flex max-w-7xl mx-auto">
+        {/* Sidebar - Channels */}
+        <aside className="w-64 bg-white border-r border-gray-200 h-screen">
+          <div className="p-4">
+            <h2 className="font-georgia-pro font-semibold text-sm text-gray-500 uppercase mb-4">
+              Channels
+            </h2>
+            <nav className="space-y-2">
+              {['main', 'food', 'tech', 'art', 'fashion', 'live-interviews'].map(channel => (
                 <button
-                  key={channel.id}
-                  onClick={() => setSelectedChannel(channel.id)}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition font-georgia-pro flex items-center space-x-3 ${
-                    selectedChannel === channel.id
-                      ? 'bg-white shadow-sm text-black'
-                      : 'text-gray-600 hover:bg-white hover:shadow-sm'
-                  }`}
+                  key={channel}
+                  onClick={() => setSelectedChannel(channel)}
+                  className={`
+                    w-full text-left px-4 py-2 rounded-lg font-georgia-pro transition
+                    ${selectedChannel === channel 
+                      ? 'bg-black text-white' 
+                      : 'hover:bg-gray-100 text-gray-700'}
+                  `}
                 >
-                  <span className="text-xl">{channel.icon}</span>
-                  <span>{channel.name}</span>
-                  {channel.isOpenPeriod && (
-                    <span className="ml-auto w-2 h-2 bg-green-500 rounded-full" title="Open Period Active" />
-                  )}
+                  # {channel}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 p-6 bg-white">
-            <h2 className="font-adonis text-sm uppercase tracking-wider text-gray-500 mb-4">Direct Messages</h2>
-            <button className="w-full text-left px-4 py-3 rounded-xl font-georgia-pro text-gray-600 hover:bg-gray-50 transition flex items-center space-x-3">
-              <span className="text-xl">✉️</span>
-              <span>Messages</span>
-            </button>
+            </nav>
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col bg-white">
-          <div className="border-b border-gray-200 p-6 bg-white">
-            <div className="flex items-center space-x-3 mb-2">
-              <span className="text-2xl">{currentChannel?.icon}</span>
-              <h2 className="font-adonis text-2xl">{currentChannel?.name}</h2>
-              {currentChannel?.isOpenPeriod && (
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-georgia-pro font-semibold">
-                  OPEN PERIOD
-                </span>
-              )}
-            </div>
-            <p className="font-georgia-pro text-sm text-gray-500 ml-11">
-              {currentChannel?.description}
-            </p>
-          </div>
-
-          <div 
-            ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-6 bg-gray-50"
-          >
-            {chatLoading && messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-                  <p className="font-georgia-pro text-gray-600">Loading messages...</p>
-                </div>
+        {/* Main Chat Area */}
+        <main className="flex-1 flex flex-col h-screen">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {loadingMessages ? (
+              <div className="text-center text-gray-500 py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-2"></div>
+                Loading messages...
               </div>
-            ) : messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-4">💬</div>
-                  <h3 className="font-adonis text-2xl mb-2">No messages yet</h3>
-                  <p className="font-georgia-pro text-gray-500 mb-4">
-                    Be the first to start the conversation!
-                  </p>
-                </div>
+            ) : !townsMessages || townsMessages.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <p className="font-georgia-pro">No messages yet</p>
+                <p className="text-sm mt-2">Be the first to start the conversation!</p>
               </div>
             ) : (
-              <div className="space-y-4 max-w-4xl mx-auto">
-                {messages.slice().reverse().map((message) => {
-                  const roleDisplay = getRoleDisplay(message.user?.role || 'viewer');
-                  return (
-                    <div key={message.id} className="flex gap-3 group">
-                      {/* Avatar */}
-                      <div className="flex-shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-semibold">
-                          {message.user?.displayName?.charAt(0).toUpperCase() || '?'}
-                        </div>
-                      </div>
-
-                      {/* Message content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-georgia-pro font-semibold text-sm">
-                            {message.user?.alias || message.user?.displayName || 'Anonymous'}
-                          </span>
-                          <span className="text-xs" title={roleDisplay.label}>
-                            {roleDisplay.icon}
-                          </span>
-                          <span className="font-georgia-pro text-xs text-gray-400">
-                            {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                          </span>
-                        </div>
-                        
-                        {/* Reply indicator */}
-                        {message.replyToContent && (
-                          <div className="mb-2 pl-3 border-l-2 border-gray-300 py-1">
-                            <p className="font-georgia-pro text-xs text-gray-500">
-                              Replying to {message.replyToUser}
-                            </p>
-                            <p className="font-georgia-pro text-xs text-gray-400 truncate">
-                              {message.replyToContent}
-                            </p>
-                          </div>
-                        )}
-
-                        <p className="font-georgia-pro text-sm text-gray-800 whitespace-pre-wrap break-words">
-                          {message.content}
-                        </p>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-4 mt-2">
-                          {/* Like button */}
-                          {likeAccess.canAward && (
-                            <button
-                              onClick={() => handleLike(message.id)}
-                              className="flex items-center gap-1 text-xs text-gray-500 hover:text-black transition"
-                              title="Award like"
-                            >
-                              <span>👍</span>
-                              {message.likesCount > 0 && (
-                                <span className="font-semibold">{message.likesCount}</span>
-                              )}
-                            </button>
-                          )}
-                          {!likeAccess.canAward && message.likesCount > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <span>👍</span>
-                              <span>{message.likesCount}</span>
-                            </div>
-                          )}
-                          
-                          {/* Reply count */}
-                          {message.repliesCount > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <span>💬</span>
-                              <span>{message.repliesCount}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-
-          <div className="px-6 py-2 bg-white border-t border-gray-100">
-            <p className="font-georgia-pro text-xs text-gray-400 italic h-4">
-              {/* Typing indicator placeholder */}
-            </p>
-          </div>
-
-          <div className="p-6 bg-white border-t border-gray-200">
-            {!postAccess.canPost ? (
-              <div className="text-center py-4">
-                <p className="font-georgia-pro text-sm text-gray-500">
-                  {postAccess.reason || 'You cannot post in this channel'}
-                </p>
-                {currentUser.membershipTier === 'freemium' && (
-                  <a 
-                    href="/join" 
-                    className="inline-block mt-2 px-4 py-2 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
-                  >
-                    Upgrade to Post
-                  </a>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {chatError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-                    <p className="font-georgia-pro text-sm text-red-800">{chatError}</p>
+              townsMessages.map((msg) => (
+                <div key={msg.id} className="flex gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-sm font-semibold">
+                    {(msg.sender?.displayName || msg.sender?.username || 'A').slice(0, 2).toUpperCase()}
                   </div>
-                )}
-                <div className="flex items-end space-x-3">
-                  <textarea
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message... (Shift+Enter for newline)"
-                    className="flex-1 px-6 py-3 border border-gray-300 rounded-2xl font-georgia-pro focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 resize-none min-h-[48px] max-h-32"
-                    rows={1}
-                    disabled={isSending}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    className="px-8 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!messageInput.trim() || isSending}
-                  >
-                    {isSending ? 'Sending...' : 'Send'}
-                  </button>
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="font-georgia-pro font-semibold">
+                        {msg.sender?.displayName || msg.sender?.username || 'Anonymous'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="font-georgia-pro text-gray-800">{msg.text}</p>
+                  </div>
                 </div>
-                <p className="font-georgia-pro text-xs text-gray-400 px-2">
-                  Press Enter to send • Shift+Enter for new line
-                </p>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Message Input */}
+          <div className="border-t border-gray-200 p-4 bg-white">
+            {sendError && (
+              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                Error: {sendError.message}
               </div>
             )}
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                placeholder="Type a message..."
+                disabled={isSending || !isAuthenticated}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-georgia-pro focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={isSending || !messageInput.trim() || !isAuthenticated}
+                className="px-6 py-3 bg-black text-white rounded-lg font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSending ? 'Sending...' : 'Send'}
+              </button>
+            </form>
           </div>
         </main>
       </div>
