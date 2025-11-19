@@ -2,14 +2,8 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { WalletProvider } from "@/components/wallet-provider";
-import { MembershipProvider } from "@/components/membership-provider";
+import { Providers } from "./providers";
 import { Footer } from "@/components/footer";
-import { Toaster } from "@/components/ui/toaster";
-import { ThirdwebProvider } from "thirdweb/react";
-import { client } from "@/thirdweb-client";
-import { ErrorBoundary } from "@/components/error-boundary"; // Add this import
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -45,28 +39,10 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        {/* Wrap ThirdwebProvider with ErrorBoundary */}
-        <ErrorBoundary>
-          <ThirdwebProvider client={client}>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="light"
-              enableSystem={false}
-              disableTransitionOnChange
-            >
-              <WalletProvider>
-                <MembershipProvider>
-                  {/* Wrap main content with ErrorBoundary */}
-                  <ErrorBoundary>
-                    {children}
-                  </ErrorBoundary>
-                  <Footer />
-                  <Toaster />
-                </MembershipProvider>
-              </WalletProvider>
-            </ThemeProvider>
-          </ThirdwebProvider>
-        </ErrorBoundary>
+        <Providers>
+          {children}
+          <Footer />
+        </Providers>
       </body>
     </html>
   );
