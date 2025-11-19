@@ -19,10 +19,42 @@ import type { ChatChannel, ActionType, EventType, ContributorType, ParticipantTi
 // Knead chat channels configuration
 export const KNEAD_CHANNELS: ChatChannel[] = [
   {
-    id: 'general',
-    name: 'General',
+    id: 'main',
+    name: 'Main',
     icon: '💬',
     description: 'General discussion for all topics',
+    isOpenPeriod: false,
+    requiresContributor: false,
+  },
+  {
+    id: 'food',
+    name: 'Food',
+    icon: '🍽️',
+    description: 'Culinary arts, recipes, and food culture',
+    isOpenPeriod: false,
+    requiresContributor: false,
+  },
+  {
+    id: 'tech',
+    name: 'Tech',
+    icon: '💻',
+    description: 'Technology, AI, and innovation discussions',
+    isOpenPeriod: false,
+    requiresContributor: false,
+  },
+  {
+    id: 'art',
+    name: 'Art',
+    icon: '🎨',
+    description: 'Visual arts, design, and creativity',
+    isOpenPeriod: false,
+    requiresContributor: false,
+  },
+  {
+    id: 'fashion',
+    name: 'Fashion',
+    icon: '👗',
+    description: 'Style, fashion, and design trends',
     isOpenPeriod: false,
     requiresContributor: false,
   },
@@ -30,25 +62,13 @@ export const KNEAD_CHANNELS: ChatChannel[] = [
     id: 'live-interviews',
     name: 'Live Interviews',
     icon: '🎙️',
-    description: 'Voice and video interviews with contributors',
+    description: 'Live events with special guests, video streaming, and real-time discussion',
     isOpenPeriod: false,
-    requiresContributor: true,
-  },
-  {
-    id: 'essay-discussion',
-    name: 'Essay Discussion',
-    icon: '📝',
-    description: 'Deep discussions on essays and articles',
-    isOpenPeriod: false,
-    requiresContributor: false,
-  },
-  {
-    id: 'contributors',
-    name: 'Contributors',
-    icon: '⭐',
-    description: 'Private channel for contributors only',
-    isOpenPeriod: false,
-    requiresContributor: true,
+    requiresContributor: false, // All members can view
+    // Note: Permissions are tiered:
+    // - Unpaid participants: view-only
+    // - Premium members: can chat
+    // - Contributors: can award likes
   },
 ];
 
@@ -142,6 +162,15 @@ export const CONTRIBUTOR_BUDGET = {
 export const MODERATION_THRESHOLDS = {
   autoFlag: 0.8, // Auto-flag if any category exceeds this
   autoReject: 0.9, // Auto-reject if any category exceeds this
+};
+
+// Live event configuration
+export const LIVE_EVENT_CONFIG = {
+  // When isOpenPeriod is true for live-interviews channel:
+  freeViewAccess: true, // Unpaid users can view during open periods
+  premiumCanChat: true, // Premium members can participate in chat
+  contributorsCanAward: true, // Contributors can award likes during event
+  autoRecordAttendance: true, // Award attendance bonus automatically
 };
 
 // Helper functions
