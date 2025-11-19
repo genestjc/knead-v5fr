@@ -10,12 +10,12 @@
 import {
   createThirdwebClient,
   toWei,
-  getTransactionReceipt,
   Engine,
   getContract,
   prepareContractCall,
   readContract,
 } from "thirdweb";
+import { getRpcClient, eth_getTransactionReceipt } from "thirdweb/rpc";
 import { base } from "thirdweb/chains";
 import type { Address } from "thirdweb";
 
@@ -62,7 +62,7 @@ export function getTreasuryAddress(): string {
 export async function sendTownsTokens(
   recipientAddress: Address,
   amount: string,
-): Promise<{ transactionId: string; transactionHash: string; blockNumber: bigint }> {
+): Promise<{ transactionId: string; transactionHash: string; blockNumber?: bigint }> {
   try {
     const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
     if (!townsContractAddress) {
@@ -95,17 +95,23 @@ export async function sendTownsTokens(
       transactionId,
     });
 
-    // Fetch block number from receipt
-    const receipt = await getTransactionReceipt({
-      client: thirdwebClient,
-      chain: base,
-      transactionHash,
-    });
+    // Try to fetch block number from receipt (optional, may fail if tx is still pending)
+    let blockNumber: bigint | undefined;
+    try {
+      const rpcRequest = getRpcClient({ client: thirdwebClient, chain: base });
+      const receipt = await eth_getTransactionReceipt(rpcRequest, {
+        hash: transactionHash as `0x${string}`,
+      });
+      blockNumber = receipt.blockNumber;
+    } catch (receiptError) {
+      console.warn("Could not fetch transaction receipt:", receiptError);
+      // Continue without block number
+    }
 
     return {
       transactionId,
       transactionHash,
-      blockNumber: receipt.blockNumber,
+      blockNumber,
     };
   } catch (error) {
     console.error("Error sending TOWNS tokens:", error);
