@@ -1,7 +1,11 @@
 import "dotenv/config";
-import { createThirdwebClient, Engine, prepareTransaction } from "thirdweb";
+import {
+  createThirdwebClient,
+  Engine,
+  prepareTransaction,
+  toWei,
+} from "thirdweb";
 import { base } from "thirdweb/chains";
-import { parseEther } from "thirdweb";
 
 async function main() {
   const client = createThirdwebClient({
@@ -15,7 +19,7 @@ async function main() {
 
   const transaction = prepareTransaction({
     to: process.env.TREASURY_RECIPIENT_ADDRESS!,
-    value: parseEther(process.env.TREASURY_ETH_TRANSFER_AMOUNT!),
+    value: toWei(process.env.TREASURY_ETH_TRANSFER_AMOUNT!), // Use toWei instead of parseEther
     chain: base,
   });
 
