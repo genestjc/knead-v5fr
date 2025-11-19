@@ -3,9 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection, useTownsAuthStatus, useChannel, useSendMessage } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useChannel, useSendMessage } from '@towns-protocol/react-sdk';
+import { townsEnv } from '@towns-protocol/sdk';
 import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import type { ChatUser } from '@/types/chat';
+import { ethers } from 'ethers';
+
+// Towns Protocol environment config
+const townsConfig = townsEnv().makeTownsConfig('gamma'); // or 'prod' for production
 
 export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
@@ -14,17 +19,12 @@ export default function ChatTestClient() {
   const [selectedChannel, setSelectedChannel] = useState('main');
   const account = useActiveAccount();
 
-  // Towns Protocol - Wallet-based authentication
-  const { connect, disconnect } = useAgentConnection();
-  const { isAuthenticated, isLoading: isConnecting } = useTownsAuthStatus();
+  // Towns Protocol connection
+  const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
 
-  // Channel subscription (real-time messages)
+  // Only use Towns hooks after connected
   const { messages: townsMessages, isLoading: loadingMessages } = useChannel(selectedChannel);
-
-  // Send message hook
   const { sendMessage, isSending, error: sendError } = useSendMessage();
-
-  // Background sync to Supabase
   const { isSyncing, syncedCount } = useSyncTownsToSupabase(selectedChannel);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -63,12 +63,31 @@ export default function ChatTestClient() {
 
   // Connect to Towns when wallet is connected
   useEffect(() => {
-    if (account?.address && !isAuthenticated && !isConnecting) {
-      connect().catch(err => {
-        console.error('Failed to connect to Towns:', err);
-      });
+    if (!account?.address || isAgentConnected || isAgentConnecting) {
+      return;
     }
-  }, [account?.address, isAuthenticated, isConnecting, connect]);
+
+    const connectToTowns = async () => {
+      try {
+        // Get ethers provider from window.ethereum
+        if (!window.ethereum) {
+          console.error('No ethereum provider found');
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+
+        // Connect to Towns Protocol
+        await connect(signer, { townsConfig });
+        console.log('✅ Connected to Towns Protocol');
+      } catch (err) {
+        console.error('Failed to connect to Towns:', err);
+      }
+    };
+
+    connectToTowns();
+  }, [account?.address, isAgentConnected, isAgentConnecting, connect]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -79,7 +98,7 @@ export default function ChatTestClient() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!messageInput.trim() || !currentUser || isSending || !isAuthenticated) {
+    if (!messageInput.trim() || !currentUser || isSending || !isAgentConnected) {
       return;
     }
 
@@ -127,12 +146,12 @@ export default function ChatTestClient() {
   }
 
   // Wallet connected but Towns not authenticated
-  if (!isAuthenticated) {
+  if (!isAgentConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-md px-4">
           <h1 className="font-adonis text-4xl mb-4">Connecting to Towns...</h1>
-          {isConnecting ? (
+          {isAgentConnecting ? (
             <>
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
               <p className="font-georgia-pro text-gray-600">
@@ -145,7 +164,15 @@ export default function ChatTestClient() {
                 Towns Protocol requires wallet signature for authentication
               </p>
               <button
-                onClick={() => connect()}
+                onClick={async () => {
+                  try {
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const signer = provider.getSigner();
+                    await connect(signer, { townsConfig });
+                  } catch (err) {
+                    console.error('Connection failed:', err);
+                  }
+                }}
                 className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
               >
                 Connect to Towns
@@ -168,7 +195,7 @@ export default function ChatTestClient() {
               {currentUser?.alias || currentUser?.displayName || 'Anonymous'}
               {' · '}
               <span className="text-xs">{currentUser?.membershipTier}</span>
-              {isAuthenticated && <span className="text-xs text-green-600 ml-2">● Towns Connected</span>}
+              {isAgentConnected && <span className="text-xs text-green-600 ml-2">● Towns Connected</span>}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -262,12 +289,12 @@ export default function ChatTestClient() {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder="Type a message..."
-                disabled={isSending || !isAuthenticated}
+                disabled={isSending || !isAgentConnected}
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-georgia-pro focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={isSending || !messageInput.trim() || !isAuthenticated}
+                disabled={isSending || !messageInput.trim() || !isAgentConnected}
                 className="px-6 py-3 bg-black text-white rounded-lg font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSending ? 'Sending...' : 'Send'}
