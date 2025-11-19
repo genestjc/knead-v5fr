@@ -154,24 +154,38 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/admin/moderation
- * Hide/unhide messages and log moderation actions (admin only)
+ * Hide/unhide messages, ban users, and log moderation actions (admin only)
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { adminId, messageId, action, reason } = body;
+    const { adminId, messageId, userId, action, reason } = body;
 
-    if (!adminId || !messageId || !action) {
+    if (!adminId || !action) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing required fields: adminId, messageId, action' },
+        { success: false, error: 'Missing required fields: adminId, action' },
         { status: 400 }
       );
     }
 
-    const validActions = ['hide', 'unhide'];
+    const validActions = ['hide', 'unhide', 'ban', 'unban'];
     if (!validActions.includes(action)) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: `Invalid action. Must be one of: ${validActions.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    if (['hide', 'unhide'].includes(action) && !messageId) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'messageId required for hide/unhide actions' },
+        { status: 400 }
+      );
+    }
+
+    if (['ban', 'unban'].includes(action) && !userId) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'userId required for ban/unban actions' },
         { status: 400 }
       );
     }
@@ -214,39 +228,83 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update message visibility
-    const isHidden = action === 'hide';
-    const { error: updateError } = await supabase
-      .from('chat_messages')
-      .update({ is_hidden: isHidden })
-      .eq('id', messageId);
+    let actionMessage = '';
 
-    if (updateError) {
-      console.error('Error updating message:', updateError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to update message' },
-        { status: 500 }
-      );
+    // Handle message hide/unhide
+    if (action === 'hide' || action === 'unhide') {
+      const isHidden = action === 'hide';
+      const { error: updateError } = await supabase
+        .from('chat_messages')
+        .update({ is_hidden: isHidden })
+        .eq('id', messageId);
+
+      if (updateError) {
+        console.error('Error updating message:', updateError);
+        return NextResponse.json<ApiResponse<null>>(
+          { success: false, error: 'Failed to update message' },
+          { status: 500 }
+        );
+      }
+
+      // Log the moderation action
+      await supabase
+        .from('moderation_logs')
+        .insert({
+          message_id: messageId,
+          admin_id: adminId,
+          action: action,
+          reason: reason || null,
+        });
+
+      actionMessage = `Message ${action === 'hide' ? 'hidden' : 'unhidden'} successfully`;
     }
 
-    // Log the moderation action
-    const { error: logError } = await supabase
-      .from('moderation_logs')
-      .insert({
-        message_id: messageId,
-        admin_id: adminId,
-        action: action,
-        reason: reason || null,
-      });
+    // Handle user ban/unban
+    if (action === 'ban' || action === 'unban') {
+      // Check if user to ban is an admin (prevent banning admins)
+      const { data: targetUser } = await supabase
+        .from('chat_users')
+        .select('role')
+        .eq('id', userId)
+        .single();
 
-    if (logError) {
-      console.error('Error logging moderation action:', logError);
-      // Don't fail the request if logging fails
+      if (targetUser && (targetUser.role === 'admin' || targetUser.role === 'master-admin')) {
+        return NextResponse.json<ApiResponse<null>>(
+          { success: false, error: 'Cannot ban admin or master-admin users' },
+          { status: 403 }
+        );
+      }
+
+      const isBanned = action === 'ban';
+      const { error: banError } = await supabase
+        .from('chat_users')
+        .update({ is_banned: isBanned })
+        .eq('id', userId);
+
+      if (banError) {
+        console.error('Error banning/unbanning user:', banError);
+        return NextResponse.json<ApiResponse<null>>(
+          { success: false, error: 'Failed to update user ban status' },
+          { status: 500 }
+        );
+      }
+
+      // Log the moderation action
+      await supabase
+        .from('moderation_logs')
+        .insert({
+          message_id: null,
+          admin_id: adminId,
+          action: action,
+          reason: reason || null,
+        });
+
+      actionMessage = `User ${action === 'ban' ? 'banned' : 'unbanned'} successfully`;
     }
 
     return NextResponse.json<ApiResponse<null>>({
       success: true,
-      message: `Message ${action === 'hide' ? 'hidden' : 'unhidden'} successfully`,
+      message: actionMessage,
     });
   } catch (error) {
     console.error('Error in POST /api/admin/moderation:', error);
