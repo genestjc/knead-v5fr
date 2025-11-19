@@ -249,3 +249,41 @@ export function getUserPermissions(
 export function isAdmin(user: ChatUser): boolean {
   return ['admin', 'master-admin', 'emergency-admin'].includes(user.role);
 }
+
+/**
+ * Check if a user can view a channel (sync wrapper for page components)
+ * This is used by page components that already have the user object
+ */
+export function canViewChannel(user: ChatUser, channelId: string, freemiumMinutesUsed: number): { canView: boolean; reason?: string } {
+  // Banned users cannot view
+  if (user.isBanned) {
+    return { canView: false, reason: 'You have been banned from the chat' };
+  }
+
+  // Check freemium limits
+  if (user.membershipTier === 'freemium' && freemiumMinutesUsed >= 60) {
+    return { 
+      canView: false, 
+      reason: 'Monthly viewing limit reached. Upgrade to Premium for unlimited access.' 
+    };
+  }
+
+  // Everyone can view (including freemium within limits)
+  return { canView: true };
+}
+
+/**
+ * Check if a user can award likes (sync wrapper for API routes)
+ * This is used by API routes that already have the user object
+ */
+export function canAwardLikes(user: ChatUser): { canAward: boolean; reason?: string } {
+  // Only Contributors and Admins can award likes
+  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
+    return { canAward: true };
+  }
+
+  return { 
+    canAward: false, 
+    reason: 'Only Contributors and Admins can award likes' 
+  };
+}
