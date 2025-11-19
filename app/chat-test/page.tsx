@@ -23,9 +23,8 @@ export default function ChatTestPage() {
     isBanned: false,
   };
 
-  const viewAccess = canViewChannel(mockUser, selectedChannel, 0);
-  const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
-
+const viewAccess = canViewChannel(mockUser, selectedChannel, 0);
+const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
   if (!account?.address) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
