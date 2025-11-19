@@ -1,10 +1,10 @@
-name: Run Thirdweb Admin Script
+name: Run Thirdweb Treasury Transfers
 
 on:
   workflow_dispatch: # Manual trigger
 
 jobs:
-  run-admin-script:
+  run-treasury-transfers:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -18,15 +18,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run transfer-ownership script
+      - name: Run transfer-treasury script ($TOWNS)
         env:
           THIRDWEB_SECRET_KEY: ${{ secrets.THIRDWEB_SECRET_KEY }}
           ENGINE_SERVER_WALLET_ADDRESS: ${{ secrets.ENGINE_SERVER_WALLET_ADDRESS }}
           ENGINE_VAULT_ACCESS_TOKEN: ${{ secrets.ENGINE_VAULT_ACCESS_TOKEN }}
-          NEXT_PUBLIC_NFT_CONTRACT_ADDRESS: ${{ secrets.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS }}
-          NEW_OWNER_ADDRESS: ${{ secrets.NEW_OWNER_ADDRESS }}
           NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS: ${{ secrets.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS }}
           TREASURY_TRANSFER_AMOUNT: ${{ secrets.TREASURY_TRANSFER_AMOUNT }}
           TREASURY_RECIPIENT_ADDRESS: ${{ secrets.TREASURY_RECIPIENT_ADDRESS }}
+        run: npx tsx scripts/transfer-treasury.ts
+
+      - name: Run transfer-eth script (ETH)
+        env:
+          THIRDWEB_SECRET_KEY: ${{ secrets.THIRDWEB_SECRET_KEY }}
+          ENGINE_SERVER_WALLET_ADDRESS: ${{ secrets.ENGINE_SERVER_WALLET_ADDRESS }}
+          ENGINE_VAULT_ACCESS_TOKEN: ${{ secrets.ENGINE_VAULT_ACCESS_TOKEN }}
           TREASURY_ETH_TRANSFER_AMOUNT: ${{ secrets.TREASURY_ETH_TRANSFER_AMOUNT }}
-        run: npx tsx scripts/transfer-ownership.ts
+          TREASURY_RECIPIENT_ADDRESS: ${{ secrets.TREASURY_RECIPIENT_ADDRESS }}
+        run: npx tsx scripts/transfer-eth.ts
