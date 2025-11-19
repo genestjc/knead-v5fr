@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useChannel } from '@towns/react';
+import { useChannel } from '@towns-protocol/react-sdk';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -68,7 +68,7 @@ export function useSyncTownsToSupabase(channelId: string) {
           const { data: user } = await supabase
             .from('chat_users')
             .select('id')
-            .ilike('address', cleanAddress) // ✅ FIXED: Use 'address' column with case-insensitive match
+            .ilike('address', cleanAddress)
             .maybeSingle();
 
           if (!user) {
@@ -83,7 +83,7 @@ export function useSyncTownsToSupabase(channelId: string) {
             .insert({
               channel_id: channelId,
               user_id: user.id,
-              content: message.text || message.content || '', // ✅ FIXED: Try both .text and .content
+              content: message.text || message.content || '',
               towns_message_id: message.id,
               towns_metadata: {
                 senderId: message.senderId,
