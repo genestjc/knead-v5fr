@@ -11,14 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 // Token IDs
 const FREEMIUM_TOKEN_ID = 0;
 const PREMIUM_TOKEN_ID = 1;
-const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
-
-// Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 
 // thirdweb client
 const client = createThirdwebClient({
@@ -30,6 +23,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const address = searchParams.get("address");
+  
   if (!address) {
     return NextResponse.json(
       { error: "Missing address" },
@@ -52,6 +46,7 @@ export async function GET(req: NextRequest) {
       owner: address,
       tokenId: BigInt(PREMIUM_TOKEN_ID),
     });
+    
     if (premiumBalance > 0n) {
       return NextResponse.json({
         membershipType: "premium",
@@ -64,6 +59,7 @@ export async function GET(req: NextRequest) {
       owner: address,
       tokenId: BigInt(FREEMIUM_TOKEN_ID),
     });
+    
     if (freemiumBalance > 0n) {
       return NextResponse.json({
         membershipType: "freemium",
@@ -72,18 +68,26 @@ export async function GET(req: NextRequest) {
 
     // 2. Fallback: Check Supabase for pending subscription
     // (User paid via Stripe but NFT hasn't been minted yet)
-    const { data: subscription } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("wallet_address", address.toLowerCase())
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(1);
+    // Initialize Supabase client inside the function
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+      );
 
-    if (subscription && subscription.length > 0) {
-      return NextResponse.json({
-        membershipType: "premium",
-      });
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("wallet_address", address.toLowerCase())
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (subscription && subscription.length > 0) {
+        return NextResponse.json({
+          membershipType: "premium",
+        });
+      }
     }
 
     // 3. No membership found - return "none"
