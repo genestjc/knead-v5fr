@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import type { ChatUser } from '@/types/chat';
 import nextDynamic from 'next/dynamic';
@@ -12,6 +12,11 @@ import { createClient } from '@supabase/supabase-js';
 
 // Dynamically import the connected chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
+  ssr: false,
+});
+
+// Component that handles space creation - only renders when connected
+const SpaceCreator = nextDynamic(() => import('./space-creator'), {
   ssr: false,
 });
 
@@ -24,23 +29,36 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Hardcoded space IDs (fill these in after creating the space)
+const HARDCODED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_SPACE_ID || null;
+const HARDCODED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_DEFAULT_CHANNEL_ID || null;
+
 export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
-  const [creatingSpace, setCreatingSpace] = useState(false);
   const [loadingSpace, setLoadingSpace] = useState(true);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
 
   const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
-  const { createSpace, isPending: isCreatingSpace } = useCreateSpace();
 
   // Fetch existing space from Supabase
   useEffect(() => {
     async function fetchSpace() {
       setLoadingSpace(true);
+      
+      // First, check hardcoded env vars
+      if (HARDCODED_SPACE_ID && HARDCODED_CHANNEL_ID) {
+        console.log('✅ Using hardcoded Knead space IDs');
+        setSpaceId(HARDCODED_SPACE_ID);
+        setDefaultChannelId(HARDCODED_CHANNEL_ID);
+        setLoadingSpace(false);
+        return;
+      }
+
+      // Otherwise, fetch from Supabase
       try {
         const { data, error } = await supabase
           .from('towns_spaces')
@@ -54,7 +72,7 @@ export default function ChatTestClient() {
           setSpaceId(data.space_id);
           setDefaultChannelId(data.default_channel_id);
         } else {
-          console.log('No existing Knead space found in Supabase');
+          console.log('No existing Knead space found');
         }
       } catch (error) {
         console.error('Error fetching space from Supabase:', error);
@@ -124,51 +142,6 @@ export default function ChatTestClient() {
     connectToTowns();
   }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect]);
 
-  // Create Knead space and save to Supabase
-  const handleCreateSpace = async () => {
-    if (!window.ethereum || !isAgentConnected) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    setCreatingSpace(true);
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
-      const signer = provider.getSigner();
-
-      console.log('Creating Knead space...');
-      const result = await createSpace({ spaceName: 'Knead' }, signer);
-      
-      console.log('✅ Knead space created:', result);
-      
-      // Save to Supabase (global storage)
-      const { error: insertError } = await supabase
-        .from('towns_spaces')
-        .insert({
-          space_id: result.spaceId,
-          space_name: 'Knead',
-          default_channel_id: result.defaultChannelId,
-          created_by: account?.address,
-          is_active: true,
-        });
-
-      if (insertError) {
-        console.error('Failed to save space to Supabase:', insertError);
-        // Still set the IDs locally if Supabase fails
-      } else {
-        console.log('✅ Space saved to Supabase');
-      }
-      
-      setSpaceId(result.spaceId);
-      setDefaultChannelId(result.defaultChannelId);
-    } catch (err) {
-      console.error('Failed to create space:', err);
-      alert('Failed to create Knead space. Check console for details.');
-    } finally {
-      setCreatingSpace(false);
-    }
-  };
-
   const handleManualConnect = async () => {
     try {
       if (typeof window === 'undefined' || !window.ethereum) {
@@ -183,6 +156,12 @@ export default function ChatTestClient() {
       console.error('Connection failed:', err);
       alert('Failed to connect to Towns Protocol. Check console for details.');
     }
+  };
+
+  // Callback when space is created
+  const handleSpaceCreated = (newSpaceId: string, newChannelId: string) => {
+    setSpaceId(newSpaceId);
+    setDefaultChannelId(newChannelId);
   };
 
   // Loading state
@@ -243,35 +222,13 @@ export default function ChatTestClient() {
     );
   }
 
-  // Connected but no space - need to create one
+  // Connected but no space - need to create one (use separate component)
   if (!spaceId || !defaultChannelId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">Create Knead Space</h1>
-          <p className="font-georgia-pro text-gray-600 mb-2">
-            No Knead space exists yet. Create one to start the community!
-          </p>
-          <p className="font-georgia-pro text-sm text-gray-500 mb-6">
-            This only needs to be done once - all users will join this space.
-          </p>
-          {creatingSpace || isCreatingSpace ? (
-            <>
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-              <p className="font-georgia-pro text-gray-600">
-                Creating space... Please confirm the transaction in your wallet.
-              </p>
-            </>
-          ) : (
-            <button
-              onClick={handleCreateSpace}
-              className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
-            >
-              Create Knead Space
-            </button>
-          )}
-        </div>
-      </div>
+      <SpaceCreator 
+        walletAddress={account?.address || ''} 
+        onSpaceCreated={handleSpaceCreated}
+      />
     );
   }
 
