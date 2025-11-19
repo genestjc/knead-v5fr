@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import type { ChatUser } from '@/types/chat';
 import nextDynamic from 'next/dynamic';
@@ -16,15 +16,33 @@ const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
 
 // Towns Protocol environment config
 const townsConfig = townsEnv().makeTownsConfig('gamma');
+const KNEAD_SPACE_KEY = 'knead_space_id';
+const KNEAD_DEFAULT_CHANNEL_KEY = 'knead_default_channel_id';
 
 export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [spaceId, setSpaceId] = useState<string | null>(null);
+  const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
+  const [creatingSpace, setCreatingSpace] = useState(false);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
 
   // Only call useAgentConnection - no other Towns hooks yet
   const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
+  const { createSpace, isPending: isCreatingSpace } = useCreateSpace();
+
+  // Check for existing space in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSpaceId = localStorage.getItem(KNEAD_SPACE_KEY);
+      const savedChannelId = localStorage.getItem(KNEAD_DEFAULT_CHANNEL_KEY);
+      if (savedSpaceId && savedChannelId) {
+        setSpaceId(savedSpaceId);
+        setDefaultChannelId(savedChannelId);
+      }
+    }
+  }, []);
 
   // Fetch or create Knead user profile
   useEffect(() => {
@@ -85,6 +103,37 @@ export default function ChatTestClient() {
 
     connectToTowns();
   }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect]);
+
+  // Create Knead space after connection if it doesn't exist
+  const handleCreateSpace = async () => {
+    if (!window.ethereum || !isAgentConnected) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    setCreatingSpace(true);
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
+      const signer = provider.getSigner();
+
+      console.log('Creating Knead space...');
+      const result = await createSpace({ spaceName: 'Knead' }, signer);
+      
+      console.log('✅ Knead space created:', result);
+      
+      // Save to localStorage
+      localStorage.setItem(KNEAD_SPACE_KEY, result.spaceId);
+      localStorage.setItem(KNEAD_DEFAULT_CHANNEL_KEY, result.defaultChannelId);
+      
+      setSpaceId(result.spaceId);
+      setDefaultChannelId(result.defaultChannelId);
+    } catch (err) {
+      console.error('Failed to create space:', err);
+      alert('Failed to create Knead space. Check console for details.');
+    } finally {
+      setCreatingSpace(false);
+    }
+  };
 
   const handleManualConnect = async () => {
     try {
@@ -160,7 +209,36 @@ export default function ChatTestClient() {
     );
   }
 
-  // Connected! Now render the chat component that uses Towns hooks
+  // Connected but no space - need to create one
+  if (!spaceId || !defaultChannelId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-md px-4">
+          <h1 className="font-adonis text-4xl mb-4">Create Knead Space</h1>
+          <p className="font-georgia-pro text-gray-600 mb-6">
+            First, we need to create a Knead space on Towns Protocol. This is a one-time setup.
+          </p>
+          {creatingSpace || isCreatingSpace ? (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+              <p className="font-georgia-pro text-gray-600">
+                Creating space... Please confirm the transaction in your wallet.
+              </p>
+            </>
+          ) : (
+            <button
+              onClick={handleCreateSpace}
+              className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+            >
+              Create Knead Space
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Connected AND have space! Now render the chat component
   if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -172,5 +250,5 @@ export default function ChatTestClient() {
     );
   }
 
-  return <ConnectedChat currentUser={currentUser} />;
+  return <ConnectedChat currentUser={currentUser} spaceId={spaceId} defaultChannelId={defaultChannelId} />;
 }
