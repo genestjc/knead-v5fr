@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseAdmin();
 
   try {
-    let query = supabase
+        let query = supabase
       .from('chat_messages')
       .select(`
         id,
@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
         is_deleted,
         is_hidden,
         moderation_score,
-        chat_users!inner (
+        moderation_categories,
+        author:chat_users!user_id (
           id,
           address,
           display_name,
@@ -47,15 +48,6 @@ export async function GET(req: NextRequest) {
           membership_tier,
           contributor_type,
           alias
-        ),
-        reply_to:chat_messages!reply_to_id (
-          id,
-          content,
-          user_id,
-          chat_users!inner (
-            display_name,
-            alias
-          )
         )
       `)
       .eq('channel_id', channelId)
