@@ -1,21 +1,12 @@
 /**
  * Sync Towns Protocol messages to Supabase
  * 
- * This hook watches for new messages from Towns and syncs them to Supabase
+ * Watches for new messages from Towns and syncs them to Supabase
  * for point tracking, moderation, and analytics.
- * 
- * @example
- * ```tsx
- * function ChatChannel({ channelId }: { channelId: string }) {
- *   useSyncTownsToSupabase(channelId);
- *   
- *   return <div>Chat interface...</div>;
- * }
- * ```
  */
 
 import { useEffect, useRef } from 'react';
-import { useTownsChannel } from '@/lib/towns/client';
+import { useChannel } from '@towns/react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -24,16 +15,22 @@ const supabase = createClient(
 );
 
 export function useSyncTownsToSupabase(channelId: string) {
-  const { messages, isLoading, error } = useTownsChannel(channelId);
+  const { messages, isLoading, error } = useChannel(channelId);
   const processedIds = useRef(new Set<string>());
+  const lastSyncTime = useRef(Date.now());
 
   useEffect(() => {
-    if (isLoading || error || !messages.length) {
+    if (isLoading || error || !messages || messages.length === 0) {
       return;
     }
 
     const syncMessages = async () => {
-      for (const message of messages) {
+      // Only sync new messages (received in last 10 seconds)
+      const recentMessages = messages.filter(
+        msg => new Date(msg.timestamp).getTime() > lastSyncTime.current - 10000
+      );
+
+      for (const message of recentMessages) {
         // Skip if already processed
         if (processedIds.current.has(message.id)) {
           continue;
@@ -45,23 +42,37 @@ export function useSyncTownsToSupabase(channelId: string) {
             .from('chat_messages')
             .select('id')
             .eq('towns_message_id', message.id)
-            .single();
+            .maybeSingle();
 
           if (existing) {
             processedIds.current.add(message.id);
             continue;
           }
 
-          // Map Towns DID to Supabase user_id
-          // You may need to adjust this based on your user mapping
+          // Get sender's wallet address from Towns message
+          const senderAddress = message.sender?.address || message.sender?.did || message.senderId;
+          
+          if (!senderAddress) {
+            console.warn('No sender address found for message:', message.id);
+            processedIds.current.add(message.id);
+            continue;
+          }
+
+          // Clean address (remove 'did:' prefix if present, lowercase)
+          const cleanAddress = senderAddress
+            .replace(/^did:/, '')
+            .replace(/^eip155:1:/, '') // Remove EIP-155 chain prefix
+            .toLowerCase();
+
+          // Find Knead user by wallet address
           const { data: user } = await supabase
             .from('chat_users')
             .select('id')
-            .eq('wallet_address', message.author.did)
-            .single();
+            .ilike('address', cleanAddress) // ✅ FIXED: Use 'address' column with case-insensitive match
+            .maybeSingle();
 
           if (!user) {
-            console.warn(`User not found for DID: ${message.author.did}`);
+            console.warn(`Knead user not found for address: ${cleanAddress}`);
             processedIds.current.add(message.id);
             continue;
           }
@@ -72,23 +83,47 @@ export function useSyncTownsToSupabase(channelId: string) {
             .insert({
               channel_id: channelId,
               user_id: user.id,
-              content: message.content,
+              content: message.text || message.content || '', // ✅ FIXED: Try both .text and .content
               towns_message_id: message.id,
-              towns_metadata: message.metadata || {},
+              towns_metadata: {
+                senderId: message.senderId,
+                sender: message.sender,
+                metadata: message.metadata,
+              },
               created_at: message.timestamp,
             });
 
-          if (insertError) {
-            console.error('Failed to sync message to Supabase:', insertError);
-          } else {
+          if (!insertError) {
             console.log(`✅ Synced Towns message ${message.id} to Supabase`);
             processedIds.current.add(message.id);
+
+            // Trigger point calculation if metadata includes event info
+            if (message.metadata?.eventId && message.metadata?.kneadUserId) {
+              try {
+                await fetch('/api/chat/calculate-points', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    messageId: message.id,
+                    userId: message.metadata.kneadUserId,
+                    eventId: message.metadata.eventId,
+                  }),
+                });
+              } catch (pointError) {
+                console.error('Point calculation failed:', pointError);
+              }
+            }
+          } else {
+            console.error('Failed to insert message:', insertError);
           }
 
         } catch (error) {
           console.error('Error syncing message:', error);
         }
       }
+
+      // Update last sync time
+      lastSyncTime.current = Date.now();
     };
 
     syncMessages();
@@ -97,5 +132,6 @@ export function useSyncTownsToSupabase(channelId: string) {
   return {
     isSyncing: isLoading,
     error,
+    syncedCount: processedIds.current.size,
   };
 }
