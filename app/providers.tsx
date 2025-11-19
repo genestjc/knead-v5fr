@@ -5,7 +5,7 @@ import { base } from "thirdweb/chains";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
-import { TownsSyncProvider } from "@/lib/towns/client";
+import { TownsSyncProvider } from "@towns/react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
