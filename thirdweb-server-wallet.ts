@@ -40,4 +40,38 @@ const ERC1155_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
     if (process.env.NODE_ENV !== "production") {
       // 1. Check native token balance (for gas)
       const nativeBalance = await getNativeBalance({
-
+        client,
+        address: SERVER_WALLET_ADDRESS,
+        chain: base,
+      });
+      console.log(
+        `💰 Server wallet native balance: ${nativeBalance.displayValue} ${nativeBalance.symbol}`,
+      );
+      if (nativeBalance.value < 5_000_000_000_000_000n) {
+        console.warn("⚠️ WARNING: Server wallet has low balance for gas fees");
+      }
+
+      // 2. Check ERC1155 token balances
+      const contract = getContract({
+        client,
+        address: ERC1155_CONTRACT_ADDRESS,
+        chain: base,
+      });
+
+      // Check both FREEMIUM (0) and PAID (1)
+      const tokenIds = [0n, 1n];
+      for (const tokenId of tokenIds) {
+        const erc1155Balance = await balanceOf({
+          contract,
+          owner: SERVER_WALLET_ADDRESS,
+          tokenId,
+        });
+        console.log(
+          `🪙 ERC1155 Token ID ${tokenId} balance: ${erc1155Balance.value}`,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("❌ Failed to properly initialize server wallet:", error);
+  }
+})();

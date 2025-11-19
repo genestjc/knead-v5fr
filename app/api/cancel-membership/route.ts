@@ -5,7 +5,7 @@ import { cancellationEmail } from "@/lib/emailTemplates";
 import {
   getContract,
   prepareContractCall,
-  sendTransaction,
+  Engine,
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
             tokenId: PREMIUM_TOKEN_ID,
           });
 
-            if (balance > 0n) {
+          if (balance > 0n) {
             console.log(
               `User ${user_address} has premium token, burning it`,
             );
@@ -120,16 +120,20 @@ export async function POST(req: NextRequest) {
               method:
                 "function adminBurn(address from, uint256 id, uint256 amount)",
               params: [user_address, PREMIUM_TOKEN_ID, 1n],
-            });
-
-            const result = await sendTransaction({
-              account: serverWallet,
-              transaction,
               gasLimit: 300000n,
             });
 
+            const { transactionId } = await serverWallet.enqueueTransaction({
+              transaction,
+            });
+
+            const { transactionHash } = await Engine.waitForTransactionHash({
+              client,
+              transactionId,
+            });
+
             console.log(
-              `NFT burned successfully: ${result.transactionHash}`,
+              `NFT burned successfully: ${transactionHash}`,
             );
           } else {
             console.log(
