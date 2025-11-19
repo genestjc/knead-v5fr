@@ -1,29 +1,33 @@
 /**
  * Thirdweb Treasury Wallet Implementation
  *
- * Handles automated $TOWNS token withdrawals using Thirdweb v5 SDK.
- * - Treasury wallet is generated from THIRDWEB_PRIVATE_KEY (backend only)
+ * Handles automated $TOWNS token withdrawals using Thirdweb Engine Server Wallet.
+ * - Treasury wallet is managed by ThirdWeb Engine (no private keys!)
  * - Sends ERC20 $TOWNS tokens on Base network
- * - Returns transaction hashes and block numbers for audit trail
+ * - Returns transaction IDs and hashes for audit trail
  */
 
-import { createThirdwebClient, toWei, getTransactionReceipt } from "thirdweb";
-import { privateKeyToAccount } from "thirdweb/wallets";
-import { base } from "thirdweb/chains";
 import {
+  createThirdwebClient,
+  toWei,
+  getTransactionReceipt,
+  Engine,
   getContract,
   prepareContractCall,
-  sendTransaction,
   readContract,
 } from "thirdweb";
+import { base } from "thirdweb/chains";
 import type { Address } from "thirdweb";
 
 // Validate required environment variables
 if (!process.env.THIRDWEB_SECRET_KEY) {
   throw new Error("❌ CRITICAL: THIRDWEB_SECRET_KEY must be set!");
 }
-if (!process.env.THIRDWEB_PRIVATE_KEY) {
-  throw new Error("❌ CRITICAL: THIRDWEB_PRIVATE_KEY must be set!");
+if (!process.env.ENGINE_SERVER_WALLET_ADDRESS) {
+  throw new Error("❌ CRITICAL: ENGINE_SERVER_WALLET_ADDRESS must be set!");
+}
+if (!process.env.ENGINE_VAULT_ACCESS_TOKEN) {
+  throw new Error("❌ CRITICAL: ENGINE_VAULT_ACCESS_TOKEN must be set!");
 }
 
 // Create Thirdweb client using secret key
@@ -31,22 +35,21 @@ export const thirdwebClient = createThirdwebClient({
   secretKey: process.env.THIRDWEB_SECRET_KEY,
 });
 
-/**
- * Get the Treasury wallet account from private key
- */
-export function getTreasuryWallet() {
-  return privateKeyToAccount({
-    client: thirdwebClient,
-    privateKey: process.env.THIRDWEB_PRIVATE_KEY!,
-  });
-}
+// Create Engine Server Wallet
+export const treasuryServerWallet = Engine.serverWallet({
+  client: thirdwebClient,
+  address: process.env.ENGINE_SERVER_WALLET_ADDRESS,
+  vaultAccessToken: process.env.ENGINE_VAULT_ACCESS_TOKEN,
+});
+
+// Treasury wallet address (managed by ThirdWeb Engine)
+export const TREASURY_WALLET_ADDRESS = process.env.ENGINE_SERVER_WALLET_ADDRESS;
 
 /**
  * Get the Treasury wallet address
  */
 export function getTreasuryAddress(): string {
-  const wallet = getTreasuryWallet();
-  return wallet.address;
+  return TREASURY_WALLET_ADDRESS;
 }
 
 /**
@@ -54,14 +57,13 @@ export function getTreasuryAddress(): string {
  *
  * @param recipientAddress - Ethereum address to send tokens to
  * @param amount - Amount of $TOWNS tokens (as string, e.g., "100" for 100 TOWNS)
- * @returns Transaction hash and block number
+ * @returns Transaction ID, hash, and block number
  */
 export async function sendTownsTokens(
   recipientAddress: Address,
   amount: string,
-): Promise<{ transactionHash: string; blockNumber: bigint }> {
+): Promise<{ transactionId: string; transactionHash: string; blockNumber: bigint }> {
   try {
-    const wallet = getTreasuryWallet();
     const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
     if (!townsContractAddress) {
       throw new Error("NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS is not set");
@@ -82,20 +84,27 @@ export async function sendTownsTokens(
       params: [recipientAddress, amountInWei],
     });
 
-    const result = await sendTransaction({
+    // ThirdWeb Engine handles wallet management with Secret Key
+    const { transactionId } = await treasuryServerWallet.enqueueTransaction({
       transaction,
-      account: wallet,
+    });
+
+    // Wait for transaction hash
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client: thirdwebClient,
+      transactionId,
     });
 
     // Fetch block number from receipt
     const receipt = await getTransactionReceipt({
       client: thirdwebClient,
       chain: base,
-      transactionHash: result.transactionHash,
+      transactionHash,
     });
 
     return {
-      transactionHash: result.transactionHash,
+      transactionId,
+      transactionHash,
       blockNumber: receipt.blockNumber,
     };
   } catch (error) {
@@ -113,7 +122,6 @@ export async function sendTownsTokens(
  */
 export async function getTreasuryBalance(): Promise<string> {
   try {
-    const wallet = getTreasuryWallet();
     const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
     if (!townsContractAddress) {
       throw new Error("NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS is not set");
@@ -128,7 +136,7 @@ export async function getTreasuryBalance(): Promise<string> {
     const balance = await readContract({
       contract,
       method: "function balanceOf(address account) view returns (uint256)",
-      params: [wallet.address],
+      params: [TREASURY_WALLET_ADDRESS],
     });
 
     // Use BigInt for precision, format to 8 decimals
