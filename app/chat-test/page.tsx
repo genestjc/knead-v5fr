@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
@@ -11,32 +11,97 @@ import type { ChatUser } from '@/types/chat';
 export default function ChatTestPage() {
   const [selectedChannel, setSelectedChannel] = useState('main');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [realUser, setRealUser] = useState<ChatUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const account = useActiveAccount();
-  const { membershipType } = useMembership();
+  const { membershipType, isLoading: membershipLoading } = useMembership();
 
-  const mockUser: ChatUser = {
-  id: account?.address || '', // ← Added missing id field
-  address: account?.address || '',
-  displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
-  role: 'viewer',
-  membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
-  contributorType: undefined,
-  townsEarned: 0,
-  isBanned: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+  // Fetch or create real user from database
+  useEffect(() => {
+    async function fetchUser() {
+      if (!account?.address) {
+        setLoading(false);
+        return;
+      }
 
-// 🔍 DEBUG LOGS - Check what's happening
-console.log('=== CHAT TEST DEBUG ===');
-console.log('Account Address:', account?.address);
-console.log('Membership Type from Provider:', membershipType);
-console.log('Mock User:', mockUser);
+      // Wait for membership to load first
+      if (membershipLoading) {
+        return;
+      }
 
-const viewAccess = canViewChannel(mockUser, selectedChannel, 0);
-console.log('View Access Result:', viewAccess);
+      try {
+        console.log('🔄 Fetching/creating user for:', account.address);
+        console.log('📊 Membership Type:', membershipType);
 
-const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
+        const response = await fetch('/api/chat/get-or-create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: account.address,
+            membershipTier: membershipType || 'freemium',
+          }),
+        });
+
+        const data = await response.json();
+        console.log('✅ User API Response:', data);
+        
+        if (data.success && data.user) {
+          setRealUser(data.user);
+          console.log('👤 Real User Loaded:', data.user);
+          console.log('🔑 User Role:', data.user.role);
+          console.log('💎 User Tier:', data.user.membershipTier);
+        } else {
+          console.error('❌ Failed to load user:', data.error);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching user:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUser();
+  }, [account?.address, membershipType, membershipLoading]);
+
+  // Use real user if available, otherwise create temporary fallback
+  const currentUser: ChatUser = realUser || {
+    id: account?.address || '',
+    address: account?.address || '',
+    displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
+    role: 'viewer',
+    membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
+    contributorType: undefined,
+    isBanned: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  // Debug logs
+  console.log('=== CHAT TEST DEBUG ===');
+  console.log('Account Address:', account?.address);
+  console.log('Membership Type:', membershipType);
+  console.log('Real User:', realUser);
+  console.log('Current User:', currentUser);
+  console.log('Is Using Real User:', !!realUser);
+  
+  const viewAccess = canViewChannel(currentUser, selectedChannel, 0);
+  console.log('View Access Result:', viewAccess);
+
+  const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
+
+  // Show loading state
+  if (loading || membershipLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro text-gray-600">Loading chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not connected
   if (!account?.address) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -51,6 +116,7 @@ const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
     );
   }
 
+  // Access denied
   if (!viewAccess.canView) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -73,9 +139,19 @@ const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
       <header className="border-b border-gray-200 p-4 flex items-center justify-between bg-white">
         <h1 className="font-adonis text-3xl">Knead</h1>
         <div className="flex items-center space-x-4">
-          <span className="font-georgia-pro text-sm text-gray-600">
-            {mockUser.displayName}
-          </span>
+          <div className="text-right">
+            <span className="font-georgia-pro text-sm text-gray-600 block">
+              {currentUser.displayName}
+            </span>
+            {realUser && (
+              <span className="font-georgia-pro text-xs text-gray-400 block">
+                {currentUser.role === 'master-admin' ? '👑 Master Admin' : 
+                 currentUser.role === 'admin' ? '🛡️ Admin' :
+                 currentUser.role === 'contributor' ? '✍️ Contributor' : 
+                 '👤 Viewer'}
+              </span>
+            )}
+          </div>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex flex-col space-y-1.5 p-2 hover:bg-gray-50 rounded transition"
@@ -126,12 +202,16 @@ const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
             <div className="absolute bottom-8 left-8 right-8 border-t border-gray-200 pt-6">
               <div className="font-georgia-pro text-sm text-gray-500 space-y-2">
                 <div className="flex justify-between">
-                  <span>Membership:</span>
-                  <span className="font-semibold capitalize">{mockUser.membershipTier}</span>
+                  <span>Role:</span>
+                  <span className="font-semibold capitalize">{currentUser.role.replace('-', ' ')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>$TOWNS Earned:</span>
-                  <span className="font-semibold">{mockUser.townsEarned}</span>
+                  <span>Membership:</span>
+                  <span className="font-semibold capitalize">{currentUser.membershipTier}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>User Type:</span>
+                  <span className="font-semibold">{realUser ? '✅ Real' : '⚠️ Guest'}</span>
                 </div>
               </div>
             </div>
@@ -194,9 +274,19 @@ const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
               <div className="text-center max-w-md">
                 <div className="text-6xl mb-4">💬</div>
                 <h3 className="font-adonis text-2xl mb-2">Chat Interface Coming Soon</h3>
-                <p className="font-georgia-pro text-gray-500">
+                <p className="font-georgia-pro text-gray-500 mb-4">
                   Towns Protocol integration in progress. Message functionality will be available soon.
                 </p>
+                {realUser && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
+                    <p className="font-georgia-pro text-green-800">
+                      ✅ You're logged in as a real user from the database!
+                    </p>
+                    <p className="font-georgia-pro text-green-600 text-xs mt-1">
+                      User ID: {realUser.id.slice(0, 8)}...
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
