@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
-import { client, serverWallet } from "../../../../thirdweb-server-wallet";
+import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../../thirdweb-server-wallet";
 import kneadMembershipABI from "../../../abi/kneadMembershipABI.json";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Log server wallet info
-    console.log("Server wallet address:", serverWallet.address);
+    console.log("Server wallet address:", SERVER_WALLET_ADDRESS);
     console.log("Contract address:", CONTRACT_ADDRESS);
     
     // Get contract
@@ -47,20 +47,26 @@ export async function POST(req: NextRequest) {
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [wallet_address, BigInt(1), 1n],
+      gasLimit: 300000n,
     });
     
-    // Send transaction
+    // Send transaction using Engine
     console.log("Sending mint transaction...");
-    const result = await sendTransaction({
-      account: serverWallet,
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
     
-    console.log("Mint transaction sent:", result.transactionHash);
+    console.log("Mint transaction sent:", transactionHash);
     
     return NextResponse.json({
       success: true,
-      transactionHash: result.transactionHash,
+      transactionHash,
+      transactionId,
       message: `Premium membership minted to ${wallet_address}`
     });
   } catch (error: any) {
