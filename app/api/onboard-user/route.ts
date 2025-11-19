@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
-import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Verify server wallet is initialized
-    if (!serverWallet || !serverWallet.address) {
+    if (!SERVER_WALLET_ADDRESS) {
       console.error("❌ Server wallet not properly initialized");
       return NextResponse.json(
         { error: "Server configuration error: Server wallet not initialized" },
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Log server wallet address for debugging
-    console.log(`🔐 Using server wallet: ${serverWallet.address}`);
+    console.log(`🔐 Using server wallet: ${SERVER_WALLET_ADDRESS}`);
     
     const normalizedAddress = walletAddress.toLowerCase();
     
@@ -116,18 +116,22 @@ export async function POST(req: NextRequest) {
         contract,
         method: "function mint(address to, uint256 id, uint256 amount)",
         params: [walletAddress, BigInt(FREEMIUM_TOKEN_ID), 1n],
-      });
-
-      console.log("📤 Sending mint transaction...");
-      const result = await sendTransaction({
-        account: serverWallet,
-        transaction,
-        // Add explicit gas settings for Base network
         gasLimit: 300000n,
       });
+
+      console.log("📤 Enqueueing mint transaction...");
+      const { transactionId } = await serverWallet.enqueueTransaction({
+        transaction,
+      });
+
+      console.log(`⏳ Waiting for transaction hash (ID: ${transactionId})...`);
+      const { transactionHash } = await Engine.waitForTransactionHash({
+        client,
+        transactionId,
+      });
       
-      console.log(`✅ Mint transaction sent! Hash: ${result.transactionHash}`);
-      console.log(`🔗 Transaction URL: https://basescan.org/tx/${result.transactionHash}`);
+      console.log(`✅ Mint transaction complete! Hash: ${transactionHash}`);
+      console.log(`🔗 Transaction URL: https://basescan.org/tx/${transactionHash}`);
 
       // Add retry logic to verify the token was actually minted
       const MAX_RETRIES = 3;
@@ -189,7 +193,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         success: true,
         userExists: !!existingUser,
-        transactionHash: result.transactionHash,
+        transactionHash,
+        transactionId,
         verified: verificationSucceeded
       });
       
@@ -204,7 +209,7 @@ export async function POST(req: NextRequest) {
           { 
             error: "Server wallet has insufficient funds for gas", 
             success: false,
-            walletAddress: serverWallet.address // Include for diagnostics
+            walletAddress: SERVER_WALLET_ADDRESS
           },
           { status: 500 },
         );
@@ -216,7 +221,7 @@ export async function POST(req: NextRequest) {
           { 
             error: "Contract execution reverted - check permissions", 
             success: false,
-            walletAddress: serverWallet.address // Include for diagnostics
+            walletAddress: SERVER_WALLET_ADDRESS
           },
           { status: 500 },
         );
