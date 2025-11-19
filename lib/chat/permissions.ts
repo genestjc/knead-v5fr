@@ -1,191 +1,177 @@
-import type { ChatUser, UserRole, MembershipTier, UserPermissions } from '@/types/chat';
-import { KNEAD_CHANNELS, FREEMIUM_CONFIG } from './config';
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+
+interface PermissionResult {
+  allowed: boolean;
+  reason?: string;
+}
 
 /**
- * Check if user can view a specific channel
- * Respects freemium time limits
+ * Check if a participant can post in a channel
+ * 
+ * Rules:
+ * - Contributors/Admins: Always allowed
+ * - Freemium: Never allowed to post
+ * - Premium Participants: Only during events they RSVP'd to (within time window)
  */
-export function canViewChannel(
-  user: ChatUser,
-  channelId: string,
-  freemiumMinutesUsed: number = 0
-): { canView: boolean; reason?: string } {
-  if (user.isBanned) {
-    return { canView: false, reason: 'User is banned' };
+export async function canParticipantPost(
+  userId: string,
+  channelId: string
+): Promise<PermissionResult> {
+  const supabase = createSupabaseAdmin();
+  
+  // 1. Get user role and membership
+  const { data: user, error: userError } = await supabase
+    .from('chat_users')
+    .select('role, membership_tier')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    return { allowed: false, reason: 'User not found' };
   }
 
-  const channel = KNEAD_CHANNELS.find(ch => ch.id === channelId);
-  if (!channel) {
-    return { canView: false, reason: 'Channel not found' };
+  // 2. Contributors and Admins: Always allowed
+  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
+    return { allowed: true };
   }
 
-  // Contributors and admins always have access
-  if (user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
-    return { canView: true };
+  // 3. Freemium: Never allowed to post
+  if (user.membership_tier === 'freemium') {
+    return { 
+      allowed: false, 
+      reason: 'Upgrade to Premium to participate in events and post messages.' 
+    };
   }
 
-  // Premium members have full access
-  if (user.membershipTier === 'premium') {
-    return { canView: true };
-  }
+  // 4. Premium Participants: Only during events they RSVP'd to
+  if (user.membership_tier === 'premium') {
+    // Check for active event in this channel
+    const { data: activeEvent, error: eventError } = await supabase
+      .from('events')
+      .select('id, start_time, end_time, participant_window_minutes')
+      .eq('channel_id', channelId)
+      .eq('status', 'active')
+      .single();
 
-  // Freemium members have limited access
-  if (user.membershipTier === 'freemium') {
-    if (freemiumMinutesUsed >= FREEMIUM_CONFIG.maxMinutesPerMonth) {
+    if (eventError || !activeEvent) {
       return { 
-        canView: false, 
-        reason: `Monthly viewing limit reached (${FREEMIUM_CONFIG.maxMinutesPerMonth} minutes)` 
+        allowed: false, 
+        reason: 'No active event in this channel. Only Contributors can post outside events.' 
       };
     }
-    // Freemium can view but not contributor-only channels
-    if (channel.requiresContributor) {
-      return { canView: false, reason: 'This channel requires contributor access' };
+
+    // Check RSVP
+    const { data: rsvp, error: rsvpError } = await supabase
+      .from('rsvps')
+      .select('status')
+      .eq('event_id', activeEvent.id)
+      .eq('participant_id', userId)
+      .eq('status', 'confirmed')
+      .single();
+
+    if (rsvpError || !rsvp) {
+      return { 
+        allowed: false, 
+        reason: 'You must RSVP to this event to participate. Check the Events tab.' 
+      };
     }
-    return { canView: true };
+
+    // Check if within participant time window
+    const now = Date.now();
+    const eventStart = new Date(activeEvent.start_time).getTime();
+    const windowEnd = eventStart + (activeEvent.participant_window_minutes * 60 * 1000);
+
+    if (now < eventStart) {
+      const minutesUntilStart = Math.ceil((eventStart - now) / (1000 * 60));
+      return { 
+        allowed: false, 
+        reason: `Event starts in ${minutesUntilStart} minutes.` 
+      };
+    }
+
+    if (now > windowEnd) {
+      // Check if user has extended access via tier
+      const { data: participant } = await supabase
+        .from('participants')
+        .select('current_tier')
+        .eq('user_id', userId)
+        .single();
+
+      const tierExtensions = {
+        1: 0,           // Newcomer: no extension
+        2: 30,          // Regular: +30 min
+        3: 120,         // Veteran: +2 hours
+        4: Infinity,    // Elite: full access (like Contributors)
+      };
+
+      const tier = (participant?.current_tier || 1) as 1 | 2 | 3 | 4;
+      const extensionMinutes = tierExtensions[tier];
+      const extendedEnd = windowEnd + (extensionMinutes * 60 * 1000);
+
+      if (now > extendedEnd) {
+        const nextTier = tier + 1;
+        const nextTierName = ['', 'Newcomer', 'Regular', 'Veteran', 'Elite'][nextTier];
+        return { 
+          allowed: false, 
+          reason: `Event participation window closed. ${nextTier <= 4 ? `Reach ${nextTierName} tier for extended access.` : 'Become a Contributor for full access.'}` 
+        };
+      }
+    }
+
+    return { allowed: true };
   }
 
-  return { canView: false, reason: 'No membership found' };
+  return { allowed: false, reason: 'Unauthorized' };
 }
 
 /**
- * Check if user can post in a specific channel
- * Freemium users are read-only
+ * Check if a user can read messages in a channel
+ * 
+ * Rules:
+ * - Everyone can read (including Freemium)
  */
-export function canPostInChannel(
-  user: ChatUser,
-  channelId: string
-): { canPost: boolean; reason?: string } {
-  if (user.isBanned) {
-    return { canPost: false, reason: 'User is banned' };
+export async function canReadChannel(userId: string, channelId: string): Promise<PermissionResult> {
+  const supabase = createSupabaseAdmin();
+  
+  const { data: user, error } = await supabase
+    .from('chat_users')
+    .select('id, is_banned')
+    .eq('id', userId)
+    .single();
+
+  if (error || !user) {
+    return { allowed: false, reason: 'User not found' };
   }
 
-  const channel = KNEAD_CHANNELS.find(ch => ch.id === channelId);
-  if (!channel) {
-    return { canPost: false, reason: 'Channel not found' };
+  if (user.is_banned) {
+    return { allowed: false, reason: 'You have been banned from the chat' };
   }
 
-  // Contributors and admins can always post
-  if (user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
-    return { canPost: true };
-  }
-
-  // Freemium users are read-only
-  if (user.membershipTier === 'freemium') {
-    return { canPost: false, reason: 'Freemium users have read-only access. Upgrade to post messages.' };
-  }
-
-  // Premium members can post
-  if (user.membershipTier === 'premium') {
-    return { canPost: true };
-  }
-
-  return { canPost: false, reason: 'You need a membership to post messages' };
+  return { allowed: true };
 }
 
 /**
- * Check if user can award likes
- * Contributors only
+ * Check if a user can react/like messages
+ * 
+ * Rules:
+ * - Everyone can react (including Freemium)
  */
-export function canAwardLikes(user: ChatUser): { canAward: boolean; reason?: string } {
-  if (user.isBanned) {
-    return { canAward: false, reason: 'User is banned' };
+export async function canReactToMessage(userId: string): Promise<PermissionResult> {
+  const supabase = createSupabaseAdmin();
+  
+  const { data: user, error } = await supabase
+    .from('chat_users')
+    .select('is_banned')
+    .eq('id', userId)
+    .single();
+
+  if (error || !user) {
+    return { allowed: false, reason: 'User not found' };
   }
 
-  if (user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
-    return { canAward: true };
+  if (user.is_banned) {
+    return { allowed: false, reason: 'You have been banned' };
   }
 
-  return { canAward: false, reason: 'Only contributors can award likes' };
-}
-
-/**
- * Check if user can receive likes
- * Paid participants and contributors only (freemium cannot receive)
- */
-export function canReceiveLikes(user: ChatUser): { canReceive: boolean; reason?: string } {
-  if (user.isBanned) {
-    return { canReceive: false, reason: 'User is banned' };
-  }
-
-  // Contributors can receive
-  if (user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
-    return { canReceive: true };
-  }
-
-  // Premium members can receive
-  if (user.membershipTier === 'premium') {
-    return { canReceive: true };
-  }
-
-  // Freemium cannot receive points
-  if (user.membershipTier === 'freemium') {
-    return { canReceive: false, reason: 'Freemium users cannot receive points. Upgrade to premium.' };
-  }
-
-  return { canReceive: false, reason: 'You need a membership to receive points' };
-}
-
-/**
- * Get complete permissions object for a user
- */
-export function getUserPermissions(
-  user: ChatUser,
-  channelId: string,
-  freemiumMinutesUsed: number = 0,
-  distributionBudget: number = 0,
-  personalEarnings: number = 0,
-  totalPoints: number = 0
-): UserPermissions {
-  const viewResult = canViewChannel(user, channelId, freemiumMinutesUsed);
-  const postResult = canPostInChannel(user, channelId);
-  const awardResult = canAwardLikes(user);
-  const receiveResult = canReceiveLikes(user);
-
-  const freemiumTimeRemaining = user.membershipTier === 'freemium'
-    ? Math.max(0, FREEMIUM_CONFIG.maxMinutesPerMonth - freemiumMinutesUsed)
-    : undefined;
-
-  return {
-    userId: user.id,
-    role: user.role,
-    contributorType: user.contributorType,
-    canViewChannel: viewResult.canView,
-    canPostInChannel: postResult.canPost,
-    canAwardLikes: awardResult.canAward,
-    canReceiveLikes: receiveResult.canReceive,
-    distributionBudgetRemaining: distributionBudget,
-    personalEarningsAvailable: personalEarnings,
-    participantTier: user.role === 'viewer' ? getTierFromPoints(totalPoints) : undefined,
-    totalPoints,
-    freemiumTimeRemaining,
-  };
-}
-
-// Helper functions
-export function truncateAddress(address: string): string {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-export function getUserDisplayName(user: ChatUser): string {
-  return user.alias || truncateAddress(user.address);
-}
-
-export function isAdmin(user: ChatUser): boolean {
-  return user.role === 'admin' || user.role === 'master-admin';
-}
-
-export function isMasterAdmin(user: ChatUser): boolean {
-  return user.role === 'master-admin';
-}
-
-export function isContributor(user: ChatUser): boolean {
-  return user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin';
-}
-
-function getTierFromPoints(points: number): 1 | 2 | 3 | 4 {
-  if (points >= 1000) return 4;
-  if (points >= 500) return 3;
-  if (points >= 100) return 2;
-  return 1;
+  return { allowed: true };
 }
