@@ -8,6 +8,7 @@ import { townsEnv } from '@towns-protocol/sdk';
 import type { ChatUser } from '@/types/chat';
 import nextDynamic from 'next/dynamic';
 import { ethers } from 'ethers-v5';
+import { createClient } from '@supabase/supabase-js';
 
 // Dynamically import the connected chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
@@ -16,8 +17,12 @@ const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
 
 // Towns Protocol environment config
 const townsConfig = townsEnv().makeTownsConfig('gamma');
-const KNEAD_SPACE_KEY = 'knead_space_id';
-const KNEAD_DEFAULT_CHANNEL_KEY = 'knead_default_channel_id';
+
+// Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
@@ -25,23 +30,40 @@ export default function ChatTestClient() {
   const [spaceId, setSpaceId] = useState<string | null>(null);
   const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
   const [creatingSpace, setCreatingSpace] = useState(false);
+  const [loadingSpace, setLoadingSpace] = useState(true);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
 
-  // Only call useAgentConnection - no other Towns hooks yet
   const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
   const { createSpace, isPending: isCreatingSpace } = useCreateSpace();
 
-  // Check for existing space in localStorage
+  // Fetch existing space from Supabase
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedSpaceId = localStorage.getItem(KNEAD_SPACE_KEY);
-      const savedChannelId = localStorage.getItem(KNEAD_DEFAULT_CHANNEL_KEY);
-      if (savedSpaceId && savedChannelId) {
-        setSpaceId(savedSpaceId);
-        setDefaultChannelId(savedChannelId);
+    async function fetchSpace() {
+      setLoadingSpace(true);
+      try {
+        const { data, error } = await supabase
+          .from('towns_spaces')
+          .select('space_id, default_channel_id')
+          .eq('is_active', true)
+          .eq('space_name', 'Knead')
+          .maybeSingle();
+
+        if (data && !error) {
+          console.log('✅ Found existing Knead space in Supabase:', data);
+          setSpaceId(data.space_id);
+          setDefaultChannelId(data.default_channel_id);
+        } else {
+          console.log('No existing Knead space found in Supabase');
+        }
+      } catch (error) {
+        console.error('Error fetching space from Supabase:', error);
+      } finally {
+        setLoadingSpace(false);
       }
     }
+
+    fetchSpace();
   }, []);
 
   // Fetch or create Knead user profile
@@ -84,13 +106,11 @@ export default function ChatTestClient() {
 
     const connectToTowns = async () => {
       try {
-        // Check if ethereum provider exists
         if (typeof window === 'undefined' || !window.ethereum) {
           console.error('No ethereum provider found');
           return;
         }
 
-        // Use ethers v5 to create provider from window.ethereum
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
 
@@ -104,7 +124,7 @@ export default function ChatTestClient() {
     connectToTowns();
   }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect]);
 
-  // Create Knead space after connection if it doesn't exist
+  // Create Knead space and save to Supabase
   const handleCreateSpace = async () => {
     if (!window.ethereum || !isAgentConnected) {
       alert('Please connect your wallet first');
@@ -121,9 +141,23 @@ export default function ChatTestClient() {
       
       console.log('✅ Knead space created:', result);
       
-      // Save to localStorage
-      localStorage.setItem(KNEAD_SPACE_KEY, result.spaceId);
-      localStorage.setItem(KNEAD_DEFAULT_CHANNEL_KEY, result.defaultChannelId);
+      // Save to Supabase (global storage)
+      const { error: insertError } = await supabase
+        .from('towns_spaces')
+        .insert({
+          space_id: result.spaceId,
+          space_name: 'Knead',
+          default_channel_id: result.defaultChannelId,
+          created_by: account?.address,
+          is_active: true,
+        });
+
+      if (insertError) {
+        console.error('Failed to save space to Supabase:', insertError);
+        // Still set the IDs locally if Supabase fails
+      } else {
+        console.log('✅ Space saved to Supabase');
+      }
       
       setSpaceId(result.spaceId);
       setDefaultChannelId(result.defaultChannelId);
@@ -152,7 +186,7 @@ export default function ChatTestClient() {
   };
 
   // Loading state
-  if (loading) {
+  if (loading || loadingSpace) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
@@ -215,8 +249,11 @@ export default function ChatTestClient() {
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-md px-4">
           <h1 className="font-adonis text-4xl mb-4">Create Knead Space</h1>
-          <p className="font-georgia-pro text-gray-600 mb-6">
-            First, we need to create a Knead space on Towns Protocol. This is a one-time setup.
+          <p className="font-georgia-pro text-gray-600 mb-2">
+            No Knead space exists yet. Create one to start the community!
+          </p>
+          <p className="font-georgia-pro text-sm text-gray-500 mb-6">
+            This only needs to be done once - all users will join this space.
           </p>
           {creatingSpace || isCreatingSpace ? (
             <>
