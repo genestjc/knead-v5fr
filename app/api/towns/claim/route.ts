@@ -3,11 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { sendTownsTokens, getTreasuryBalance } from '@/lib/thirdweb/treasury';
 import type { Address } from 'thirdweb';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 /**
  * POST /api/towns/claim
  * 
@@ -19,6 +14,20 @@ const supabase = createClient(
  */
 export async function POST(req: NextRequest) {
   try {
+    // Initialize Supabase client inside the function
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     const { userId, amount, recipientAddress } = await req.json();
 
     // Validate input
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
         .update({
           status: 'completed',
           transaction_hash: transactionHash,
-          block_number: blockNumber.toString(),
+          block_number: blockNumber?.toString() || null,
           processed_at: new Date().toISOString(),
         })
         .eq('id', claim.id);
@@ -137,7 +146,7 @@ export async function POST(req: NextRequest) {
         data: {
           id: claim.id,
           transactionHash,
-          blockNumber: blockNumber.toString(),
+          blockNumber: blockNumber?.toString() || null,
           amount: claimAmount,
           recipient: recipientAddress,
           status: 'completed',
@@ -177,6 +186,20 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
+    // Initialize Supabase client inside the function
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
 
