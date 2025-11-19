@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection, useTownsAuthStatus, useChannel, useSendMessage } from '@towns/react';
+import { useAgentConnection, useTownsAuthStatus, useChannel, useSendMessage } from '@towns-protocol/react-sdk';
 import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import type { ChatUser } from '@/types/chat';
 
