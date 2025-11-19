@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import {
   getContract,
   prepareContractCall,
-  sendTransaction,
+  Engine,
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
@@ -58,12 +58,16 @@ async function mintPremiumNFT(
     method:
       "function mint(address to, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
+    gasLimit: 300000n,
   });
 
-  const transactionResult = await sendTransaction({
-    account: serverWallet,
+  const { transactionId } = await serverWallet.enqueueTransaction({
     transaction,
-    gasLimit: 300000n,
+  });
+
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client,
+    transactionId,
   });
 
   // Update subscription in database with mint info
@@ -72,16 +76,16 @@ async function mintPremiumNFT(
       .from("subscriptions")
       .update({
         token_minted: true,
-        token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
-        mint_transaction_hash:
-          transactionResult.transactionHash,
+        token_id: PAID_TOKEN_ID.toString(),
+        mint_transaction_hash: transactionHash,
       })
       .eq("subscription_id", subscriptionId);
   }
 
   return {
-    transactionHash: transactionResult.transactionHash,
-    token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
+    transactionHash,
+    transactionId,
+    token_id: PAID_TOKEN_ID.toString(),
   };
 }
 
@@ -117,12 +121,16 @@ async function burnPremiumNFT(
     method:
       "function adminBurn(address from, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
+    gasLimit: 300000n,
   });
 
-  const transactionResult = await sendTransaction({
-    account: serverWallet,
+  const { transactionId } = await serverWallet.enqueueTransaction({
     transaction,
-    gasLimit: 300000n,
+  });
+
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client,
+    transactionId,
   });
 
   // Update subscription in database with burn info
@@ -132,8 +140,7 @@ async function burnPremiumNFT(
         .from("subscriptions")
         .update({
           token_burned: true,
-          burn_transaction_hash:
-            transactionResult.transactionHash,
+          burn_transaction_hash: transactionHash,
         })
         .eq("subscription_id", subscriptionId);
       
@@ -154,8 +161,9 @@ async function burnPremiumNFT(
 
   return {
     success: true,
-    transactionHash: transactionResult.transactionHash,
-    token_id: PAID_TOKEN_ID.toString(), // Convert BigInt to string
+    transactionHash,
+    transactionId,
+    token_id: PAID_TOKEN_ID.toString(),
   };
 }
 
@@ -340,7 +348,7 @@ export async function POST(req: NextRequest) {
 
     // Return a response for other event types
     return NextResponse.json({ received: true });
-  } catch (err) {
+  } catch (err: any) {
     return NextResponse.json(
       {
         error: "Webhook handler failed",
