@@ -15,15 +15,27 @@ export default function ChatTestPage() {
   const { membershipType } = useMembership();
 
   const mockUser: ChatUser = {
-    address: account?.address || '',
-    displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
-    role: 'viewer',
-    membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
-    townsEarned: 0,
-    isBanned: false,
-  };
+  id: account?.address || '', // ← Added missing id field
+  address: account?.address || '',
+  displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
+  role: 'viewer',
+  membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
+  contributorType: undefined,
+  townsEarned: 0,
+  isBanned: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// 🔍 DEBUG LOGS - Check what's happening
+console.log('=== CHAT TEST DEBUG ===');
+console.log('Account Address:', account?.address);
+console.log('Membership Type from Provider:', membershipType);
+console.log('Mock User:', mockUser);
 
 const viewAccess = canViewChannel(mockUser, selectedChannel, 0);
+console.log('View Access Result:', viewAccess);
+
 const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
   if (!account?.address) {
     return (
