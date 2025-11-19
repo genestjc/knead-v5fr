@@ -1,105 +1,82 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getTreasuryAddress, getTreasuryBalance } from '@/lib/thirdweb/treasury';
+import { NextRequest, NextResponse } from "next/server";
+import { getTreasuryBalance, getTreasuryAddress } from "@/lib/thirdweb/treasury";
+import { createClient } from "@supabase/supabase-js";
+
+export const dynamic = "force-dynamic";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-/**
- * GET /api/admin/treasury
- * 
- * Returns Treasury wallet status for admin monitoring
- * - Treasury address
- * - Current balance
- * - Pending claims
- * - Total earnings owed to contributors
- * - Health status
- */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const adminId = searchParams.get('adminId');
+    const adminId = searchParams.get("adminId");
 
-    if (!adminId) {
+    // Basic admin authentication (improve this in production)
+    if (!adminId || adminId !== process.env.ADMIN_SECRET_KEY) {
       return NextResponse.json(
-        { error: 'adminId required' },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    // Verify user is admin
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('role')
-      .eq('id', adminId)
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    if (user.role !== 'admin' && user.role !== 'emergency_admin') {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
-
-    // Get Treasury info
+    // Get treasury wallet address
     const treasuryAddress = getTreasuryAddress();
-    const balanceStr = await getTreasuryBalance();
-    const balance = parseFloat(balanceStr);
 
-    // Get pending claims
-    const { data: pendingClaims } = await supabase
-      .from('towns_claim_requests')
-      .select('amount')
-      .in('status', ['pending', 'processing']);
+    // Get treasury balance
+    const balance = await getTreasuryBalance();
 
-    const pendingAmount = pendingClaims?.reduce(
+    // Get pending claims from database
+    const { data: pendingClaims, error: claimsError } = await supabase
+      .from("earnings")
+      .select("amount")
+      .eq("status", "pending");
+
+    if (claimsError) {
+      console.error("Error fetching pending claims:", claimsError);
+    }
+
+    const totalPendingClaims = pendingClaims?.reduce(
       (sum, claim) => sum + parseFloat(claim.amount),
       0
     ) || 0;
 
-    // Get total earnings owed to contributors
-    const { data: contributors } = await supabase
-      .from('chat_users')
-      .select('personal_earnings_available')
-      .eq('role', 'contributor');
+    // Get total earnings owed
+    const { data: earnings, error: earningsError } = await supabase
+      .from("earnings")
+      .select("amount")
+      .eq("claimed", false);
 
-    const totalOwed = contributors?.reduce(
-      (sum, user) => sum + (parseFloat(user.personal_earnings_available) || 0),
+    if (earningsError) {
+      console.error("Error fetching earnings:", earningsError);
+    }
+
+    const totalEarningsOwed = earnings?.reduce(
+      (sum, earning) => sum + parseFloat(earning.amount),
       0
     ) || 0;
 
-    // Check health
-    const isHealthy = balance >= totalOwed;
-    const warning = !isHealthy
-      ? `⚠️ Treasury balance (${balance.toFixed(2)} $TOWNS) is less than owed earnings (${totalOwed.toFixed(2)} $TOWNS). Please fund the Treasury!`
-      : null;
+    const balanceNum = parseFloat(balance);
+    const isHealthy = balanceNum > totalEarningsOwed;
 
     return NextResponse.json({
       success: true,
       data: {
         treasuryAddress,
         balance,
-        pendingClaims: pendingAmount,
-        totalEarningsOwed: totalOwed,
+        pendingClaims: totalPendingClaims,
+        totalEarningsOwed,
         isHealthy,
-        warning,
       },
     });
-  } catch (error) {
-    console.error('Treasury status error:', error);
+  } catch (error: any) {
+    console.error("Treasury API error:", error);
     return NextResponse.json(
-      { 
-        error: 'Failed to get Treasury status',
-        details: error instanceof Error ? error.message : String(error)
+      {
+        error: "Failed to fetch treasury data",
+        details: error.message,
       },
       { status: 500 }
     );
