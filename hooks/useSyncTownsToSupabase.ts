@@ -5,24 +5,43 @@
  * for point tracking, moderation, and analytics.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useChannel } from '@towns-protocol/react-sdk';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Only create Supabase client if running in browser
+const getSupabase = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+};
 
 export function useSyncTownsToSupabase(channelId: string) {
-  const { messages, isLoading, error } = useChannel(channelId);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Only call useChannel after component mounts (client-side only)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Safe fallback for SSR
+  const channelHook = isMounted ? useChannel(channelId) : { messages: [], isLoading: false, error: null };
+  const { messages, isLoading, error } = channelHook;
+  
   const processedIds = useRef(new Set<string>());
   const lastSyncTime = useRef(Date.now());
 
   useEffect(() => {
-    if (isLoading || error || !messages || messages.length === 0) {
+    if (!isMounted || isLoading || error || !messages || messages.length === 0) {
       return;
     }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
 
     const syncMessages = async () => {
       // Only sync new messages (received in last 10 seconds)
@@ -127,7 +146,7 @@ export function useSyncTownsToSupabase(channelId: string) {
     };
 
     syncMessages();
-  }, [messages, isLoading, error, channelId]);
+  }, [messages, isLoading, error, channelId, isMounted]);
 
   return {
     isSyncing: isLoading,
