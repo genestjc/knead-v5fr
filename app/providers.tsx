@@ -1,28 +1,42 @@
 "use client";
 
-import { ThirdwebProvider, embeddedWallet } from "thirdweb/react";
-import { base } from "thirdweb/chains";
+import { ThirdwebProvider } from "thirdweb/react";
+import { client } from "@/thirdweb-client";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ThemeProvider } from "@/components/theme-provider";
+import { WalletProvider } from "@/components/wallet-provider";
+import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
-import { TownsSyncProvider } from "@towns/react";
+import { Toaster } from "@/components/ui/toaster";
+import { TownsSyncProvider } from "@/lib/towns/client";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <TooltipProvider>
-      <ToastProvider>
-        <ErrorBoundary>
-          <ThirdwebProvider 
-            clientId={process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}
-            supportedChains={[base]} 
-            supportedWallets={[embeddedWallet()]}
-          >
-            <TownsSyncProvider>
-              {children}
-            </TownsSyncProvider>
-          </ThirdwebProvider>
-        </ErrorBoundary>
-      </ToastProvider>
-    </TooltipProvider>
+    <ErrorBoundary>
+      <ThirdwebProvider client={client}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <WalletProvider>
+            <MembershipProvider>
+              <TooltipProvider>
+                <ToastProvider>
+                  <TownsSyncProvider>
+                    <ErrorBoundary>
+                      {children}
+                    </ErrorBoundary>
+                    <Toaster />
+                  </TownsSyncProvider>
+                </ToastProvider>
+              </TooltipProvider>
+            </MembershipProvider>
+          </WalletProvider>
+        </ThemeProvider>
+      </ThirdwebProvider>
+    </ErrorBoundary>
   );
 }
