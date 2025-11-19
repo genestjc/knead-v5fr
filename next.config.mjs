@@ -36,10 +36,6 @@ const nextConfig = {
       },
     ]
   },
-  exportPathMap: async function (defaultPathMap) {
-    const { '/chat-test': _, ...pathMap } = defaultPathMap;
-    return pathMap;
-  },
 }
 
 export default nextConfig
