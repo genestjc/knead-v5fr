@@ -16,8 +16,6 @@ const ChatTestClient = nextDynamic(() => import('./chat-test-client'), {
 });
 
 export const dynamic = 'force-dynamic';
-export const dynamicParams = true;
-export const revalidate = 0;
 
 export default function ChatTestPage() {
   return <ChatTestClient />;
