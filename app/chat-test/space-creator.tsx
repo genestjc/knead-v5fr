@@ -10,6 +10,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Base Mainnet configuration
+const BASE_MAINNET = {
+  chainId: '0x2105', // 8453 in hex
+  chainName: 'Base',
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: ['https://mainnet.base.org'],
+  blockExplorerUrls: ['https://basescan.org'],
+};
+
 interface SpaceCreatorProps {
   walletAddress: string;
   onSpaceCreated: (spaceId: string, defaultChannelId: string) => void;
@@ -28,9 +41,41 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
     setCreatingSpace(true);
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum as any);
+      
+      // Check current network
+      const network = await provider.getNetwork();
+      console.log('Current network:', network.chainId);
+
+      // If not on Base mainnet (8453), switch to it
+      if (network.chainId !== 8453) {
+        console.log('Switching to Base mainnet...');
+        try {
+          // Try to switch to Base mainnet
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: BASE_MAINNET.chainId }],
+          });
+        } catch (switchError: any) {
+          // If Base mainnet is not added, add it
+          if (switchError.code === 4902) {
+            console.log('Adding Base mainnet to wallet...');
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [BASE_MAINNET],
+            });
+          } else {
+            throw switchError;
+          }
+        }
+        
+        // Wait a bit for network switch to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Get signer after network switch
       const signer = provider.getSigner();
 
-      console.log('Creating Knead space...');
+      console.log('Creating Knead space on Base mainnet...');
       const result = await createSpace({ spaceName: 'Knead' }, signer);
       
       console.log('✅ Knead space created:', result);
