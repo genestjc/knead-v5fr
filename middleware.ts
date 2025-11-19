@@ -115,6 +115,7 @@ export function middleware(request: NextRequest) {
       https://social.thirdweb.com
       https://1.rpc.thirdweb.com
       https://8453.rpc.thirdweb.com
+      https://84532.rpc.thirdweb.com
       https://*.ipfscdn.io
       https://ipfs.io
       https://use.typekit.net
@@ -124,6 +125,13 @@ export function middleware(request: NextRequest) {
       https://api.sanity.io
       https://api.thirdweb.com
       https://*.thirdweb.com
+      https://sepolia.base.org
+      https://mainnet.base.org
+      https://base-sepolia.g.alchemy.com
+      https://base-mainnet.g.alchemy.com
+      https://base-sepolia-rpc.publicnode.com
+      https://base.llamarpc.com
+      https://*.supabase.co
       ws://localhost:*
       wss://*.sanity.io;
     upgrade-insecure-requests;
