@@ -6,6 +6,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  transpilePackages: [
+    '@towns-protocol/react-sdk',
+    '@towns-protocol/sdk',
+    '@towns-protocol/web3',
+    '@towns-protocol/generated'
+  ],
   images: {
     remotePatterns: [
       {
