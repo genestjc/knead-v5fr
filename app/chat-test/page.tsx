@@ -1,6 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 
 // Dynamically import the chat component with ssr: false
 const ChatTestClient = dynamic(() => import('./chat-test-client'), {
