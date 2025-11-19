@@ -7,7 +7,7 @@ import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import type { ChatUser } from '@/types/chat';
 import nextDynamic from 'next/dynamic';
-import { ethers } from 'ethers';
+import { ethers } from 'ethers-v5';
 
 // Dynamically import the connected chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
