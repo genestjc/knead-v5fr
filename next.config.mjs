@@ -6,6 +6,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+  missingSuspenseWithCSRBailout: false,
+},
   transpilePackages: [
     '@towns-protocol/react-sdk',
     '@towns-protocol/sdk',
