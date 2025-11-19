@@ -1,18 +1,24 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { KNEAD_CHANNELS } from '@/lib/chat/config';
-import { canViewChannel } from '@/lib/chat/permissions';
-import type { ChatUser } from '@/types/chat';
+import { canViewChannel, canPostInChannel, canAwardLikes } from '@/lib/chat/permissions';
+import { useChat } from '@/hooks/useChat';
+import type { ChatUser, ChatMessage } from '@/types/chat';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function ChatTestPage() {
   const [selectedChannel, setSelectedChannel] = useState('main');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [realUser, setRealUser] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [messageInput, setMessageInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const account = useActiveAccount();
   const { membershipType, isLoading: membershipLoading } = useMembership();
 
@@ -76,6 +82,38 @@ export default function ChatTestPage() {
     updatedAt: new Date(),
   };
 
+  // Initialize chat hook with polling
+  const {
+    messages,
+    permissions,
+    loading: chatLoading,
+    error: chatError,
+    sendMessage,
+    awardLike,
+    refetch,
+  } = useChat({
+    channelId: selectedChannel,
+    userId: realUser?.id,
+  });
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Poll for new messages every 3 seconds
+  useEffect(() => {
+    if (!realUser?.id) return;
+    
+    const interval = setInterval(() => {
+      refetch();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [realUser?.id, refetch]);
+
   // Debug logs
   console.log('=== CHAT TEST DEBUG ===');
   console.log('Account Address:', account?.address);
@@ -87,7 +125,55 @@ export default function ChatTestPage() {
   const viewAccess = canViewChannel(currentUser, selectedChannel, 0);
   console.log('View Access Result:', viewAccess);
 
+  const postAccess = canPostInChannel(currentUser, selectedChannel);
+  const likeAccess = canAwardLikes(currentUser);
+
   const currentChannel = KNEAD_CHANNELS.find(ch => ch.id === selectedChannel);
+
+  // Handle message send
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || isSending || !realUser) return;
+
+    setIsSending(true);
+    try {
+      const success = await sendMessage(messageInput.trim());
+      if (success) {
+        setMessageInput('');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle Enter key
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Handle like
+  const handleLike = async (messageId: string) => {
+    if (!likeAccess.canAward) return;
+    await awardLike(messageId, 'insightful_response', 'discussion');
+  };
+
+  // Get role icon and label
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case 'master-admin':
+        return { icon: '👑', label: 'Master Admin' };
+      case 'admin':
+        return { icon: '🛡️', label: 'Admin' };
+      case 'contributor':
+        return { icon: '✍️', label: 'Contributor' };
+      default:
+        return { icon: '👤', label: 'Viewer' };
+    }
+  };
 
   // Show loading state
   if (loading || membershipLoading) {
@@ -269,48 +355,160 @@ export default function ChatTestPage() {
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-md">
-                <div className="text-6xl mb-4">💬</div>
-                <h3 className="font-adonis text-2xl mb-2">Chat Interface Coming Soon</h3>
-                <p className="font-georgia-pro text-gray-500 mb-4">
-                  Towns Protocol integration in progress. Message functionality will be available soon.
-                </p>
-                {realUser && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
-                    <p className="font-georgia-pro text-green-800">
-                      ✅ You're logged in as a real user from the database!
-                    </p>
-                    <p className="font-georgia-pro text-green-600 text-xs mt-1">
-                      User ID: {realUser.id.slice(0, 8)}...
-                    </p>
-                  </div>
-                )}
+          <div 
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto p-6 bg-gray-50"
+          >
+            {chatLoading && messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+                  <p className="font-georgia-pro text-gray-600">Loading messages...</p>
+                </div>
               </div>
-            </div>
+            ) : messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center max-w-md">
+                  <div className="text-6xl mb-4">💬</div>
+                  <h3 className="font-adonis text-2xl mb-2">No messages yet</h3>
+                  <p className="font-georgia-pro text-gray-500 mb-4">
+                    Be the first to start the conversation!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {messages.slice().reverse().map((message) => {
+                  const roleDisplay = getRoleDisplay(message.user?.role || 'viewer');
+                  return (
+                    <div key={message.id} className="flex gap-3 group">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-semibold">
+                          {message.user?.displayName?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      </div>
+
+                      {/* Message content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-georgia-pro font-semibold text-sm">
+                            {message.user?.alias || message.user?.displayName || 'Anonymous'}
+                          </span>
+                          <span className="text-xs" title={roleDisplay.label}>
+                            {roleDisplay.icon}
+                          </span>
+                          <span className="font-georgia-pro text-xs text-gray-400">
+                            {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                          </span>
+                        </div>
+                        
+                        {/* Reply indicator */}
+                        {message.replyToContent && (
+                          <div className="mb-2 pl-3 border-l-2 border-gray-300 py-1">
+                            <p className="font-georgia-pro text-xs text-gray-500">
+                              Replying to {message.replyToUser}
+                            </p>
+                            <p className="font-georgia-pro text-xs text-gray-400 truncate">
+                              {message.replyToContent}
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="font-georgia-pro text-sm text-gray-800 whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-4 mt-2">
+                          {/* Like button */}
+                          {likeAccess.canAward && (
+                            <button
+                              onClick={() => handleLike(message.id)}
+                              className="flex items-center gap-1 text-xs text-gray-500 hover:text-black transition"
+                              title="Award like"
+                            >
+                              <span>👍</span>
+                              {message.likesCount > 0 && (
+                                <span className="font-semibold">{message.likesCount}</span>
+                              )}
+                            </button>
+                          )}
+                          {!likeAccess.canAward && message.likesCount > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <span>👍</span>
+                              <span>{message.likesCount}</span>
+                            </div>
+                          )}
+                          
+                          {/* Reply count */}
+                          {message.repliesCount > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <span>💬</span>
+                              <span>{message.repliesCount}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
 
           <div className="px-6 py-2 bg-white border-t border-gray-100">
             <p className="font-georgia-pro text-xs text-gray-400 italic h-4">
+              {/* Typing indicator placeholder */}
             </p>
           </div>
 
           <div className="p-6 bg-white border-t border-gray-200">
-            <div className="flex items-center space-x-3">
-              <input
-                type="text"
-                placeholder="Type a message..."
-                className="flex-1 px-6 py-3 border border-gray-300 rounded-full font-georgia-pro focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100"
-                disabled
-              />
-              <button
-                className="px-8 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled
-              >
-                Send
-              </button>
-            </div>
+            {!postAccess.canPost ? (
+              <div className="text-center py-4">
+                <p className="font-georgia-pro text-sm text-gray-500">
+                  {postAccess.reason || 'You cannot post in this channel'}
+                </p>
+                {currentUser.membershipTier === 'freemium' && (
+                  <a 
+                    href="/join" 
+                    className="inline-block mt-2 px-4 py-2 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
+                  >
+                    Upgrade to Post
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {chatError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                    <p className="font-georgia-pro text-sm text-red-800">{chatError}</p>
+                  </div>
+                )}
+                <div className="flex items-end space-x-3">
+                  <textarea
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message... (Shift+Enter for newline)"
+                    className="flex-1 px-6 py-3 border border-gray-300 rounded-2xl font-georgia-pro focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 resize-none min-h-[48px] max-h-32"
+                    rows={1}
+                    disabled={isSending}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    className="px-8 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!messageInput.trim() || isSending}
+                  >
+                    {isSending ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
+                <p className="font-georgia-pro text-xs text-gray-400 px-2">
+                  Press Enter to send • Shift+Enter for new line
+                </p>
+              </div>
+            )}
           </div>
         </main>
       </div>
