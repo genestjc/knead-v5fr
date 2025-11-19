@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import type { ChatUser } from '@/types/chat';
-import { ethers } from 'ethers';
 import nextDynamic from 'next/dynamic';
+import { ethers } from 'ethers';
 
 // Dynamically import the connected chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
@@ -21,6 +21,7 @@ export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(true);
   const account = useActiveAccount();
+  const connectionStatus = useActiveWalletConnectionStatus();
 
   // Only call useAgentConnection - no other Towns hooks yet
   const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
@@ -59,18 +60,20 @@ export default function ChatTestClient() {
 
   // Connect to Towns when wallet is connected
   useEffect(() => {
-    if (!account?.address || isAgentConnected || isAgentConnecting) {
+    if (!account?.address || isAgentConnected || isAgentConnecting || connectionStatus !== 'connected') {
       return;
     }
 
     const connectToTowns = async () => {
       try {
-        if (!window.ethereum) {
+        // Check if ethereum provider exists
+        if (typeof window === 'undefined' || !window.ethereum) {
           console.error('No ethereum provider found');
           return;
         }
 
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        // Use ethers v5 to create provider from window.ethereum
+        const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
 
         await connect(signer, { townsConfig });
@@ -81,7 +84,23 @@ export default function ChatTestClient() {
     };
 
     connectToTowns();
-  }, [account?.address, isAgentConnected, isAgentConnecting, connect]);
+  }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect]);
+
+  const handleManualConnect = async () => {
+    try {
+      if (typeof window === 'undefined' || !window.ethereum) {
+        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
+        return;
+      }
+
+      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
+      const signer = provider.getSigner();
+      await connect(signer, { townsConfig });
+    } catch (err) {
+      console.error('Connection failed:', err);
+      alert('Failed to connect to Towns Protocol. Check console for details.');
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -129,15 +148,7 @@ export default function ChatTestClient() {
                 Towns Protocol requires wallet signature for authentication
               </p>
               <button
-                onClick={async () => {
-                  try {
-                    const provider = new ethers.providers.Web3Provider(window.ethereum);
-                    const signer = provider.getSigner();
-                    await connect(signer, { townsConfig });
-                  } catch (err) {
-                    console.error('Connection failed:', err);
-                  }
-                }}
+                onClick={handleManualConnect}
                 className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
               >
                 Connect to Towns
