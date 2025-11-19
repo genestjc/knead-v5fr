@@ -21,21 +21,20 @@ const getSupabase = () => {
 };
 
 export function useSyncTownsToSupabase(channelId: string) {
-  const [isMounted, setIsMounted] = useState(false);
+  // Always call useChannel - hooks must be called unconditionally
+  const { messages, isLoading, error } = useChannel(channelId);
   
-  // Only call useChannel after component mounts (client-side only)
+  const [isMounted, setIsMounted] = useState(false);
+  const processedIds = useRef(new Set<string>());
+  const lastSyncTime = useRef(Date.now());
+
+  // Track when component mounts (client-side only)
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Safe fallback for SSR
-  const channelHook = isMounted ? useChannel(channelId) : { messages: [], isLoading: false, error: null };
-  const { messages, isLoading, error } = channelHook;
-  
-  const processedIds = useRef(new Set<string>());
-  const lastSyncTime = useRef(Date.now());
-
   useEffect(() => {
+    // Don't sync until mounted in browser
     if (!isMounted || isLoading || error || !messages || messages.length === 0) {
       return;
     }
