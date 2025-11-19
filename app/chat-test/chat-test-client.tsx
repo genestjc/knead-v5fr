@@ -21,7 +21,7 @@ const SpaceCreator = nextDynamic(() => import('./space-creator'), {
 });
 
 // Towns Protocol environment config
-const townsConfig = townsEnv().makeTownsConfig('gamma');
+const townsConfig = townsEnv().makeTownsConfig('omega');
 
 // Supabase client
 const supabase = createClient(
