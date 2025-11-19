@@ -1,4 +1,4 @@
-import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
+import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../app/abi/kneadMembershipABI.json";
@@ -31,21 +31,27 @@ export async function mintPremiumNFT(walletAddress: string) {
       return { success: true, alreadyMinted: true };
     }
     
-    // Prepare and send transaction with explicit gas settings
+    // Prepare transaction with explicit gas settings
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [walletAddress, BigInt(PREMIUM_TOKEN_ID), 1n],
-    });
-    
-    const result = await sendTransaction({
-      account: serverWallet,
-      transaction,
       gasLimit: 300000n,
     });
     
-    console.log(`Premium NFT minted successfully: ${result.transactionHash}`);
-    return { success: true, transactionHash: result.transactionHash };
+    // Use Engine Server Wallet to enqueue transaction
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    // Wait for transaction hash
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
+    
+    console.log(`Premium NFT minted successfully: ${transactionHash}`);
+    return { success: true, transactionHash, transactionId };
   } catch (error: any) {
     console.error("Error minting premium NFT:", error);
     throw new Error(`Failed to mint premium NFT: ${error.message}`);
@@ -75,21 +81,27 @@ export async function burnPremiumNFT(walletAddress: string) {
       return { success: true, notOwned: true };
     }
     
-    // Prepare and send burn transaction with explicit gas settings
+    // Prepare burn transaction with explicit gas settings
     const transaction = prepareContractCall({
       contract,
       method: "function adminBurn(address from, uint256 id, uint256 amount)",
       params: [walletAddress, BigInt(PREMIUM_TOKEN_ID), 1n],
-    });
-    
-    const result = await sendTransaction({
-      account: serverWallet,
-      transaction,
       gasLimit: 300000n,
     });
     
-    console.log(`Premium NFT burned successfully: ${result.transactionHash}`);
-    return { success: true, transactionHash: result.transactionHash };
+    // Use Engine Server Wallet to enqueue transaction
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    // Wait for transaction hash
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
+    
+    console.log(`Premium NFT burned successfully: ${transactionHash}`);
+    return { success: true, transactionHash, transactionId };
   } catch (error: any) {
     console.error("Error burning premium NFT:", error);
     throw new Error(`Failed to burn premium NFT: ${error.message}`);
@@ -119,21 +131,27 @@ export async function mintFreemiumNFT(walletAddress: string) {
       return { success: true, alreadyMinted: true };
     }
     
-    // Prepare and send transaction with explicit gas settings
+    // Prepare transaction with explicit gas settings
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [walletAddress, BigInt(FREEMIUM_TOKEN_ID), 1n],
-    });
-    
-    const result = await sendTransaction({
-      account: serverWallet,
-      transaction,
       gasLimit: 300000n,
     });
     
-    console.log(`Freemium NFT minted successfully: ${result.transactionHash}`);
-    return { success: true, transactionHash: result.transactionHash };
+    // Use Engine Server Wallet to enqueue transaction
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    // Wait for transaction hash
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
+    
+    console.log(`Freemium NFT minted successfully: ${transactionHash}`);
+    return { success: true, transactionHash, transactionId };
   } catch (error: any) {
     console.error("Error minting freemium NFT:", error);
     throw new Error(`Failed to mint freemium NFT: ${error.message}`);
