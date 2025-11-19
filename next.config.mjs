@@ -7,8 +7,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-  missingSuspenseWithCSRBailout: false,
-},
+    missingSuspenseWithCSRBailout: false,
+  },
   transpilePackages: [
     '@towns-protocol/react-sdk',
     '@towns-protocol/sdk',
@@ -35,6 +35,10 @@ const nextConfig = {
         destination: '/api/auth/:path*',
       },
     ]
+  },
+  exportPathMap: async function (defaultPathMap) {
+    const { '/chat-test': _, ...pathMap } = defaultPathMap;
+    return pathMap;
   },
 }
 
