@@ -1,24 +1,11 @@
 /**
  * Towns Protocol React SDK Integration
  * 
- * Wraps the @towns/react SDK hooks for use in Knead chat system.
- * - Uses Web3 wallet authentication (no API key needed)
+ * Wraps the @towns-protocol/react-sdk for use in Knead chat system.
+ * - Uses Web3 wallet authentication (NO API KEY NEEDED)
  * - Must wrap app with TownsSyncProvider
  * - Messages stored on Towns Protocol (decentralized)
  * - Synced to Supabase for point tracking and moderation
- * 
- * @example
- * ```tsx
- * import { useTownsConnection, useTownsChannel, useTownsSendMessage } from '@/lib/towns/client';
- * 
- * function ChatComponent() {
- *   const { connect, isAuthenticated } = useTownsConnection();
- *   const { messages } = useTownsChannel('general');
- *   const { sendMessage } = useTownsSendMessage();
- *   
- *   return <div>...</div>;
- * }
- * ```
  */
 
 import { 
@@ -29,11 +16,11 @@ import {
   useReactions,
   useThreads,
   TownsSyncProvider,
-} from '@towns/react';
+} from '@towns-protocol/react-sdk';
 
 /**
  * Connect wallet to Towns Protocol
- * Uses Web3 wallet signatures for authentication
+ * Uses Web3 wallet signatures for authentication (NO API KEY)
  */
 export function useTownsConnection() {
   const { connect, disconnect } = useAgentConnection();
