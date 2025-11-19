@@ -3,28 +3,37 @@
 import { useState, useEffect, useRef } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection, useChannel, useSendMessage } from '@towns-protocol/react-sdk';
-import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
+import { useAgentConnection, useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import type { ChatUser } from '@/types/chat';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 
-export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }) {
+interface ConnectedChatProps {
+  currentUser: ChatUser;
+  spaceId: string;
+  defaultChannelId: string;
+}
+
+export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
-  const [selectedChannel, setSelectedChannel] = useState('main');
+  const [selectedChannelId, setSelectedChannelId] = useState(defaultChannelId);
   const account = useActiveAccount();
 
   const { disconnect, isAgentConnected } = useAgentConnection();
 
-  // NOW it's safe to call these hooks - component only renders when connected
-  const { messages: townsMessages, isLoading: loadingMessages } = useChannel(selectedChannel);
-  const { sendMessage, isSending, error: sendError } = useSendMessage();
-  const { isSyncing, syncedCount } = useSyncTownsToSupabase(selectedChannel);
+  // NOW with correct API - spaceId AND channelId
+  const { data: channel } = useChannel(spaceId, selectedChannelId);
+  const { data: events } = useTimeline(selectedChannelId);
+  const { sendMessage, isPending: isSending } = useSendMessage(selectedChannelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Filter to only show chat messages
+  const messages = events?.filter(event => event.content?.kind === RiverTimelineEvent.ChannelMessage) || [];
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [townsMessages]);
+  }, [messages]);
 
   // Send message via Towns Protocol
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -35,14 +44,8 @@ export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }
     }
 
     try {
-      await sendMessage(selectedChannel, messageInput, {
-        kneadUserId: currentUser.id,
-        walletAddress: account?.address,
-        timestamp: new Date().toISOString(),
-      });
-
+      await sendMessage(messageInput);
       setMessageInput('');
-      
     } catch (error) {
       console.error('Failed to send message:', error);
       alert('Failed to send message. Please try again.');
@@ -64,9 +67,6 @@ export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }
             </p>
           </div>
           <div className="flex items-center gap-4">
-            {isSyncing && (
-              <span className="text-xs text-gray-500">Syncing... ({syncedCount} messages)</span>
-            )}
             <button
               onClick={() => disconnect()}
               className="text-xs text-gray-500 hover:text-gray-700"
@@ -86,20 +86,17 @@ export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }
               Channels
             </h2>
             <nav className="space-y-2">
-              {['main', 'food', 'tech', 'art', 'fashion', 'live-interviews'].map(channel => (
-                <button
-                  key={channel}
-                  onClick={() => setSelectedChannel(channel)}
-                  className={`
-                    w-full text-left px-4 py-2 rounded-lg font-georgia-pro transition
-                    ${selectedChannel === channel 
-                      ? 'bg-black text-white' 
-                      : 'hover:bg-gray-100 text-gray-700'}
-                  `}
-                >
-                  # {channel}
-                </button>
-              ))}
+              <button
+                onClick={() => setSelectedChannelId(defaultChannelId)}
+                className={`
+                  w-full text-left px-4 py-2 rounded-lg font-georgia-pro transition
+                  ${selectedChannelId === defaultChannelId 
+                    ? 'bg-black text-white' 
+                    : 'hover:bg-gray-100 text-gray-700'}
+                `}
+              >
+                # {channel?.metadata?.name || 'general'}
+              </button>
             </nav>
           </div>
         </aside>
@@ -108,32 +105,29 @@ export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }
         <main className="flex-1 flex flex-col h-screen">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {loadingMessages ? (
-              <div className="text-center text-gray-500 py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-2"></div>
-                Loading messages...
-              </div>
-            ) : !townsMessages || townsMessages.length === 0 ? (
+            {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
                 <p className="font-georgia-pro">No messages yet</p>
                 <p className="text-sm mt-2">Be the first to start the conversation!</p>
               </div>
             ) : (
-              townsMessages.map((msg) => (
-                <div key={msg.id} className="flex gap-3">
+              messages.map((event) => (
+                <div key={event.eventId} className="flex gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-sm font-semibold">
-                    {(msg.sender?.displayName || msg.sender?.username || 'A').slice(0, 2).toUpperCase()}
+                    {(event.creatorUserId || 'A').slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-baseline gap-2 mb-1">
                       <span className="font-georgia-pro font-semibold">
-                        {msg.sender?.displayName || msg.sender?.username || 'Anonymous'}
+                        {event.creatorUserId || 'Anonymous'}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
+                        {new Date(event.confirmedDate).toLocaleTimeString()}
                       </span>
                     </div>
-                    <p className="font-georgia-pro text-gray-800">{msg.text}</p>
+                    <p className="font-georgia-pro text-gray-800">
+                      {event.content?.kind === RiverTimelineEvent.ChannelMessage ? event.content?.body : ''}
+                    </p>
                   </div>
                 </div>
               ))
@@ -143,11 +137,6 @@ export default function ConnectedChat({ currentUser }: { currentUser: ChatUser }
 
           {/* Message Input */}
           <div className="border-t border-gray-200 p-4 bg-white">
-            {sendError && (
-              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-                Error: {sendError.message}
-              </div>
-            )}
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input
                 type="text"
