@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import type { ChatUser, UserPermissions, ParticipantTier } from '@/types/chat';
 
 interface PermissionResult {
   allowed: boolean;
@@ -174,4 +175,115 @@ export async function canReactToMessage(userId: string): Promise<PermissionResul
   }
 
   return { allowed: true };
+}
+
+/**
+ * Check if a user can post in a channel (sync wrapper for API routes)
+ * This is used by API routes that already have the user object
+ */
+export function canPostInChannel(user: ChatUser, channelId: string): { canPost: boolean; reason?: string } {
+  // Contributors and Admins: Always allowed
+  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
+    return { canPost: true };
+  }
+
+  // Freemium: Never allowed to post
+  if (user.membershipTier === 'freemium') {
+    return { 
+      canPost: false, 
+      reason: 'Upgrade to Premium to participate in events and post messages.' 
+    };
+  }
+
+  // Premium: For now, allow posting (event-based checks happen async via canParticipantPost)
+  if (user.membershipTier === 'premium') {
+    return { canPost: true };
+  }
+
+  return { canPost: false, reason: 'Unauthorized' };
+}
+
+/**
+ * Get complete permissions object for a user
+ */
+export function getUserPermissions(
+  user: ChatUser,
+  channelId: string,
+  freemiumMinutesUsed: number,
+  distributionBudget: number,
+  personalEarnings: number,
+  totalPoints: number
+): UserPermissions {
+  const isContributorOrAdmin = ['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role);
+  const isFreemium = user.membershipTier === 'freemium';
+  const isPremium = user.membershipTier === 'premium';
+
+  // Determine participant tier (for premium users)
+  let participantTier: ParticipantTier | undefined;
+  if (isPremium) {
+    if (totalPoints < 100) participantTier = 1; // Newcomer
+    else if (totalPoints < 500) participantTier = 2; // Regular
+    else if (totalPoints < 2000) participantTier = 3; // Veteran
+    else participantTier = 4; // Elite
+  }
+
+  return {
+    userId: user.id,
+    role: user.role,
+    contributorType: user.contributorType,
+    canViewChannel: !user.isBanned,
+    canPostInChannel: isContributorOrAdmin || (isPremium && !user.isBanned),
+    canAwardLikes: isContributorOrAdmin,
+    canReceiveLikes: isPremium || isContributorOrAdmin,
+    distributionBudgetRemaining: distributionBudget,
+    personalEarningsAvailable: personalEarnings,
+    participantTier,
+    totalPoints,
+    freemiumTimeRemaining: isFreemium ? Math.max(0, 60 - freemiumMinutesUsed) : undefined,
+  };
+}
+
+/**
+ * Check if a user has admin privileges
+ */
+export function isAdmin(user: ChatUser): boolean {
+  return ['admin', 'master-admin', 'emergency-admin'].includes(user.role);
+}
+
+/**
+ * Check if a user can view a channel (sync wrapper for page components)
+ * This is used by page components that already have the user object
+ */
+export function canViewChannel(user: ChatUser, channelId: string, freemiumMinutesUsed: number): { canView: boolean; reason?: string } {
+  // Banned users cannot view
+  if (user.isBanned) {
+    return { canView: false, reason: 'You have been banned from the chat' };
+  }
+
+  // Check freemium limits
+  if (user.membershipTier === 'freemium' && freemiumMinutesUsed >= 60) {
+    return { 
+      canView: false, 
+      reason: 'Monthly viewing limit reached. Upgrade to Premium for unlimited access.' 
+    };
+  }
+
+  // Everyone can view (including freemium within limits)
+  return { canView: true };
+}
+
+/**
+ * Check if a user can award likes (sync wrapper for API routes)
+ * This is used by API routes that already have the user object
+ */
+export function canAwardLikes(user: ChatUser): { canAward: boolean; reason?: string } {
+  // Only Contributors and Admins can award likes
+  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
+    return { canAward: true };
+  }
+
+  return { 
+    canAward: false, 
+    reason: 'Only Contributors and Admins can award likes' 
+  };
 }
