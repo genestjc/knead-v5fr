@@ -6,6 +6,7 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { useAgentConnection, useTownsAuthStatus, useChannel, useSendMessage } from '@towns-protocol/react-sdk';
 import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import type { ChatUser } from '@/types/chat';
+export const dynamic = 'force-dynamic';
 
 export default function ChatTestPage() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
