@@ -82,20 +82,20 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
       const finalNetwork = await baseProvider.getNetwork();
       console.log('Creating space on Base mainnet (chainId:', finalNetwork.chainId, ')');
 
-      // Use the Towns SDK hook
-      const result = await createSpace({ spaceName: 'Knead' }, signer);
+      // Use the Towns SDK hook - CHANGED TO "Knead Chat"
+      const result = await createSpace({ spaceName: 'Knead Chat' }, signer);
       
-      console.log('✅ Knead space created:', result);
+      console.log('✅ Knead Chat space created:', result);
       console.log('📋 COPY THESE IDs:');
-      console.log('   NEXT_PUBLIC_KNEAD_SPACE_ID=' + result.spaceId);
-      console.log('   NEXT_PUBLIC_KNEAD_DEFAULT_CHANNEL_ID=' + result.defaultChannelId);
+      console.log('   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=' + result.spaceId);
+      console.log('   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=' + result.defaultChannelId);
       
       // Save to Supabase
       const { error: insertError } = await supabase
         .from('towns_spaces')
         .insert({
           space_id: result.spaceId,
-          space_name: 'Knead',
+          space_name: 'Knead Chat',
           default_channel_id: result.defaultChannelId,
           created_by: walletAddress,
           is_active: true,
@@ -113,7 +113,7 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
       
     } catch (err: any) {
       console.error('❌ Failed to create space:', err);
-      const errorMessage = err.message || 'Failed to create Knead space';
+      const errorMessage = err.message || 'Failed to create Knead Chat space';
       setError(errorMessage);
     } finally {
       setCreatingSpace(false);
@@ -123,9 +123,9 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center max-w-md px-4">
-        <h1 className="font-adonis text-4xl mb-4">Create Knead Space</h1>
+        <h1 className="font-adonis text-4xl mb-4">Create Knead Chat Space</h1>
         <p className="font-georgia-pro text-gray-600 mb-2">
-          No Knead space exists yet. Create one to start the community!
+          No Knead Chat space exists yet. Create one to start the community!
         </p>
         <p className="font-georgia-pro text-sm text-gray-500 mb-4">
           This only needs to be done once - all users will join this space.
@@ -152,7 +152,7 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
             onClick={handleCreateSpace}
             className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
           >
-            Create Knead Space
+            Create Knead Chat Space
           </button>
         )}
       </div>
