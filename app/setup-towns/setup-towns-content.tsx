@@ -117,9 +117,7 @@ export default function SetupTownsContent() {
         const signer = provider.getSigner();
         
         // Create Towns config inside the function
-        const townsConfig = townsEnv().makeTownsConfig('omega', {
-          baseChainRpcUrl: 'https://mainnet.base.org'
-        });
+        const townsConfig = townsEnv().makeTownsConfig('omega');
         
         console.log('Towns config created:', townsConfig);
         
