@@ -15,14 +15,9 @@ const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
 });
 
-// Component that handles space creation - only renders when connected
-const SpaceCreator = nextDynamic(() => import('./space-creator'), {
-  ssr: false,
-});
-
 // Towns Protocol environment config
 const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL
+  baseChainRpcUrl: 'https://mainnet.base.org'
 });
 
 // Supabase client
@@ -31,9 +26,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Hardcoded space IDs (fill these in after creating the space)
-const HARDCODED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_SPACE_ID || null;
-const HARDCODED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_DEFAULT_CHANNEL_ID || null;
+// Space IDs from environment variables
+const HARDCODED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID || null;
+const HARDCODED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID || null;
 
 export default function ChatTestClient() {
   const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
@@ -53,7 +48,7 @@ export default function ChatTestClient() {
       
       // First, check hardcoded env vars
       if (HARDCODED_SPACE_ID && HARDCODED_CHANNEL_ID) {
-        console.log('✅ Using hardcoded Knead space IDs');
+        console.log('✅ Using hardcoded Knead space IDs from env vars');
         setSpaceId(HARDCODED_SPACE_ID);
         setDefaultChannelId(HARDCODED_CHANNEL_ID);
         setLoadingSpace(false);
@@ -74,7 +69,7 @@ export default function ChatTestClient() {
           setSpaceId(data.space_id);
           setDefaultChannelId(data.default_channel_id);
         } else {
-          console.log('No existing Knead space found');
+          console.log('⚠️ No existing Knead space found');
         }
       } catch (error) {
         console.error('Error fetching space from Supabase:', error);
@@ -131,13 +126,14 @@ export default function ChatTestClient() {
           return;
         }
 
+        console.log('🔌 Connecting to Towns Protocol...');
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
 
         await connect(signer, { townsConfig });
         console.log('✅ Connected to Towns Protocol');
       } catch (err) {
-        console.error('Failed to connect to Towns:', err);
+        console.error('❌ Failed to connect to Towns:', err);
       }
     };
 
@@ -151,19 +147,14 @@ export default function ChatTestClient() {
         return;
       }
 
+      console.log('🔌 Manually connecting to Towns Protocol...');
       const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       const signer = provider.getSigner();
       await connect(signer, { townsConfig });
     } catch (err) {
-      console.error('Connection failed:', err);
+      console.error('❌ Connection failed:', err);
       alert('Failed to connect to Towns Protocol. Check console for details.');
     }
-  };
-
-  // Callback when space is created
-  const handleSpaceCreated = (newSpaceId: string, newChannelId: string) => {
-    setSpaceId(newSpaceId);
-    setDefaultChannelId(newChannelId);
   };
 
   // Loading state
@@ -224,13 +215,30 @@ export default function ChatTestClient() {
     );
   }
 
-  // Connected but no space - need to create one (use separate component)
+  // Connected but no space - redirect to setup
   if (!spaceId || !defaultChannelId) {
     return (
-      <SpaceCreator 
-        walletAddress={account?.address || ''} 
-        onSpaceCreated={handleSpaceCreated}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-md px-4">
+          <h1 className="font-adonis text-4xl mb-4">Space Not Configured</h1>
+          <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+            Please set up your Towns Protocol space first by adding the Space ID and Channel ID to your environment variables.
+          </p>
+          <a
+            href="/setup-towns"
+            className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition mb-4"
+          >
+            Go to Setup →
+          </a>
+          <p className="font-georgia-pro text-sm text-gray-500">
+            Or add these environment variables to Vercel:
+            <br />
+            <code className="text-xs">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID</code>
+            <br />
+            <code className="text-xs">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID</code>
+          </p>
+        </div>
+      </div>
     );
   }
 
