@@ -10,17 +10,27 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-// Towns Protocol config - using Base's public RPC
+// Towns Protocol config
 const townsConfig = townsEnv().makeTownsConfig('omega', {
   baseChainRpcUrl: 'https://mainnet.base.org'
 });
 
-// ✅ CORRECT SPACE ID
+// ✅ SPACE ID WITH 0x PREFIX
 const SPACE_ID = '0x7aa49da853a1a132af1b955c35d1a46fe7400476';
 
-// Separate component that only renders when connected
+// Component that only renders when connected
 function SpaceInfo({ account }: { account: any }) {
   const { data: space, error: spaceError } = useSpace(SPACE_ID);
+
+  useEffect(() => {
+    console.log('🔍 Fetching space with ID:', SPACE_ID);
+    if (spaceError) {
+      console.error('❌ Space error:', spaceError);
+    }
+    if (space) {
+      console.log('✅ Space data loaded:', space);
+    }
+  }, [space, spaceError]);
 
   // Log environment variables when space data is available
   useEffect(() => {
@@ -45,7 +55,7 @@ function SpaceInfo({ account }: { account: any }) {
             <div className="bg-white rounded p-4 font-mono text-sm">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-green-600">✓</span>
-                <span>Connected to Towns Protocol (Omega)</span>
+                <span>Connected to Towns Protocol (Omega - Base Mainnet)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
@@ -64,9 +74,17 @@ function SpaceInfo({ account }: { account: any }) {
           {spaceError && (
             <div className="mb-6">
               <h2 className="font-adonis text-2xl mb-3 text-red-600">Error</h2>
-              <div className="bg-red-50 border border-red-200 rounded p-4 font-mono text-sm text-red-700">
-                Failed to load space data: {spaceError.message || 'Unknown error'}
-                <div className="mt-2 text-xs">Check console for more details.</div>
+              <div className="bg-red-50 border border-red-200 rounded p-4 font-mono text-sm text-red-700 break-all">
+                <p className="font-semibold mb-2">Failed to load space data:</p>
+                <p>{spaceError.message || JSON.stringify(spaceError)}</p>
+                <div className="mt-3 text-xs">
+                  <p>This could mean:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    <li>The space doesn't exist</li>
+                    <li>You need to join the space first in app.towns.com</li>
+                    <li>The Space ID format is incorrect</li>
+                  </ul>
+                </div>
               </div>
             </div>
           )}
