@@ -1,16 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { townsEnv } from '@towns-protocol/sdk';
+import { makeRiverConfig, createSyncAgent } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { connectTownsWithSigner } from '@towns-protocol/sdk';
-
-// Towns config - using Base mainnet
-const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: 'https://mainnet.base.org'
-});
 
 export default function SetupTownsContent() {
   const [mounted, setMounted] = useState(false);
@@ -19,6 +13,7 @@ export default function SetupTownsContent() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [syncAgent, setSyncAgent] = useState<any>(null);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
 
@@ -44,10 +39,22 @@ export default function SetupTownsContent() {
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        // Create a SyncAgent connection
-        await connectTownsWithSigner(signer, { townsConfig });
+        // Create River config for Base mainnet (omega environment)
+        const riverConfig = makeRiverConfig('omega');
+        
+        // Create sync agent
+        const agent = await createSyncAgent(
+          signer,
+          riverConfig,
+          {
+            context: {
+              timeSource: Date.now
+            }
+          }
+        );
         
         console.log('✅ Connected to Towns Protocol');
+        setSyncAgent(agent);
         setIsConnected(true);
       } catch (err: any) {
         console.error('❌ Towns connection error:', err);
@@ -66,11 +73,7 @@ export default function SetupTownsContent() {
     setIsCreating(true);
     
     try {
-      if (!window.ethereum) {
-        throw new Error('Please install MetaMask or a Web3 wallet');
-      }
-
-      if (!isConnected) {
+      if (!syncAgent) {
         throw new Error('Not connected to Towns Protocol');
       }
 
@@ -80,10 +83,7 @@ export default function SetupTownsContent() {
       const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       const signer = provider.getSigner();
       
-      // Get the connected SyncAgent
-      const syncAgent = await connectTownsWithSigner(signer, { townsConfig });
-      
-      // Use the SyncAgent to create the space
+      // Create space using the syncAgent
       const result = await syncAgent.spaces.createSpace(
         { spaceName: 'Knead Chat' },
         signer
