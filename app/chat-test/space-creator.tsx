@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Base Mainnet configuration
+// Base Mainnet configuration with custom Alchemy RPC
 const BASE_MAINNET = {
   chainId: '0x2105', // 8453 in hex
   chainName: 'Base',
@@ -19,7 +19,9 @@ const BASE_MAINNET = {
     symbol: 'ETH',
     decimals: 18,
   },
-  rpcUrls: ['https://mainnet.base.org'],
+  rpcUrls: [
+    process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || 'https://mainnet.base.org'
+  ],
   blockExplorerUrls: ['https://basescan.org'],
 };
 
@@ -56,9 +58,9 @@ export default function SpaceCreator({ walletAddress, onSpaceCreated }: SpaceCre
             params: [{ chainId: BASE_MAINNET.chainId }],
           });
         } catch (switchError: any) {
-          // If Base mainnet is not added, add it
+          // If Base mainnet is not added, add it (with Alchemy RPC)
           if (switchError.code === 4902) {
-            console.log('Adding Base mainnet to wallet...');
+            console.log('Adding Base mainnet to wallet with Alchemy RPC...');
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [BASE_MAINNET],
