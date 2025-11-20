@@ -4,7 +4,7 @@ import { TREASURY_CONFIG } from '@/lib/chat/point-values';
 import { getContract, prepareContractCall, sendTransaction } from 'thirdweb';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import { client } from '@/thirdweb-client';
-import { baseSepolia } from 'thirdweb/chains';
+import { base } from 'thirdweb/chains';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       // Get $TOWNS token contract
       const townsContract = getContract({
         client,
-        chain: baseSepolia,
+        chain: base,
         address: process.env.TOWNS_TOKEN_ADDRESS || '0x...', // Add your $TOWNS token address
       });
 
