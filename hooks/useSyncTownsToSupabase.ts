@@ -6,7 +6,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useChannel } from '@towns-protocol/react-sdk';
+import { useChannel, useTimeline } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { createClient } from '@supabase/supabase-js';
 
 // Only create Supabase client if running in browser
@@ -20,13 +21,19 @@ const getSupabase = () => {
   );
 };
 
-export function useSyncTownsToSupabase(channelId: string) {
-  // Always call useChannel - hooks must be called unconditionally
-  const { messages, isLoading, error } = useChannel(channelId);
+export function useSyncTownsToSupabase(spaceId: string, channelId: string) {
+  // Get channel data and timeline events
+  const { data: channel } = useChannel(spaceId, channelId);
+  const { data: events, isLoading, error } = useTimeline(channelId);
   
   const [isMounted, setIsMounted] = useState(false);
   const processedIds = useRef(new Set<string>());
   const lastSyncTime = useRef(Date.now());
+
+  // Filter timeline events to only get chat messages
+  const messages = events?.filter(
+    event => event.content?.kind === RiverTimelineEvent.ChannelMessage
+  ) || [];
 
   // Track when component mounts (client-side only)
   useEffect(() => {
@@ -45,12 +52,13 @@ export function useSyncTownsToSupabase(channelId: string) {
     const syncMessages = async () => {
       // Only sync new messages (received in last 10 seconds)
       const recentMessages = messages.filter(
-        msg => new Date(msg.timestamp).getTime() > lastSyncTime.current - 10000
+        msg => new Date(msg.createdAtEpochMs || Date.now()).getTime() > lastSyncTime.current - 10000
       );
 
       for (const message of recentMessages) {
         // Skip if already processed
-        if (processedIds.current.has(message.id)) {
+        const msgId = message.eventId || message.hashStr || '';
+        if (!msgId || processedIds.current.has(msgId)) {
           continue;
         }
 
@@ -59,20 +67,20 @@ export function useSyncTownsToSupabase(channelId: string) {
           const { data: existing } = await supabase
             .from('chat_messages')
             .select('id')
-            .eq('towns_message_id', message.id)
+            .eq('towns_message_id', msgId)
             .maybeSingle();
 
           if (existing) {
-            processedIds.current.add(message.id);
+            processedIds.current.add(msgId);
             continue;
           }
 
           // Get sender's wallet address from Towns message
-          const senderAddress = message.sender?.address || message.sender?.did || message.senderId;
+          const senderAddress = message.creatorUserId || message.content?.author || '';
           
           if (!senderAddress) {
-            console.warn('No sender address found for message:', message.id);
-            processedIds.current.add(message.id);
+            console.warn('No sender address found for message:', msgId);
+            processedIds.current.add(msgId);
             continue;
           }
 
@@ -80,6 +88,7 @@ export function useSyncTownsToSupabase(channelId: string) {
           const cleanAddress = senderAddress
             .replace(/^did:/, '')
             .replace(/^eip155:1:/, '') // Remove EIP-155 chain prefix
+            .replace(/^eip155:\d+:/, '') // Remove any EIP-155 chain prefix
             .toLowerCase();
 
           // Find Knead user by wallet address
@@ -91,7 +100,18 @@ export function useSyncTownsToSupabase(channelId: string) {
 
           if (!user) {
             console.warn(`Knead user not found for address: ${cleanAddress}`);
-            processedIds.current.add(message.id);
+            processedIds.current.add(msgId);
+            continue;
+          }
+
+          // Get message text content
+          const messageText = message.content?.body?.text || 
+                             message.content?.text || 
+                             '';
+
+          if (!messageText) {
+            console.warn('No message text found:', msgId);
+            processedIds.current.add(msgId);
             continue;
           }
 
@@ -101,42 +121,21 @@ export function useSyncTownsToSupabase(channelId: string) {
             .insert({
               channel_id: channelId,
               user_id: user.id,
-              content: message.text || message.content || '',
-              towns_message_id: message.id,
-              towns_metadata: {
-                senderId: message.senderId,
-                sender: message.sender,
-                metadata: message.metadata,
-              },
-              created_at: message.timestamp,
+              content: messageText,
+              towns_message_id: msgId,
+              created_at: new Date(message.createdAtEpochMs || Date.now()).toISOString(),
             });
 
-          if (!insertError) {
-            console.log(`✅ Synced Towns message ${message.id} to Supabase`);
-            processedIds.current.add(message.id);
-
-            // Trigger point calculation if metadata includes event info
-            if (message.metadata?.eventId && message.metadata?.kneadUserId) {
-              try {
-                await fetch('/api/chat/calculate-points', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    messageId: message.id,
-                    userId: message.metadata.kneadUserId,
-                    eventId: message.metadata.eventId,
-                  }),
-                });
-              } catch (pointError) {
-                console.error('Point calculation failed:', pointError);
-              }
-            }
+          if (insertError) {
+            console.error('Failed to sync message to Supabase:', insertError);
           } else {
-            console.error('Failed to insert message:', insertError);
+            console.log('✅ Synced message to Supabase:', msgId);
+            processedIds.current.add(msgId);
           }
 
         } catch (error) {
           console.error('Error syncing message:', error);
+          processedIds.current.add(msgId);
         }
       }
 
@@ -145,11 +144,11 @@ export function useSyncTownsToSupabase(channelId: string) {
     };
 
     syncMessages();
-  }, [messages, isLoading, error, channelId, isMounted]);
+  }, [isMounted, isLoading, error, messages, channelId]);
 
   return {
     isSyncing: isLoading,
-    error,
-    syncedCount: processedIds.current.size,
+    syncError: error,
+    messageCount: messages.length,
   };
 }
