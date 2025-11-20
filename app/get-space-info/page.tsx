@@ -7,7 +7,7 @@ import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
-// Add this to force dynamic rendering
+// Force dynamic rendering - don't pre-render at build time
 export const dynamic = 'force-dynamic';
 
 // Towns Protocol environment config
@@ -17,41 +17,9 @@ const townsConfig = townsEnv().makeTownsConfig('omega', {
 
 const SPACE_ID = '463997';
 
-export default function GetSpaceInfoPage() {
-  const [hasConnected, setHasConnected] = useState(false);
-  const account = useActiveAccount();
-  const connectionStatus = useActiveWalletConnectionStatus();
-  const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
-  
-  // Fetch space data (will only work when connected)
+// Separate component that only renders when connected
+function SpaceInfo({ account }: { account: any }) {
   const { data: space, error: spaceError } = useSpace(SPACE_ID);
-
-  // Connect to Towns when wallet is connected
-  useEffect(() => {
-    if (!account?.address || isAgentConnected || isAgentConnecting || connectionStatus !== 'connected' || hasConnected) {
-      return;
-    }
-
-    const connectToTowns = async () => {
-      try {
-        if (typeof window === 'undefined' || !window.ethereum) {
-          console.error('No ethereum provider found');
-          return;
-        }
-
-        const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
-        const signer = provider.getSigner();
-
-        await connect(signer, { townsConfig });
-        console.log('✅ Connected to Towns Protocol');
-        setHasConnected(true);
-      } catch (err) {
-        console.error('Failed to connect to Towns:', err);
-      }
-    };
-
-    connectToTowns();
-  }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect, hasConnected]);
 
   // Log environment variables when space data is available
   useEffect(() => {
@@ -65,72 +33,6 @@ export default function GetSpaceInfoPage() {
     }
   }, [space]);
 
-  const handleManualConnect = async () => {
-    try {
-      if (typeof window === 'undefined' || !window.ethereum) {
-        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
-        return;
-      }
-
-      const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
-      const signer = provider.getSigner();
-      await connect(signer, { townsConfig });
-      setHasConnected(true);
-    } catch (err) {
-      console.error('Connection failed:', err);
-      alert('Failed to connect to Towns Protocol. Check console for details.');
-    }
-  };
-
-  // Not connected to wallet
-  if (!account?.address) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white p-4">
-        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
-          <h1 className="font-adonis text-4xl mb-4 text-center">Get Space Info</h1>
-          <p className="font-georgia-pro text-lg mb-6 text-gray-600 text-center">
-            Connect your wallet to fetch Towns Protocol space information
-          </p>
-          <div className="flex justify-center">
-            <ThirdWebConnectButton />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Wallet connected but Towns not authenticated
-  if (!isAgentConnected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white p-4">
-        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
-          <h1 className="font-adonis text-3xl mb-4 text-center">Connecting to Towns Protocol...</h1>
-          {isAgentConnecting ? (
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-              <p className="font-georgia-pro text-gray-600">
-                Please sign the message in your wallet to authenticate
-              </p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <p className="font-georgia-pro text-gray-600 mb-6">
-                Towns Protocol requires wallet signature for authentication
-              </p>
-              <button
-                onClick={handleManualConnect}
-                className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
-              >
-                Connect to Towns
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Connected to Towns - show space info
   return (
     <div className="min-h-screen bg-white p-4">
       <div className="max-w-4xl mx-auto py-8">
@@ -235,7 +137,7 @@ export default function GetSpaceInfoPage() {
 
               <div className="bg-blue-50 border border-blue-200 rounded p-4">
                 <p className="font-georgia-pro text-sm text-blue-800">
-                  ✨ <strong>Next Steps:</strong> Copy the environment variables above and add them to your <code className="bg-blue-100 px-1 rounded">.env.local</code> file.
+                  ✨ <strong>Next Steps:</strong> Copy the environment variables above and add them to your Vercel project settings.
                   This is a temporary utility page that can be deleted after getting the channel ID.
                 </p>
               </div>
@@ -245,4 +147,106 @@ export default function GetSpaceInfoPage() {
       </div>
     </div>
   );
+}
+
+export default function GetSpaceInfoPage() {
+  const [hasConnected, setHasConnected] = useState(false);
+  const account = useActiveAccount();
+  const connectionStatus = useActiveWalletConnectionStatus();
+  const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
+
+  // Connect to Towns when wallet is connected
+  useEffect(() => {
+    if (!account?.address || isAgentConnected || isAgentConnecting || connectionStatus !== 'connected' || hasConnected) {
+      return;
+    }
+
+    const connectToTowns = async () => {
+      try {
+        if (typeof window === 'undefined' || !window.ethereum) {
+          console.error('No ethereum provider found');
+          return;
+        }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
+        const signer = provider.getSigner();
+
+        await connect(signer, { townsConfig });
+        console.log('✅ Connected to Towns Protocol');
+        setHasConnected(true);
+      } catch (err) {
+        console.error('Failed to connect to Towns:', err);
+      }
+    };
+
+    connectToTowns();
+  }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect, hasConnected]);
+
+  const handleManualConnect = async () => {
+    try {
+      if (typeof window === 'undefined' || !window.ethereum) {
+        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
+        return;
+      }
+
+      const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
+      const signer = provider.getSigner();
+      await connect(signer, { townsConfig });
+      setHasConnected(true);
+    } catch (err) {
+      console.error('Connection failed:', err);
+      alert('Failed to connect to Towns Protocol. Check console for details.');
+    }
+  };
+
+  // Not connected to wallet
+  if (!account?.address) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
+          <h1 className="font-adonis text-4xl mb-4 text-center">Get Space Info</h1>
+          <p className="font-georgia-pro text-lg mb-6 text-gray-600 text-center">
+            Connect your wallet to fetch Towns Protocol space information
+          </p>
+          <div className="flex justify-center">
+            <ThirdWebConnectButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Wallet connected but Towns not authenticated
+  if (!isAgentConnected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
+          <h1 className="font-adonis text-3xl mb-4 text-center">Connecting to Towns Protocol...</h1>
+          {isAgentConnecting ? (
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+              <p className="font-georgia-pro text-gray-600">
+                Please sign the message in your wallet to authenticate
+              </p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="font-georgia-pro text-gray-600 mb-6">
+                Towns Protocol requires wallet signature for authentication
+              </p>
+              <button
+                onClick={handleManualConnect}
+                className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+              >
+                Connect to Towns
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Connected to Towns - render SpaceInfo component
+  return <SpaceInfo account={account} />;
 }
