@@ -10,12 +10,13 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-// Towns Protocol environment config - use public Base RPC
+// Towns Protocol config - using Base's public RPC
 const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: 'https://mainnet.base.org' // Direct public RPC
+  baseChainRpcUrl: 'https://mainnet.base.org'
 });
 
-const SPACE_ID = '463997';
+// ✅ CORRECT SPACE ID
+const SPACE_ID = '0x7aa49da853a1a132af1b955c35d1a46fe7400476';
 
 // Separate component that only renders when connected
 function SpaceInfo({ account }: { account: any }) {
@@ -44,7 +45,7 @@ function SpaceInfo({ account }: { account: any }) {
             <div className="bg-white rounded p-4 font-mono text-sm">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-green-600">✓</span>
-                <span>Connected to Towns Protocol (Omega - Base Mainnet)</span>
+                <span>Connected to Towns Protocol (Omega)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
@@ -55,7 +56,7 @@ function SpaceInfo({ account }: { account: any }) {
 
           <div className="mb-6">
             <h2 className="font-adonis text-2xl mb-3">Space ID</h2>
-            <div className="bg-white rounded p-4 font-mono text-sm">
+            <div className="bg-white rounded p-4 font-mono text-sm break-all">
               <code className="text-blue-600">{SPACE_ID}</code>
             </div>
           </div>
@@ -65,6 +66,7 @@ function SpaceInfo({ account }: { account: any }) {
               <h2 className="font-adonis text-2xl mb-3 text-red-600">Error</h2>
               <div className="bg-red-50 border border-red-200 rounded p-4 font-mono text-sm text-red-700">
                 Failed to load space data: {spaceError.message || 'Unknown error'}
+                <div className="mt-2 text-xs">Check console for more details.</div>
               </div>
             </div>
           )}
@@ -72,9 +74,9 @@ function SpaceInfo({ account }: { account: any }) {
           {!space && !spaceError && (
             <div className="mb-6">
               <h2 className="font-adonis text-2xl mb-3">Loading Space Data...</h2>
-              <div className="bg-white rounded p-4 flex items-center gap-4">
+              <div className="bg-white rounded p-4 flex items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
-                <p className="font-georgia-pro text-gray-600">Fetching space info from Towns Protocol...</p>
+                <span className="font-georgia-pro text-gray-600">Fetching from Towns Protocol...</span>
               </div>
             </div>
           )}
@@ -107,7 +109,7 @@ function SpaceInfo({ account }: { account: any }) {
                       </p>
                       <ul className="space-y-2">
                         {space.channelIds.map((channelId, index) => (
-                          <li key={channelId} className="font-mono text-sm bg-gray-50 p-3 rounded">
+                          <li key={channelId} className="font-mono text-sm bg-gray-50 p-3 rounded break-all">
                             <span className="text-gray-600">Channel {index}:</span>{' '}
                             <code className="text-blue-600 font-semibold">{channelId}</code>
                             {index === 0 && (
@@ -126,9 +128,9 @@ function SpaceInfo({ account }: { account: any }) {
               {space.channelIds && space.channelIds.length > 0 && (
                 <div className="mb-6">
                   <h2 className="font-adonis text-2xl mb-3">Environment Variables</h2>
-                  <div className="bg-gray-900 text-green-400 rounded p-4 font-mono text-sm">
-                    <p className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={SPACE_ID}</p>
-                    <p>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={space.channelIds[0]}</p>
+                  <div className="bg-gray-900 text-green-400 rounded p-4 font-mono text-sm overflow-x-auto">
+                    <p className="mb-1 break-all">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={SPACE_ID}</p>
+                    <p className="break-all">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={space.channelIds[0]}</p>
                   </div>
                   <p className="font-georgia-pro text-sm text-gray-600 mt-2">
                     ℹ️ These values have also been logged to the browser console
@@ -152,7 +154,6 @@ function SpaceInfo({ account }: { account: any }) {
 
 export default function GetSpaceInfoPage() {
   const [hasConnected, setHasConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
   const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
@@ -165,27 +166,20 @@ export default function GetSpaceInfoPage() {
 
     const connectToTowns = async () => {
       try {
-        console.log('🔌 Connecting to Towns Protocol...');
-        console.log('📍 Using Base mainnet RPC: https://mainnet.base.org');
-        
         if (typeof window === 'undefined' || !window.ethereum) {
-          throw new Error('No ethereum provider found');
+          console.error('No ethereum provider found');
+          return;
         }
 
+        console.log('🔌 Connecting to Towns Protocol...');
         const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
         const signer = provider.getSigner();
-        const address = await signer.getAddress();
-        
-        console.log('👛 Wallet address:', address);
-        console.log('🔐 Requesting signature...');
 
         await connect(signer, { townsConfig });
-        
-        console.log('✅ Connected to Towns Protocol successfully');
+        console.log('✅ Connected to Towns Protocol');
         setHasConnected(true);
-      } catch (err: any) {
+      } catch (err) {
         console.error('❌ Failed to connect to Towns:', err);
-        setError(err.message || 'Failed to connect to Towns Protocol');
       }
     };
 
@@ -194,21 +188,20 @@ export default function GetSpaceInfoPage() {
 
   const handleManualConnect = async () => {
     try {
-      setError(null);
-      
       if (typeof window === 'undefined' || !window.ethereum) {
-        throw new Error('No Web3 wallet detected. Please install MetaMask or use a Web3 browser.');
+        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
+        return;
       }
 
-      console.log('🔌 Manual connection initiated...');
+      console.log('🔌 Manually connecting to Towns Protocol...');
       const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
       const signer = provider.getSigner();
-      
       await connect(signer, { townsConfig });
       setHasConnected(true);
-    } catch (err: any) {
-      console.error('Connection failed:', err);
-      setError(err.message || 'Failed to connect to Towns Protocol');
+      console.log('✅ Connected to Towns Protocol');
+    } catch (err) {
+      console.error('❌ Connection failed:', err);
+      alert('Failed to connect to Towns Protocol. Check console for details.');
     }
   };
 
@@ -235,21 +228,11 @@ export default function GetSpaceInfoPage() {
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
           <h1 className="font-adonis text-3xl mb-4 text-center">Connecting to Towns Protocol...</h1>
-          
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="font-georgia-pro text-sm text-red-600">{error}</p>
-            </div>
-          )}
-          
           {isAgentConnecting ? (
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
               <p className="font-georgia-pro text-gray-600">
                 Please sign the message in your wallet to authenticate
-              </p>
-              <p className="font-georgia-pro text-sm text-gray-500 mt-2">
-                Using Base Mainnet (https://mainnet.base.org)
               </p>
             </div>
           ) : (
