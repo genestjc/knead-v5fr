@@ -8,11 +8,6 @@ import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
-// Towns config - using Base mainnet
-const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: 'https://mainnet.base.org'
-});
-
 // Inner component that uses Towns hooks (must be inside TownsSyncProvider)
 function CreateSpaceForm({ 
   onSpaceCreated 
@@ -121,7 +116,14 @@ export default function SetupTownsContent() {
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        // Use signAndConnect - it handles everything!
+        // Create Towns config inside the function
+        const townsConfig = townsEnv().makeTownsConfig('omega', {
+          baseChainRpcUrl: 'https://mainnet.base.org'
+        });
+        
+        console.log('Towns config created:', townsConfig);
+        
+        // Use signAndConnect with the config
         const agent = await signAndConnect(signer, townsConfig);
         
         console.log('✅ Connected to Towns Protocol');
