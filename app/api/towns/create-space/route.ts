@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createThirdwebClient, Engine } from 'thirdweb';
 import { ethers } from 'ethers-v5';
-import { townsEnv, SpaceDapp } from '@towns-protocol/sdk';
+import { townsEnv } from '@towns-protocol/sdk';
 import { createClient } from '@supabase/supabase-js';
 
 // Validate required environment variables
@@ -126,46 +126,21 @@ export async function POST(request: NextRequest) {
       provider,
     } as ethers.Signer;
 
-    // Create SpaceDapp instance
-    const spaceDapp = new SpaceDapp(townsConfig.base.chainConfig, provider);
-
     console.log('🚀 Calling Towns SDK createSpace...');
     
-    // Create the space using SpaceDapp
-    const txn = await spaceDapp.createSpace(
+    // Use the SDK's createSpace function directly
+    const { createSpace } = await import('@towns-protocol/sdk');
+
+    const result = await createSpace(
       { spaceName: 'Knead' },
       engineSigner,
-      {}
+      townsConfig
     );
 
-    console.log('⏳ Waiting for space creation transaction...');
-    
-    // Wait for transaction to be mined
-    const receipt = await txn.wait();
-    
-    console.log('✅ Space creation transaction mined:', receipt.transactionHash);
+    console.log('✅ Space created:', result);
 
-    // Parse the space creation event to get spaceId and defaultChannelId
-    // The SpaceCreated event should contain this information
-    const spaceInterface = spaceDapp.spaceRegistrar.interface;
-    const spaceCreatedEvent = receipt.logs
-      .map((log: ethers.providers.Log) => {
-        try {
-          return spaceInterface.parseLog(log);
-        } catch {
-          return null;
-        }
-      })
-      .find((event: ethers.utils.LogDescription | null) => event?.name === 'SpaceCreated');
-
-    if (!spaceCreatedEvent) {
-      throw new Error('SpaceCreated event not found in transaction receipt');
-    }
-
-    const spaceId = spaceCreatedEvent.args.space;
-    const defaultChannelId = spaceCreatedEvent.args.channelId || spaceCreatedEvent.args.defaultChannelId;
-
-    console.log('✅ Space created:', { spaceId, defaultChannelId });
+    const spaceId = result.spaceId;
+    const defaultChannelId = result.defaultChannelId;
 
     // Save to Supabase
     const { error: insertError } = await supabase
