@@ -1,182 +1,116 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useCreateSpace, useAgentConnection } from '@towns-protocol/react-sdk';
+import { townsEnv } from '@towns-protocol/sdk';
+import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { useAgentConnection } from '@towns-protocol/react-sdk';
-import { townsEnv } from '@towns-protocol/sdk';
-import type { ChatUser } from '@/types/chat';
-import nextDynamic from 'next/dynamic';
-import { ethers } from 'ethers-v5';
-import { createClient } from '@supabase/supabase-js';
 
-// Dynamically import the connected chat component
-const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
-  ssr: false,
-});
+// Force dynamic rendering - disable static generation
+export const dynamic = 'force-dynamic';
 
-// Towns Protocol environment config
+// Towns config - using Base mainnet
 const townsConfig = townsEnv().makeTownsConfig('omega', {
   baseChainRpcUrl: 'https://mainnet.base.org'
 });
 
-// Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// Space IDs from environment variables
-const HARDCODED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID || null;
-const HARDCODED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID || null;
-
-export default function ChatTestClient() {
-  const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [spaceId, setSpaceId] = useState<string | null>(null);
-  const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
-  const [loadingSpace, setLoadingSpace] = useState(true);
+export default function SetupTownsPage() {
+  const [mounted, setMounted] = useState(false);
+  const [spaceCreated, setSpaceCreated] = useState<{ spaceId: string; channelId: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
+  const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
+  const { createSpace, isPending } = useCreateSpace();
 
-  const { connect, disconnect, isAgentConnecting, isAgentConnected } = useAgentConnection();
-
-  // Fetch existing space from Supabase
+  // Ensure client-side only rendering
   useEffect(() => {
-    async function fetchSpace() {
-      setLoadingSpace(true);
-      
-      // First, check hardcoded env vars
-      if (HARDCODED_SPACE_ID && HARDCODED_CHANNEL_ID) {
-        console.log('✅ Using hardcoded Knead space IDs from env vars');
-        setSpaceId(HARDCODED_SPACE_ID);
-        setDefaultChannelId(HARDCODED_CHANNEL_ID);
-        setLoadingSpace(false);
-        return;
-      }
-
-      // Otherwise, fetch from Supabase
-      try {
-        const { data, error } = await supabase
-          .from('towns_spaces')
-          .select('space_id, default_channel_id')
-          .eq('is_active', true)
-          .eq('space_name', 'Knead')
-          .maybeSingle();
-
-        if (data && !error) {
-          console.log('✅ Found existing Knead space in Supabase:', data);
-          setSpaceId(data.space_id);
-          setDefaultChannelId(data.default_channel_id);
-        } else {
-          console.log('⚠️ No existing Knead space found');
-        }
-      } catch (error) {
-        console.error('Error fetching space from Supabase:', error);
-      } finally {
-        setLoadingSpace(false);
-      }
-    }
-
-    fetchSpace();
+    setMounted(true);
   }, []);
 
-  // Fetch or create Knead user profile
+  // Auto-connect to Towns when wallet connects
   useEffect(() => {
-    async function fetchUser() {
-      if (!account?.address) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/chat/get-or-create-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            address: account.address,
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (data.success && data.user) {
-          setCurrentUser(data.user);
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUser();
-  }, [account?.address]);
-
-  // Connect to Towns when wallet is connected
-  useEffect(() => {
-    if (!account?.address || isAgentConnected || isAgentConnecting || connectionStatus !== 'connected') {
-      return;
-    }
+    if (!mounted || !account?.address || isAgentConnected || connectionStatus !== 'connected') return;
 
     const connectToTowns = async () => {
       try {
-        if (typeof window === 'undefined' || !window.ethereum) {
-          console.error('No ethereum provider found');
-          return;
-        }
-
+        if (!window.ethereum) return;
+        
         console.log('🔌 Connecting to Towns Protocol...');
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
-
+        
         await connect(signer, { townsConfig });
         console.log('✅ Connected to Towns Protocol');
-      } catch (err) {
-        console.error('❌ Failed to connect to Towns:', err);
+      } catch (err: any) {
+        console.error('❌ Towns connection error:', err);
+        setError(`Connection failed: ${err.message}`);
       }
     };
 
     connectToTowns();
-  }, [account?.address, isAgentConnected, isAgentConnecting, connectionStatus, connect]);
+  }, [mounted, account?.address, connectionStatus, isAgentConnected, connect]);
 
-  const handleManualConnect = async () => {
+  // Create space handler
+  const handleCreateSpace = async () => {
+    setError(null);
+    
     try {
-      if (typeof window === 'undefined' || !window.ethereum) {
-        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
-        return;
+      if (!window.ethereum) {
+        throw new Error('Please install MetaMask or a Web3 wallet');
       }
 
-      console.log('🔌 Manually connecting to Towns Protocol...');
+      if (!isAgentConnected) {
+        throw new Error('Not connected to Towns Protocol');
+      }
+
       const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       const signer = provider.getSigner();
-      await connect(signer, { townsConfig });
-    } catch (err) {
-      console.error('❌ Connection failed:', err);
-      alert('Failed to connect to Towns Protocol. Check console for details.');
+
+      console.log('🚀 Creating Knead Chat space...');
+      console.log('📍 Network: Base Mainnet (Omega)');
+      
+      const result = await createSpace(
+        { spaceName: 'Knead Chat' },
+        signer
+      );
+
+      console.log('✅ Space created successfully!');
+      console.log('📋 Space ID:', result.spaceId);
+      console.log('📋 Default Channel ID:', result.defaultChannelId);
+
+      setSpaceCreated({
+        spaceId: result.spaceId,
+        channelId: result.defaultChannelId
+      });
+
+    } catch (err: any) {
+      console.error('❌ Error creating space:', err);
+      setError(err.message || 'Failed to create space');
     }
   };
 
-  // Loading state
-  if (loading || loadingSpace) {
+  // Don't render until mounted (client-side only)
+  if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Loading...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
       </div>
     );
   }
 
-  // Not connected
+  // Not connected to wallet
   if (!account?.address) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-5xl mb-6">Knead Chat</h1>
-          <p className="font-georgia-pro text-lg mb-8 text-gray-600">
-            Connect your wallet to join the conversation
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 text-center">
+          <h1 className="font-adonis text-4xl mb-4">Setup Towns Protocol</h1>
+          <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+            Connect your wallet to create the Knead Chat space
+          </p>
+          <p className="font-georgia-pro text-sm mb-8 text-gray-500">
+            This is a one-time setup. The space will be created on Base mainnet.
           </p>
           <ThirdWebConnectButton />
         </div>
@@ -184,75 +118,159 @@ export default function ChatTestClient() {
     );
   }
 
-  // Wallet connected but Towns not authenticated
+  // Connecting to Towns
   if (!isAgentConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">Connecting to Towns...</h1>
-          {isAgentConnecting ? (
-            <>
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-              <p className="font-georgia-pro text-gray-600">
-                Please sign the message in your wallet to authenticate
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-georgia-pro text-gray-600 mb-6">
-                Towns Protocol requires wallet signature for authentication
-              </p>
-              <button
-                onClick={handleManualConnect}
-                className="px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
-              >
-                Connect to Towns
-              </button>
-            </>
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 text-center">
+          <h1 className="font-adonis text-3xl mb-4">Connecting to Towns Protocol...</h1>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro text-gray-600 mb-2">
+            {isAgentConnecting ? 'Please sign the message in your wallet' : 'Initializing connection...'}
+          </p>
+          <p className="font-georgia-pro text-sm text-gray-500">
+            Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+          </p>
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+              {error}
+            </div>
           )}
         </div>
       </div>
     );
   }
 
-  // Connected but no space - redirect to setup
-  if (!spaceId || !defaultChannelId) {
+  // Success - show IDs
+  if (spaceCreated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">Space Not Configured</h1>
-          <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-            Please set up your Towns Protocol space first by adding the Space ID and Channel ID to your environment variables.
-          </p>
-          <a
-            href="/setup-towns"
-            className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition mb-4"
-          >
-            Go to Setup →
-          </a>
-          <p className="font-georgia-pro text-sm text-gray-500">
-            Or add these environment variables to Vercel:
-            <br />
-            <code className="text-xs">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID</code>
-            <br />
-            <code className="text-xs">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID</code>
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-3xl w-full bg-gray-50 rounded-lg p-8">
+          <div className="text-center mb-6">
+            <div className="text-6xl mb-4">🎉</div>
+            <h1 className="font-adonis text-4xl mb-2">Space Created!</h1>
+            <p className="font-georgia-pro text-gray-600">
+              Your Knead Chat space is live on Towns Protocol
+            </p>
+          </div>
+          
+          <div className="mb-6 p-6 bg-white rounded-lg border-2 border-green-200">
+            <h2 className="font-adonis text-2xl mb-4">Copy These to Vercel Environment Variables:</h2>
+            
+            <div className="mb-4">
+              <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
+                Space ID:
+              </label>
+              <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
+                {spaceCreated.spaceId}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(spaceCreated.spaceId);
+                  alert('Space ID copied!');
+                }}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                📋 Copy Space ID
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
+                Default Channel ID:
+              </label>
+              <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
+                {spaceCreated.channelId}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(spaceCreated.channelId);
+                  alert('Channel ID copied!');
+                }}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                📋 Copy Channel ID
+              </button>
+            </div>
+
+            <div className="mt-6 p-4 bg-gray-900 text-green-400 rounded font-mono text-xs overflow-x-auto">
+              <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={spaceCreated.spaceId}</div>
+              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={spaceCreated.channelId}</div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="font-georgia-pro font-semibold mb-2">📝 Next Steps:</h3>
+            <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
+              <li>Go to your Vercel project settings</li>
+              <li>Add these two environment variables</li>
+              <li>Redeploy your application</li>
+              <li>Test your chat at <code className="bg-blue-100 px-1 rounded">/chat-test</code></li>
+            </ol>
+          </div>
+
+          <div className="text-center space-x-4">
+            <a
+              href="/chat-test"
+              className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+            >
+              Go to Chat Test →
+            </a>
+            <a
+              href="https://vercel.com/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-6 py-3 bg-white border-2 border-black text-black rounded-full font-georgia-pro hover:bg-gray-50 transition"
+            >
+              Open Vercel Dashboard ↗
+            </a>
+          </div>
+
+          <p className="text-center font-georgia-pro text-xs text-gray-500 mt-6">
+            ⚠️ This page can be deleted after copying the IDs to Vercel
           </p>
         </div>
       </div>
     );
   }
 
-  // Connected AND have space! Now render the chat component
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Loading user profile...</p>
+  // Ready to create
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+      <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 text-center">
+        <h1 className="font-adonis text-4xl mb-4">Create Knead Chat Space</h1>
+        <p className="font-georgia-pro text-lg mb-4 text-gray-600">
+          Click below to create your Towns Protocol space for Knead Chat.
+        </p>
+        <p className="font-georgia-pro text-sm mb-8 text-gray-500">
+          This will mint a Space NFT to your wallet on Base mainnet. You only need to do this once.
+        </p>
+        
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+            ❌ {error}
+          </div>
+        )}
+        
+        <button
+          onClick={handleCreateSpace}
+          disabled={isPending}
+          className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+        >
+          {isPending ? '⏳ Creating Space...' : '🚀 Create Knead Chat Space'}
+        </button>
+
+        <p className="font-georgia-pro text-sm text-gray-500">
+          Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+        </p>
+        
+        <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
+          <p className="font-georgia-pro text-sm text-yellow-800">
+            <strong>ℹ️ Note:</strong> This will create a new space on Towns Protocol. If you already have a space, 
+            use <code className="bg-yellow-100 px-1 rounded">useUserSpaces()</code> to find its ID instead.
+          </p>
         </div>
       </div>
-    );
-  }
-
-  return <ConnectedChat currentUser={currentUser} spaceId={spaceId} defaultChannelId={defaultChannelId} />;
+    </div>
+  );
 }
