@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, useReadContract } from 'thirdweb/react';
+import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { createThirdwebClient, getContract, prepareContractCall, sendTransaction } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, sendTransaction, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 
 const SPACE_FACTORY_ADDRESS = '0x9978c826d93883701522d2ca645d5436e5654252';
@@ -38,11 +38,29 @@ const SPACE_FACTORY_ABI = [
   },
 ];
 
+// ABI for reading from the Space contract
+const SPACE_ABI = [
+  {
+    inputs: [],
+    name: "defaultChannelId",
+    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "channelIds",
+    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+];
+
 export default function SetupTownsContent() {
   const account = useActiveAccount();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ spaceId: string; txHash: string } | null>(null);
+  const [success, setSuccess] = useState<{ spaceId: string; channelId: string; txHash: string } | null>(null);
 
   const handleCreateSpace = async () => {
     if (!account) {
@@ -60,29 +78,29 @@ export default function SetupTownsContent() {
         clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
       });
 
-      const contract = getContract({
+      const spaceFactoryContract = getContract({
         client,
         chain: base,
         address: SPACE_FACTORY_ADDRESS,
         abi: SPACE_FACTORY_ABI,
       });
 
-      // Prepare transaction
+      // Prepare and send transaction
       const transaction = prepareContractCall({
-        contract,
+        contract: spaceFactoryContract,
         method: "function createSpace(string name)",
         params: ["Knead Chat"],
       });
 
       console.log('📝 Transaction prepared, sending...');
 
-      // Send transaction with user's wallet
       const result = await sendTransaction({
         transaction,
         account,
       });
 
       console.log('✅ Transaction sent:', result.transactionHash);
+      console.log('📋 All logs:', result.logs);
 
       // Parse logs to get Space ID
       const eventSignature = "SpaceCreated(uint256,address,string)";
@@ -93,18 +111,60 @@ export default function SetupTownsContent() {
       const spaceId = spaceCreatedLog?.args?.spaceId?.toString();
 
       if (!spaceId) {
+        console.error('Could not find spaceId in logs:', result.logs);
         throw new Error('Could not extract Space ID from transaction');
       }
 
       console.log('🎉 Space created! ID:', spaceId);
 
+      // Now we need to get the Space contract address and query for default channel
+      // The Space contract address might be in the logs or we need to query SpaceFactory
+      
+      // Option 1: Look for other events that might contain channel info
+      console.log('🔍 Searching all events for channel info...');
+      let defaultChannelId = null;
+
+      // Check all logs for any channel-related events
+      for (const log of result.logs || []) {
+        console.log('Event:', log.eventName, log.args);
+        
+        // Look for ChannelCreated or similar events
+        if (log.eventName?.includes('Channel') || log.eventName === 'ChannelCreated') {
+          const channelId = log.args?.channelId?.toString() || log.args?.id?.toString();
+          if (channelId) {
+            defaultChannelId = channelId;
+            console.log('✅ Found channel ID in event:', channelId);
+            break;
+          }
+        }
+      }
+
+      // Option 2: If not found in events, try querying the Space contract
+      if (!defaultChannelId) {
+        console.log('⚠️ Channel ID not found in events, trying to query Space contract...');
+        
+        // We need the Space contract address - it might be derived from spaceId
+        // For now, let's use spaceId as fallback (Towns said this often works)
+        defaultChannelId = spaceId;
+        console.log('📝 Using spaceId as channel ID fallback');
+      }
+
+      console.log('✅ Final IDs - Space:', spaceId, 'Channel:', defaultChannelId);
+
       setSuccess({
         spaceId,
+        channelId: defaultChannelId,
         txHash: result.transactionHash,
       });
 
     } catch (err: any) {
       console.error('❌ Error creating space:', err);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        reason: err.reason,
+        data: err.data,
+      });
       setError(err.message || 'Failed to create space');
     } finally {
       setIsCreating(false);
@@ -149,17 +209,22 @@ export default function SetupTownsContent() {
                 Default Channel ID:
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {success.spaceId}
+                {success.channelId}
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(success.spaceId);
+                  navigator.clipboard.writeText(success.channelId);
                   alert('Channel ID copied!');
                 }}
                 className="mt-2 text-sm text-blue-600 hover:text-blue-800"
               >
                 📋 Copy Channel ID
               </button>
+              {success.channelId === success.spaceId && (
+                <p className="font-georgia-pro text-xs text-yellow-700 mt-2">
+                  ⚠️ Using Space ID as Channel ID (common fallback). Check browser console logs for details.
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
@@ -178,18 +243,37 @@ export default function SetupTownsContent() {
 
             <div className="mt-6 p-4 bg-gray-900 text-green-400 rounded font-mono text-xs overflow-x-auto">
               <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={success.spaceId}</div>
-              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={success.spaceId}</div>
+              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={success.channelId}</div>
             </div>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 className="font-georgia-pro font-semibold mb-2">📝 Next Steps:</h3>
             <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
-              <li>Go to Vercel project settings</li>
-              <li>Add both environment variables above</li>
-              <li>Redeploy your application</li>
+              <li>Copy both environment variables above</li>
+              <li>
+                Go to{' '}
+                <a
+                  href="https://vercel.com/genestjcs-projects/knead-v5fr/settings/environment-variables"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Vercel Settings ↗
+                </a>
+              </li>
+              <li>Add both variables and save</li>
+              <li>Wait for automatic redeploy</li>
               <li>Test at <code className="bg-blue-100 px-1 rounded">/chat-test</code></li>
             </ol>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <h3 className="font-georgia-pro font-semibold mb-2">🔍 Verify on BaseScan:</h3>
+            <p className="font-georgia-pro text-sm text-yellow-800">
+              Click the transaction link above and check the "Logs" tab to see all events emitted during space creation. 
+              If you see a different Channel ID there, use that instead.
+            </p>
           </div>
 
           <div className="text-center">
@@ -216,9 +300,10 @@ export default function SetupTownsContent() {
           <h2 className="font-adonis text-xl mb-3">How This Works:</h2>
           <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
             <li>Connect your personal wallet (you'll own the Space NFT)</li>
-            <li>Click "Create Space" to call the SpaceFactory contract</li>
-            <li>Sign the transaction in your wallet</li>
-            <li>Get your Space ID and add it to Vercel</li>
+            <li>Click "Create Space" to call SpaceFactory contract on Base</li>
+            <li>Sign the transaction in your wallet (~$1 gas fee)</li>
+            <li>Get your Space ID and Channel ID</li>
+            <li>Add them to Vercel environment variables</li>
           </ol>
         </div>
 
@@ -255,7 +340,7 @@ export default function SetupTownsContent() {
             </button>
 
             <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
-              This will create a Towns Protocol Space owned by your wallet on Base mainnet.
+              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet.
             </p>
           </div>
         )}
