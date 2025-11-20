@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCreateSpace, useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
+import { connectTownsWithSigner } from '@towns-protocol/sdk';
 
 // Towns config - using Base mainnet
 const townsConfig = townsEnv().makeTownsConfig('omega', {
@@ -16,10 +16,11 @@ export default function SetupTownsContent() {
   const [mounted, setMounted] = useState(false);
   const [spaceCreated, setSpaceCreated] = useState<{ spaceId: string; channelId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
-  const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
-  const { createSpace, isPending } = useCreateSpace();
 
   // Ensure client-side only rendering
   useEffect(() => {
@@ -28,47 +29,62 @@ export default function SetupTownsContent() {
 
   // Auto-connect to Towns when wallet connects
   useEffect(() => {
-    if (!mounted || !account?.address || isAgentConnected || connectionStatus !== 'connected') return;
+    if (!mounted || !account?.address || isConnected || connectionStatus !== 'connected') return;
 
     const connectToTowns = async () => {
+      setIsConnecting(true);
+      setError(null);
+      
       try {
-        if (!window.ethereum) return;
+        if (!window.ethereum) {
+          throw new Error('No Web3 wallet detected');
+        }
         
         console.log('🔌 Connecting to Towns Protocol...');
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        await connect(signer, { townsConfig });
+        // Create a SyncAgent connection
+        await connectTownsWithSigner(signer, { townsConfig });
+        
         console.log('✅ Connected to Towns Protocol');
+        setIsConnected(true);
       } catch (err: any) {
         console.error('❌ Towns connection error:', err);
         setError(`Connection failed: ${err.message}`);
+      } finally {
+        setIsConnecting(false);
       }
     };
 
     connectToTowns();
-  }, [mounted, account?.address, connectionStatus, isAgentConnected, connect]);
+  }, [mounted, account?.address, connectionStatus, isConnected]);
 
   // Create space handler
   const handleCreateSpace = async () => {
     setError(null);
+    setIsCreating(true);
     
     try {
       if (!window.ethereum) {
         throw new Error('Please install MetaMask or a Web3 wallet');
       }
 
-      if (!isAgentConnected) {
+      if (!isConnected) {
         throw new Error('Not connected to Towns Protocol');
       }
-
-      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
-      const signer = provider.getSigner();
 
       console.log('🚀 Creating Knead Chat space...');
       console.log('📍 Network: Base Mainnet (Omega)');
       
-      const result = await createSpace(
+      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
+      const signer = provider.getSigner();
+      
+      // Get the connected SyncAgent
+      const syncAgent = await connectTownsWithSigner(signer, { townsConfig });
+      
+      // Use the SyncAgent to create the space
+      const result = await syncAgent.spaces.createSpace(
         { spaceName: 'Knead Chat' },
         signer
       );
@@ -85,6 +101,8 @@ export default function SetupTownsContent() {
     } catch (err: any) {
       console.error('❌ Error creating space:', err);
       setError(err.message || 'Failed to create space');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -116,14 +134,14 @@ export default function SetupTownsContent() {
   }
 
   // Connecting to Towns
-  if (!isAgentConnected) {
+  if (!isConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 text-center">
           <h1 className="font-adonis text-3xl mb-4">Connecting to Towns Protocol...</h1>
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
           <p className="font-georgia-pro text-gray-600 mb-2">
-            {isAgentConnecting ? 'Please sign the message in your wallet' : 'Initializing connection...'}
+            {isConnecting ? 'Please sign the message in your wallet' : 'Initializing connection...'}
           </p>
           <p className="font-georgia-pro text-sm text-gray-500">
             Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
@@ -131,6 +149,12 @@ export default function SetupTownsContent() {
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
               {error}
+              <button
+                onClick={() => window.location.reload()}
+                className="block mx-auto mt-2 px-4 py-2 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+              >
+                Retry
+              </button>
             </div>
           )}
         </div>
@@ -251,10 +275,10 @@ export default function SetupTownsContent() {
         
         <button
           onClick={handleCreateSpace}
-          disabled={isPending}
+          disabled={isCreating}
           className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         >
-          {isPending ? '⏳ Creating Space...' : '🚀 Create Knead Chat Space'}
+          {isCreating ? '⏳ Creating Space...' : '🚀 Create Knead Chat Space'}
         </button>
 
         <p className="font-georgia-pro text-sm text-gray-500">
@@ -264,7 +288,7 @@ export default function SetupTownsContent() {
         <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
           <p className="font-georgia-pro text-sm text-yellow-800">
             <strong>ℹ️ Note:</strong> This will create a new space on Towns Protocol. If you already have a space, 
-            use <code className="bg-yellow-100 px-1 rounded">useUserSpaces()</code> to find its ID instead.
+            you can find its ID in the Towns app settings.
           </p>
         </div>
       </div>
