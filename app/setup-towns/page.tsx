@@ -12,10 +12,6 @@ const SetupTownsContent = dynamic(() => import('./setup-towns-content'), {
   ),
 });
 
-// Force dynamic rendering - disable static generation
-export const dynamicParams = true;
-export const revalidate = 0;
-
 export default function SetupTownsPage() {
   return <SetupTownsContent />;
 }
