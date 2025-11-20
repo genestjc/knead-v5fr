@@ -7,6 +7,9 @@ import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
+// Add this to force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 // Towns Protocol environment config
 const townsConfig = townsEnv().makeTownsConfig('omega', {
   baseChainRpcUrl: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL
