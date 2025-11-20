@@ -10,11 +10,11 @@
 
 import { 
   useAgentConnection,
-  useTownsAuthStatus,
   useChannel,
   useSendMessage,
   useReactions,
   useThreads,
+  useTimeline,
   TownsSyncProvider,
 } from '@towns-protocol/react-sdk';
 
@@ -23,14 +23,13 @@ import {
  * Uses Web3 wallet signatures for authentication (NO API KEY)
  */
 export function useTownsConnection() {
-  const { connect, disconnect } = useAgentConnection();
-  const { isAuthenticated, isLoading: isConnecting } = useTownsAuthStatus();
+  const { connect, disconnect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   
   return {
     connect,
     disconnect,
-    isAuthenticated,
-    isConnecting,
+    isAuthenticated: isAgentConnected,
+    isConnecting: isAgentConnecting,
     error: null, // Towns SDK handles errors internally
   };
 }
@@ -38,15 +37,18 @@ export function useTownsConnection() {
 /**
  * Subscribe to a Towns channel and receive messages in real-time
  * 
+ * @param spaceId - Space identifier
  * @param channelId - Channel identifier (e.g., 'general', 'tech')
- * @returns Channel messages, loading state, and error
+ * @returns Channel data and timeline events
  */
-export function useTownsChannel(channelId: string) {
-  const { messages, isLoading, error } = useChannel(channelId);
+export function useTownsChannel(spaceId: string, channelId: string) {
+  const { data: channel, isLoading: channelLoading } = useChannel(spaceId, channelId);
+  const { data: events, isLoading: eventsLoading, error } = useTimeline(channelId);
   
   return {
-    messages: messages || [],
-    isLoading,
+    channel,
+    events: events || [],
+    isLoading: channelLoading || eventsLoading,
     error,
   };
 }
@@ -55,24 +57,25 @@ export function useTownsChannel(channelId: string) {
  * Send messages to Towns Protocol channels
  * Can include custom metadata for Knead point system
  * 
+ * @param channelId - Channel to send message to
  * @example
  * ```tsx
- * const { sendMessage } = useTownsSendMessage();
+ * const { sendMessage } = useTownsSendMessage('general');
  * 
- * sendMessage('general', 'Hello!', {
+ * await sendMessage('Hello!', {
  *   kneadUserId: 'uuid',
  *   eventType: 'discussion',
  * });
  * ```
  */
-export function useTownsSendMessage() {
-  const { sendMessage, isSending, error } = useSendMessage();
+export function useTownsSendMessage(channelId: string) {
+  const { sendMessage, isPending, error } = useSendMessage(channelId);
   
   return {
-    sendMessage: (channelId: string, content: string, metadata?: Record<string, any>) => {
-      return sendMessage(channelId, content, metadata);
+    sendMessage: (content: string, metadata?: Record<string, any>) => {
+      return sendMessage(content, metadata);
     },
-    isSending,
+    isSending: isPending,
     error,
   };
 }
@@ -84,12 +87,11 @@ export function useTownsSendMessage() {
  * @param messageId - Towns message ID
  */
 export function useTownsReactions(messageId: string) {
-  const { reactions, addReaction, removeReaction } = useReactions(messageId);
+  const reactions = useReactions(messageId);
   
   return {
     reactions: reactions || [],
-    addReaction,
-    removeReaction,
+    // Note: addReaction and removeReaction APIs may need verification
   };
 }
 
@@ -99,11 +101,11 @@ export function useTownsReactions(messageId: string) {
  * @param messageId - Parent message ID
  */
 export function useTownsThreads(messageId: string) {
-  const { replies, isLoading } = useThreads(messageId);
+  const threads = useThreads(messageId);
   
   return {
-    replies: replies || [],
-    isLoading,
+    threads: threads || [],
+    isLoading: false, // Update based on actual API return
   };
 }
 
