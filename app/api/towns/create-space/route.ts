@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createThirdwebClient, Engine } from 'thirdweb';
 import { ethers } from 'ethers-v5';
-import { townsEnv } from '@towns-protocol/sdk';
+import { townsEnv, connectTownsWithSigner } from '@towns-protocol/sdk';
 import { createClient } from '@supabase/supabase-js';
 
 // Validate required environment variables
@@ -76,13 +76,10 @@ export async function POST(request: NextRequest) {
     );
 
     // Create a custom signer that wraps the Engine wallet
-    // This signer will intercept signing requests and route them through Engine
     const engineSigner = {
       getAddress: async () => backendWalletAddress,
       
       signMessage: async (message: string | Uint8Array) => {
-        // Engine doesn't directly support message signing in the way Towns SDK needs
-        // Instead, we'll use the signTypedData approach or handle it differently
         const messageString = typeof message === 'string' ? message : ethers.utils.hexlify(message);
         console.log('⚠️ Message signing requested:', messageString);
         throw new Error('Direct message signing not supported with Engine wallet. Towns SDK should use sendTransaction.');
@@ -95,7 +92,6 @@ export async function POST(request: NextRequest) {
       sendTransaction: async (transaction: ethers.providers.TransactionRequest) => {
         console.log('📤 Sending transaction via Engine:', transaction);
         
-        // Use Engine's serverWallet to send the transaction
         const { transactionId } = await engineServerWallet.enqueueTransaction({
           transaction: {
             to: transaction.to as string,
@@ -107,7 +103,6 @@ export async function POST(request: NextRequest) {
 
         console.log('🔄 Transaction enqueued with ID:', transactionId);
 
-        // Wait for transaction hash
         const { transactionHash } = await Engine.waitForTransactionHash({
           client: thirdwebClient,
           transactionId,
@@ -115,7 +110,6 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Transaction hash:', transactionHash);
 
-        // Wait for transaction receipt
         const receipt = await provider.waitForTransaction(transactionHash);
         
         return receipt as ethers.providers.TransactionResponse;
@@ -126,15 +120,18 @@ export async function POST(request: NextRequest) {
       provider,
     } as ethers.Signer;
 
-    console.log('🚀 Calling Towns SDK createSpace...');
+    console.log('🔌 Connecting to Towns Protocol with Engine signer...');
     
-    // Use the SDK's createSpace function directly
-    const { createSpace } = await import('@towns-protocol/sdk');
+    // Create SyncAgent using connectTownsWithSigner
+    const syncAgent = await connectTownsWithSigner(engineSigner, { townsConfig });
+    
+    console.log('✅ Connected to Towns, SyncAgent created');
+    console.log('🚀 Creating space via syncAgent.spaces.createSpace...');
 
-    const result = await createSpace(
+    // Use the SyncAgent's spaces API to create the space
+    const result = await syncAgent.spaces.createSpace(
       { spaceName: 'Knead' },
-      engineSigner,
-      townsConfig
+      engineSigner
     );
 
     console.log('✅ Space created:', result);
