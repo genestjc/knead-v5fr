@@ -7,12 +7,12 @@ import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
-// Force dynamic rendering - don't pre-render at build time
+// Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-// Towns Protocol environment config
+// Towns Protocol environment config - use public Base RPC
 const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL
+  baseChainRpcUrl: 'https://mainnet.base.org' // Direct public RPC
 });
 
 const SPACE_ID = '463997';
@@ -44,7 +44,7 @@ function SpaceInfo({ account }: { account: any }) {
             <div className="bg-white rounded p-4 font-mono text-sm">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-green-600">✓</span>
-                <span>Connected to Towns Protocol (Omega)</span>
+                <span>Connected to Towns Protocol (Omega - Base Mainnet)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
@@ -64,7 +64,7 @@ function SpaceInfo({ account }: { account: any }) {
             <div className="mb-6">
               <h2 className="font-adonis text-2xl mb-3 text-red-600">Error</h2>
               <div className="bg-red-50 border border-red-200 rounded p-4 font-mono text-sm text-red-700">
-                Failed to load space data. Check console for details.
+                Failed to load space data: {spaceError.message || 'Unknown error'}
               </div>
             </div>
           )}
@@ -72,8 +72,9 @@ function SpaceInfo({ account }: { account: any }) {
           {!space && !spaceError && (
             <div className="mb-6">
               <h2 className="font-adonis text-2xl mb-3">Loading Space Data...</h2>
-              <div className="bg-white rounded p-4">
+              <div className="bg-white rounded p-4 flex items-center gap-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                <p className="font-georgia-pro text-gray-600">Fetching space info from Towns Protocol...</p>
               </div>
             </div>
           )}
@@ -151,6 +152,7 @@ function SpaceInfo({ account }: { account: any }) {
 
 export default function GetSpaceInfoPage() {
   const [hasConnected, setHasConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
   const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
@@ -163,19 +165,27 @@ export default function GetSpaceInfoPage() {
 
     const connectToTowns = async () => {
       try {
+        console.log('🔌 Connecting to Towns Protocol...');
+        console.log('📍 Using Base mainnet RPC: https://mainnet.base.org');
+        
         if (typeof window === 'undefined' || !window.ethereum) {
-          console.error('No ethereum provider found');
-          return;
+          throw new Error('No ethereum provider found');
         }
 
         const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
         const signer = provider.getSigner();
+        const address = await signer.getAddress();
+        
+        console.log('👛 Wallet address:', address);
+        console.log('🔐 Requesting signature...');
 
         await connect(signer, { townsConfig });
-        console.log('✅ Connected to Towns Protocol');
+        
+        console.log('✅ Connected to Towns Protocol successfully');
         setHasConnected(true);
-      } catch (err) {
-        console.error('Failed to connect to Towns:', err);
+      } catch (err: any) {
+        console.error('❌ Failed to connect to Towns:', err);
+        setError(err.message || 'Failed to connect to Towns Protocol');
       }
     };
 
@@ -184,18 +194,21 @@ export default function GetSpaceInfoPage() {
 
   const handleManualConnect = async () => {
     try {
+      setError(null);
+      
       if (typeof window === 'undefined' || !window.ethereum) {
-        alert('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
-        return;
+        throw new Error('No Web3 wallet detected. Please install MetaMask or use a Web3 browser.');
       }
 
+      console.log('🔌 Manual connection initiated...');
       const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
       const signer = provider.getSigner();
+      
       await connect(signer, { townsConfig });
       setHasConnected(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Connection failed:', err);
-      alert('Failed to connect to Towns Protocol. Check console for details.');
+      setError(err.message || 'Failed to connect to Towns Protocol');
     }
   };
 
@@ -222,11 +235,21 @@ export default function GetSpaceInfoPage() {
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 shadow-lg">
           <h1 className="font-adonis text-3xl mb-4 text-center">Connecting to Towns Protocol...</h1>
+          
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="font-georgia-pro text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          
           {isAgentConnecting ? (
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
               <p className="font-georgia-pro text-gray-600">
                 Please sign the message in your wallet to authenticate
+              </p>
+              <p className="font-georgia-pro text-sm text-gray-500 mt-2">
+                Using Base Mainnet (https://mainnet.base.org)
               </p>
             </div>
           ) : (
