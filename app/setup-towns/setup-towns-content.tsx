@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { makeRiverConfig, createSyncAgent } from '@towns-protocol/sdk';
+import { townsEnv, createSyncAgent } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
@@ -39,13 +39,15 @@ export default function SetupTownsContent() {
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        // Create River config for Base mainnet (omega environment)
-        const riverConfig = makeRiverConfig('omega');
+        // Create Towns config for Base mainnet (omega environment)
+        const townsConfig = townsEnv().makeTownsConfig('omega', {
+          baseChainRpcUrl: 'https://mainnet.base.org'
+        });
         
-        // Create sync agent
+        // Create sync agent using the Towns config
         const agent = await createSyncAgent(
           signer,
-          riverConfig,
+          townsConfig,
           {
             context: {
               timeSource: Date.now
