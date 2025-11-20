@@ -1,10 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-
-// Force dynamic rendering - disable static generation
-export const dynamic = 'force-dynamic';
 
 // Dynamically import the actual component with no SSR
 const SetupTownsContent = dynamic(() => import('./setup-towns-content'), {
@@ -15,6 +11,10 @@ const SetupTownsContent = dynamic(() => import('./setup-towns-content'), {
     </div>
   ),
 });
+
+// Force dynamic rendering - disable static generation
+export const dynamicParams = true;
+export const revalidate = 0;
 
 export default function SetupTownsPage() {
   return <SetupTownsContent />;
