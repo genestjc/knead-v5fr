@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  Engine,
   createThirdwebClient,
-  prepareContractCall,
-  sendTransaction,
   getContract,
+  prepareContractCall,
 } from "thirdweb";
-import { privateKeyToAccount } from "thirdweb/wallets";
 import { base } from "thirdweb/chains";
 
 // Minimal ABI for createSpace and SpaceCreated event
@@ -58,26 +57,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!process.env.THIRDWEB_PRIVATE_KEY) {
+    if (!process.env.ENGINE_SERVER_WALLET_ADDRESS) {
       return NextResponse.json(
-        { success: false, error: 'THIRDWEB_PRIVATE_KEY not configured' },
+        { success: false, error: 'ENGINE_SERVER_WALLET_ADDRESS not configured' },
+        { status: 500 }
+      );
+    }
+
+    if (!process.env.ENGINE_VAULT_ACCESS_TOKEN) {
+      return NextResponse.json(
+        { success: false, error: 'ENGINE_VAULT_ACCESS_TOKEN not configured' },
         { status: 500 }
       );
     }
 
     console.log(`🚀 Creating Towns space: "${name}"`);
 
+    // Initialize ThirdWeb client
     const client = createThirdwebClient({
       clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
     });
 
-    const account = privateKeyToAccount({
+    // Initialize Engine server wallet
+    const myServerWallet = Engine.serverWallet({
       client,
-      privateKey: process.env.THIRDWEB_PRIVATE_KEY,
+      address: process.env.ENGINE_SERVER_WALLET_ADDRESS,
+      vaultAccessToken: process.env.ENGINE_VAULT_ACCESS_TOKEN,
     });
 
-    console.log('Server wallet:', account.address);
+    console.log('Server wallet:', process.env.ENGINE_SERVER_WALLET_ADDRESS);
 
+    // Get SpaceFactory contract
     const contract = getContract({
       client,
       chain: base,
@@ -92,12 +102,20 @@ export async function POST(req: NextRequest) {
       params: [name],
     });
 
-    console.log('Sending transaction...');
+    console.log('Enqueueing transaction via Engine...');
 
-    // Send the transaction
-    const { transactionHash, logs } = await sendTransaction({
-      account,
+    // Send the transaction using Engine server wallet
+    const { transactionId } = await myServerWallet.enqueueTransaction({
       transaction,
+    });
+
+    console.log('Transaction enqueued:', transactionId);
+    console.log('Waiting for transaction hash...');
+
+    // Wait for the transaction hash
+    const { transactionHash, logs } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
 
     console.log('Transaction confirmed:', transactionHash);
@@ -105,7 +123,7 @@ export async function POST(req: NextRequest) {
     // Find the SpaceCreated event in the logs
     const eventSignature = "SpaceCreated(uint256,address,string)";
     const spaceCreatedLog = logs.find(
-      (log) =>
+      (log: any) =>
         log.eventName === "SpaceCreated" || log.eventSignature === eventSignature,
     );
 
@@ -124,11 +142,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      transactionId,
       transactionHash,
       spaceId,
-      defaultChannelId: spaceId, // Placeholder until we know how to query it
+      defaultChannelId: spaceId, // Towns confirmed: default channel ID = space ID
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
-      event: spaceCreatedLog,
+      serverWallet: process.env.ENGINE_SERVER_WALLET_ADDRESS,
     });
 
   } catch (error: any) {
