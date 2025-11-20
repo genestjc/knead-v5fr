@@ -1,27 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
-import { townsEnv } from '@towns-protocol/sdk';
+import { makeRiverConfig, createSyncAgent } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-
-// Towns config - using Base mainnet
-const townsConfig = townsEnv().makeTownsConfig('omega', {
-  baseChainRpcUrl: 'https://mainnet.base.org'
-});
 
 export default function SetupTownsContent() {
   const [mounted, setMounted] = useState(false);
   const [spaceCreated, setSpaceCreated] = useState<{ spaceId: string; channelId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [syncAgent, setSyncAgent] = useState<any>(null);
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
-  
-  // Use the correct Towns SDK hooks
-  const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
-  const { mutateAsync: createSpace, isPending: isCreating } = useCreateSpace();
 
   // Ensure client-side only rendering
   useEffect(() => {
@@ -30,37 +24,56 @@ export default function SetupTownsContent() {
 
   // Auto-connect to Towns when wallet connects
   useEffect(() => {
-    if (!mounted || !account?.address || isAgentConnected || connectionStatus !== 'connected') return;
+    if (!mounted || !account?.address || isConnected || connectionStatus !== 'connected') return;
 
     const connectToTowns = async () => {
+      setIsConnecting(true);
+      setError(null);
+      
       try {
-        if (!window.ethereum) return;
+        if (!window.ethereum) {
+          throw new Error('No Web3 wallet detected');
+        }
         
         console.log('🔌 Connecting to Towns Protocol...');
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        await connect(signer, { townsConfig });
+        // Create River config for Base mainnet (omega environment)
+        const riverConfig = makeRiverConfig('omega');
+        
+        // Create sync agent
+        const agent = await createSyncAgent(
+          signer,
+          riverConfig,
+          {
+            context: {
+              timeSource: Date.now
+            }
+          }
+        );
+        
         console.log('✅ Connected to Towns Protocol');
+        setSyncAgent(agent);
+        setIsConnected(true);
       } catch (err: any) {
         console.error('❌ Towns connection error:', err);
         setError(`Connection failed: ${err.message}`);
+      } finally {
+        setIsConnecting(false);
       }
     };
 
     connectToTowns();
-  }, [mounted, account?.address, connectionStatus, isAgentConnected, connect]);
+  }, [mounted, account?.address, connectionStatus, isConnected]);
 
   // Create space handler
   const handleCreateSpace = async () => {
     setError(null);
+    setIsCreating(true);
     
     try {
-      if (!window.ethereum) {
-        throw new Error('Please install MetaMask or a Web3 wallet');
-      }
-
-      if (!isAgentConnected) {
+      if (!syncAgent) {
         throw new Error('Not connected to Towns Protocol');
       }
 
@@ -70,11 +83,11 @@ export default function SetupTownsContent() {
       const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       const signer = provider.getSigner();
       
-      // Use the useCreateSpace hook's mutateAsync function
-      const result = await createSpace({
-        spaceName: 'Knead Chat',
+      // Create space using the syncAgent
+      const result = await syncAgent.spaces.createSpace(
+        { spaceName: 'Knead Chat' },
         signer
-      });
+      );
 
       console.log('✅ Space created successfully!');
       console.log('📋 Space ID:', result.spaceId);
@@ -88,6 +101,8 @@ export default function SetupTownsContent() {
     } catch (err: any) {
       console.error('❌ Error creating space:', err);
       setError(err.message || 'Failed to create space');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -119,14 +134,14 @@ export default function SetupTownsContent() {
   }
 
   // Connecting to Towns
-  if (!isAgentConnected) {
+  if (!isConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-2xl w-full bg-gray-50 rounded-lg p-8 text-center">
           <h1 className="font-adonis text-3xl mb-4">Connecting to Towns Protocol...</h1>
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
           <p className="font-georgia-pro text-gray-600 mb-2">
-            {isAgentConnecting ? 'Please sign the message in your wallet' : 'Initializing connection...'}
+            {isConnecting ? 'Please sign the message in your wallet' : 'Initializing connection...'}
           </p>
           <p className="font-georgia-pro text-sm text-gray-500">
             Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
