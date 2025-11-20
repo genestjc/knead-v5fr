@@ -122,8 +122,7 @@ export default function SetupTownsContent() {
         console.log('Towns config created:', townsConfig);
         
         // Use signAndConnect with the config
-        const agent = await signAndConnect(signer, townsConfig);
-        
+        const agent = await signAndConnect(signer, { townsConfig });        
         console.log('✅ Connected to Towns Protocol');
         setSyncAgent(agent);
       } catch (err: any) {
