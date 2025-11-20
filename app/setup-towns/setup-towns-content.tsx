@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TownsSyncProvider, connectTowns, useCreateSpace } from '@towns-protocol/react-sdk';
+import { TownsSyncProvider, signAndConnect, useCreateSpace } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import type { SyncAgent } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
@@ -121,20 +121,8 @@ export default function SetupTownsContent() {
         const provider = new ethers.providers.Web3Provider(window.ethereum as any);
         const signer = provider.getSigner();
         
-        // Get signer context
-        const address = await signer.getAddress();
-        const signerContext = {
-          signer: {
-            address,
-            sign: async (message: string) => {
-              return await signer.signMessage(message);
-            },
-          },
-          onBehalfOf: address,
-        };
-        
-        // Connect and get SyncAgent
-        const agent = await connectTowns(signerContext, townsConfig);
+        // Use signAndConnect - it handles everything!
+        const agent = await signAndConnect(signer, townsConfig);
         
         console.log('✅ Connected to Towns Protocol');
         setSyncAgent(agent);
