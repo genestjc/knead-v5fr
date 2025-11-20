@@ -5,7 +5,8 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { VideoStage } from '@/components/chat/VideoStage';
-import { useChannel, useSendMessage } from '@towns-protocol/react-sdk';
+import { useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import { canViewChannel, canPostInChannel } from '@/lib/chat/permissions';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -16,6 +17,10 @@ interface EventPageProps {
     id: string;
   };
 }
+
+// Get Space ID from environment
+const SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID || '';
+const LIVE_CHANNEL_ID = 'live-interviews';
 
 export default function EventPage({ params }: EventPageProps) {
   const [event, setEvent] = useState<any | null>(null);
@@ -30,9 +35,17 @@ export default function EventPage({ params }: EventPageProps) {
   const { membershipType, isLoading: membershipLoading } = useMembership();
 
   // ✅ Towns Protocol for real-time messaging (NO POLLING!)
-  const { messages: townsMessages, isLoading: loadingMessages } = useChannel('live-interviews');
-  const { sendMessage, isSending } = useSendMessage();
-  useSyncTownsToSupabase('live-interviews');
+  const { data: channel } = useChannel(SPACE_ID, LIVE_CHANNEL_ID);
+  const { data: events, isLoading: loadingMessages } = useTimeline(LIVE_CHANNEL_ID);
+  const { sendMessage, isPending: isSending } = useSendMessage(LIVE_CHANNEL_ID);
+  
+  // Sync Towns messages to Supabase for point tracking
+  useSyncTownsToSupabase(SPACE_ID, LIVE_CHANNEL_ID);
+
+  // Filter timeline events to only show chat messages
+  const townsMessages = events?.filter(
+    event => event.content?.kind === RiverTimelineEvent.ChannelMessage
+  ) || [];
 
   // Fetch event details
   useEffect(() => {
@@ -100,13 +113,13 @@ export default function EventPage({ params }: EventPageProps) {
   const currentUser: ChatUser = realUser || {
     id: account?.address || '',
     address: account?.address || '',
-    displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '',
+    displayName: account?.address ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}` : 'Anonymous',
+    alias: null,
+    membershipTier: 'freemium',
     role: 'viewer',
-    membershipTier: (membershipType || 'freemium') as 'freemium' | 'premium' | 'contributor',
-    contributorType: undefined,
-    isBanned: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    personalEarningsAvailable: '0',
+    personalEarningsWithdrawn: '0',
+    createdAt: new Date().toISOString(),
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -115,8 +128,6 @@ export default function EventPage({ params }: EventPageProps) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [townsMessages]);
-
-  // ✅ NO MORE POLLING! Removed setInterval - Towns handles real-time via WebSocket
 
   // Award attendance bonus (one time per event)
   useEffect(() => {
@@ -141,7 +152,7 @@ export default function EventPage({ params }: EventPageProps) {
     if (!messageInput.trim() || isSending || !realUser) return;
 
     try {
-      await sendMessage('live-interviews', messageInput.trim(), {
+      await sendMessage(messageInput.trim(), {
         kneadUserId: realUser.id,
         eventId: params.id,
         timestamp: new Date().toISOString(),
@@ -173,8 +184,8 @@ export default function EventPage({ params }: EventPageProps) {
     }
   };
 
-  const viewAccess = canViewChannel(currentUser, 'live-interviews', 0);
-  const postAccess = canPostInChannel(currentUser, 'live-interviews');
+  const viewAccess = canViewChannel(currentUser, LIVE_CHANNEL_ID, 0);
+  const postAccess = canPostInChannel(currentUser, LIVE_CHANNEL_ID);
 
   // Check if user is host or guest
   const isHost = realUser?.id === event?.hostId;
@@ -201,20 +212,21 @@ export default function EventPage({ params }: EventPageProps) {
             href="/chat-test" 
             className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
           >
-            Back to Chat
+            ← Back to Chat
           </a>
         </div>
       </div>
     );
   }
 
+  // Not connected
   if (!account?.address) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">{event.title}</h1>
+          <h1 className="font-adonis text-5xl mb-6">{event.title}</h1>
           <p className="font-georgia-pro text-lg mb-8 text-gray-600">
-            Connect your wallet to join this live event
+            Connect your wallet to join the live event
           </p>
           <ThirdWebConnectButton />
         </div>
@@ -222,17 +234,20 @@ export default function EventPage({ params }: EventPageProps) {
     );
   }
 
-  if (!viewAccess.canView) {
+  // Don't have viewing access
+  if (!viewAccess.allowed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-md px-4">
-          <h1 className="font-adonis text-4xl mb-4">Access Restricted</h1>
-          <p className="font-georgia-pro text-lg mb-6 text-gray-600">{viewAccess.reason}</p>
+          <h1 className="font-adonis text-4xl mb-4">Access Required</h1>
+          <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+            {viewAccess.reason}
+          </p>
           <a 
-            href="/join" 
+            href="/membership" 
             className="inline-block px-6 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
           >
-            Upgrade to Access
+            View Membership Options
           </a>
         </div>
       </div>
@@ -240,169 +255,111 @@ export default function EventPage({ params }: EventPageProps) {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 p-4 bg-white">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="font-adonis text-2xl">{event.title}</h1>
-              {event.status === 'live' && (
-                <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-semibold flex items-center gap-2">
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                  LIVE
-                </span>
-              )}
+      <header className="border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-adonis text-3xl mb-1">{event.title}</h1>
+              <p className="font-georgia-pro text-sm text-gray-600">
+                {event.scheduledStart && format(new Date(event.scheduledStart), 'PPp')}
+                {event.status === 'live' && <span className="ml-2 text-red-600">● LIVE</span>}
+              </p>
             </div>
-            <p className="font-georgia-pro text-sm text-gray-600">{event.description}</p>
+            <ThirdWebConnectButton />
           </div>
-          <a
-            href="/chat-test"
-            className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition"
-          >
-            ← Back
-          </a>
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video + Event Info */}
-        <div className="flex-1 flex flex-col border-r border-gray-200">
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video Stage */}
           {event.videoEnabled && event.dailyRoomUrl && (
-            <div className="flex-1 bg-gray-900 p-4">
+            <div className="lg:col-span-2">
               <VideoStage
                 roomUrl={event.dailyRoomUrl}
-                userName={currentUser.displayName}
+                userName={realUser?.alias || realUser?.displayName || 'Anonymous'}
                 isHost={isHost}
                 isGuest={isGuest}
+                onLeave={() => window.location.href = '/chat-test'}
               />
             </div>
           )}
 
-          {/* Event Details */}
-          <div className="border-t border-gray-200 p-6 bg-gray-50">
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="font-georgia-pro text-xs text-gray-500 mb-1">Host</p>
-                <p className="font-georgia-pro text-sm font-semibold">
-                  {event.host?.displayName || 'Unknown'}
+          {/* Chat Panel */}
+          <div className={event.videoEnabled ? 'lg:col-span-1' : 'lg:col-span-3 max-w-2xl mx-auto w-full'}>
+            <div className="bg-gray-50 rounded-lg border border-gray-200 h-[600px] flex flex-col">
+              {/* Chat Header */}
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="font-adonis text-xl">Live Chat</h2>
+                <p className="font-georgia-pro text-xs text-gray-600">
+                  {townsMessages.length} messages
                 </p>
               </div>
-              <div>
-                <p className="font-georgia-pro text-xs text-gray-500 mb-1">Type</p>
-                <p className="font-georgia-pro text-sm font-semibold capitalize">{event.eventType}</p>
-              </div>
-              <div>
-                <p className="font-georgia-pro text-xs text-gray-500 mb-1">Started</p>
-                <p className="font-georgia-pro text-sm">
-                  {format(new Date(event.scheduledStart), 'h:mm a')}
-                </p>
-              </div>
-              <div>
-                <p className="font-georgia-pro text-xs text-gray-500 mb-1">Ends</p>
-                <p className="font-georgia-pro text-sm">
-                  {format(new Date(event.scheduledEnd), 'h:mm a')}
-                </p>
-              </div>
-            </div>
 
-            {event.guests && event.guests.length > 0 && (
-              <div>
-                <p className="font-georgia-pro text-xs text-gray-500 mb-2">Guests</p>
-                <div className="flex flex-wrap gap-2">
-                  {event.guests.map((guest: any) => (
-                    <span key={guest.id} className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-georgia-pro">
-                      {guest.displayName}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {loadingMessages && (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                  </div>
+                )}
 
-        {/* Live Chat */}
-        <aside className="w-96 flex flex-col bg-white">
-          <div className="border-b border-gray-200 p-4">
-            <h2 className="font-adonis text-xl">Live Chat</h2>
-            <p className="font-georgia-pro text-xs text-gray-500">
-              {townsMessages?.length || 0} messages
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {loadingMessages ? (
-              <div className="text-center text-gray-500 py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-2"></div>
-                Loading messages...
-              </div>
-            ) : townsMessages && townsMessages.length > 0 ? (
-              townsMessages.slice().reverse().map((message) => {
-                const displayName = message.sender?.displayName || message.sender?.username || 'Anonymous';
-                const roleDisplay = getRoleDisplay('viewer'); // Default to viewer since Towns doesn't know Knead roles
-                
-                return (
-                  <div key={message.id} className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
-                      {displayName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-georgia-pro font-semibold text-sm truncate">
-                          {displayName}
+                {townsMessages.map((msg, idx) => {
+                  const messageText = msg.content?.body?.text || msg.content?.text || '';
+                  const authorId = msg.creatorUserId || '';
+                  const timestamp = new Date(msg.createdAtEpochMs || Date.now());
+                  
+                  return (
+                    <div key={msg.eventId || idx} className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="flex items-start gap-2 mb-1">
+                        <span className="font-georgia-pro text-sm font-semibold">
+                          {authorId.slice(0, 6)}...{authorId.slice(-4)}
                         </span>
-                        <span className="text-xs">{roleDisplay.icon}</span>
-                        <span className="font-georgia-pro text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
+                        <span className="font-georgia-pro text-xs text-gray-500">
+                          {formatDistanceToNow(timestamp, { addSuffix: true })}
                         </span>
                       </div>
-                      <p className="font-georgia-pro text-sm text-gray-800 break-words">
-                        {message.text || message.content}
-                      </p>
+                      <p className="font-georgia-pro text-sm">{messageText}</p>
                     </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                <p className="font-georgia-pro">No messages yet</p>
-                <p className="font-georgia-pro text-xs mt-2">Be the first to comment!</p>
+                  );
+                })}
+                <div ref={messagesEndRef} />
               </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
 
-          <div className="border-t border-gray-200 p-4">
-            {!postAccess.canPost ? (
-              <div className="text-center py-2">
-                <p className="font-georgia-pro text-xs text-gray-500">
-                  {postAccess.reason}
-                </p>
+              {/* Input */}
+              <div className="p-4 border-t border-gray-200">
+                {postAccess.allowed ? (
+                  <div className="flex gap-2">
+                    <textarea
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Type a message..."
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-georgia-pro text-sm resize-none focus:outline-none focus:border-black"
+                      rows={2}
+                      disabled={isSending}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={isSending || !messageInput.trim()}
+                      className="px-4 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSending ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-2">
+                    <p className="font-georgia-pro text-sm text-gray-600">
+                      {postAccess.reason}
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                <textarea
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Send a message..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg font-georgia-pro focus:outline-none focus:border-gray-400 resize-none text-sm"
-                  rows={2}
-                  disabled={isSending}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  className="w-full px-4 py-2 bg-black text-white rounded-lg font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 text-sm"
-                  disabled={!messageInput.trim() || isSending}
-                >
-                  {isSending ? 'Sending...' : 'Send'}
-                </button>
-              </div>
-            )}
+            </div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   );
