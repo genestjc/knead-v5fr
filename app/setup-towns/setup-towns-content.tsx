@@ -3,87 +3,15 @@
 import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { createThirdwebClient, getContract, prepareContractCall, sendTransaction } from 'thirdweb';
+import { createThirdwebClient, sendTransaction, prepareTransaction } from 'thirdweb';
 import { base } from 'thirdweb/chains';
+import { ethers } from 'ethers';
 
 const SPACE_FACTORY_ADDRESS = '0x9978c826d93883701522d2ca645d5436e5654252';
 
 const SPACE_FACTORY_ABI = [
-  {
-    inputs: [
-      {
-        components: [
-          {
-            components: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "uri", type: "string" }
-            ],
-            internalType: "struct IArchitectBase.Metadata",
-            name: "metadata",
-            type: "tuple"
-          },
-          {
-            components: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "symbol", type: "string" },
-              { internalType: "uint256", name: "price", type: "uint256" },
-              { internalType: "uint256", name: "maxSupply", type: "uint256" },
-              { internalType: "uint64", name: "duration", type: "uint64" },
-              { internalType: "address", name: "currency", type: "address" },
-              { internalType: "address", name: "pricingModule", type: "address" },
-              { internalType: "address", name: "feeRecipient", type: "address" }
-            ],
-            internalType: "struct IMembershipBase.Membership",
-            name: "membership",
-            type: "tuple"
-          },
-          {
-            internalType: "string[]",
-            name: "permissions",
-            type: "string[]"
-          },
-          {
-            components: [
-              { internalType: "bool", name: "everyone", type: "bool" },
-              { internalType: "address[]", name: "users", type: "address[]" },
-              { internalType: "bytes", name: "ruleData", type: "bytes" },
-              { internalType: "bool", name: "syncEntitlements", type: "bool" }
-            ],
-            internalType: "struct IArchitectBase.MembershipRequirements",
-            name: "requirements",
-            type: "tuple"
-          },
-          {
-            components: [
-              { internalType: "string", name: "name", type: "string" },
-              { internalType: "string", name: "description", type: "string" },
-              { internalType: "bytes32", name: "roleId", type: "bytes32" }
-            ],
-            internalType: "struct IArchitectBase.ChannelInfo",
-            name: "channel",
-            type: "tuple"
-          }
-        ],
-        internalType: "struct IArchitectBase.SpaceInfo",
-        name: "spaceInfo",
-        type: "tuple"
-      }
-    ],
-    name: "createSpace",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "nonpayable",
-    type: "function"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: "address", name: "space", type: "address" },
-      { indexed: true, internalType: "address", name: "owner", type: "address" },
-      { indexed: false, internalType: "string", name: "name", type: "string" }
-    ],
-    name: "SpaceCreated",
-    type: "event"
-  }
+  "function createSpace(tuple(tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel) spaceInfo) returns (address)",
+  "event SpaceCreated(address indexed space, address indexed owner, string name)"
 ];
 
 export default function SetupTownsContent() {
@@ -102,54 +30,64 @@ export default function SetupTownsContent() {
     setError(null);
 
     try {
-      console.log('🚀 Creating space with user wallet:', account.address);
+      console.log('🚀 Creating space with ethers encoding');
+      console.log('Wallet:', account.address);
 
       const client = createThirdwebClient({
         clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
       });
 
-      const contract = getContract({
-        client,
-        chain: base,
-        address: SPACE_FACTORY_ADDRESS,
-        abi: SPACE_FACTORY_ABI,
-      });
+      // Use ethers to encode the function call
+      const iface = new ethers.Interface(SPACE_FACTORY_ABI);
 
+      // Build the struct with objects (not arrays)
       const spaceInfo = {
-        metadata: ["Knead Chat", ""],
-        membership: [
-          "Knead Membership",
-          "KNEAD",
-          0n,
-          0n,
-          0n,
-          "0x0000000000000000000000000000000000000000",
-          "0x0000000000000000000000000000000000000000",
-          account.address
-        ],
+        metadata: {
+          name: "Knead Chat",
+          uri: ""
+        },
+        membership: {
+          name: "Knead Membership",
+          symbol: "KNEAD",
+          price: 0n,
+          maxSupply: 0n,
+          duration: 0n,
+          currency: "0x0000000000000000000000000000000000000000",
+          pricingModule: "0x0000000000000000000000000000000000000000",
+          feeRecipient: account.address
+        },
         permissions: ["Read", "Write"],
-        requirements: [
-          true,
-          [],
-          "0x",
-          false
-        ],
-        channel: [
-          "general",
-          "Main chat channel",
-          "0x0000000000000000000000000000000000000000000000000000000000000000"
-        ]
+        requirements: {
+          everyone: true,
+          users: [],
+          ruleData: "0x",
+          syncEntitlements: false
+        },
+        channel: {
+          name: "general",
+          description: "Main chat channel",
+          roleId: "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
       };
 
-      console.log('📝 Space config:', spaceInfo);
+      console.log('📝 Space config:', JSON.stringify(spaceInfo, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      , 2));
 
-      const transaction = prepareContractCall({
-        contract,
-        method: "function createSpace((tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel)) returns (address)",
-        params: [spaceInfo],
+      console.log('🔧 Encoding with ethers.Interface...');
+      const encodedData = iface.encodeFunctionData("createSpace", [spaceInfo]);
+      console.log('✅ Encoded successfully:', encodedData.slice(0, 66) + '...');
+
+      // Prepare raw transaction
+      const transaction = prepareTransaction({
+        to: SPACE_FACTORY_ADDRESS,
+        chain: base,
+        client,
+        data: encodedData,
+        value: 0n,
       });
 
-      console.log('📝 Sending transaction...');
+      console.log('📤 Sending transaction...');
 
       const result = await sendTransaction({
         transaction,
@@ -157,18 +95,37 @@ export default function SetupTownsContent() {
       });
 
       console.log('✅ Transaction sent:', result.transactionHash);
+      console.log('📋 Logs:', result.logs?.length || 0);
 
-      const spaceCreatedLog = result.logs?.find(
-        (log: any) => log.eventName === "SpaceCreated"
-      );
+      // Parse logs with ethers
+      let spaceAddress: string | null = null;
 
-      const spaceAddress = spaceCreatedLog?.args?.space?.toString();
-
-      if (!spaceAddress) {
-        throw new Error('Could not extract Space address from transaction');
+      for (const log of result.logs || []) {
+        try {
+          const parsed = iface.parseLog({
+            topics: log.topics as string[],
+            data: log.data as string,
+          });
+          
+          if (parsed && parsed.name === 'SpaceCreated') {
+            spaceAddress = parsed.args.space;
+            console.log('✅ SpaceCreated event found!');
+            console.log('   Space:', parsed.args.space);
+            console.log('   Owner:', parsed.args.owner);
+            console.log('   Name:', parsed.args.name);
+            break;
+          }
+        } catch (e) {
+          // Not our event, continue
+        }
       }
 
-      console.log('🎉 Space created at:', spaceAddress);
+      if (!spaceAddress) {
+        console.error('❌ No SpaceCreated event found');
+        throw new Error('Could not find Space address in transaction logs');
+      }
+
+      console.log('🎉 Space created successfully at:', spaceAddress);
 
       setSuccess({
         spaceAddress,
@@ -177,14 +134,22 @@ export default function SetupTownsContent() {
       });
 
     } catch (err: any) {
-      console.error('❌ Error:', err);
+      console.error('❌ Error creating space:', err);
+      console.error('Full error:', {
+        message: err.message,
+        code: err.code,
+        reason: err.reason,
+        data: err.data,
+      });
       
       let errorMessage = err.message || 'Failed to create space';
       
-      if (err.message?.includes('user rejected')) {
+      if (err.message?.includes('user rejected') || err.message?.includes('User rejected')) {
         errorMessage = 'Transaction cancelled by user';
       } else if (err.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH for gas fees';
+      } else if (err.reason) {
+        errorMessage = `Contract error: ${err.reason}`;
       }
       
       setError(errorMessage);
@@ -210,19 +175,19 @@ export default function SetupTownsContent() {
 
             <div className="mb-4">
               <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
-                Space ID:
+                Space Address:
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {success.spaceId}
+                {success.spaceAddress}
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(success.spaceId);
-                  alert('Space ID copied!');
+                  navigator.clipboard.writeText(success.spaceAddress);
+                  alert('Space address copied!');
                 }}
                 className="mt-2 text-sm text-blue-600 hover:text-blue-800"
               >
-                📋 Copy Space ID
+                📋 Copy Space Address
               </button>
             </div>
 
@@ -244,6 +209,27 @@ export default function SetupTownsContent() {
               <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={success.spaceId}</div>
               <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={success.spaceId}</div>
             </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="font-georgia-pro font-semibold mb-2">📝 Next Steps:</h3>
+            <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
+              <li>Copy both environment variables above</li>
+              <li>
+                Go to{' '}
+                <a
+                  href="https://vercel.com/genestjcs-projects/knead-v5fr/settings/environment-variables"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Vercel Settings ↗
+                </a>
+              </li>
+              <li>Add both variables and save</li>
+              <li>Wait for automatic redeploy</li>
+              <li>Test at <code className="bg-blue-100 px-1 rounded">/chat-test</code></li>
+            </ol>
           </div>
 
           <div className="text-center">
@@ -270,11 +256,17 @@ export default function SetupTownsContent() {
           <h2 className="font-adonis text-xl mb-3">How This Works:</h2>
           <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
             <li>Connect your wallet (you will own the Space NFT)</li>
-            <li>Click Create Space</li>
-            <li>Sign the transaction (~$1-2 gas)</li>
+            <li>Click Create Space to call SpaceFactory on Base</li>
+            <li>Sign the transaction (~$1-2 gas fee)</li>
             <li>Get your Space ID</li>
             <li>Add to Vercel environment variables</li>
           </ol>
+        </div>
+
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <p className="font-georgia-pro text-sm">
+            <strong>🔧 Method:</strong> Using ethers.js for reliable ABI encoding (bypasses ThirdWeb's nested tuple parser)
+          </p>
         </div>
 
         {!account ? (
@@ -310,7 +302,7 @@ export default function SetupTownsContent() {
             </button>
 
             <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
-              Using array format for tuples as suggested by ThirdWeb support.
+              Using ethers.Interface for ABI encoding - bypasses ThirdWeb's tuple parser issues.
             </p>
           </div>
         )}
