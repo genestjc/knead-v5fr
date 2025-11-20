@@ -1,15 +1,12 @@
 'use client';
 
-import { TownsSyncProvider } from '@towns-protocol/react-sdk';
+import { ReactNode } from 'react';
 
+// Simple passthrough - no provider here since we'll add it in the page itself
 export default function SetupTownsLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  return (
-    <TownsSyncProvider>
-      {children}
-    </TownsSyncProvider>
-  );
+  return <>{children}</>;
 }
