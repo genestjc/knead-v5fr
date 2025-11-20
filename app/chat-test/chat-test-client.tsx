@@ -21,7 +21,9 @@ const SpaceCreator = nextDynamic(() => import('./space-creator'), {
 });
 
 // Towns Protocol environment config
-const townsConfig = townsEnv().makeTownsConfig('omega');
+const townsConfig = townsEnv().makeTownsConfig('omega', {
+  baseChainRpcUrl: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL
+});
 
 // Supabase client
 const supabase = createClient(
