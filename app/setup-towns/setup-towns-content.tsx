@@ -8,7 +8,6 @@ import { base } from 'thirdweb/chains';
 
 const SPACE_FACTORY_ADDRESS = '0x9978c826d93883701522d2ca645d5436e5654252';
 
-// Correct ABI from Towns Protocol contracts
 const SPACE_FACTORY_ABI = [
   {
     inputs: [
@@ -116,39 +115,41 @@ export default function SetupTownsContent() {
         abi: SPACE_FACTORY_ABI,
       });
 
-      // Build the SpaceInfo struct
+      // Build SpaceInfo object - MUST use object format with exact field names
       const spaceInfo = {
         metadata: {
           name: "Knead Chat",
-          uri: "" // Empty URI for now
+          uri: "",
         },
         membership: {
           name: "Knead Membership",
           symbol: "KNEAD",
-          price: 0n, // Free membership
-          maxSupply: 0n, // Unlimited
-          duration: 0n, // No expiration
-          currency: "0x0000000000000000000000000000000000000000", // ETH (zero address for free)
-          pricingModule: "0x0000000000000000000000000000000000000000", // No pricing module
-          feeRecipient: account.address // Your wallet receives fees
+          price: 0n, // BigInt for uint256
+          maxSupply: 0n, // BigInt for uint256
+          duration: 0n, // BigInt for uint64
+          currency: "0x0000000000000000000000000000000000000000",
+          pricingModule: "0x0000000000000000000000000000000000000000",
+          feeRecipient: account.address,
         },
-        permissions: ["Read", "Write"], // Default permissions
+        permissions: ["Read", "Write"],
         requirements: {
-          everyone: true, // Open to everyone
+          everyone: true,
           users: [],
-          ruleData: "0x",
-          syncEntitlements: false
+          ruleData: "0x", // Empty bytes
+          syncEntitlements: false,
         },
         channel: {
           name: "general",
           description: "Main chat channel",
-          roleId: "0x0000000000000000000000000000000000000000000000000000000000000000"
-        }
+          roleId: "0x0000000000000000000000000000000000000000000000000000000000000000", // 66-char hex (0x + 64 zeros)
+        },
       };
 
-      console.log('📝 Space config:', spaceInfo);
+      console.log('📝 Space config:', JSON.stringify(spaceInfo, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      , 2));
 
-      // Prepare transaction
+      // Prepare transaction with object-style params
       const transaction = prepareContractCall({
         contract,
         method: "function createSpace((tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel)) returns (address)",
@@ -199,15 +200,18 @@ export default function SetupTownsContent() {
         code: err.code,
         reason: err.reason,
         data: err.data,
+        stack: err.stack,
       });
       
       // User-friendly error messages
       let errorMessage = err.message || 'Failed to create space';
       
-      if (err.message?.includes('user rejected')) {
+      if (err.message?.includes('user rejected') || err.message?.includes('User rejected')) {
         errorMessage = 'Transaction cancelled by user';
       } else if (err.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH for gas fees';
+      } else if (err.message?.includes('Invalid ABI')) {
+        errorMessage = 'ABI encoding error - check console for details';
       }
       
       setError(errorMessage);
@@ -308,14 +312,6 @@ export default function SetupTownsContent() {
             </ol>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <h3 className="font-georgia-pro font-semibold mb-2">📌 Note:</h3>
-            <p className="font-georgia-pro text-sm text-yellow-800">
-              For Towns Protocol, the Space ID and Default Channel ID are the same (the space contract address). 
-              Check the transaction on BaseScan to verify all details.
-            </p>
-          </div>
-
           <div className="text-center">
             <a
               href="https://vercel.com/genestjcs-projects/knead-v5fr/settings/environment-variables"
@@ -390,7 +386,7 @@ export default function SetupTownsContent() {
             </button>
 
             <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
-              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet using the correct ABI.
+              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet.
             </p>
           </div>
         )}
