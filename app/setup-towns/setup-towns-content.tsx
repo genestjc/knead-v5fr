@@ -3,64 +3,95 @@
 import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { createThirdwebClient, getContract, prepareContractCall, sendTransaction, readContract } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, sendTransaction } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 
 const SPACE_FACTORY_ADDRESS = '0x9978c826d93883701522d2ca645d5436e5654252';
 
+// Correct ABI from Towns Protocol contracts
 const SPACE_FACTORY_ABI = [
   {
-    inputs: [{ internalType: "string", name: "name", type: "string" }],
+    inputs: [
+      {
+        components: [
+          {
+            components: [
+              { internalType: "string", name: "name", type: "string" },
+              { internalType: "string", name: "uri", type: "string" }
+            ],
+            internalType: "struct IArchitectBase.Metadata",
+            name: "metadata",
+            type: "tuple"
+          },
+          {
+            components: [
+              { internalType: "string", name: "name", type: "string" },
+              { internalType: "string", name: "symbol", type: "string" },
+              { internalType: "uint256", name: "price", type: "uint256" },
+              { internalType: "uint256", name: "maxSupply", type: "uint256" },
+              { internalType: "uint64", name: "duration", type: "uint64" },
+              { internalType: "address", name: "currency", type: "address" },
+              { internalType: "address", name: "pricingModule", type: "address" },
+              { internalType: "address", name: "feeRecipient", type: "address" }
+            ],
+            internalType: "struct IMembershipBase.Membership",
+            name: "membership",
+            type: "tuple"
+          },
+          {
+            internalType: "string[]",
+            name: "permissions",
+            type: "string[]"
+          },
+          {
+            components: [
+              { internalType: "bool", name: "everyone", type: "bool" },
+              { internalType: "address[]", name: "users", type: "address[]" },
+              { internalType: "bytes", name: "ruleData", type: "bytes" },
+              { internalType: "bool", name: "syncEntitlements", type: "bool" }
+            ],
+            internalType: "struct IArchitectBase.MembershipRequirements",
+            name: "requirements",
+            type: "tuple"
+          },
+          {
+            components: [
+              { internalType: "string", name: "name", type: "string" },
+              { internalType: "string", name: "description", type: "string" },
+              { internalType: "bytes32", name: "roleId", type: "bytes32" }
+            ],
+            internalType: "struct IArchitectBase.ChannelInfo",
+            name: "channel",
+            type: "tuple"
+          }
+        ],
+        internalType: "struct IArchitectBase.SpaceInfo",
+        name: "spaceInfo",
+        type: "tuple"
+      }
+    ],
     name: "createSpace",
-    outputs: [{ internalType: "uint256", name: "spaceId", type: "uint256" }],
+    outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "nonpayable",
-    type: "function",
+    type: "function"
   },
   {
     anonymous: false,
     inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "spaceId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      { indexed: false, internalType: "string", name: "name", type: "string" },
+      { indexed: true, internalType: "address", name: "space", type: "address" },
+      { indexed: true, internalType: "address", name: "owner", type: "address" },
+      { indexed: false, internalType: "string", name: "name", type: "string" }
     ],
     name: "SpaceCreated",
-    type: "event",
-  },
-];
-
-// ABI for reading from the Space contract
-const SPACE_ABI = [
-  {
-    inputs: [],
-    name: "defaultChannelId",
-    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    name: "channelIds",
-    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
-    stateMutability: "view",
-    type: "function",
-  },
+    type: "event"
+  }
 ];
 
 export default function SetupTownsContent() {
   const account = useActiveAccount();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ spaceId: string; channelId: string; txHash: string } | null>(null);
+  const [success, setSuccess] = useState<{ spaceAddress: string; spaceId: string; txHash: string } | null>(null);
 
   const handleCreateSpace = async () => {
     if (!account) {
@@ -78,22 +109,55 @@ export default function SetupTownsContent() {
         clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
       });
 
-      const spaceFactoryContract = getContract({
+      const contract = getContract({
         client,
         chain: base,
         address: SPACE_FACTORY_ADDRESS,
         abi: SPACE_FACTORY_ABI,
       });
 
-      // Prepare and send transaction
+      // Build the SpaceInfo struct
+      const spaceInfo = {
+        metadata: {
+          name: "Knead Chat",
+          uri: "" // Empty URI for now
+        },
+        membership: {
+          name: "Knead Membership",
+          symbol: "KNEAD",
+          price: 0n, // Free membership
+          maxSupply: 0n, // Unlimited
+          duration: 0n, // No expiration
+          currency: "0x0000000000000000000000000000000000000000", // ETH (zero address for free)
+          pricingModule: "0x0000000000000000000000000000000000000000", // No pricing module
+          feeRecipient: account.address // Your wallet receives fees
+        },
+        permissions: ["Read", "Write"], // Default permissions
+        requirements: {
+          everyone: true, // Open to everyone
+          users: [],
+          ruleData: "0x",
+          syncEntitlements: false
+        },
+        channel: {
+          name: "general",
+          description: "Main chat channel",
+          roleId: "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      };
+
+      console.log('📝 Space config:', spaceInfo);
+
+      // Prepare transaction
       const transaction = prepareContractCall({
-        contract: spaceFactoryContract,
-        method: "function createSpace(string name)",
-        params: ["Knead Chat"],
+        contract,
+        method: "function createSpace((tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel)) returns (address)",
+        params: [spaceInfo],
       });
 
       console.log('📝 Transaction prepared, sending...');
 
+      // Send transaction
       const result = await sendTransaction({
         transaction,
         account,
@@ -102,58 +166,29 @@ export default function SetupTownsContent() {
       console.log('✅ Transaction sent:', result.transactionHash);
       console.log('📋 All logs:', result.logs);
 
-      // Parse logs to get Space ID
-      const eventSignature = "SpaceCreated(uint256,address,string)";
+      // Parse logs to get Space address
       const spaceCreatedLog = result.logs?.find(
-        (log: any) => log.eventName === "SpaceCreated" || log.eventSignature === eventSignature
+        (log: any) => log.eventName === "SpaceCreated"
       );
 
-      const spaceId = spaceCreatedLog?.args?.spaceId?.toString();
+      const spaceAddress = spaceCreatedLog?.args?.space?.toString();
 
-      if (!spaceId) {
-        console.error('Could not find spaceId in logs:', result.logs);
-        throw new Error('Could not extract Space ID from transaction');
+      if (!spaceAddress) {
+        console.error('Could not find space address in logs:', result.logs);
+        throw new Error('Could not extract Space address from transaction');
       }
 
-      console.log('🎉 Space created! ID:', spaceId);
+      console.log('🎉 Space created at address:', spaceAddress);
 
-      // Now we need to get the Space contract address and query for default channel
-      // The Space contract address might be in the logs or we need to query SpaceFactory
-      
-      // Option 1: Look for other events that might contain channel info
-      console.log('🔍 Searching all events for channel info...');
-      let defaultChannelId = null;
+      // The space address IS the spaceId for Towns Protocol
+      const spaceId = spaceAddress;
 
-      // Check all logs for any channel-related events
-      for (const log of result.logs || []) {
-        console.log('Event:', log.eventName, log.args);
-        
-        // Look for ChannelCreated or similar events
-        if (log.eventName?.includes('Channel') || log.eventName === 'ChannelCreated') {
-          const channelId = log.args?.channelId?.toString() || log.args?.id?.toString();
-          if (channelId) {
-            defaultChannelId = channelId;
-            console.log('✅ Found channel ID in event:', channelId);
-            break;
-          }
-        }
-      }
-
-      // Option 2: If not found in events, try querying the Space contract
-      if (!defaultChannelId) {
-        console.log('⚠️ Channel ID not found in events, trying to query Space contract...');
-        
-        // We need the Space contract address - it might be derived from spaceId
-        // For now, let's use spaceId as fallback (Towns said this often works)
-        defaultChannelId = spaceId;
-        console.log('📝 Using spaceId as channel ID fallback');
-      }
-
-      console.log('✅ Final IDs - Space:', spaceId, 'Channel:', defaultChannelId);
+      console.log('✅ Space ID:', spaceId);
+      console.log('✅ Default Channel ID: Same as Space ID');
 
       setSuccess({
+        spaceAddress,
         spaceId,
-        channelId: defaultChannelId,
         txHash: result.transactionHash,
       });
 
@@ -165,7 +200,17 @@ export default function SetupTownsContent() {
         reason: err.reason,
         data: err.data,
       });
-      setError(err.message || 'Failed to create space');
+      
+      // User-friendly error messages
+      let errorMessage = err.message || 'Failed to create space';
+      
+      if (err.message?.includes('user rejected')) {
+        errorMessage = 'Transaction cancelled by user';
+      } else if (err.message?.includes('insufficient funds')) {
+        errorMessage = 'Insufficient ETH for gas fees';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsCreating(false);
     }
@@ -188,7 +233,25 @@ export default function SetupTownsContent() {
 
             <div className="mb-4">
               <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
-                Space ID:
+                Space Address:
+              </label>
+              <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
+                {success.spaceAddress}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(success.spaceAddress);
+                  alert('Space address copied!');
+                }}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                📋 Copy Space Address
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
+                Space ID (same as address):
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
                 {success.spaceId}
@@ -202,29 +265,6 @@ export default function SetupTownsContent() {
               >
                 📋 Copy Space ID
               </button>
-            </div>
-
-            <div className="mb-4">
-              <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
-                Default Channel ID:
-              </label>
-              <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {success.channelId}
-              </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(success.channelId);
-                  alert('Channel ID copied!');
-                }}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                📋 Copy Channel ID
-              </button>
-              {success.channelId === success.spaceId && (
-                <p className="font-georgia-pro text-xs text-yellow-700 mt-2">
-                  ⚠️ Using Space ID as Channel ID (common fallback). Check browser console logs for details.
-                </p>
-              )}
             </div>
 
             <div className="mb-4">
@@ -243,7 +283,7 @@ export default function SetupTownsContent() {
 
             <div className="mt-6 p-4 bg-gray-900 text-green-400 rounded font-mono text-xs overflow-x-auto">
               <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={success.spaceId}</div>
-              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={success.channelId}</div>
+              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={success.spaceId}</div>
             </div>
           </div>
 
@@ -269,10 +309,10 @@ export default function SetupTownsContent() {
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <h3 className="font-georgia-pro font-semibold mb-2">🔍 Verify on BaseScan:</h3>
+            <h3 className="font-georgia-pro font-semibold mb-2">📌 Note:</h3>
             <p className="font-georgia-pro text-sm text-yellow-800">
-              Click the transaction link above and check the "Logs" tab to see all events emitted during space creation. 
-              If you see a different Channel ID there, use that instead.
+              For Towns Protocol, the Space ID and Default Channel ID are the same (the space contract address). 
+              Check the transaction on BaseScan to verify all details.
             </p>
           </div>
 
@@ -301,10 +341,20 @@ export default function SetupTownsContent() {
           <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
             <li>Connect your personal wallet (you'll own the Space NFT)</li>
             <li>Click "Create Space" to call SpaceFactory contract on Base</li>
-            <li>Sign the transaction in your wallet (~$1 gas fee)</li>
+            <li>Sign the transaction in your wallet (~$1-2 gas fee)</li>
             <li>Get your Space ID and Channel ID</li>
             <li>Add them to Vercel environment variables</li>
           </ol>
+        </div>
+
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h3 className="font-georgia-pro font-semibold mb-2">🔧 Space Configuration:</h3>
+          <ul className="font-georgia-pro text-sm space-y-1">
+            <li>• <strong>Name:</strong> Knead Chat</li>
+            <li>• <strong>Membership:</strong> Free and open to everyone</li>
+            <li>• <strong>Default Channel:</strong> #general</li>
+            <li>• <strong>Permissions:</strong> Read & Write for all members</li>
+          </ul>
         </div>
 
         {!account ? (
@@ -321,7 +371,7 @@ export default function SetupTownsContent() {
                 ✅ <strong>Wallet Connected:</strong> {account.address.slice(0, 6)}...{account.address.slice(-4)}
               </p>
               <p className="font-georgia-pro text-xs text-green-700 mt-2">
-                Make sure you have ~$1 ETH on Base mainnet for gas fees.
+                Make sure you have ~$2 ETH on Base mainnet for gas fees.
               </p>
             </div>
 
@@ -340,7 +390,7 @@ export default function SetupTownsContent() {
             </button>
 
             <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
-              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet.
+              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet using the correct ABI.
             </p>
           </div>
         )}
