@@ -115,58 +115,49 @@ export default function SetupTownsContent() {
         abi: SPACE_FACTORY_ABI,
       });
 
-      // Try ThirdWeb's suggestion: use arrays for tuples
       const spaceInfo = {
-        metadata: ["Knead Chat", ""], // Array format for tuple
+        metadata: ["Knead Chat", ""],
         membership: [
-          "Knead Membership", // name
-          "KNEAD", // symbol
-          0n, // price
-          0n, // maxSupply
-          0n, // duration
-          "0x0000000000000000000000000000000000000000", // currency
-          "0x0000000000000000000000000000000000000000", // pricingModule
-          account.address // feeRecipient
+          "Knead Membership",
+          "KNEAD",
+          0n,
+          0n,
+          0n,
+          "0x0000000000000000000000000000000000000000",
+          "0x0000000000000000000000000000000000000000",
+          account.address
         ],
         permissions: ["Read", "Write"],
         requirements: [
-          true, // everyone
-          [], // users
-          "0x", // ruleData
-          false // syncEntitlements
+          true,
+          [],
+          "0x",
+          false
         ],
         channel: [
-          "general", // name
-          "Main chat channel", // description
-          "0x0000000000000000000000000000000000000000000000000000000000000000" // roleId
+          "general",
+          "Main chat channel",
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
         ]
       };
 
-      console.log('📝 Space config (array format):', JSON.stringify(spaceInfo, (key, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      , 2));
-      
-      console.log('📝 Metadata specifically:', JSON.stringify(spaceInfo.metadata));
+      console.log('📝 Space config:', spaceInfo);
 
-      // Prepare transaction
       const transaction = prepareContractCall({
         contract,
         method: "function createSpace((tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel)) returns (address)",
         params: [spaceInfo],
       });
 
-      console.log('📝 Transaction prepared, sending...');
+      console.log('📝 Sending transaction...');
 
-      // Send transaction
       const result = await sendTransaction({
         transaction,
         account,
       });
 
       console.log('✅ Transaction sent:', result.transactionHash);
-      console.log('📋 All logs:', result.logs);
 
-      // Parse logs to get Space address
       const spaceCreatedLog = result.logs?.find(
         (log: any) => log.eventName === "SpaceCreated"
       );
@@ -174,37 +165,26 @@ export default function SetupTownsContent() {
       const spaceAddress = spaceCreatedLog?.args?.space?.toString();
 
       if (!spaceAddress) {
-        console.error('Could not find space address in logs:', result.logs);
         throw new Error('Could not extract Space address from transaction');
       }
 
-      console.log('🎉 Space created at address:', spaceAddress);
-      const spaceId = spaceAddress;
+      console.log('🎉 Space created at:', spaceAddress);
 
       setSuccess({
         spaceAddress,
-        spaceId,
+        spaceId: spaceAddress,
         txHash: result.transactionHash,
       });
 
     } catch (err: any) {
-      console.error('❌ Error creating space:', err);
-      console.error('Error details:', {
-        message: err.message,
-        code: err.code,
-        reason: err.reason,
-        data: err.data,
-        stack: err.stack,
-      });
+      console.error('❌ Error:', err);
       
       let errorMessage = err.message || 'Failed to create space';
       
-      if (err.message?.includes('user rejected') || err.message?.includes('User rejected')) {
+      if (err.message?.includes('user rejected')) {
         errorMessage = 'Transaction cancelled by user';
       } else if (err.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH for gas fees';
-      } else if (err.message?.includes('Invalid ABI')) {
-        errorMessage = 'ABI encoding error - trying array format now';
       }
       
       setError(errorMessage);
@@ -226,29 +206,11 @@ export default function SetupTownsContent() {
           </div>
 
           <div className="mb-6 p-6 bg-white rounded-lg border-2 border-green-200">
-            <h2 className="font-adonis text-2xl mb-4">Copy These to Vercel Environment Variables:</h2>
+            <h2 className="font-adonis text-2xl mb-4">Copy These to Vercel:</h2>
 
             <div className="mb-4">
               <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
-                Space Address:
-              </label>
-              <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {success.spaceAddress}
-              </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(success.spaceAddress);
-                  alert('Space address copied!');
-                }}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                📋 Copy Space Address
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <label className="font-georgia-pro text-sm font-semibold text-gray-700 block mb-2">
-                Space ID (same as address):
+                Space ID:
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
                 {success.spaceId}
@@ -284,27 +246,6 @@ export default function SetupTownsContent() {
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-georgia-pro font-semibold mb-2">📝 Next Steps:</h3>
-            <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
-              <li>Copy both environment variables above</li>
-              <li>
-                Go to{' '}
-                <a
-                  href="https://vercel.com/genestjcs-projects/knead-v5fr/settings/environment-variables"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  Vercel Settings ↗
-                </a>
-              </li>
-              <li>Add both variables and save</li>
-              <li>Wait for automatic redeploy</li>
-              <li>Test at <code className="bg-blue-100 px-1 rounded">/chat-test</code></li>
-            </ol>
-          </div>
-
           <div className="text-center">
             <a
               href="https://vercel.com/genestjcs-projects/knead-v5fr/settings/environment-variables"
@@ -328,13 +269,52 @@ export default function SetupTownsContent() {
         <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-lg">
           <h2 className="font-adonis text-xl mb-3">How This Works:</h2>
           <ol className="font-georgia-pro text-sm space-y-2 list-decimal list-inside">
-            <li>Connect your personal wallet (you'll own the Space NFT)</li>
-            <li>Click "Create Space" to call SpaceFactory contract on Base</li>
-            <li>Sign the transaction in your wallet (~$1-2 gas fee)</li>
-            <li>Get your Space ID and Channel ID</li>
-            <li>Add them to Vercel environment variables</li>
+            <li>Connect your wallet (you will own the Space NFT)</li>
+            <li>Click Create Space</li>
+            <li>Sign the transaction (~$1-2 gas)</li>
+            <li>Get your Space ID</li>
+            <li>Add to Vercel environment variables</li>
           </ol>
         </div>
 
-        <div className="mb-
-
+        {!account ? (
+          <div className="text-center">
+            <p className="font-georgia-pro mb-4 text-gray-600">
+              Connect your wallet to get started:
+            </p>
+            <ThirdWebConnectButton />
+          </div>
+        ) : (
+          <div>
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="font-georgia-pro text-sm text-green-800">
+                ✅ <strong>Wallet Connected:</strong> {account.address.slice(0, 6)}...{account.address.slice(-4)}
+              </p>
+              <p className="font-georgia-pro text-xs text-green-700 mt-2">
+                Make sure you have ~$2 ETH on Base mainnet for gas fees.
+              </p>
+            </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                ❌ {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleCreateSpace}
+              disabled={isCreating}
+              className="w-full px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCreating ? '⏳ Creating Space...' : '🚀 Create Knead Chat Space'}
+            </button>
+
+            <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
+              Using array format for tuples as suggested by ThirdWeb support.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
