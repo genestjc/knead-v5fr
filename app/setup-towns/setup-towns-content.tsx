@@ -115,41 +115,40 @@ export default function SetupTownsContent() {
         abi: SPACE_FACTORY_ABI,
       });
 
-      // Build SpaceInfo object - MUST use object format with exact field names
+      // Try ThirdWeb's suggestion: use arrays for tuples
       const spaceInfo = {
-        metadata: {
-          name: "Knead Chat",
-          uri: "",
-        },
-        membership: {
-          name: "Knead Membership",
-          symbol: "KNEAD",
-          price: 0n, // BigInt for uint256
-          maxSupply: 0n, // BigInt for uint256
-          duration: 0n, // BigInt for uint64
-          currency: "0x0000000000000000000000000000000000000000",
-          pricingModule: "0x0000000000000000000000000000000000000000",
-          feeRecipient: account.address,
-        },
+        metadata: ["Knead Chat", ""], // Array format for tuple
+        membership: [
+          "Knead Membership", // name
+          "KNEAD", // symbol
+          0n, // price
+          0n, // maxSupply
+          0n, // duration
+          "0x0000000000000000000000000000000000000000", // currency
+          "0x0000000000000000000000000000000000000000", // pricingModule
+          account.address // feeRecipient
+        ],
         permissions: ["Read", "Write"],
-        requirements: {
-          everyone: true,
-          users: [],
-          ruleData: "0x", // Empty bytes
-          syncEntitlements: false,
-        },
-        channel: {
-          name: "general",
-          description: "Main chat channel",
-          roleId: "0x0000000000000000000000000000000000000000000000000000000000000000", // 66-char hex (0x + 64 zeros)
-        },
+        requirements: [
+          true, // everyone
+          [], // users
+          "0x", // ruleData
+          false // syncEntitlements
+        ],
+        channel: [
+          "general", // name
+          "Main chat channel", // description
+          "0x0000000000000000000000000000000000000000000000000000000000000000" // roleId
+        ]
       };
 
-      console.log('📝 Space config:', JSON.stringify(spaceInfo, (key, value) =>
+      console.log('📝 Space config (array format):', JSON.stringify(spaceInfo, (key, value) =>
         typeof value === 'bigint' ? value.toString() : value
       , 2));
+      
+      console.log('📝 Metadata specifically:', JSON.stringify(spaceInfo.metadata));
 
-      // Prepare transaction with object-style params
+      // Prepare transaction
       const transaction = prepareContractCall({
         contract,
         method: "function createSpace((tuple(string name, string uri) metadata, tuple(string name, string symbol, uint256 price, uint256 maxSupply, uint64 duration, address currency, address pricingModule, address feeRecipient) membership, string[] permissions, tuple(bool everyone, address[] users, bytes ruleData, bool syncEntitlements) requirements, tuple(string name, string description, bytes32 roleId) channel)) returns (address)",
@@ -180,12 +179,7 @@ export default function SetupTownsContent() {
       }
 
       console.log('🎉 Space created at address:', spaceAddress);
-
-      // The space address IS the spaceId for Towns Protocol
       const spaceId = spaceAddress;
-
-      console.log('✅ Space ID:', spaceId);
-      console.log('✅ Default Channel ID: Same as Space ID');
 
       setSuccess({
         spaceAddress,
@@ -203,7 +197,6 @@ export default function SetupTownsContent() {
         stack: err.stack,
       });
       
-      // User-friendly error messages
       let errorMessage = err.message || 'Failed to create space';
       
       if (err.message?.includes('user rejected') || err.message?.includes('User rejected')) {
@@ -211,7 +204,7 @@ export default function SetupTownsContent() {
       } else if (err.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH for gas fees';
       } else if (err.message?.includes('Invalid ABI')) {
-        errorMessage = 'ABI encoding error - check console for details';
+        errorMessage = 'ABI encoding error - trying array format now';
       }
       
       setError(errorMessage);
@@ -343,54 +336,5 @@ export default function SetupTownsContent() {
           </ol>
         </div>
 
-        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <h3 className="font-georgia-pro font-semibold mb-2">🔧 Space Configuration:</h3>
-          <ul className="font-georgia-pro text-sm space-y-1">
-            <li>• <strong>Name:</strong> Knead Chat</li>
-            <li>• <strong>Membership:</strong> Free and open to everyone</li>
-            <li>• <strong>Default Channel:</strong> #general</li>
-            <li>• <strong>Permissions:</strong> Read & Write for all members</li>
-          </ul>
-        </div>
-
-        {!account ? (
-          <div className="text-center">
-            <p className="font-georgia-pro mb-4 text-gray-600">
-              Connect your wallet to get started:
-            </p>
-            <ThirdWebConnectButton />
-          </div>
-        ) : (
-          <div>
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="font-georgia-pro text-sm text-green-800">
-                ✅ <strong>Wallet Connected:</strong> {account.address.slice(0, 6)}...{account.address.slice(-4)}
-              </p>
-              <p className="font-georgia-pro text-xs text-green-700 mt-2">
-                Make sure you have ~$2 ETH on Base mainnet for gas fees.
-              </p>
-            </div>
-
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-                ❌ {error}
-              </div>
-            )}
-
-            <button
-              onClick={handleCreateSpace}
-              disabled={isCreating}
-              className="w-full px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCreating ? '⏳ Creating Space...' : '🚀 Create Knead Chat Space'}
-            </button>
-
-            <p className="font-georgia-pro text-xs text-gray-500 mt-4 text-center">
-              This calls the Towns Protocol SpaceFactory contract directly on Base mainnet.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+        <div className="mb-
+
