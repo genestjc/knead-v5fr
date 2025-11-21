@@ -1,26 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useThirdwebClient } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { ethers } from 'ethers';
 import { townsEnv } from '@towns-protocol/sdk';
 import { signAndConnect } from '@towns-protocol/react-sdk';
 import type { SyncAgent } from '@towns-protocol/sdk';
+import { ethers5Adapter } from 'thirdweb/adapters/ethers5';
 
 export default function SetupTownsContent() {
   const account = useActiveAccount();
+  const client = useThirdwebClient(); // Get the ThirdWeb client
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
-
-  // The agent will be stored here after connection, but we won't show UI based on it.
-  // This simplifies the logic to a single user action.
   const [agent, setAgent] = useState<SyncAgent | null>(null);
 
   const handleConnectAndCreateSpace = async () => {
-    if (!account) {
-      setError('Please connect your wallet first.');
+    // Ensure client, account, and chain are available
+    if (!client || !account || !account.chain) {
+      setError('Wallet not fully connected. Please try connecting again.');
       return;
     }
 
@@ -30,23 +29,25 @@ export default function SetupTownsContent() {
     try {
       console.log('🚀 Starting setup process...');
 
-      if (!window.ethereum) {
-        throw new Error('No ethereum provider found. Please use a Web3-enabled browser.');
-      }
+      // Correctly convert the ThirdWeb account to an ethers.js v5 signer
+      const signer = await ethers5Adapter.signer.toEthers({
+        client,
+        chain: account.chain,
+        account,
+      });
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-
-      console.log('🔐 Step 1: Connecting to Towns Protocol with wallet:', account.address);
+      console.log('✅ Created ethers v5 compatible signer for:', await signer.getAddress());
+      
+      console.log('🔐 Step 1: Connecting to Towns Protocol...');
       const townsConfig = townsEnv().makeTownsConfig('omega');
       
-      // signAndConnect returns the agent directly, bypassing hook state issues.
       const connectedAgent = await signAndConnect(signer, { townsConfig });
-      setAgent(connectedAgent); // Store agent in state
+      setAgent(connectedAgent);
 
       console.log('✅ Agent connected!');
       console.log('🏗️ Step 2: Creating space with agent...');
       
+      // Pass the same ethers v5 signer to the createSpace method
       const spaceResult = await connectedAgent.spaces.createSpace({
         spaceName: 'Knead Chat'
       }, signer);
