@@ -5,8 +5,8 @@ import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { townsEnv } from '@towns-protocol/sdk';
 import { useAgentConnection, useSyncAgent } from '@towns-protocol/react-sdk';
-// This will import from the ethers@5.7.2 package you installed
-import { ethers } from 'ethers'; 
+// This now imports specifically from the aliased ethers v5 package
+import { ethers } from 'ethers-v5'; 
 
 export default function SetupTownsContent() {
   const account = useActiveAccount();
@@ -97,8 +97,6 @@ export default function SetupTownsContent() {
   };
 
   // --- The rest of the component (UI) is the same as your original file ---
-
-  // Success screen
   if (result) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
