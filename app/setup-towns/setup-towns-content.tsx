@@ -8,6 +8,9 @@ import { useAgentConnection, useSyncAgent } from '@towns-protocol/react-sdk';
 // This now imports specifically from the aliased ethers v5 package
 import { ethers } from 'ethers-v5'; 
 
+// Define the required chain ID for 'omega' environment (Base Mainnet)
+const REQUIRED_CHAIN_ID = 8453; 
+
 export default function SetupTownsContent() {
   const account = useActiveAccount();
   const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
@@ -36,11 +39,18 @@ export default function SetupTownsContent() {
   }, [account, isAgentConnecting, isAgentConnected, agent]);
 
   // Helper to create the required ethers v5 signer
-  const getEthers5Signer = () => {
+  const getEthers5Signer = async () => {
     if (!(window as any).ethereum) {
       throw new Error('No wallet provider found. Please ensure your browser wallet is active.');
     }
     const providerV5 = new ethers.providers.Web3Provider((window as any).ethereum);
+    
+    // Network Check
+    const network = await providerV5.getNetwork();
+    if (network.chainId !== REQUIRED_CHAIN_ID) {
+      throw new Error(`Incorrect network. Please switch your wallet to Base Mainnet (Chain ID: ${REQUIRED_CHAIN_ID}). You are currently on Chain ID: ${network.chainId}.`);
+    }
+
     return providerV5.getSigner();
   };
 
@@ -54,16 +64,17 @@ export default function SetupTownsContent() {
 
     try {
       console.log('🔐 Step 1: Connecting to Towns Protocol...');
-      const signerV5 = getEthers5Signer();
-      console.log('✅ Created ethers v5 signer for connection');
+      // getEthers5Signer will now also perform the network check
+      const signerV5 = await getEthers5Signer();
+      console.log('✅ Network check passed. Created ethers v5 signer for connection.');
 
       const townsConfig = townsEnv().makeTownsConfig('omega');
       await connect(signerV5, { townsConfig });
       
-      console.log('✅ Connection initiated - waiting for state update from hook...');
+      console.log('✅ Connection signature requested - waiting for state update from hook...');
     } catch (err: any) {
-      console.error('❌ Error connecting:', err);
-      setError(err.message || 'Failed to connect to Towns');
+      console.error('❌ Error during connection attempt:', err);
+      setError(err.message || 'Failed to connect to Towns. Check console for details.');
     }
   };
 
@@ -79,8 +90,8 @@ export default function SetupTownsContent() {
 
     try {
       console.log('🏗️ Step 2: Creating space with agent...');
-      const signerV5 = getEthers5Signer();
-      console.log('✅ Created ethers v5 signer for space creation');
+      const signerV5 = await getEthers5Signer();
+      console.log('✅ Network check passed. Created ethers v5 signer for space creation.');
 
       const spaceResult = await agent.spaces.createSpace({
         spaceName: 'Knead Chat'
@@ -96,7 +107,7 @@ export default function SetupTownsContent() {
     }
   };
 
-  // --- The rest of the component (UI) is the same as your original file ---
+  // --- UI Code (no changes needed below) ---
   if (result) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
