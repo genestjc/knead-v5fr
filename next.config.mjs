@@ -29,6 +29,7 @@ const nextConfig = {
               font-src 'self' https://use.typekit.net https://fonts.gstatic.com data:;
               img-src 'self' https://*.sanity.io https://cdn.sanity.io https://lh3.googleusercontent.com https://p.typekit.net https://use.typekit.net data: blob:;
               connect-src 'self' 
+                https://mainnet.rpc.river.build /* Add this line for Towns Protocol */
                 https://api.stripe.com 
                 https://checkout.stripe.com 
                 https://c.thirdweb.com 
