@@ -1,289 +1,94 @@
+import type { ChatUser } from '@/types/chat';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import type { ChatUser, UserPermissions, ParticipantTier } from '@/types/chat';
 
-interface PermissionResult {
-  allowed: boolean;
+// Define the permissions object structure
+interface UserPermissions {
+  canPost: boolean;
+  canView: boolean;
+  canAwardPoints: boolean;
+  canCreateDms: boolean;
   reason?: string;
 }
 
 /**
- * Check if a participant can post in a channel
- * 
- * Rules:
- * - Contributors/Admins: Always allowed
- * - Freemium: Never allowed to post
- * - Premium Participants: Only during events they RSVP'd to (within time window)
+ * Checks if a live event is currently active in any channel.
+ * This is the key function for automating chat access for Paid Participants.
  */
-export async function canParticipantPost(
-  userId: string,
-  channelId: string
-): Promise<PermissionResult> {
+async function isLiveEventActive(): Promise<boolean> {
   const supabase = createSupabaseAdmin();
-  
-  // 1. Get user role and membership
-  const { data: user, error: userError } = await supabase
-    .from('chat_users')
-    .select('role, membership_tier')
-    .eq('id', userId)
-    .single();
+  const { data, error, count } = await supabase
+    .from('chat_events') // Your table is named chat_events
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'live'); // The status from your EventsManager
 
-  if (userError || !user) {
-    return { allowed: false, reason: 'User not found' };
+  if (error) {
+    console.error("Error checking for active events:", error);
+    return false; // Fail safely: assume chat is closed
   }
 
-  // 2. Contributors and Admins: Always allowed
-  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
-    return { allowed: true };
-  }
-
-  // 3. Freemium: Never allowed to post
-  if (user.membership_tier === 'freemium') {
-    return { 
-      allowed: false, 
-      reason: 'Upgrade to Premium to participate in events and post messages.' 
-    };
-  }
-
-  // 4. Premium Participants: Only during events they RSVP'd to
-  if (user.membership_tier === 'premium') {
-    // Check for active event in this channel
-    const { data: activeEvent, error: eventError } = await supabase
-      .from('events')
-      .select('id, start_time, end_time, participant_window_minutes')
-      .eq('channel_id', channelId)
-      .eq('status', 'active')
-      .single();
-
-    if (eventError || !activeEvent) {
-      return { 
-        allowed: false, 
-        reason: 'No active event in this channel. Only Contributors can post outside events.' 
-      };
-    }
-
-    // Check RSVP
-    const { data: rsvp, error: rsvpError } = await supabase
-      .from('rsvps')
-      .select('status')
-      .eq('event_id', activeEvent.id)
-      .eq('participant_id', userId)
-      .eq('status', 'confirmed')
-      .single();
-
-    if (rsvpError || !rsvp) {
-      return { 
-        allowed: false, 
-        reason: 'You must RSVP to this event to participate. Check the Events tab.' 
-      };
-    }
-
-    // Check if within participant time window
-    const now = Date.now();
-    const eventStart = new Date(activeEvent.start_time).getTime();
-    const windowEnd = eventStart + (activeEvent.participant_window_minutes * 60 * 1000);
-
-    if (now < eventStart) {
-      const minutesUntilStart = Math.ceil((eventStart - now) / (1000 * 60));
-      return { 
-        allowed: false, 
-        reason: `Event starts in ${minutesUntilStart} minutes.` 
-      };
-    }
-
-    if (now > windowEnd) {
-      // Check if user has extended access via tier
-      const { data: participant } = await supabase
-        .from('participants')
-        .select('current_tier')
-        .eq('user_id', userId)
-        .single();
-
-      const tierExtensions = {
-        1: 0,           // Newcomer: no extension
-        2: 30,          // Regular: +30 min
-        3: 120,         // Veteran: +2 hours
-        4: Infinity,    // Elite: full access (like Contributors)
-      };
-
-      const tier = (participant?.current_tier || 1) as 1 | 2 | 3 | 4;
-      const extensionMinutes = tierExtensions[tier];
-      const extendedEnd = windowEnd + (extensionMinutes * 60 * 1000);
-
-      if (now > extendedEnd) {
-        const nextTier = tier + 1;
-        const nextTierName = ['', 'Newcomer', 'Regular', 'Veteran', 'Elite'][nextTier];
-        return { 
-          allowed: false, 
-          reason: `Event participation window closed. ${nextTier <= 4 ? `Reach ${nextTierName} tier for extended access.` : 'Become a Contributor for full access.'}` 
-        };
-      }
-    }
-
-    return { allowed: true };
-  }
-
-  return { allowed: false, reason: 'Unauthorized' };
+  return (count ?? 0) > 0;
 }
 
 /**
- * Check if a user can read messages in a channel
- * 
- * Rules:
- * - Everyone can read (including Freemium)
+ * The new, upgraded permission function.
+ * This determines a user's ability to post based on their role and event status.
  */
-export async function canReadChannel(userId: string, channelId: string): Promise<PermissionResult> {
-  const supabase = createSupabaseAdmin();
-  
-  const { data: user, error } = await supabase
-    .from('chat_users')
-    .select('id, is_banned')
-    .eq('id', userId)
-    .single();
-
-  if (error || !user) {
-    return { allowed: false, reason: 'User not found' };
-  }
-
-  if (user.is_banned) {
-    return { allowed: false, reason: 'You have been banned from the chat' };
-  }
-
-  return { allowed: true };
-}
-
-/**
- * Check if a user can react/like messages
- * 
- * Rules:
- * - Everyone can react (including Freemium)
- */
-export async function canReactToMessage(userId: string): Promise<PermissionResult> {
-  const supabase = createSupabaseAdmin();
-  
-  const { data: user, error } = await supabase
-    .from('chat_users')
-    .select('is_banned')
-    .eq('id', userId)
-    .single();
-
-  if (error || !user) {
-    return { allowed: false, reason: 'User not found' };
-  }
-
-  if (user.is_banned) {
-    return { allowed: false, reason: 'You have been banned' };
-  }
-
-  return { allowed: true };
-}
-
-/**
- * Check if a user can post in a channel (sync wrapper for API routes)
- * This is used by API routes that already have the user object
- */
-export function canPostInChannel(user: ChatUser, channelId: string): { canPost: boolean; reason?: string } {
-  // Contributors and Admins: Always allowed
-  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
-    return { canPost: true };
-  }
-
-  // Freemium: Never allowed to post
-  if (user.membershipTier === 'freemium') {
-    return { 
-      canPost: false, 
-      reason: 'Upgrade to Premium to participate in events and post messages.' 
-    };
-  }
-
-  // Premium: For now, allow posting (event-based checks happen async via canParticipantPost)
-  if (user.membershipTier === 'premium') {
-    return { canPost: true };
-  }
-
-  return { canPost: false, reason: 'Unauthorized' };
-}
-
-/**
- * Get complete permissions object for a user
- */
-export function getUserPermissions(
-  user: ChatUser,
-  channelId: string,
-  freemiumMinutesUsed: number,
-  distributionBudget: number,
-  personalEarnings: number,
-  totalPoints: number
-): UserPermissions {
-  const isContributorOrAdmin = ['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role);
-  const isFreemium = user.membershipTier === 'freemium';
-  const isPremium = user.membershipTier === 'premium';
-
-  // Determine participant tier (for premium users)
-  let participantTier: ParticipantTier | undefined;
-  if (isPremium) {
-    if (totalPoints < 100) participantTier = 1; // Newcomer
-    else if (totalPoints < 500) participantTier = 2; // Regular
-    else if (totalPoints < 2000) participantTier = 3; // Veteran
-    else participantTier = 4; // Elite
-  }
-
-  return {
-    userId: user.id,
-    role: user.role,
-    contributorType: user.contributorType,
-    canViewChannel: !user.isBanned,
-    canPostInChannel: isContributorOrAdmin || (isPremium && !user.isBanned),
-    canAwardLikes: isContributorOrAdmin,
-    canReceiveLikes: isPremium || isContributorOrAdmin,
-    distributionBudgetRemaining: distributionBudget,
-    personalEarningsAvailable: personalEarnings,
-    participantTier,
-    totalPoints,
-    freemiumTimeRemaining: isFreemium ? Math.max(0, 60 - freemiumMinutesUsed) : undefined,
-  };
-}
-
-/**
- * Check if a user has admin privileges
- */
-export function isAdmin(user: ChatUser): boolean {
-  return ['admin', 'master-admin', 'emergency-admin'].includes(user.role);
-}
-
-/**
- * Check if a user can view a channel (sync wrapper for page components)
- * This is used by page components that already have the user object
- */
-export function canViewChannel(user: ChatUser, channelId: string, freemiumMinutesUsed: number): { canView: boolean; reason?: string } {
-  // Banned users cannot view
+export async function checkPostingPermissions(user: ChatUser): Promise<{ canPost: boolean; reason: string }> {
+  // Rule 1: Banned users can never post.
   if (user.isBanned) {
-    return { canView: false, reason: 'You have been banned from the chat' };
+    return { canPost: false, reason: 'Your account is suspended.' };
   }
 
-  // Check freemium limits
-  if (user.membershipTier === 'freemium' && freemiumMinutesUsed >= 60) {
-    return { 
-      canView: false, 
-      reason: 'Monthly viewing limit reached. Upgrade to Premium for unlimited access.' 
-    };
+  // Rule 2: Contributors and Admins can always post.
+  if (user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
+    return { canPost: true, reason: 'Full access granted.' };
   }
 
-  // Everyone can view (including freemium within limits)
-  return { canView: true };
+  // Rule 3: Paid Participants ('premium' members) can post ONLY during live events.
+  if (user.membershipTier === 'premium') {
+    const isEventLive = await isLiveEventActive();
+    if (isEventLive) {
+      return { canPost: true, reason: 'Live event is active.' };
+    } else {
+      return { canPost: false, reason: 'You can post messages during live events.' };
+    }
+  }
+
+  // Rule 4: Freemium users and all others cannot post.
+  return { canPost: false, reason: 'Upgrade to a paid membership to participate in events.' };
 }
 
 /**
- * Check if a user can award likes (sync wrapper for API routes)
- * This is used by API routes that already have the user object
+ * NEW: Checks a user's permission to view a channel.
+ * This enforces the 1-hour monthly limit for Freemium users.
  */
-export function canAwardLikes(user: ChatUser): { canAward: boolean; reason?: string } {
-  // Only Contributors and Admins can award likes
-  if (['contributor', 'admin', 'master-admin', 'emergency-admin'].includes(user.role)) {
-    return { canAward: true };
-  }
+export async function checkViewingPermissions(user: ChatUser): Promise<{ canView: boolean; reason: string }> {
+    // Rules 1 & 2: Banned users cannot view. Paid members, contributors, and admins can always view.
+    if (user.isBanned) {
+        return { canView: false, reason: 'Your account is suspended.' };
+    }
+    if (user.membershipTier === 'premium' || user.role === 'contributor' || user.role === 'admin' || user.role === 'master-admin') {
+        return { canView: true, reason: 'Full access.' };
+    }
 
-  return { 
-    canAward: false, 
-    reason: 'Only Contributors and Admins can award likes' 
-  };
+    // Rule 3: Freemium users have a time limit.
+    if (user.membershipTier === 'freemium') {
+        const supabase = createSupabaseAdmin();
+        const { data } = await supabase.rpc('get_freemium_time_left', { p_user_id: user.id });
+
+        const minutesLeft = data || 0;
+        if (minutesLeft > 0) {
+            return { canView: true, reason: `You have ${minutesLeft} minutes of viewing time left this month.` };
+        } else {
+            return { canView: false, reason: 'Your free viewing time for this month has been used. Upgrade for unlimited access.' };
+        }
+    }
+
+    // Rule 4: Default deny
+    return { canView: false, reason: 'You must have a membership to view the chat.' };
+}
+
+// ... other permission functions like canAwardLikes, isAdmin can remain here ...
+export function isAdmin(user: ChatUser): boolean {
+  return user.role === 'admin' || user.role === 'master-admin';
 }
