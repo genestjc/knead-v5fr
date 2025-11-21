@@ -104,7 +104,13 @@ export default function SetupTownsContent() {
       console.log('✅ Space created!', spaceResult);
       setResult(spaceResult);
     } catch (err: any) {
-      console.error('❌ Error creating space:', err);
+      // --- DETAILED ERROR LOGGING ---
+      console.error('❌ Error creating space. Full error object:', err);
+      console.error('Error Name:', err.name);
+      console.error('Error Message:', err.message);
+      console.error('Error as JSON:', JSON.stringify(err, null, 2));
+      // --- END DETAILED LOGGING ---
+      
       setError(err.message || 'Failed to create space');
     } finally {
       setIsCreating(false);
