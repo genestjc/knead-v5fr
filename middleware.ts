@@ -26,7 +26,8 @@ export function middleware(request: NextRequest) {
       https://static.cdninstagram.com
       https://cdn.sanity.io
       https://*.sanity.io
-      https://*.thirdweb.com;
+      https://*.thirdweb.com
+      *.towns.com;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
@@ -68,9 +69,12 @@ export function middleware(request: NextRequest) {
       https://www.instagram.com
       https://static.cdninstagram.com
       https://cdn.sanity.io
-      https://*.sanity.io;
+      https://*.sanity.io
+      *.towns.com;
     connect-src 'self'
       https://mainnet.rpc.river.build
+      *.towns.com
+      https://*.towns.com
       https://api.stripe.com
       https://checkout.stripe.com
       https://c.thirdweb.com
