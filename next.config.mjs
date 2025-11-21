@@ -24,12 +24,14 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: `
               default-src 'self';
-              script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.stripe.com https://js.stripe.com;
+              script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.stripe.com https://js.stripe.com *.towns.com;
               style-src 'self' 'unsafe-inline' https://use.typekit.net https://fonts.googleapis.com;
               font-src 'self' https://use.typekit.net https://fonts.gstatic.com data:;
               img-src 'self' https://*.sanity.io https://cdn.sanity.io https://lh3.googleusercontent.com https://p.typekit.net https://use.typekit.net data: blob:;
               connect-src 'self' 
-                https://mainnet.rpc.river.build /* Add this line for Towns Protocol */
+                https://mainnet.rpc.river.build
+                *.towns.com
+                https://*.towns.com
                 https://api.stripe.com 
                 https://checkout.stripe.com 
                 https://c.thirdweb.com 
@@ -52,7 +54,7 @@ const nextConfig = {
                 https://*.supabase.co
                 wss://*.sanity.io 
                 ws://localhost:*;
-              frame-src 'self' https://checkout.stripe.com https://js.stripe.com https://verify.walletconnect.com https://verify.walletconnect.org https://*.sanity.io;
+              frame-src 'self' https://checkout.stripe.com https://js.stripe.com https://verify.walletconnect.com https://verify.walletconnect.org https://*.sanity.io *.towns.com;
               worker-src 'self' blob:;
             `.replace(/\s+/g, ' ').trim(),
           },
