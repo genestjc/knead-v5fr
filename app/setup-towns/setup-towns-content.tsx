@@ -40,15 +40,20 @@ export default function SetupTownsContent() {
 
   // Helper to create the required ethers v5 signer
   const getEthers5Signer = async () => {
-    if (!(window as any).ethereum) {
+    const provider = (window as any).ethereum;
+    if (!provider) {
       throw new Error('No wallet provider found. Please ensure your browser wallet is active.');
     }
-    const providerV5 = new ethers.providers.Web3Provider((window as any).ethereum);
+
+    // NEW: Explicitly request accounts to ensure the provider is "awake" and has permissions
+    await provider.request({ method: 'eth_requestAccounts' });
+
+    const providerV5 = new ethers.providers.Web3Provider(provider);
     
     // Network Check
     const network = await providerV5.getNetwork();
     if (network.chainId !== REQUIRED_CHAIN_ID) {
-      throw new Error(`Incorrect network. Please switch your wallet to Base Mainnet (Chain ID: ${REQUIRED_CHAIN_ID}). You are currently on Chain ID: ${network.chainId}.`);
+      throw new Error(`Incorrect Network. Please switch your wallet to Base Mainnet (Chain ID: ${REQUIRED_CHAIN_ID}). You are currently on Chain ID: ${network.chainId}.`);
     }
 
     return providerV5.getSigner();
@@ -64,9 +69,8 @@ export default function SetupTownsContent() {
 
     try {
       console.log('🔐 Step 1: Connecting to Towns Protocol...');
-      // getEthers5Signer will now also perform the network check
       const signerV5 = await getEthers5Signer();
-      console.log('✅ Network check passed. Created ethers v5 signer for connection.');
+      console.log('✅ Network check passed & provider is active. Created ethers v5 signer for connection.');
 
       const townsConfig = townsEnv().makeTownsConfig('omega');
       await connect(signerV5, { townsConfig });
