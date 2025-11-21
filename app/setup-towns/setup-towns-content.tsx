@@ -98,7 +98,7 @@ export default function SetupTownsContent() {
       console.log('✅ Network check passed. Created ethers v5 signer for space creation.');
 
       const spaceResult = await agent.spaces.createSpace({
-        spaceName: 'Knead Chat'
+        spaceName: 'KneadChatFR'
       }, signerV5);
 
       console.log('✅ Space created!', spaceResult);
