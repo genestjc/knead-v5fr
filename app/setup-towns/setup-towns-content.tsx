@@ -47,7 +47,7 @@ export default function SetupTownsContent() {
       console.log('✅ Created ethers v6 compatible signer for:', await signer.getAddress());
       
       console.log('🔐 Step 1: Connecting to Towns Protocol...');
-      const townsConfig = townsEnv().makeTownsConfig('production');
+      const townsConfig = townsEnv().makeTownsConfig('omega');
       
       const connectedAgent = await signAndConnect(signer, { townsConfig });
       setAgent(connectedAgent);
@@ -67,7 +67,7 @@ export default function SetupTownsContent() {
         fullResult: spaceResult
       });
 
-    } catch (err: any) { // <-- SYNTAX FIX HERE
+    } catch (err: any) { // <-- CORRECTED HERE
       console.error('❌ Error during setup:', err);
       setError(err.message || 'An unexpected error occurred during setup.');
     } finally {
