@@ -1,24 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, useThirdwebClient } from 'thirdweb/react';
+import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { townsEnv } from '@towns-protocol/sdk';
 import { signAndConnect } from '@towns-protocol/react-sdk';
 import type { SyncAgent } from '@towns-protocol/sdk';
 import { ethers5Adapter } from 'thirdweb/adapters/ethers5';
+import { createThirdwebClient } from 'thirdweb';
+
+// IMPORTANT: Replace with your actual ThirdWeb Client ID
+const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+if (!clientId) {
+  throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set in environment variables.");
+}
+
+// Create the client instance outside the component to prevent re-creation on re-renders
+const client = createThirdwebClient({ clientId });
 
 export default function SetupTownsContent() {
   const account = useActiveAccount();
-  const client = useThirdwebClient(); // Get the ThirdWeb client
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [agent, setAgent] = useState<SyncAgent | null>(null);
 
   const handleConnectAndCreateSpace = async () => {
-    // Ensure client, account, and chain are available
-    if (!client || !account || !account.chain) {
+    // Ensure account and its chain are available
+    if (!account || !account.chain) {
       setError('Wallet not fully connected. Please try connecting again.');
       return;
     }
@@ -29,7 +38,7 @@ export default function SetupTownsContent() {
     try {
       console.log('🚀 Starting setup process...');
 
-      // Correctly convert the ThirdWeb account to an ethers.js v5 signer
+      // Convert the ThirdWeb account to an ethers.js v5 signer
       const signer = await ethers5Adapter.signer.toEthers({
         client,
         chain: account.chain,
