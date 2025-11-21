@@ -9,7 +9,8 @@ import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
 import { Toaster } from "@/components/ui/toaster";
-import { TownsSyncProvider } from "@towns-protocol/react-sdk";
+// Temporarily commented out until we have space created
+// import { TownsSyncProvider } from "@towns-protocol/react-sdk";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -25,11 +26,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <MembershipProvider>
               <TooltipProvider>
                 <ToastProvider>
-                  <TownsSyncProvider>
-                    <ErrorBoundary>
-                      {children}
-                    </ErrorBoundary>
-                  </TownsSyncProvider>
+                  {/* TownsSyncProvider will be added after space creation */}
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
                   <Toaster />
                 </ToastProvider>
               </TooltipProvider>
