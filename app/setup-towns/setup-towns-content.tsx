@@ -10,19 +10,24 @@ import { townsEnv } from '@towns-protocol/sdk';
 export default function SetupTownsContent() {
   const account = useActiveAccount();
   const { connect, isAgentConnecting, isAgentConnected } = useAgentConnection();
-  const [hasConnected, setHasConnected] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
 
-  // Get agent after connection (will be available after isAgentConnected = true)
-  let agent;
-  try {
-    agent = useSyncAgent();
-  } catch (e) {
-    // Agent not available yet
-    agent = null;
-  }
+  // Only call useSyncAgent() if agent is connected
+  const agent = isAgentConnected ? useSyncAgent() : null;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Component State:', {
+      hasAccount: !!account,
+      isAgentConnecting,
+      isAgentConnected,
+      hasAgent: !!agent,
+      isCreating,
+      hasResult: !!result
+    });
+  }, [account, isAgentConnecting, isAgentConnected, agent, isCreating, result]);
 
   // Step 1: Connect to Towns
   const handleConnect = async () => {
@@ -53,8 +58,7 @@ export default function SetupTownsContent() {
       // Connect (sets up agent internally)
       await connect(signer, { townsConfig });
       
-      console.log('✅ Connected to Towns - agent will be available via useSyncAgent()');
-      setHasConnected(true);
+      console.log('✅ Connected to Towns - waiting for agent to be ready');
 
     } catch (err: any) {
       console.error('❌ Error connecting:', err);
@@ -82,6 +86,8 @@ export default function SetupTownsContent() {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+
+      console.log('📤 Calling agent.spaces.createSpace...');
 
       // Create space via agent
       const spaceResult = await agent.spaces.createSpace({
@@ -217,9 +223,20 @@ export default function SetupTownsContent() {
         <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-lg">
           <h2 className="text-xl font-bold mb-3">Two-Step Setup:</h2>
           <ol className="text-sm space-y-2 list-decimal list-inside">
-            <li><strong>Step 1:</strong> Connect to Towns Protocol</li>
-            <li><strong>Step 2:</strong> Create your space</li>
+            <li><strong>Step 1:</strong> Connect to Towns Protocol (sign message)</li>
+            <li><strong>Step 2:</strong> Create your Knead Chat space</li>
           </ol>
+        </div>
+
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h3 className="font-semibold mb-2 text-sm">Debug Status:</h3>
+          <div className="text-xs space-y-1 font-mono">
+            <div>Wallet: {account ? `✅ ${account.address.slice(0, 6)}...${account.address.slice(-4)}` : '❌ Not connected'}</div>
+            <div>isAgentConnecting: {isAgentConnecting ? '⏳ true' : '❌ false'}</div>
+            <div>isAgentConnected: {isAgentConnected ? '✅ true' : '❌ false'}</div>
+            <div>Agent Object: {agent ? '✅ exists' : '❌ null'}</div>
+            <div>Can Create Space: {agent && isAgentConnected ? '✅ YES' : '❌ NO'}</div>
+          </div>
         </div>
 
         {!account ? (
@@ -234,7 +251,7 @@ export default function SetupTownsContent() {
                 ✅ <strong>Wallet Connected:</strong> {account.address.slice(0, 6)}...{account.address.slice(-4)}
               </p>
               <p className="text-xs text-gray-600 mt-2">
-                Now connect to Towns Protocol
+                Ready for Step 1: Connect to Towns
               </p>
             </div>
 
@@ -253,17 +270,17 @@ export default function SetupTownsContent() {
             </button>
 
             <p className="text-xs text-gray-500 mt-4 text-center">
-              You'll need to sign a message to authenticate
+              You'll sign a message to authenticate with Towns
             </p>
           </div>
         ) : (
           <div>
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-800">
-                ✅ <strong>Connected to Towns Protocol</strong>
+                ✅ <strong>Towns Protocol Connected!</strong>
               </p>
-              <p className="text-xs text-gray-600 mt-2">
-                Agent ready: {agent ? 'Yes ✅' : 'Waiting...'}
+              <p className="text-xs text-green-700 mt-2">
+                Agent is {agent ? 'ready ✅' : 'loading ⏳'}
               </p>
             </div>
 
@@ -276,13 +293,19 @@ export default function SetupTownsContent() {
             <button
               onClick={handleCreateSpace}
               disabled={isCreating || !agent}
-              className="w-full px-8 py-4 bg-black text-white rounded-full text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full text-lg hover:from-purple-700 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isCreating ? '⏳ Creating Space...' : '🚀 Step 2: Create Knead Chat Space'}
+              {isCreating ? '⏳ Creating Space (sign transaction)...' : '🚀 Step 2: Create Knead Chat Space'}
             </button>
 
+            {!agent && (
+              <p className="text-xs text-orange-600 mt-4 text-center">
+                ⏳ Waiting for agent to initialize... (this can take a few seconds)
+              </p>
+            )}
+
             <p className="text-xs text-gray-500 mt-4 text-center">
-              {!agent && 'Waiting for agent to be ready...'}
+              This will deploy your space contract on Base network
             </p>
           </div>
         )}
