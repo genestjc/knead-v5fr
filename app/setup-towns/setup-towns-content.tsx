@@ -2,15 +2,15 @@
 
 import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { useCreateSpace } from '@towns-protocol/react-sdk';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { ethers } from 'ethers';
+import { signAndConnect } from '@towns-protocol/sdk';
 
 export default function SetupTownsContent() {
   const account = useActiveAccount();
-  const { createSpace, isPending } = useCreateSpace();
-  const [result, setResult] = useState<any>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
 
   const handleCreateSpace = async () => {
     if (!account) {
@@ -18,9 +18,11 @@ export default function SetupTownsContent() {
       return;
     }
 
+    setIsCreating(true);
+    setError(null);
+
     try {
       console.log('🔐 Connected wallet:', account.address);
-      setError(null);
 
       // Get signer from window.ethereum
       if (!window.ethereum) {
@@ -30,19 +32,37 @@ export default function SetupTownsContent() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      console.log('📝 Creating space via Towns SDK...');
-      
-      const res = await createSpace(
-        { spaceName: 'Knead Chat' },
-        signer
-      );
+      console.log('📝 Connecting to Towns Protocol...');
 
-      console.log('✅ Space created:', res);
-      setResult(res);
+      // Create SyncAgent
+      const townsConfig = {
+        apiUrl: 'https://api.towns.com',
+        chainId: 8453, // Base mainnet
+      };
+
+      const agent = await signAndConnect(signer, { townsConfig });
+      console.log('✅ Connected to Towns Protocol');
+
+      console.log('🏗️ Creating space...');
+
+      // Create space directly via agent
+      const spaceResult = await agent.spaces.createSpace({
+        spaceName: 'Knead Chat'
+      }, signer);
+
+      console.log('✅ Space created!', spaceResult);
+
+      setResult({
+        spaceId: spaceResult.spaceId,
+        defaultChannelId: spaceResult.defaultChannelId,
+        fullResult: spaceResult
+      });
 
     } catch (err: any) {
       console.error('❌ Error:', err);
       setError(err.message || 'Failed to create space');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -66,15 +86,12 @@ export default function SetupTownsContent() {
                 Space ID:
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {result.spaceId || result.space || 'Check console for spaceId'}
+                {result.spaceId}
               </div>
               <button
                 onClick={() => {
-                  const id = result.spaceId || result.space;
-                  if (id) {
-                    navigator.clipboard.writeText(id);
-                    alert('Space ID copied!');
-                  }
+                  navigator.clipboard.writeText(result.spaceId);
+                  alert('Space ID copied!');
                 }}
                 className="mt-2 text-sm text-blue-600 hover:text-blue-800"
               >
@@ -87,15 +104,12 @@ export default function SetupTownsContent() {
                 Default Channel ID:
               </label>
               <div className="bg-gray-100 p-3 rounded font-mono text-sm break-all border border-gray-300">
-                {result.defaultChannelId || result.channelId || 'Same as Space ID'}
+                {result.defaultChannelId}
               </div>
               <button
                 onClick={() => {
-                  const id = result.defaultChannelId || result.channelId || result.spaceId || result.space;
-                  if (id) {
-                    navigator.clipboard.writeText(id);
-                    alert('Channel ID copied!');
-                  }
+                  navigator.clipboard.writeText(result.defaultChannelId);
+                  alert('Channel ID copied!');
                 }}
                 className="mt-2 text-sm text-blue-600 hover:text-blue-800"
               >
@@ -104,8 +118,8 @@ export default function SetupTownsContent() {
             </div>
 
             <div className="mt-6 p-4 bg-gray-900 text-green-400 rounded font-mono text-xs overflow-x-auto">
-              <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={result.spaceId || result.space || 'CHECK_CONSOLE'}</div>
-              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={result.defaultChannelId || result.channelId || result.spaceId || result.space || 'CHECK_CONSOLE'}</div>
+              <div className="mb-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={result.spaceId}</div>
+              <div>NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={result.defaultChannelId}</div>
             </div>
           </div>
 
@@ -125,6 +139,7 @@ export default function SetupTownsContent() {
                 </a>
               </li>
               <li>Add both variables and save</li>
+              <li>Uncomment TownsSyncProvider in app/providers.tsx</li>
               <li>Wait for automatic redeploy</li>
               <li>Start building your tokenomics system!</li>
             </ol>
@@ -133,7 +148,7 @@ export default function SetupTownsContent() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
             <h3 className="font-semibold mb-2">🐛 Debug Info:</h3>
             <pre className="text-xs overflow-x-auto">
-              {JSON.stringify(result, null, 2)}
+              {JSON.stringify(result.fullResult, null, 2)}
             </pre>
           </div>
 
@@ -164,8 +179,8 @@ export default function SetupTownsContent() {
           </p>
           <ol className="text-sm space-y-2 list-decimal list-inside">
             <li>Connect your wallet (you'll own the Space NFT)</li>
-            <li>Click Create Space</li>
-            <li>Sign the transaction (Towns SDK handles the complexity)</li>
+            <li>Sign to connect to Towns Protocol</li>
+            <li>Create space with SyncAgent</li>
             <li>Get your Space ID and Channel ID</li>
             <li>Add to Vercel environment variables</li>
             <li>Start building your tokenomics!</li>
@@ -175,10 +190,11 @@ export default function SetupTownsContent() {
         <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
           <h3 className="font-semibold mb-2">🔧 What Happens Behind the Scenes:</h3>
           <ul className="text-sm space-y-1">
-            <li>• Towns SDK creates a smart contract wallet for you</li>
-            <li>• Deploys a Space contract on Base</li>
-            <li>• Mints a Space NFT to your wallet</li>
-            <li>• Sets up default channel</li>
+            <li>• Creates a SyncAgent with your wallet</li>
+            <li>• Calls agent.spaces.createSpace() directly</li>
+            <li>• Deploys Space contract on Base</li>
+            <li>• Mints Space NFT to your wallet</li>
+            <li>• Creates default channel</li>
             <li>• You retain full ownership</li>
           </ul>
         </div>
@@ -197,7 +213,7 @@ export default function SetupTownsContent() {
                 ✅ <strong>Wallet Connected:</strong> {account.address.slice(0, 6)}...{account.address.slice(-4)}
               </p>
               <p className="text-xs text-green-700 mt-2">
-                You'll need to sign a message to create your Space. This might take a moment.
+                You'll need to sign messages to connect to Towns and create your space.
               </p>
             </div>
 
@@ -215,14 +231,14 @@ export default function SetupTownsContent() {
 
             <button
               onClick={handleCreateSpace}
-              disabled={isPending}
+              disabled={isCreating}
               className="w-full px-8 py-4 bg-black text-white rounded-full text-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isPending ? '⏳ Creating Space (this may take a minute)...' : '🚀 Create Knead Chat Space'}
+              {isCreating ? '⏳ Creating Space (this may take a minute)...' : '🚀 Create Knead Chat Space'}
             </button>
 
             <p className="text-xs text-gray-500 mt-4 text-center">
-              Using Towns Protocol SDK - you'll sign with your connected wallet
+              Using Towns SDK SyncAgent directly - bypassing hooks for setup
             </p>
           </div>
         )}
