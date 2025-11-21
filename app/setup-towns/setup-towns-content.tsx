@@ -6,9 +6,10 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { townsEnv } from '@towns-protocol/sdk';
 import { signAndConnect } from '@towns-protocol/react-sdk';
 import type { SyncAgent } from '@towns-protocol/sdk';
-import { ethers6Adapter } from 'thirdweb/adapters/ethers6';
 import { createThirdwebClient } from 'thirdweb';
 import { base } from 'thirdweb/chains';
+// This import will now resolve to the ethers@5.7.2 package you installed
+import { ethers } from 'ethers'; 
 
 // Ensure the Client ID is available
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
@@ -27,7 +28,7 @@ export default function SetupTownsContent() {
   const [agent, setAgent] = useState<SyncAgent | null>(null);
 
   const handleConnectAndCreateSpace = async () => {
-    if (!account) {
+    if (!account || !account.provider) {
       setError('Wallet not fully connected. Please try connecting again.');
       return;
     }
@@ -38,18 +39,16 @@ export default function SetupTownsContent() {
     try {
       console.log('🚀 Starting setup process...');
 
-      const signer = await ethers6Adapter.signer.toEthers({
-        client,
-        chain: base,
-        account,
-      });
+      // THE FIX: Directly create an ethers v5 provider and signer from the wallet's EIP-1193 provider
+      const providerV5 = new ethers.providers.Web3Provider(account.provider);
+      const signerV5 = providerV5.getSigner();
 
-      console.log('✅ Created ethers v6 compatible signer for:', await signer.getAddress());
+      console.log('✅ Created ethers v5 compatible signer for:', await signerV5.getAddress());
       
       console.log('🔐 Step 1: Connecting to Towns Protocol...');
       const townsConfig = townsEnv().makeTownsConfig('omega');
       
-      const connectedAgent = await signAndConnect(signer, { townsConfig });
+      const connectedAgent = await signAndConnect(signerV5, { townsConfig });
       setAgent(connectedAgent);
 
       console.log('✅ Agent connected!');
@@ -57,7 +56,7 @@ export default function SetupTownsContent() {
       
       const spaceResult = await connectedAgent.spaces.createSpace({
         spaceName: 'Knead Chat'
-      }, signer);
+      }, signerV5);
 
       console.log('✅ Space created!', spaceResult);
 
@@ -67,7 +66,7 @@ export default function SetupTownsContent() {
         fullResult: spaceResult
       });
 
-    } catch (err: any) { // <-- CORRECTED HERE
+    } catch (err: any) {
       console.error('❌ Error during setup:', err);
       setError(err.message || 'An unexpected error occurred during setup.');
     } finally {
