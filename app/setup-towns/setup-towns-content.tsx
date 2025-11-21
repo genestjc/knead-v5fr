@@ -6,17 +6,17 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { townsEnv } from '@towns-protocol/sdk';
 import { signAndConnect } from '@towns-protocol/react-sdk';
 import type { SyncAgent } from '@towns-protocol/sdk';
-import { ethers5Adapter } from 'thirdweb/adapters/ethers5';
+import { ethers6Adapter } from 'thirdweb/adapters/ethers6';
 import { createThirdwebClient } from 'thirdweb';
-import { base } from 'thirdweb/chains'; // Import the specific chain for mainnet
+import { base } from 'thirdweb/chains';
 
-// IMPORTANT: Replace with your actual ThirdWeb Client ID
+// Ensure the Client ID is available
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
 if (!clientId) {
   throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set in environment variables.");
 }
 
-// Create the client instance outside the component to prevent re-creation on re-renders
+// Create the client instance outside the component
 const client = createThirdwebClient({ clientId });
 
 export default function SetupTownsContent() {
@@ -27,7 +27,6 @@ export default function SetupTownsContent() {
   const [agent, setAgent] = useState<SyncAgent | null>(null);
 
   const handleConnectAndCreateSpace = async () => {
-    // Check only for account, as account.chain can be unreliable
     if (!account) {
       setError('Wallet not fully connected. Please try connecting again.');
       return;
@@ -39,18 +38,16 @@ export default function SetupTownsContent() {
     try {
       console.log('🚀 Starting setup process...');
 
-      // Convert the ThirdWeb account to an ethers.js v5 signer
-      // Use the imported `base` chain object directly for mainnet
-      const signer = await ethers5Adapter.signer.toEthers({
+      const signer = await ethers6Adapter.signer.toEthers({
         client,
-        chain: base, // Use imported mainnet chain, not account.chain
+        chain: base,
         account,
       });
 
-      console.log('✅ Created ethers v5 compatible signer for:', await signer.getAddress());
+      console.log('✅ Created ethers v6 compatible signer for:', await signer.getAddress());
       
       console.log('🔐 Step 1: Connecting to Towns Protocol...');
-      const townsConfig = townsEnv().makeTownsConfig('omega');
+      const townsConfig = townsEnv().makeTownsConfig('production');
       
       const connectedAgent = await signAndConnect(signer, { townsConfig });
       setAgent(connectedAgent);
@@ -58,7 +55,6 @@ export default function SetupTownsContent() {
       console.log('✅ Agent connected!');
       console.log('🏗️ Step 2: Creating space with agent...');
       
-      // Pass the same ethers v5 signer to the createSpace method
       const spaceResult = await connectedAgent.spaces.createSpace({
         spaceName: 'Knead Chat'
       }, signer);
@@ -71,14 +67,14 @@ export default function SetupTownsContent() {
         fullResult: spaceResult
       });
 
-    } catch (err: any) {
+    } catch (err: any) { // <-- SYNTAX FIX HERE
       console.error('❌ Error during setup:', err);
       setError(err.message || 'An unexpected error occurred during setup.');
     } finally {
       setIsProcessing(false);
     }
   };
-
+  
   // Success screen
   if (result) {
     return (
