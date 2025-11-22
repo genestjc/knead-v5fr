@@ -41,7 +41,6 @@ export default function SupabaseChatClient() {
     }
   }, [user]);
   
-  // NEW: Callback to remove a message from state without a full refetch
   const handleMessageDeleted = (messageId: string) => {
     setMessages(currentMessages => currentMessages.filter(msg => msg.id !== messageId));
   };
@@ -64,10 +63,10 @@ export default function SupabaseChatClient() {
     const channel = supabase
       .channel('chat-messages-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${TEST_CHANNEL_ID}` }, 
-        () => fetchMessages() // Refetch on new messages
+        () => fetchMessages()
       )
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' },
-        (payload) => handleMessageDeleted(payload.old.id) // Also handle real-time deletes
+        (payload) => handleMessageDeleted(payload.old.id)
       )
       .subscribe();
 
