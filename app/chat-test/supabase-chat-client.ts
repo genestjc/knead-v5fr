@@ -4,59 +4,83 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@supabase/auth-helpers-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { ChatInput } from '@/components/chat/ChatInput'; // The component we built with emojis/attachments
+import { ChatInput } from '@/components/chat/ChatInput';
 import type { ChatMessage, ChatUser } from '@/types/chat';
 
-// A placeholder channel ID for testing. All messages will be saved with this ID.
 const TEST_CHANNEL_ID = 'live-interviews';
 
 export default function SupabaseChatClient() {
   const user = useUser();
+  // --- CORRECTED CODE ---
+  // Memoize the Supabase client so it's not recreated on every render
+  const [supabase] = useState(() => createClientComponentClient());
+  // --- END CORRECTION ---
+
   const [currentUserProfile, setCurrentUserProfile] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const supabase = createClientComponentClient();
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
 
-    // This API call now includes all our permission checks
-    const { data, error: apiError, nextCursor } = await fetch(`/api/chat/messages?channelId=${TEST_CHANNEL_ID}&userId=${user.id}&limit=100`).then(res => res.json());
-
-    if (apiError) {
-      setError(apiError);
-      setIsLoading(false);
-      return;
+    try {
+      const res = await fetch(`/api/chat/messages?channelId=${TEST_CHANNEL_ID}&userId=${user.id}&limit=100`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to fetch messages');
+      }
+      const { data, error: apiError } = await res.json();
+      
+      if (apiError) {
+        setError(apiError);
+      } else {
+        setMessages(data.sort((a: ChatMessage, b: ChatMessage) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
+        setError(null); // Clear previous errors on a successful fetch
+      }
+    } catch (e: any) {
+        setError(e.message);
+    } finally {
+        setIsLoading(false);
     }
-    
-    setMessages(data.sort((a: ChatMessage, b: ChatMessage) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
-    setIsLoading(false);
-  }, [user]);
+  }, [user]); // fetchMessages only needs to be re-created if the user changes
 
-  // Fetch initial messages and user profile
+  // Effect for fetching initial data
   useEffect(() => {
     if (user) {
-      const fetchUserProfile = async () => {
-        const { data } = await supabase.from('chat_users').select('*').eq('id', user.id).single();
-        setCurrentUserProfile(data as ChatUser);
+      const fetchInitialData = async () => {
+        setIsLoading(true);
+        const { data: profileData } = await supabase.from('chat_users').select('*').eq('id', user.id).single();
+        setCurrentUserProfile(profileData as ChatUser);
+        await fetchMessages();
       };
-      fetchUserProfile();
-      fetchMessages();
+      fetchInitialData();
     } else {
       setIsLoading(false);
     }
-  }, [user, fetchMessages, supabase]);
+  }, [user, supabase, fetchMessages]);
 
-  // Set up a real-time subscription to new messages
+  // Effect for real-time subscriptions
   useEffect(() => {
     const channel = supabase
       .channel('chat-messages-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${TEST_CHANNEL_ID}` }, 
         (payload) => {
-          // This is a simplified fetch; a full implementation would be more robust
-          fetchMessages();
+          // Instead of re-fetching the whole list, just append the new message for a snappier UI
+          setMessages(currentMessages => {
+            const newMessage = payload.new as ChatMessage; // This will need a type mapping
+            // Add a check to prevent duplicates
+            if (currentMessages.some(m => m.id === newMessage.id)) {
+                return currentMessages;
+            }
+            // A more complete solution would fetch the user profile for the new message author
+            return [...currentMessages, {
+                ...newMessage, 
+                timestamp: new Date(newMessage.created_at),
+                user: { displayName: 'New User' } // Simplified
+            }];
+          });
         }
       )
       .subscribe();
@@ -64,7 +88,13 @@ export default function SupabaseChatClient() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, fetchMessages]);
+  }, [supabase]); // This effect only needs to run once
+  
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
 
   if (isLoading) {
     return (
