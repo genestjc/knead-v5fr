@@ -2,8 +2,8 @@
 
 import nextDynamic from 'next/dynamic';
 
-// Dynamically import the NEW Supabase chat component with ssr: false
-const SupabaseChatClient = nextDynamic(() => import('./supabase-chat-client'), {
+// Use a more explicit path to ensure resolution
+const SupabaseChatClient = nextDynamic(() => import('@/app/chat-test/supabase-chat-client'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
