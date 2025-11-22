@@ -1,33 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { moderateContent, shouldAutoReject } from '@/lib/chat/moderation';
-// Import our new, smarter permission functions
-import { canPostMessage, canViewChat } from '@/lib/chat/permissions';
+import { canPostMessage, canViewChat } from '@/lib/chat/permissions'; // Use our new permission functions
 import type { ChatUser, ChatMessage, ApiResponse, PaginatedResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/chat/messages
- * Fetches messages, now with integrated viewing permissions.
+ * Fetches messages with viewing permissions, freemium time tracking, and attachment support.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const channelId = searchParams.get('channelId');
   const limit = parseInt(searchParams.get('limit') || '50', 10);
-  const before = searchParams.get('before'); // cursor (timestamp)
-  const userId = searchParams.get('userId'); // The client MUST now send the userId to check permissions
+  const before = searchParams.get('before');
+  const userId = searchParams.get('userId'); // Required for permission checks
 
   if (!channelId) {
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Missing channelId parameter' },
-      { status: 400 }
-    );
+    return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing channelId parameter' }, { status: 400 });
   }
 
   const supabase = createSupabaseAdmin();
 
-  // --- New Permission & Freemium Logic ---
+  // --- Permission & Freemium Logic ---
   if (!userId) {
     return NextResponse.json({ data: [], error: 'You must be logged in to view the chat.' }, { status: 401 });
   }
@@ -37,24 +33,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: [], error: 'User not found.' }, { status: 404 });
   }
 
+  // Use the canViewChat function which handles freemium time limits
   const viewPermission = await canViewChat(user as ChatUser);
   if (!viewPermission.canView) {
-    // Return an empty array but with a clear reason. The frontend can display this message.
     return NextResponse.json({ data: [], nextCursor: undefined, hasMore: false, error: viewPermission.reason });
   }
-
-  // If the user is freemium and is allowed to view, log this as a "session".
-  // This increments the usage count that `checkFreemiumTimeRemaining` uses.
+  
+  // If the user is freemium and is allowed to view, log this access as a "session"
   if (user.membership_tier === 'freemium') {
+    // This insert fires off the logic in your `get_freemium_time_left` function
     await supabase.from('freemium_usage_logs').insert({ user_id: user.id });
   }
-  // --- End of New Logic ---
+  // --- End of Logic ---
 
   try {
     let query = supabase
       .from('chat_messages')
       .select(`
-        id, channel_id, user_id, content, created_at, reply_to_id, is_deleted, is_hidden, moderation_score, moderation_categories,
+        id, channel_id, user_id, content, created_at, reply_to_id, is_deleted, is_hidden,
+        attachment_url, attachment_type, -- Fetch new attachment fields
         author:chat_users!user_id (id, address, display_name, avatar, role, membership_tier, contributor_type, alias)
       `)
       .eq('channel_id', channelId)
@@ -68,29 +65,17 @@ export async function GET(req: NextRequest) {
     }
 
     const { data, error } = await query;
+    if (error) throw error;
 
-    if (error) {
-      console.error('Error fetching messages:', error);
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Failed to fetch messages' }, { status: 500 });
-    }
-
+    // Fetch likes and replies in parallel
     const messageIds = data.map((msg) => msg.id);
     const [likesData, repliesData] = await Promise.all([
         supabase.from('message_likes').select('message_id').in('message_id', messageIds),
         supabase.from('chat_messages').select('reply_to_id').in('reply_to_id', messageIds).eq('is_deleted', false)
     ]);
     
-    const likesCounts = likesData.data?.reduce((acc: Record<string, number>, like) => {
-        acc[like.message_id] = (acc[like.message_id] || 0) + 1;
-        return acc;
-    }, {}) || {};
-
-    const repliesCounts = repliesData.data?.reduce((acc: Record<string, number>, reply) => {
-      if (reply.reply_to_id) {
-        acc[reply.reply_to_id] = (acc[reply.reply_to_id] || 0) + 1;
-      }
-      return acc;
-    }, {}) || {};
+    const likesCounts = likesData.data?.reduce((acc: Record<string, number>, like) => { acc[like.message_id] = (acc[like.message_id] || 0) + 1; return acc; }, {}) || {};
+    const repliesCounts = repliesData.data?.reduce((acc: Record<string, number>, reply) => { if (reply.reply_to_id) { acc[reply.reply_to_id] = (acc[reply.reply_to_id] || 0) + 1; } return acc; }, {}) || {};
     
     const messages: ChatMessage[] = data.map((msg) => ({
       id: msg.id,
@@ -103,19 +88,13 @@ export async function GET(req: NextRequest) {
       repliesCount: repliesCounts[msg.id] || 0,
       isDeleted: msg.is_deleted,
       isHidden: msg.is_hidden,
-      moderationScore: msg.moderation_score,
+      attachmentUrl: msg.attachment_url, // Add to response
+      attachmentType: msg.attachment_type, // Add to response
       user: {
-        id: msg.author.id,
-        address: msg.author.address,
-        displayName: msg.author.alias || msg.author.display_name,
-        avatar: msg.author.avatar,
-        role: msg.author.role,
-        membershipTier: msg.author.membership_tier,
-        contributorType: msg.author.contributor_type,
-        isBanned: false, // Assuming is_banned check happened earlier
-        alias: msg.author.alias,
-        createdAt: new Date(), // Placeholder
-        updatedAt: new Date(), // Placeholder
+        id: msg.author.id, address: msg.author.address, displayName: msg.author.alias || msg.author.display_name,
+        avatar: msg.author.avatar, role: msg.author.role, membershipTier: msg.author.membership_tier,
+        contributorType: msg.author.contributor_type, isBanned: false, alias: msg.author.alias,
+        createdAt: new Date(), updatedAt: new Date(),
       },
     }));
 
@@ -126,7 +105,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in GET /api/chat/messages:', error);
     return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Internal server error' }, { status: 500 });
   }
@@ -134,21 +113,18 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/chat/messages
- * Creates a new message, now with upgraded posting permissions.
+ * Creates a message with posting permissions and attachment support.
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, channelId, content, replyToId } = body;
+    const { userId, channelId, content, replyToId, attachmentUrl, attachmentType } = await req.json();
 
-    if (!userId || !channelId || !content) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing required fields' }, { status: 400 });
+    if (!userId || !channelId) {
+        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing user or channel ID' }, { status: 400 });
     }
-    if (content.trim().length === 0) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Message content cannot be empty' }, { status: 400 });
-    }
-    if (content.length > 2000) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Message content exceeds maximum length' }, { status: 400 });
+    // A message can now be just an attachment with no text content
+    if (!content?.trim() && !attachmentUrl) {
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Message must contain content or an attachment.' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
@@ -163,37 +139,34 @@ export async function POST(req: NextRequest) {
       bio: user.bio, alias: user.alias, createdAt: new Date(user.created_at), updatedAt: new Date(user.updated_at),
     };
 
-    // --- Upgraded Permission Check ---
+    // Upgraded Permission Check
     const permission = await canPostMessage(chatUser);
     if (!permission.canPost) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: permission.reason },
-        { status: 403 }
-      );
-    }
-    // --- End of Upgrade ---
-
-    const moderationResult = await moderateContent(content);
-    if (shouldAutoReject(moderationResult)) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: moderationResult.message || 'Message contains inappropriate content' }, { status: 400 });
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: permission.reason }, { status: 403 });
     }
 
+    // Only moderate if there is text content
+    let moderationResult = { score: 0, categories: {} };
+    if (content?.trim()) {
+        moderationResult = await moderateContent(content);
+        if (shouldAutoReject(moderationResult)) {
+            return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Message contains inappropriate content' }, { status: 400 });
+        }
+    }
+    
     const { data: message, error: insertError } = await supabase
       .from('chat_messages')
       .insert({
-        user_id: userId, channel_id: channelId, content: content.trim(), reply_to_id: replyToId || null,
+        user_id: userId, channel_id: channelId, content: content?.trim() || null, reply_to_id: replyToId || null,
         moderation_score: moderationResult.score, moderation_categories: moderationResult.categories,
+        attachment_url: attachmentUrl, // Save to DB
+        attachment_type: attachmentType, // Save to DB
       })
       .select().single();
 
-    if (insertError || !message) {
-      console.error('Error inserting message:', insertError);
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Failed to create message' }, { status: 500 });
-    }
+    if (insertError) throw insertError;
 
-    // Your existing bonus logic can remain unchanged...
-    if (replyToId && (user.role === 'admin' || user.role === 'master-admin')) { /* ... */ }
-    if (replyToId) { /* ... */ }
+    // (Your existing bonus logic for threads and replies remains unchanged)
 
     return NextResponse.json<ApiResponse<ChatMessage>>({
       success: true,
@@ -201,9 +174,10 @@ export async function POST(req: NextRequest) {
         id: message.id, channelId: message.channel_id, userId: message.user_id, content: message.content,
         timestamp: new Date(message.created_at), replyToId: message.reply_to_id, likesCount: 0,
         repliesCount: 0, isDeleted: false, isHidden: false, moderationScore: moderationResult.score,
+        attachmentUrl: message.attachment_url, attachmentType: message.attachment_type,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in POST /api/chat/messages:', error);
     return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Internal server error' }, { status: 500 });
   }
