@@ -2,8 +2,8 @@
 
 import nextDynamic from 'next/dynamic';
 
-// Dynamically import the chat component with ssr: false
-const ChatTestClient = nextDynamic(() => import('./chat-test-client'), {
+// Dynamically import the NEW Supabase chat component with ssr: false
+const SupabaseChatClient = nextDynamic(() => import('./supabase-chat-client'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -18,5 +18,5 @@ const ChatTestClient = nextDynamic(() => import('./chat-test-client'), {
 export const dynamic = 'force-dynamic';
 
 export default function ChatTestPage() {
-  return <ChatTestClient />;
+  return <SupabaseChatClient />;
 }
