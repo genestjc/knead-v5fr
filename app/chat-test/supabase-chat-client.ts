@@ -6,7 +6,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { ChatInput } from '@/components/chat/ChatInput';
 import type { ChatMessage, ChatUser } from '@/types/chat';
-// NEW: Import the message component that includes the options menu
 import { ChatMessageComponent } from '@/components/chat/ChatMessage';
 
 const TEST_CHANNEL_ID = 'live-interviews';
@@ -23,7 +22,6 @@ export default function SupabaseChatClient() {
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
-
     try {
       const res = await fetch(`/api/chat/messages?channelId=${TEST_CHANNEL_ID}&userId=${user.id}&limit=100`);
       if (!res.ok) {
@@ -31,10 +29,8 @@ export default function SupabaseChatClient() {
         throw new Error(errorData.error || 'Failed to fetch messages');
       }
       const { data, error: apiError } = await res.json();
-      
-      if (apiError) {
-        setError(apiError);
-      } else {
+      if (apiError) setError(apiError);
+      else {
         setMessages(data.sort((a: ChatMessage, b: ChatMessage) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
         setError(null);
       }
@@ -44,6 +40,11 @@ export default function SupabaseChatClient() {
         setIsLoading(false);
     }
   }, [user]);
+  
+  // NEW: Callback to remove a message from state without a full refetch
+  const handleMessageDeleted = (messageId: string) => {
+    setMessages(currentMessages => currentMessages.filter(msg => msg.id !== messageId));
+  };
 
   useEffect(() => {
     if (user) {
@@ -63,10 +64,10 @@ export default function SupabaseChatClient() {
     const channel = supabase
       .channel('chat-messages-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${TEST_CHANNEL_ID}` }, 
-        (payload) => {
-          // Re-fetch the list to get full message data with user profile
-          fetchMessages();
-        }
+        () => fetchMessages() // Refetch on new messages
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' },
+        (payload) => handleMessageDeleted(payload.old.id) // Also handle real-time deletes
       )
       .subscribe();
 
@@ -76,7 +77,7 @@ export default function SupabaseChatClient() {
   }, [supabase, fetchMessages]);
   
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
 
@@ -114,12 +115,12 @@ export default function SupabaseChatClient() {
                 <p>{error}</p>
             </div>
         )}
-        {/* UPDATED: Use the new ChatMessageComponent in the loop */}
         {!error && messages.map((msg) => (
           <ChatMessageComponent
             key={msg.id}
             message={msg}
             currentUser={currentUserProfile}
+            onMessageDeleted={handleMessageDeleted}
           />
         ))}
         <div ref={messagesEndRef} />
