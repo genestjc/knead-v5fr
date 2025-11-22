@@ -6,15 +6,14 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { ChatInput } from '@/components/chat/ChatInput';
 import type { ChatMessage, ChatUser } from '@/types/chat';
+// NEW: Import the message component that includes the options menu
+import { ChatMessageComponent } from '@/components/chat/ChatMessage';
 
 const TEST_CHANNEL_ID = 'live-interviews';
 
 export default function SupabaseChatClient() {
   const user = useUser();
-  // --- CORRECTED CODE ---
-  // Memoize the Supabase client so it's not recreated on every render
   const [supabase] = useState(() => createClientComponentClient());
-  // --- END CORRECTION ---
 
   const [currentUserProfile, setCurrentUserProfile] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -37,16 +36,15 @@ export default function SupabaseChatClient() {
         setError(apiError);
       } else {
         setMessages(data.sort((a: ChatMessage, b: ChatMessage) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
-        setError(null); // Clear previous errors on a successful fetch
+        setError(null);
       }
     } catch (e: any) {
         setError(e.message);
     } finally {
         setIsLoading(false);
     }
-  }, [user]); // fetchMessages only needs to be re-created if the user changes
+  }, [user]);
 
-  // Effect for fetching initial data
   useEffect(() => {
     if (user) {
       const fetchInitialData = async () => {
@@ -61,26 +59,13 @@ export default function SupabaseChatClient() {
     }
   }, [user, supabase, fetchMessages]);
 
-  // Effect for real-time subscriptions
   useEffect(() => {
     const channel = supabase
       .channel('chat-messages-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel_id=eq.${TEST_CHANNEL_ID}` }, 
         (payload) => {
-          // Instead of re-fetching the whole list, just append the new message for a snappier UI
-          setMessages(currentMessages => {
-            const newMessage = payload.new as ChatMessage; // This will need a type mapping
-            // Add a check to prevent duplicates
-            if (currentMessages.some(m => m.id === newMessage.id)) {
-                return currentMessages;
-            }
-            // A more complete solution would fetch the user profile for the new message author
-            return [...currentMessages, {
-                ...newMessage, 
-                timestamp: new Date(newMessage.created_at),
-                user: { displayName: 'New User' } // Simplified
-            }];
-          });
+          // Re-fetch the list to get full message data with user profile
+          fetchMessages();
         }
       )
       .subscribe();
@@ -88,9 +73,8 @@ export default function SupabaseChatClient() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]); // This effect only needs to run once
+  }, [supabase, fetchMessages]);
   
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -123,27 +107,20 @@ export default function SupabaseChatClient() {
         <p className="font-georgia-pro text-sm text-gray-500">#{TEST_CHANNEL_ID}</p>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-1">
         {error && (
             <div className="text-center text-red-500 p-4 bg-red-50 rounded-lg">
                 <p className="font-bold">Access Denied</p>
                 <p>{error}</p>
             </div>
         )}
+        {/* UPDATED: Use the new ChatMessageComponent in the loop */}
         {!error && messages.map((msg) => (
-          <div key={msg.id} className="flex items-start gap-3">
-             <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0">
-                {/* Avatar Placeholder */}
-             </div>
-             <div>
-                <div className="flex items-baseline gap-2">
-                    <span className="font-georgia-pro font-semibold">{msg.user?.displayName || 'Anonymous'}</span>
-                    <span className="text-xs text-gray-400">{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                </div>
-                <p className="font-georgia-pro text-gray-800">{msg.content}</p>
-                {msg.attachmentUrl && <img src={msg.attachmentUrl} alt="attachment" className="mt-2 rounded-lg max-w-xs" />}
-             </div>
-          </div>
+          <ChatMessageComponent
+            key={msg.id}
+            message={msg}
+            currentUser={currentUserProfile}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>
