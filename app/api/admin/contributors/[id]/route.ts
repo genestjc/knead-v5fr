@@ -5,10 +5,6 @@ import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * DELETE /api/admin/contributors/[id]
- * Remove contributor status from a user (admin only)
- */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -18,98 +14,61 @@ export async function DELETE(
     const adminAddress = searchParams.get('adminAddress');
 
     if (!adminAddress) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress parameter' },
-        { status: 400 }
-      );
+        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing adminAddress parameter' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
 
     // Verify admin permissions
-    const { data: admin, error: adminError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (adminError || !admin) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Admin user not found' },
-        { status: 404 }
-      );
+    const { data: admin } = await supabase.from('chat_users').select('*').eq('address', adminAddress.toLowerCase()).single();
+    if (!admin || !isAdmin({ role: admin.role })) {
+        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const chatAdmin = {
-      id: admin.id,
-      address: admin.address,
-      displayName: admin.display_name,
-      avatar: admin.avatar,
-      role: admin.role,
-      membershipTier: admin.membership_tier,
-      contributorType: admin.contributor_type,
-      isBanned: admin.is_banned,
-      bio: admin.bio,
-      alias: admin.alias,
-      createdAt: new Date(admin.created_at),
-      updatedAt: new Date(admin.updated_at),
-    };
-
-    if (!isAdmin(chatAdmin)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions - admin only' },
-        { status: 403 }
-      );
-    }
-
-    // Get the contributor to check their current role
-    const { data: contributor, error: contributorError } = await supabase
+    // Get the user to be revoked
+    const { data: userToRevoke, error: userError } = await supabase
       .from('chat_users')
-      .select('role')
+      .select('id, address, contributor_type')
       .eq('id', params.id)
       .single();
 
-    if (contributorError || !contributor) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Contributor not found' },
-        { status: 404 }
-      );
+    if (userError || !userToRevoke) {
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Contributor not found' }, { status: 404 });
     }
 
-    // Prevent removing admin or master-admin roles
-    if (contributor.role === 'admin' || contributor.role === 'master-admin') {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Cannot remove admin or master-admin roles' },
-        { status: 403 }
-      );
+    // --- REFACTORED LOGIC ---
+    const roleToTokenId: Record<string, number> = {
+        'appointed': 10,
+        'invited': 11,
+        'earned': 12,
+    };
+    const tokenId = userToRevoke.contributor_type ? roleToTokenId[userToRevoke.contributor_type] : null;
+
+    if (!tokenId) {
+        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'User is not a contributor or type is unknown.' }, { status: 400 });
     }
-
-    // Downgrade contributor to viewer
-    const { error: updateError } = await supabase
-      .from('chat_users')
-      .update({
-        role: 'viewer',
-        contributor_type: null,
-      })
-      .eq('id', params.id);
-
-    if (updateError) {
-      console.error('Error removing contributor status:', updateError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to remove contributor status' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json<ApiResponse<null>>({
-      success: true,
-      message: 'Contributor status removed successfully',
+    
+    // Call our new burn API
+    const burnResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/admin/burn-contributor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            ownerAddress: userToRevoke.address,
+            tokenId,
+            adminAddress: admin.address // Pass admin address for verification
+        }),
     });
+
+    const burnData = await burnResponse.json();
+    if (!burnData.success) {
+        throw new Error(`On-chain burn failed: ${burnData.error}`);
+    }
+
+    return NextResponse.json<ApiResponse<null>>({ success: true, message: 'Contributor status revoked successfully.' });
+
   } catch (error) {
     console.error('Error in DELETE /api/admin/contributors/[id]:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json<ApiResponse<null>>({ success: false, error: errorMessage }, { status: 500 });
   }
 }
