@@ -40,7 +40,7 @@ const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
 
 const options = { next: { revalidate: 60 } }
 
-// Generate metadata for SEO - This function is already quite robust. No changes needed.
+// Generate metadata for SEO - This function is already quite robust.
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
     const post = await client.fetch<SanityDocument>(POST_QUERY, { slug: params.slug }, options)
@@ -98,7 +98,7 @@ export default async function PostPage({ params }: PostPageProps) {
     }
 
     const isPremiumPost = Boolean(post.isPremium || post.premium)
-    const authorName = post.author?.name ?? "Knead Team"; // FIX: Provide a safe fallback for author name
+    const authorName = post.author?.name ?? "Knead Team";
 
     let formattedDate = "No date"
     if (post.publishedAt) {
@@ -224,24 +224,26 @@ export default async function PostPage({ params }: PostPageProps) {
   }
 }
 
-// **THE MAIN FIX IS HERE**
-// Generate static params for common posts with robust checking
+// Generate static params for all posts with a defined slug
 export async function generateStaticParams() {
   try {
-    const posts = await client.fetch<SanityDocument[]>(
-      `*[_type == "post" && defined(slug.current)][]{ "slug": slug.current }`
+    // Fetch all post slugs from Sanity
+    const posts = await client.fetch<Array<{ slug: { current: string } }>>(
+      `*[_type == "post" && defined(slug.current)]{ "slug": slug }`
     );
 
-    // If posts are not an array or is empty, return an empty array
+    // Ensure posts is an array before mapping
     if (!Array.isArray(posts)) {
       return [];
     }
 
+    // Map over the posts and return the correct format that Next.js expects: { slug: string }
     return posts
-      .filter(post => post?.slug) // Filter out any posts that are null or missing a slug
+      .filter(post => post?.slug?.current) // Defensive filter for safety
       .map((post) => ({
-        slug: post.slug,
+        slug: post.slug.current, // THE FIX IS HERE: Access the `current` property
       }));
+      
   } catch (error) {
     console.error("Error generating static params:", error);
     return []; // Return an empty array on failure to prevent build crash
