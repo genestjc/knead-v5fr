@@ -1,38 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import type { ApiResponse } from '@/types/chat';
-import { createThirdwebClient, getContract } from "thirdweb";
-import { getAllOwners } from "thirdweb/extensions/erc1155"; // CORRECTED: The function is getAllOwners
-import { base } from "thirdweb/chains";
 
 export const dynamic = 'force-dynamic';
 
 const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
 const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+const CHAIN_NAME = 'base'; // The chain your contract is on
+
+/**
+ * Fetches all owners of a specific ERC1155 token ID by calling the Thirdweb API directly.
+ * This is the correct, robust backend approach suggested by the AI agent.
+ * @param tokenId - The ID of the token to get owners for.
+ * @returns An array of wallet addresses.
+ */
+async function getOwnersFromApi(tokenId: bigint): Promise<string[]> {
+  const url = `https://api.thirdweb.com/v1/contract/${CHAIN_NAME}/${CONTRIBUTOR_CONTRACT_ADDRESS}/erc1155/${tokenId}/owners?limit=50000`;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${THIRDWEB_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`Thirdweb API failed for token ${tokenId}: ${response.status} ${errorBody}`);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.result?.owners || [];
+  } catch (error) {
+    console.error(`Failed to fetch owners for token ${tokenId}:`, error);
+    return [];
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     if (!THIRDWEB_SECRET_KEY || !CONTRIBUTOR_CONTRACT_ADDRESS) {
       throw new Error("Missing Thirdweb environment variables for fetching contributors.");
     }
-    
-    const client = createThirdwebClient({ secretKey: THIRDWEB_SECRET_KEY });
-    const contract = getContract({ client, address: CONTRIBUTOR_CONTRACT_ADDRESS, chain: base });
 
-    // Correctly fetch all owners for each token ID
+    // Fetch owners for each token ID by calling the API
     const [appointed, invited, earned] = await Promise.all([
-        getAllOwners({ contract, tokenId: 10n }),
-        getAllOwners({ contract, tokenId: 11n }),
-        getAllOwners({ contract, tokenId: 12n }),
+      getOwnersFromApi(10n),
+      getOwnersFromApi(11n),
+      getOwnersFromApi(12n),
     ]);
 
-    const allOwnerAddresses = [...appointed, ...invited, ...earned];
-    const uniqueOwnerAddresses = [...new Set(allOwnerAddresses.map(owner => owner.toLowerCase()))];
+    const uniqueOwnerAddresses = [...new Set([...appointed, ...invited, ...earned].map(owner => owner.toLowerCase()))];
     
     if (uniqueOwnerAddresses.length === 0) {
-        return NextResponse.json<ApiResponse<any[]>>({ success: true, data: [] });
+      return NextResponse.json<ApiResponse<any[]>>({ success: true, data: [] });
     }
 
+    // The rest of your logic remains the same.
     const supabase = createSupabaseAdmin();
     const { data: users, error } = await supabase.from('chat_users').select('*').in('address', uniqueOwnerAddresses);
 
@@ -41,19 +67,12 @@ export async function GET(req: NextRequest) {
     }
 
     const formattedContributors = users.map((c) => ({
-      id: c.id,
-      address: c.address,
-      displayName: c.alias || c.display_name,
-      avatar: c.avatar,
-      role: c.role,
-      contributorType: c.contributor_type, 
+      id: c.id, address: c.address, displayName: c.alias || c.display_name,
+      avatar: c.avatar, role: c.role, contributorType: c.contributor_type, 
       createdAt: new Date(c.created_at),
     }));
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: formattedContributors,
-    });
+    return NextResponse.json<ApiResponse<any>>({ success: true, data: formattedContributors });
   } catch (error) {
     console.error('Error in GET /api/admin/contributors:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
