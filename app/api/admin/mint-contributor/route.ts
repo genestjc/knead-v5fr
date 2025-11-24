@@ -6,7 +6,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
 
 const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
 const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_ADDRESS;
+const MASTER_ADMIN_ADDRESS = process.env.MASTER_ADMIN_WALLET; // UPDATED to use your variable name
 
 if (!THIRDWEB_SECRET_KEY || !CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
   throw new Error("Missing required environment variables for minting.");
@@ -25,7 +25,6 @@ const getRoleMetadata = (role: string) => {
   const roleData = baseMetadata[role as keyof typeof baseMetadata];
   if (!roleData) return null;
 
-  // ThirdWeb AI Fix: Deep clone the metadata to prevent shared reference bugs.
   const clonedData = JSON.parse(JSON.stringify(roleData));
   clonedData.metadata.attributes.push({ trait_type: "Join Date", value: new Date().toISOString().split('T')[0] });
   return clonedData;
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
   try {
     const { recipientAddress, role, adminAddress } = await req.json();
 
-    // ThirdWeb AI Fix: Stricter input validation
     if (!recipientAddress || !role || !adminAddress) {
       return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
     }
