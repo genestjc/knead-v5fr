@@ -6,20 +6,19 @@ import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
 
 const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
 const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_ADDRESS;
+const MASTER_ADMIN_ADDRESS = process.env.MASTER_ADMIN_WALLET; // UPDATED to use your variable name
 
 if (!THIRDWEB_SECRET_KEY || !CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
   throw new Error("Missing required environment variables for burning.");
 }
 
 const client = createThirdwebClient({ secretKey: THIRDWEB_SECRET_KEY });
-const isAddress = (address: string) => /^0x[a-fA-F0,9]{40}$/.test(address);
+const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 
 export async function POST(req: NextRequest) {
   try {
     const { ownerAddress, tokenId, adminAddress } = await req.json();
 
-    // ThirdWeb AI Fix: Stricter input validation
     if (!ownerAddress || tokenId === undefined || !adminAddress) {
       return NextResponse.json({ success: false, error: "Missing required fields." }, { status: 400 });
     }
