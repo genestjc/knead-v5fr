@@ -40,34 +40,7 @@ const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
 
 const options = { next: { revalidate: 60 } }
 
-// Simple function to extract text from Sanity blocks
-function extractTextFromBlocks(blocks: any[]): string {
-  if (!Array.isArray(blocks)) return ""
-
-  try {
-    return blocks
-      .filter((block) => block && block._type === "block")
-      .map((block) => {
-        if (block.children && Array.isArray(block.children)) {
-          return block.children
-            .map((child: any) => {
-              if (typeof child === "string") return child
-              if (child && typeof child.text === "string") return child.text
-              return ""
-            })
-            .join("")
-        }
-        return ""
-      })
-      .filter(Boolean)
-      .join("\n\n")
-  } catch (error) {
-    console.error("Error extracting text from blocks:", error)
-    return ""
-  }
-}
-
-// Generate metadata for SEO
+// Generate metadata for SEO - This function is already quite robust. No changes needed.
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   try {
     const post = await client.fetch<SanityDocument>(POST_QUERY, { slug: params.slug }, options)
@@ -87,20 +60,20 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     }
 
     return {
-      title: `${post.title} | Knead`,
-      description: post.excerpt || `Read ${post.title} on Knead - Stories worth savoring`,
+      title: `${post.title || 'Untitled Post'} | Knead`,
+      description: post.excerpt || `Read ${post.title || 'this post'} on Knead - Stories worth savoring`,
       openGraph: {
-        title: post.title,
-        description: post.excerpt || `Read ${post.title} on Knead`,
+        title: post.title || 'Untitled Post',
+        description: post.excerpt || `Read ${post.title || 'this post'} on Knead`,
         type: "article",
         publishedTime: post.publishedAt,
         authors: post.author?.name ? [post.author.name] : undefined,
-        images: imageUrl ? [{ url: imageUrl, width: 1200, height: 630, alt: post.title }] : undefined,
+        images: imageUrl ? [{ url: imageUrl, width: 1200, height: 630, alt: post.title || 'Post Image' }] : undefined,
       },
       twitter: {
         card: "summary_large_image",
-        title: post.title,
-        description: post.excerpt || `Read ${post.title} on Knead`,
+        title: post.title || 'Untitled Post',
+        description: post.excerpt || `Read ${post.title || 'this post'} on Knead`,
         images: imageUrl ? [imageUrl] : undefined,
       },
       alternates: {
@@ -118,30 +91,28 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
 export default async function PostPage({ params }: PostPageProps) {
   try {
-    // Fetch the post data using the slug from the URL
     const post = await client.fetch<SanityDocument>(POST_QUERY, { slug: params.slug }, options)
 
-    // If no post is found, show the 404 page
     if (!post) {
       notFound()
     }
 
-    // Check if post is premium (checking both fields)
     const isPremiumPost = Boolean(post.isPremium || post.premium)
+    const authorName = post.author?.name ?? "Knead Team"; // FIX: Provide a safe fallback for author name
 
-    // Format the date for display
     let formattedDate = "No date"
-    try {
-      formattedDate = new Date(post.publishedAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    } catch (error) {
-      console.error("Error formatting date:", error)
+    if (post.publishedAt) {
+      try {
+        formattedDate = new Date(post.publishedAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      } catch (error) {
+        console.error("Error formatting date:", error)
+      }
     }
 
-    // Get image URL safely
     const getImageUrl = () => {
       try {
         if (post.mainImage?.asset) {
@@ -154,31 +125,16 @@ export default async function PostPage({ params }: PostPageProps) {
       }
     }
 
-    // Get author avatar URL safely
-    const getAuthorAvatarUrl = () => {
-      try {
-        if (post.author?.image?.asset) {
-          return urlFor(post.author.image).width(100).height(100).url()
-        }
-        return "/placeholder.svg?height=100&width=100"
-      } catch (error) {
-        console.error("Error generating author avatar URL:", error)
-        return "/placeholder.svg?height=100&width=100"
-      }
-    }
-
     return (
       <>
         <Header />
         <main className="min-h-screen bg-white">
           <article className="py-12 md:py-16">
             <div className="container-magazine">
-              {/* Article Header */}
               <header className="mb-10">
                 <h1 className="font-adonis text-4xl md:text-5xl font-normal leading-tight mb-6">
-                  {String(post.title || "Untitled")}
+                  {post.title || "Untitled"}
                 </h1>
-
                 <div className="article-meta mb-8">
                   <time dateTime={post.publishedAt} className="font-georgia-pro text-gray-600">
                     {formattedDate}
@@ -186,38 +142,26 @@ export default async function PostPage({ params }: PostPageProps) {
                   {post.author && (
                     <>
                       <span className="mx-2 text-gray-400">•</span>
-                      <span className="font-georgia-pro text-gray-600">By {String(post.author.name || "Unknown")}</span>
+                      <span className="font-georgia-pro text-gray-600">By {authorName}</span>
                     </>
                   )}
                 </div>
-
-                {isPremiumPost && (
-                  <div className="mb-6">
-                    <PremiumBadge />
-                  </div>
-                )}
-
-                {/* Categories */}
+                {isPremiumPost && <div className="mb-6"><PremiumBadge /></div>}
                 {post.categories && Array.isArray(post.categories) && post.categories.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-8">
                     {post.categories.map((category: string, index: number) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
-                      >
-                        {String(category || "")}
+                      <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors">
+                        {category || ""}
                       </span>
                     ))}
                   </div>
                 )}
               </header>
-
-              {/* Featured Image */}
               {post.mainImage && (
                 <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg mb-12">
                   <Image
-                    src={getImageUrl() || "/placeholder.svg"}
-                    alt={String(post.mainImage.alt || post.title || "Post image")}
+                    src={getImageUrl()}
+                    alt={post.mainImage.alt || post.title || "Post image"}
                     fill
                     className="object-cover"
                     priority
@@ -225,12 +169,9 @@ export default async function PostPage({ params }: PostPageProps) {
                   />
                 </div>
               )}
-
-              {/* Article Content - With Premium Support */}
               <div className="article-content">
                 {isPremiumPost ? (
                   <>
-                    {/* Show a preview for premium content */}
                     <div className="article-body mb-8">
                       {post.body && Array.isArray(post.body) && post.body.length > 0 ? (
                         <PortableTextRenderer content={post.body.slice(0, 2)} />
@@ -240,13 +181,12 @@ export default async function PostPage({ params }: PostPageProps) {
                         </p>
                       )}
                     </div>
-
-                    <UnlockContent contentId={String(post._id || "")}>
+                    <UnlockContent contentId={post._id || ""}>
                       <div className="article-body">
                         {post.body && Array.isArray(post.body) && post.body.length > 2 ? (
                           <PortableTextRenderer content={post.body.slice(2)} />
                         ) : (
-                          <p className="font-georgia-pro text-lg leading-relaxed my-6 text-gray-700">
+                           <p className="font-georgia-pro text-lg leading-relaxed my-6 text-gray-700">
                             Continue reading to see more content...
                           </p>
                         )}
@@ -265,19 +205,9 @@ export default async function PostPage({ params }: PostPageProps) {
                   </div>
                 )}
               </div>
-
-              {/* Navigation */}
               <div className="mt-12 pt-8 border-t border-gray-100">
-                <Link
-                  href="/"
-                  className="inline-flex items-center font-georgia-pro text-gray-600 hover:text-gray-900 transition-colors group"
-                >
-                  <svg
-                    className="w-4 h-4 mr-2 transform group-hover:-translate-x-1 transition-transform"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                <Link href="/" className="inline-flex items-center font-georgia-pro text-gray-600 hover:text-gray-900 transition-colors group">
+                  <svg className="w-4 h-4 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                   Back to all stories
@@ -294,20 +224,26 @@ export default async function PostPage({ params }: PostPageProps) {
   }
 }
 
-// Generate static params for common posts
+// **THE MAIN FIX IS HERE**
+// Generate static params for common posts with robust checking
 export async function generateStaticParams() {
   try {
     const posts = await client.fetch<SanityDocument[]>(
-      `*[_type == "post" && defined(slug.current)][0...20]{
-        "slug": slug.current
-      }`,
-    )
+      `*[_type == "post" && defined(slug.current)][]{ "slug": slug.current }`
+    );
 
-    return posts.map((post) => ({
-      slug: post.slug,
-    }))
+    // If posts are not an array or is empty, return an empty array
+    if (!Array.isArray(posts)) {
+      return [];
+    }
+
+    return posts
+      .filter(post => post?.slug) // Filter out any posts that are null or missing a slug
+      .map((post) => ({
+        slug: post.slug,
+      }));
   } catch (error) {
-    console.error("Error generating static params:", error)
-    return []
+    console.error("Error generating static params:", error);
+    return []; // Return an empty array on failure to prevent build crash
   }
 }
