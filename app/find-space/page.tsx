@@ -1,18 +1,19 @@
 'use client';
 
-import { useUserSpaces } from '@towns-protocol/react-sdk'; // CORRECTED IMPORT
-import { useAgent } from '@towns-protocol/react-sdk';
+// CORRECTED: Import useAgentConnection instead of useAgent
+import { useAgentConnection, useUserSpaces } from '@towns-protocol/react-sdk'; 
 
-// This line is also required to prevent errors during the build process.
+// Required to prevent static generation errors with Towns hooks
 export const dynamic = 'force-dynamic';
 
 export default function FindSpacePage() {
-  const { isConnected } = useAgent();
+  // CORRECTED: Use the correct hook to check connection status
+  const { isConnected } = useAgentConnection();
   
-  // As per the AI's advice, we use the correct hook `useUserSpaces`.
-  // This will show the spaces that the connected user has joined.
+  // This hook correctly fetches the spaces for the connected user
   const { data: spaces, isLoading, error } = useUserSpaces();
 
+  // First, check if the agent is connected before trying to show spaces
   if (!isConnected) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -22,6 +23,7 @@ export default function FindSpacePage() {
     );
   }
 
+  // If connected, show loading/error/data states for the user's spaces
   if (isLoading) {
     return <div className="text-center p-8">Loading your spaces...</div>;
   }
