@@ -9,33 +9,50 @@ import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
 import { Toaster } from "@/components/ui/toaster";
-// Temporarily commented out until we have space created
-// import { TownsSyncProvider } from "@towns-protocol/react-sdk";
+
+// Import the necessary providers for Towns Protocol
+import { TownsSyncProvider } from "@towns-protocol/react-sdk";
+import { WagmiConfig, createConfig } from "wagmi";
+import { base } from 'viem/chains';
+import { createPublicClient, http } from 'viem';
+
+// Configure Wagmi as required by Towns SDK for wallet interactions
+const wagmiConfig = createConfig({
+  autoConnect: true,
+  publicClient: createPublicClient({
+    chain: base,
+    transport: http()
+  }),
+});
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
       <ThirdwebProvider client={client}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
-          <WalletProvider>
-            <MembershipProvider>
-              <TooltipProvider>
-                <ToastProvider>
-                  {/* TownsSyncProvider will be added after space creation */}
-                  <ErrorBoundary>
-                    {children}
-                  </ErrorBoundary>
-                  <Toaster />
-                </ToastProvider>
-              </TooltipProvider>
-            </MembershipProvider>
-          </WalletProvider>
-        </ThemeProvider>
+        {/* WagmiConfig and TownsSyncProvider must wrap the rest of the app */}
+        <WagmiConfig config={wagmiConfig}>
+          <TownsSyncProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="light"
+              enableSystem={false}
+              disableTransitionOnChange
+            >
+              <WalletProvider>
+                <MembershipProvider>
+                  <TooltipProvider>
+                    <ToastProvider>
+                      <ErrorBoundary>
+                        {children}
+                      </ErrorBoundary>
+                      <Toaster />
+                    </ToastProvider>
+                  </TooltipProvider>
+                </MembershipProvider>
+              </WalletProvider>
+            </ThemeProvider>
+          </TownsSyncProvider>
+        </WagmiConfig>
       </ThirdwebProvider>
     </ErrorBoundary>
   );
