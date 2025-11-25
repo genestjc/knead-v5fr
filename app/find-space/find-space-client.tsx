@@ -16,7 +16,7 @@ import { client, activeChain } from '@/thirdweb-client';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 
-// The signer conversion function is correct.
+// This function is correct.
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -26,7 +26,7 @@ function walletClientToSigner(walletClient: WalletClient) {
   return signer;
 }
 
-// The component to show IDs is correct.
+// This component is correct.
 function SpaceDetails({ spaceId }: { spaceId: string }) {
   const { data: channels, isLoading } = useSpaceChannels(spaceId);
 
@@ -84,17 +84,11 @@ function ShowSpacesAndIds() {
 
 // The main component with all fixes applied
 export default function FindSpaceClientComponent() {
-  // --- FIX #1: Using the CORRECT properties from the hook ---
   const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   const wallet = useActiveWallet();
   
-  // --- FIX #2: Switched to 'mainnet' configuration ---
-  const townsConfig = townsEnv().makeTownsConfig('mainnet');
-
-  React.useEffect(() => {
-    // This log will now show the correct state.
-    console.log('[DEBUG] Connection state:', { isAgentConnected, isAgentConnecting });
-  }, [isAgentConnected, isAgentConnecting]);
+  // --- THE FINAL FIX: Switched to 'omega' for mainnet configuration ---
+  const townsConfig = townsEnv().makeTownsConfig('omega');
 
   const handleConnect = async () => {
     if (!wallet) return;
@@ -110,7 +104,6 @@ export default function FindSpaceClientComponent() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* --- FIX #3: Using the CORRECT boolean for rendering --- */}
       {isAgentConnected ? (
         <ShowSpacesAndIds />
       ) : (
