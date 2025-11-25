@@ -165,6 +165,8 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         return true; // Grant temporary access while loading
       }
       
+      // Premium membership validation is performed once on component mount (via useEffect).
+      // Do not add API calls here as hasAccess() may be called frequently during renders.
       if (requiredLevel === "premium") {
         return membershipType === "premium";
       }
