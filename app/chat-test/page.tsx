@@ -2,8 +2,19 @@
 
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
+import React from 'react';
 
-// Dynamically import the main chat component with ssr: false
+// --- Import all the connection logic we built ---
+import { useAgentConnection } from '@towns-protocol/react-sdk';
+import { useActiveWallet, ConnectButton } from 'thirdweb/react';
+import { viemAdapter } from 'thirdweb/adapters/viem';
+import { client, activeChain } from '@/thirdweb-client';
+import { townsEnv } from '@towns-protocol/sdk';
+import { ethers } from 'ethers-v5';
+import type { WalletClient } from 'viem';
+import { Button } from '@/components/ui/button';
+
+// Dynamically import your existing chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
   loading: () => <LoadingSpinner />,
@@ -18,8 +29,18 @@ const LoadingSpinner = () => (
     </div>
 );
 
+// --- The perfected signer conversion function ---
+function walletClientToSigner(walletClient: WalletClient) {
+  const { account, chain, transport } = walletClient;
+  if (!account || !chain) return undefined;
+  
+  const network = { chainId: chain.id, name: chain.name, ensAddress: chain.contracts?.ensRegistry?.address };
+  const provider = new ethers.providers.Web3Provider(transport, network);
+  const signer = provider.getSigner(account.address);
+  return signer;
+}
+
 // A placeholder for your user data logic
-// Replace this with your actual user fetching logic
 const mockUser = {
     id: 'user-123',
     alias: 'KneadUser',
@@ -31,36 +52,73 @@ export default function ChatTestPage() {
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
     const defaultChannelId = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
+    // --- All of our connection hooks are now here ---
+    const { connect, isConnected, isAgentConnecting } = useAgentConnection();
+    const wallet = useActiveWallet();
+    const townsConfig = townsEnv().makeTownsConfig('gamma');
+
     // TODO: Replace this with your actual user data fetching
     const currentUser = mockUser; 
 
+    // Handler to connect to Towns after the wallet is connected
+    const handleConnectToTowns = async () => {
+        if (!wallet) return;
+        try {
+          const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client, chain: activeChain });
+          const signer = await walletClientToSigner(viemWalletClient);
+          if (!signer) throw new Error('Could not create signer.');
+          await connect(signer, { townsConfig });
+        } catch (e) {
+          console.error("Failed to connect to Towns:", e);
+        }
+    };
+
+    // 1. Check for environment variables first
     if (!spaceId || !defaultChannelId) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white p-4">
                 <div className="max-w-2xl w-full bg-yellow-50 rounded-lg p-8 text-center border border-yellow-200">
                     <h1 className="font-adonis text-4xl mb-4 text-yellow-800">Configuration Needed</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-yellow-900">
-                        The chat environment variables are not set up yet.
+                        The chat environment variables are not set up yet. Please add them to your .env.local file.
                     </p>
-                    <p className="font-georgia-pro text-sm mb-8 text-yellow-700">
-                        You need to find your existing Space and Channel ID to configure the chat.
-                    </p>
-                    <Link
-                        href="/find-space"
-                        className="inline-block px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
-                    >
-                        Find My Space ID →
-                    </Link>
                 </div>
             </div>
         );
     }
     
+    // 2. Render the connection flow or the chat app
     return (
-        <ConnectedChat
-            currentUser={currentUser}
-            spaceId={spaceId}
-            defaultChannelId={defaultChannelId}
-        />
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            {isConnected ? (
+                // --- SUCCESS: If connected, render your existing chat component ---
+                <div className="w-full h-full">
+                    <ConnectedChat
+                        currentUser={currentUser}
+                        spaceId={spaceId}
+                        defaultChannelId={defaultChannelId}
+                    />
+                </div>
+            ) : (
+                // --- If not connected, render the two-step connection UI ---
+                <div className="text-center">
+                    {!wallet ? (
+                        <>
+                            <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
+                            <p className="font-georgia-pro text-lg mb-6">Please connect your wallet to access the chat.</p>
+                            <ConnectButton client={client} chain={activeChain} />
+                        </>
+                    ) : (
+                        <>
+                            <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
+                            <p className="font-georgia-pro text-lg mb-6">Your wallet is connected. Please sign a message to continue.</p>
+                            <Button onClick={handleConnectToTowns} disabled={isAgentConnecting} className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition">
+                                {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                            </Button>
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
     );
 }
