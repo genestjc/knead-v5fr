@@ -4,7 +4,6 @@ import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import React from 'react';
 
-// --- Import all the connection logic we built ---
 import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
@@ -14,7 +13,6 @@ import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
-// Dynamically import your existing chat component
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
   loading: () => <LoadingSpinner />,
@@ -29,7 +27,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// --- The perfected signer conversion function ---
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -40,7 +37,6 @@ function walletClientToSigner(walletClient: WalletClient) {
   return signer;
 }
 
-// A placeholder for your user data logic
 const mockUser = {
     id: 'user-123',
     alias: 'KneadUser',
@@ -52,15 +48,14 @@ export default function ChatTestPage() {
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
     const defaultChannelId = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-    // --- All of our connection hooks are now here ---
-    const { connect, isConnected, isAgentConnecting } = useAgentConnection();
+    // Use the correct hook properties
+    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
     const wallet = useActiveWallet();
-    const townsConfig = townsEnv().makeTownsConfig('gamma');
+    // Point to the OMEGA mainnet
+    const townsConfig = townsEnv().makeTownsConfig('omega');
 
-    // TODO: Replace this with your actual user data fetching
     const currentUser = mockUser; 
 
-    // Handler to connect to Towns after the wallet is connected
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
@@ -73,25 +68,22 @@ export default function ChatTestPage() {
         }
     };
 
-    // 1. Check for environment variables first
     if (!spaceId || !defaultChannelId) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white p-4">
                 <div className="max-w-2xl w-full bg-yellow-50 rounded-lg p-8 text-center border border-yellow-200">
-                    <h1 className="font-adonis text-4xl mb-4 text-yellow-800">Configuration Needed</h1>
+                    <h1 className="font-adonis text-4xl mb-4 text-yellow-800">Configuration Error</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-yellow-900">
-                        The chat environment variables are not set up yet. Please add them to your .env.local file.
+                        The chat environment variables are not set in your `.env.local` file.
                     </p>
                 </div>
             </div>
         );
     }
     
-    // 2. Render the connection flow or the chat app
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            {isConnected ? (
-                // --- SUCCESS: If connected, render your existing chat component ---
+            {isAgentConnected ? (
                 <div className="w-full h-full">
                     <ConnectedChat
                         currentUser={currentUser}
@@ -100,18 +92,17 @@ export default function ChatTestPage() {
                     />
                 </div>
             ) : (
-                // --- If not connected, render the two-step connection UI ---
                 <div className="text-center">
                     {!wallet ? (
                         <>
                             <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                            <p className="font-georgia-pro text-lg mb-6">Please connect your wallet to access the chat.</p>
+                            <p className="font-georgia-pro text-lg mb-6">Connect your wallet to access Knead Chat.</p>
                             <ConnectButton client={client} chain={activeChain} />
                         </>
                     ) : (
                         <>
                             <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
-                            <p className="font-georgia-pro text-lg mb-6">Your wallet is connected. Please sign a message to continue.</p>
+                            <p className="font-georgia-pro text-lg mb-6">Sign a message to enter the chat.</p>
                             <Button onClick={handleConnectToTowns} disabled={isAgentConnecting} className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition">
                                 {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                             </Button>
