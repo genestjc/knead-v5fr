@@ -75,7 +75,7 @@ export default function JoinPage() {
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
               <p className="font-georgia-pro mb-6 text-left">
-                <li>Read three free articles per month</li>
+                <li>Read three articles per month</li>
               </p>
               <p className="font-georgia-pro italic mb-4 text-left">
                 Sign In below to get started
