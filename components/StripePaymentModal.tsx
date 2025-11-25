@@ -151,7 +151,7 @@ function PaymentForm({
             Processing...
           </>
         ) : (
-          "Subscribe Now — $5/month"
+          "Subscribe Now"
         )}
       </button>
 
@@ -193,9 +193,7 @@ export function StripePaymentModal({
         },
         body: JSON.stringify({
           walletAddress,
-          priceId:
-            process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ||
-            "price_1RhFCBLFxM3QV6ciPmZnxyfL",
+          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
         }),
       })
         .then((res) => res.json())

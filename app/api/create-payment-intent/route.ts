@@ -7,6 +7,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16" as Stripe.LatestApiVersion,
 });
 
+// Default price amount in cents (e.g., 500 = $5.00)
+const DEFAULT_PRICE_AMOUNT = 500;
+
 export async function POST(req: NextRequest) {
   try {
     const { walletAddress, priceId } = await req.json();
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     // Retrieve price info to get the amount
     const priceInfo = await stripe.prices.retrieve(price);
-    const amount = priceInfo.unit_amount || 500; // Default to $5.00
+    const amount = priceInfo.unit_amount || DEFAULT_PRICE_AMOUNT;
 
     // Check if customer already exists using search
     let customer: Stripe.Customer;
@@ -49,8 +52,9 @@ export async function POST(req: NextRequest) {
           },
         });
       }
-    } catch {
-      // If search fails, just create a new customer
+    } catch (searchError) {
+      // If search fails, create a new customer (search API may not be enabled)
+      console.error("Customer search failed, creating new customer:", searchError);
       customer = await stripe.customers.create({
         metadata: {
           walletAddress: walletAddress,
