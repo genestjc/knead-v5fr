@@ -3,11 +3,7 @@ import {
   NextResponse,
 } from "next/server";
 
-// ... (no changes to the top part of the file)
-
 export function middleware(request: NextRequest) {
-  // ... (no changes to the /api/ and /studio route logic)
-
   const response = NextResponse.next();
   
   response.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
@@ -72,6 +68,7 @@ export function middleware(request: NextRequest) {
       https://*.sanity.io
       *.towns.com;
     connect-src 'self'
+      https://devnet.rpc.river.build /* --- THIS IS THE FIX --- */
       https://mainnet.rpc.river.build
       *.towns.com
       https://*.towns.com
