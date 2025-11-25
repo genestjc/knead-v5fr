@@ -9,13 +9,15 @@ import { Button } from '@/components/ui/button';
 import { useActiveWallet } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 
+// --- THE FIX IS HERE ---
+// Instead of a hook, we import the client directly from the file where it was created.
+import { client } from '@/thirdweb-client';
+
 // Import ethers v5 and viem types for the conversion
 import { providers } from 'ethers';
 import type { WalletClient } from 'viem';
-import { useThirdwebClient } from 'thirdweb/react';
 
 // This helper converts a viem WalletClient to an ethers v5 Signer
-// It does NOT use any hooks, so it's safe.
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -62,27 +64,24 @@ export default function FindSpaceClientComponent() {
   const { connect, isConnected, isAgentConnecting } = useAgentConnection();
   
   const wallet = useActiveWallet();
-  const client = useThirdwebClient(); // Get the thirdweb client instance
+  // We no longer call the broken hook here. The imported 'client' is used below.
   
   const townsConfig = townsEnv().makeTownsConfig('gamma');
 
   const handleConnect = async () => {
-    if (!wallet || !client) {
+    if (!wallet) {
       alert('Please connect your web3 wallet first.');
       return;
     }
     try {
-      // 1. Convert the thirdweb wallet to a viem WalletClient using the adapter
+      // The imported 'client' object is used here directly.
       const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client });
-      
-      // 2. Convert the viem WalletClient to an ethers v5 signer
       const signer = walletClientToSigner(viemWalletClient);
       
       if (!signer) {
         throw new Error('Could not create a valid signer from the connected wallet.');
       }
       
-      // 3. Connect to Towns with the correct signer
       await connect(signer, { townsConfig });
     } catch (e) {
       console.error('Failed to connect to Towns:', e);
