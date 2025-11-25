@@ -6,49 +6,25 @@ import { useMembership } from "@/components/membership-provider";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { FAQDropdown } from "@/components/faq-dropdown";
 import { Header } from "@/components/header";
-import Link from "next/link";
+import { StripePaymentModal } from "@/components/StripePaymentModal";
 
 export default function JoinPage() {
   const account = useActiveAccount();
-  const { hasAccess, isLoading } = useMembership();
-  const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
+  const { hasAccess, isLoading, refreshMembership } = useMembership();
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = () => {
     if (!account?.address) {
       alert("Please connect your wallet first.");
       return;
     }
+    setIsPaymentModalOpen(true);
+  };
 
-    setIsLoadingCheckout(true);
-
-    try {
-      const response = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          walletAddress: account.address,
-          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || "price_1RhFCBLFxM3QV6ciPmZnxyfL",
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        alert(`Error: ${data.error}`);
-      } else if (data.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        alert("Unexpected error. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error creating checkout session:", error);
-      alert("Failed to initialize checkout. Please try again.");
-    } finally {
-      setIsLoadingCheckout(false);
-    }
+  const handlePaymentSuccess = () => {
+    // Refetch membership status after successful payment
+    refreshMembership?.();
+    alert("Thank you for subscribing! Your membership is now active.");
   };
 
   return (
@@ -113,20 +89,9 @@ export default function JoinPage() {
               ) : account?.address ? (
                 <button
                   onClick={handleSubscribe}
-                  disabled={isLoadingCheckout}
                   className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
                 >
-                  {isLoadingCheckout ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </>
-                  ) : (
-                    "Subscribe to Knead Monthly"
-                  )}
+                  Subscribe to Knead Monthly
                 </button>
               ) : (
                 <div className="space-y-4 text-center">
@@ -184,6 +149,16 @@ export default function JoinPage() {
           </div>
         </div>
       </section>
+
+      {/* Stripe Payment Modal */}
+      {account?.address && (
+        <StripePaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSuccess={handlePaymentSuccess}
+          walletAddress={account.address}
+        />
+      )}
     </>
   );
 }
