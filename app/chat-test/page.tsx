@@ -1,7 +1,6 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import Link from 'next/link';
 import React from 'react';
 
 import { useAgentConnection } from '@towns-protocol/react-sdk';
@@ -45,13 +44,18 @@ const mockUser = {
 };
 
 export default function ChatTestPage() {
+    // --- READING THE ENVIRONMENT VARIABLES ---
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
     const defaultChannelId = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-    // Use the correct hook properties
+    // --- ADDED THE CONSOLE LOGS FOR DEBUGGING ---
+    console.log('--- ENV VAR CHECK ---');
+    console.log('spaceId read from process.env:', spaceId);
+    console.log('defaultChannelId read from process.env:', defaultChannelId);
+    console.log('---------------------');
+
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
     const wallet = useActiveWallet();
-    // Point to the OMEGA mainnet
     const townsConfig = townsEnv().makeTownsConfig('omega');
 
     const currentUser = mockUser; 
@@ -74,8 +78,13 @@ export default function ChatTestPage() {
                 <div className="max-w-2xl w-full bg-yellow-50 rounded-lg p-8 text-center border border-yellow-200">
                     <h1 className="font-adonis text-4xl mb-4 text-yellow-800">Configuration Error</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-yellow-900">
-                        The chat environment variables are not set in your `.env.local` file.
+                        The chat environment variables are not set. Please ensure your `.env.local` file is correct and you have restarted the server.
                     </p>
+                    {/* Displaying the values directly in the error UI for clarity */}
+                    <div className="text-left bg-yellow-100 p-4 rounded-md font-mono text-sm">
+                        <p>Value for NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID: {spaceId || 'undefined'}</p>
+                        <p>Value for NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID: {defaultChannelId || 'undefined'}</p>
+                    </div>
                 </div>
             </div>
         );
