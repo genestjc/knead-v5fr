@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button';
 
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain } from '@/thirdweb-client'; // Import activeChain here too
+// Import the activeChain you just exported
+import { client, activeChain } from '@/thirdweb-client';
 
-// --- FIX BUILD WARNING ---
+// --- FIXES BUILD WARNING ---
 import { ethers } from 'ethers'; // Correct import for ethers v6
 import type { WalletClient } from 'viem';
 
-// Updated to use ethers.BrowserProvider for v6
+// This helper function is updated for ethers v6
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -24,13 +25,12 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address,
   };
 
-  const provider = new ethers.BrowserProvider(transport, network); // Use BrowserProvider
+  const provider = new ethers.BrowserProvider(transport, network); // Use BrowserProvider for v6
   const signer = provider.getSigner(account.address);
   return signer;
 }
 
 function ShowUserSpaces() {
-  // This component does not need any changes
   const { data: spaces, isLoading, error } = useUserSpaces();
 
   if (isLoading) return <div className="text-center p-8">Loading your spaces...</div>;
@@ -66,6 +66,8 @@ export default function FindSpaceClientComponent() {
       return;
     }
     try {
+      // --- FIXES RUNTIME ERROR ---
+      // Pass the activeChain to the adapter to provide context
       const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client, chain: activeChain });
       const signer = await walletClientToSigner(viemWalletClient);
       
@@ -88,6 +90,7 @@ export default function FindSpaceClientComponent() {
             <div>
               <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
               <p className="mb-4">Please connect your wallet to continue to Towns.</p>
+              {/* Also pass the activeChain to the ConnectButton */}
               <ConnectButton client={client} chain={activeChain} />
             </div>
           ) : (
