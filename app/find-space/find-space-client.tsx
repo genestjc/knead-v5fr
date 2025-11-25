@@ -7,14 +7,13 @@ import { Button } from '@/components/ui/button';
 
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-// Import the activeChain you just exported
 import { client, activeChain } from '@/thirdweb-client';
 
 // --- FIXES BUILD WARNING ---
-import { ethers } from 'ethers'; // Correct import for ethers v6
+import { providers } from 'ethers'; // Correct import for ethers v5
 import type { WalletClient } from 'viem';
 
-// This helper function is updated for ethers v6
+// This helper function is now correct for ethers v5
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -25,11 +24,14 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address,
   };
 
-  const provider = new ethers.BrowserProvider(transport, network); // Use BrowserProvider for v6
+  const provider = new providers.Web3Provider(transport, network); // Use Web3Provider for v5
   const signer = provider.getSigner(account.address);
   return signer;
 }
 
+//
+// ... THE REST OF THE FILE IS UNCHANGED ...
+//
 function ShowUserSpaces() {
   const { data: spaces, isLoading, error } = useUserSpaces();
 
@@ -66,8 +68,6 @@ export default function FindSpaceClientComponent() {
       return;
     }
     try {
-      // --- FIXES RUNTIME ERROR ---
-      // Pass the activeChain to the adapter to provide context
       const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client, chain: activeChain });
       const signer = await walletClientToSigner(viemWalletClient);
       
@@ -90,7 +90,6 @@ export default function FindSpaceClientComponent() {
             <div>
               <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
               <p className="mb-4">Please connect your wallet to continue to Towns.</p>
-              {/* Also pass the activeChain to the ConnectButton */}
               <ConnectButton client={client} chain={activeChain} />
             </div>
           ) : (
