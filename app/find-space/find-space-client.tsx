@@ -5,19 +5,16 @@ import { useAgentConnection, useUserSpaces } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 
-// Import hooks and adapters from Thirdweb
-import { useActiveWallet } from 'thirdweb/react';
+// Import hooks and the ConnectButton from Thirdweb
+import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-
-// --- THE FIX IS HERE ---
-// Instead of a hook, we import the client directly from the file where it was created.
-import { client } from '@/thirdweb-client';
+import { client } from '@/thirdweb-client'; // Direct import of your client
 
 // Import ethers v5 and viem types for the conversion
 import { providers } from 'ethers';
 import type { WalletClient } from 'viem';
 
-// This helper converts a viem WalletClient to an ethers v5 Signer
+// This helper function is correct and stays the same
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -33,48 +30,46 @@ function walletClientToSigner(walletClient: WalletClient) {
   return signer;
 }
 
-// This component will only render AFTER a Towns connection is made
+// This component correctly shows user spaces after connection
 function ShowUserSpaces() {
-  const { data: spaces, isLoading, error } = useUserSpaces();
+    // ... (This component does not need any changes)
+    const { data: spaces, isLoading, error } = useUserSpaces();
 
-  if (isLoading) return <div className="text-center p-8">Loading your spaces...</div>;
-  if (error) return <div className="text-center p-8 text-red-500">Error loading spaces: {error.message}</div>;
-
-  return (
-    <>
-      <h1 className="text-3xl font-bold mb-4">Your Joined Spaces</h1>
-      {spaces && spaces.length > 0 ? (
-        <ul className="space-y-4">
-          {spaces.map((space) => (
-            <li key={space.id} className="p-4 border rounded-lg shadow">
-              <h2 className="text-xl font-semibold">{space.name}</h2>
-              <p className="text-gray-600">{space.description}</p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>You haven't joined any spaces yet.</p>
-      )}
-    </>
-  );
+    if (isLoading) return <div className="text-center p-8">Loading your spaces...</div>;
+    if (error) return <div className="text-center p-8 text-red-500">Error loading spaces: {error.message}</div>;
+  
+    return (
+      <>
+        <h1 className="text-3xl font-bold mb-4">Your Joined Spaces</h1>
+        {spaces && spaces.length > 0 ? (
+          <ul className="space-y-4">
+            {spaces.map((space) => (
+              <li key={space.id} className="p-4 border rounded-lg shadow">
+                <h2 className="text-xl font-semibold">{space.name}</h2>
+                <p className="text-gray-600">{space.description}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>You haven't joined any spaces yet.</p>
+        )}
+      </>
+    );
 }
+
 
 // This is the main component for the page
 export default function FindSpaceClientComponent() {
   const { connect, isConnected, isAgentConnecting } = useAgentConnection();
-  
   const wallet = useActiveWallet();
-  // We no longer call the broken hook here. The imported 'client' is used below.
-  
   const townsConfig = townsEnv().makeTownsConfig('gamma');
 
   const handleConnect = async () => {
     if (!wallet) {
-      alert('Please connect your web3 wallet first.');
+      alert('Wallet not detected. Please ensure your wallet is connected.');
       return;
     }
     try {
-      // The imported 'client' object is used here directly.
       const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client });
       const signer = walletClientToSigner(viemWalletClient);
       
@@ -91,16 +86,30 @@ export default function FindSpaceClientComponent() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* If connected to Towns, show the spaces */}
       {isConnected ? (
         <ShowUserSpaces />
       ) : (
         <div>
-          <h1 className="text-3xl font-bold mb-4">Connect to Towns</h1>
-          <p className="mb-4">To see your spaces, you need to connect to the Towns Protocol.</p>
-          <Button onClick={handleConnect} disabled={isAgentConnecting || !wallet}>
-            {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
-          </Button>
-          {!wallet && <p className="text-sm text-gray-500 mt-2">Please connect your main wallet first.</p>}
+          {/* --- THE FIX IS HERE --- */}
+          {/* We now check for an active wallet. If none, we render the ConnectButton */}
+          {!wallet ? (
+            <div>
+              <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
+              <p className="mb-4">Please connect your wallet to continue to Towns.</p>
+              {/* This button handles the main wallet connection */}
+              <ConnectButton client={client} />
+            </div>
+          ) : (
+            <div>
+              {/* If the main wallet IS connected, show the button to connect to Towns */}
+              <h1 className="text-3xl font-bold mb-4">Connect to Towns</h1>
+              <p className="mb-4">Your wallet is connected. Now, you need to sign a message to connect to the Towns Protocol.</p>
+              <Button onClick={handleConnect} disabled={isAgentConnecting}>
+                {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
