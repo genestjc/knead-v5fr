@@ -1,7 +1,7 @@
-import { createThirdwebClient, getNativeBalance } from "thirdweb";
+import { createThirdwebClient, getNativeBalance } from "thirdweb"; // Restored getNativeBalance
 import { base } from "thirdweb/chains";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { getContract } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155"; // Restored balanceOf
+import { getContract } from "thirdweb"; // Restored getContract
 
 // Client ID from environment with diagnostic checks
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
@@ -21,10 +21,14 @@ export const client = createThirdwebClient({
   clientId: clientId || "44984f2bc038cebc6138d4ceb602c35d" // Fallback for development
 });
 
+// --- THIS IS THE ONLY INTENDED ADDITION ---
+// Export the active chain so other components can use it consistently.
+export const activeChain = base;
+
 // Log initialization status
 console.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
-// New Knead Membership Contract (Soulbound ERC1155)
+// Your existing contract definitions are unchanged.
 export const KNEAD_MEMBERSHIP_CONTRACT = {
   address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   name: "Knead Membership",
