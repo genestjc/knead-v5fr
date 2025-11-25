@@ -82,17 +82,19 @@ function ShowSpacesAndIds() {
   );
 }
 
-// The main component with the connection flow
+// The main component with all fixes applied
 export default function FindSpaceClientComponent() {
-  // --- THE FIX IS HERE: Get the 'agent' object ---
-  const { connect, isConnected, isAgentConnecting, agent } = useAgentConnection();
+  // --- FIX #1: Using the CORRECT properties from the hook ---
+  const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   const wallet = useActiveWallet();
-  const townsConfig = townsEnv().makeTownsConfig('gamma');
+  
+  // --- FIX #2: Switched to 'mainnet' configuration ---
+  const townsConfig = townsEnv().makeTownsConfig('mainnet');
 
   React.useEffect(() => {
-    // This log will now show us everything.
-    console.log('[DEBUG] Connection state:', { isConnected, isAgentConnecting, hasAgent: !!agent });
-  }, [isConnected, isAgentConnecting, agent]);
+    // This log will now show the correct state.
+    console.log('[DEBUG] Connection state:', { isAgentConnected, isAgentConnecting });
+  }, [isAgentConnected, isAgentConnecting]);
 
   const handleConnect = async () => {
     if (!wallet) return;
@@ -106,13 +108,10 @@ export default function FindSpaceClientComponent() {
     }
   };
 
-  // --- THE FIX IS HERE: Check for 'agent' existence ---
-  // We now consider the user connected ONLY if the agent object is present.
-  const isFullyConnected = isConnected && agent;
-
   return (
     <div className="container mx-auto px-4 py-8">
-      {isFullyConnected ? (
+      {/* --- FIX #3: Using the CORRECT boolean for rendering --- */}
+      {isAgentConnected ? (
         <ShowSpacesAndIds />
       ) : (
         <div className="text-center">
