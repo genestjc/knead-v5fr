@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React from 'react'; // Make sure React is imported
 import { 
   useAgentConnection, 
   useUserSpaces,
-  useSpaceChannels // Import the hook to get channels
+  useSpaceChannels
 } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
@@ -88,6 +88,12 @@ export default function FindSpaceClientComponent() {
   const { connect, isConnected, isAgentConnecting } = useAgentConnection();
   const wallet = useActiveWallet();
   const townsConfig = townsEnv().makeTownsConfig('gamma');
+
+  // --- DIAGNOSTIC LOGGING TO FORCE RE-RENDER ---
+  React.useEffect(() => {
+    console.log('[DEBUG] Towns Connection Status:', { isConnected, isAgentConnecting });
+  }, [isConnected, isAgentConnecting]);
+  // --- END DIAGNOSTIC LOGGING ---
 
   const handleConnect = async () => {
     if (!wallet) return;
