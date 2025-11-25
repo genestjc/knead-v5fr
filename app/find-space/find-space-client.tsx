@@ -55,6 +55,7 @@ function SpaceDetails({ spaceId }: { spaceId: string }) {
 
 function ShowSpacesAndIds() {
   const { data: spaces, isLoading, error } = useUserSpaces();
+  const wallet = useActiveWallet();
 
   if (isLoading) return <div className="text-center p-8">Loading your spaces...</div>;
   if (error) return <div className="text-center p-8 text-red-500">Error: {error.message}</div>;
@@ -62,7 +63,11 @@ function ShowSpacesAndIds() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-4">Your Space and Channel IDs</h1>
-      <p className="mb-6">Copy the required IDs and paste them into your `.env.local` file.</p>
+      <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <p className="text-sm font-semibold text-yellow-800">Connected with Wallet:</p>
+        <p className="text-xs font-mono break-all text-yellow-900">{wallet?.getAccount()?.address || 'No address found'}</p>
+      </div>
+      
       {spaces && spaces.length > 0 ? (
         <div className="space-y-6">
           {spaces.map((space) => (
@@ -76,7 +81,7 @@ function ShowSpacesAndIds() {
           ))}
         </div>
       ) : (
-        <p>You haven't joined any spaces yet. Make sure you are connected with the correct wallet.</p>
+        <p className="font-semibold">You haven't joined any spaces yet. Please make sure the wallet address displayed above is the one that owns your Space NFT on the Gamma (Testnet) environment.</p>
       )}
     </div>
   );
@@ -87,8 +92,8 @@ export default function FindSpaceClientComponent() {
   const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   const wallet = useActiveWallet();
   
-  // --- THE FINAL FIX: Switched to 'omega' for mainnet configuration ---
-  const townsConfig = townsEnv().makeTownsConfig('omega');
+  // --- THE FINAL, FINAL FIX: Set environment back to 'gamma' ---
+  const townsConfig = townsEnv().makeTownsConfig('gamma');
 
   const handleConnect = async () => {
     if (!wallet) return;
