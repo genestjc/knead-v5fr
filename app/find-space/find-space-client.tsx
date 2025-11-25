@@ -10,8 +10,8 @@ import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
 
 // --- THIS IS THE DEFINITIVE FIX ---
-// We import providers from the aliased ethers-v5 package.
-import { providers } from 'ethers-v5';
+// Import the entire ethers-v5 package to access its properties.
+import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 
 // This helper function now correctly uses ethers v5 to create the signer.
@@ -25,8 +25,8 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address,
   };
 
-  // This is guaranteed to be the ethers v5 Web3Provider.
-  const provider = new providers.Web3Provider(transport, network);
+  // We now use ethers.providers.Web3Provider, which is the correct syntax.
+  const provider = new ethers.providers.Web3Provider(transport, network);
   const signer = provider.getSigner(account.address);
   return signer;
 }
