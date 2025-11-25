@@ -102,7 +102,7 @@ export default function JoinPage() {
               </p>
               <p className="font-georgia-pro mb-6 text-left">
                 <li>Unlimited access to stories</li>
-                <li>Priority access to our shop, events, and other activations</li>
+                <li>Priority access to our stories, events, and other activations</li>
               </p>
               {isLoading ? (
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
