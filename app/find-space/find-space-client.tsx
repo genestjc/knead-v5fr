@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react'; // Make sure React is imported
+import React from 'react';
 import { 
   useAgentConnection, 
   useUserSpaces,
@@ -16,7 +16,7 @@ import { client, activeChain } from '@/thirdweb-client';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 
-// The perfected signer conversion function
+// The signer conversion function is correct.
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -26,7 +26,7 @@ function walletClientToSigner(walletClient: WalletClient) {
   return signer;
 }
 
-// Component to display channels and their IDs
+// The component to show IDs is correct.
 function SpaceDetails({ spaceId }: { spaceId: string }) {
   const { data: channels, isLoading } = useSpaceChannels(spaceId);
 
@@ -53,7 +53,6 @@ function SpaceDetails({ spaceId }: { spaceId: string }) {
   );
 }
 
-// Component to show the IDs
 function ShowSpacesAndIds() {
   const { data: spaces, isLoading, error } = useUserSpaces();
 
@@ -85,15 +84,15 @@ function ShowSpacesAndIds() {
 
 // The main component with the connection flow
 export default function FindSpaceClientComponent() {
-  const { connect, isConnected, isAgentConnecting } = useAgentConnection();
+  // --- THE FIX IS HERE: Get the 'agent' object ---
+  const { connect, isConnected, isAgentConnecting, agent } = useAgentConnection();
   const wallet = useActiveWallet();
   const townsConfig = townsEnv().makeTownsConfig('gamma');
 
-  // --- DIAGNOSTIC LOGGING TO FORCE RE-RENDER ---
   React.useEffect(() => {
-    console.log('[DEBUG] Towns Connection Status:', { isConnected, isAgentConnecting });
-  }, [isConnected, isAgentConnecting]);
-  // --- END DIAGNOSTIC LOGGING ---
+    // This log will now show us everything.
+    console.log('[DEBUG] Connection state:', { isConnected, isAgentConnecting, hasAgent: !!agent });
+  }, [isConnected, isAgentConnecting, agent]);
 
   const handleConnect = async () => {
     if (!wallet) return;
@@ -104,13 +103,16 @@ export default function FindSpaceClientComponent() {
       await connect(signer, { townsConfig });
     } catch (e) {
       console.error('Failed to connect to Towns:', e);
-      alert(`Failed to connect to Towns: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
+  // --- THE FIX IS HERE: Check for 'agent' existence ---
+  // We now consider the user connected ONLY if the agent object is present.
+  const isFullyConnected = isConnected && agent;
+
   return (
     <div className="container mx-auto px-4 py-8">
-      {isConnected ? (
+      {isFullyConnected ? (
         <ShowSpacesAndIds />
       ) : (
         <div className="text-center">
