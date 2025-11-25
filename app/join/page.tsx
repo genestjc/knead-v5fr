@@ -134,29 +134,6 @@ export default function JoinPage() {
                 </div>
               )}
             </div>
-            
-            {/* Breadwinner's Club Membership Card */}
-            <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
-              <h3 className="font-adonis text-2xl mb-4 text-left">The Breadwinner's Club</h3>
-              <p className="text-4xl font-adonis mb-4 text-left">
-                .0042 ETH
-                <span className="text-base font-adonis text-gray-600">/year</span>
-              </p>
-              <p className="font-georgia-pro mb-6 text-left">
-                <li>Unlimited access to stories</li>
-                <li>Priority access to our shop, events, and other activations</li>
-                <li>Access to our limited group chat</li>
-              </p>
-              <a
-                href="https://breadwinnersclub.kneadmag.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full"
-              >
-                Join Today
-              </a>
-            </div>
-          </div>
           
           {/* FAQ Section */}
           <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
