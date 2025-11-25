@@ -346,6 +346,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
+    // --- Handle payment_intent.succeeded (for Payment Intent flow from element-test) ---
+    if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const walletAddress = paymentIntent.metadata?.walletAddress;
+
+      if (!walletAddress) {
+        console.log(
+          "payment_intent.succeeded received but no wallet address in metadata",
+        );
+        return NextResponse.json({ received: true });
+      }
+
+      console.log(
+        `Payment Intent succeeded for wallet: ${walletAddress}`,
+      );
+
+      // Save payment details to database
+      const customerId =
+        typeof paymentIntent.customer === "string"
+          ? paymentIntent.customer
+          : null;
+
+      await supabase.from("subscriptions").upsert(
+        {
+          wallet_address: walletAddress.toLowerCase(),
+          subscription_id: paymentIntent.id, // Use payment intent ID as identifier
+          customer_id: customerId,
+          status: "active",
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: ["subscription_id"] },
+      );
+
+      // Mint NFT
+      const mintResult = await mintPremiumNFT(
+        walletAddress,
+        paymentIntent.id,
+        customerId || undefined,
+      );
+
+      return NextResponse.json({
+        success: true,
+        ...mintResult,
+      });
+    }
+
     // Return a response for other event types
     return NextResponse.json({ received: true });
   } catch (err: any) {
