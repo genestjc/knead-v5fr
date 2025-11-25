@@ -81,19 +81,19 @@ function ShowSpacesAndIds() {
           ))}
         </div>
       ) : (
-        <p className="font-semibold">You haven't joined any spaces yet. Please make sure the wallet address displayed above is the one that owns your Space NFT on the Gamma (Testnet) environment.</p>
+        <p className="font-semibold">You haven't joined any spaces yet. Please check your wallet connection.</p>
       )}
     </div>
   );
 }
 
-// The main component with all fixes applied
+// The main component targeting the OMEGA mainnet environment.
 export default function FindSpaceClientComponent() {
   const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   const wallet = useActiveWallet();
   
-  // --- THE FINAL, FINAL FIX: Set environment back to 'gamma' ---
-  const townsConfig = townsEnv().makeTownsConfig('gamma');
+  // --- POINTING TO THE OMEGA MAINNET ---
+  const townsConfig = townsEnv().makeTownsConfig('omega');
 
   const handleConnect = async () => {
     if (!wallet) return;
