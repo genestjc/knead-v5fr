@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-// --- ADDING useSyncAgent FOR A STRONGER CHECK ---
-import { useAgentConnection, useChannel, useSendMessage, useTimeline, useSyncAgent } from '@towns-protocol/react-sdk';
+// --- CORRECTED: Removing useSyncAgent and relying on the parent's conditional rendering ---
+import { useAgentConnection, useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import type { ChatUser } from '@/types/chat';
 
 interface ConnectedChatProps {
@@ -15,7 +15,7 @@ interface ConnectedChatProps {
 const LoadingSpinner = () => (
     <div className="text-center py-10">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-        <p className="font-georgia-pro text-gray-500">Initializing Channel...</p>
+        <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
     </div>
 );
 
@@ -24,13 +24,12 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   const [selectedChannelId, setSelectedChannelId] = useState(defaultChannelId);
   
   const { disconnect } = useAgentConnection();
-  // --- THE STRONGER CHECK: Get the agent object itself ---
-  const agent = useSyncAgent();
 
-  // --- We will only call the hooks once the agent is confirmed to exist ---
-  const { data: channel, isLoading: isChannelLoading } = useChannel(agent ? spaceId : undefined, selectedChannelId);
-  const { data: timeline, isLoading: isTimelineLoading } = useTimeline(agent ? channel?.streamId : undefined);
-  const { sendMessage, isPending: isSending } = useSendMessage(agent ? channel?.streamId : undefined);
+  // --- CORRECTED LOGIC: Call the hooks directly. They will work because this
+  //      component is only rendered *after* the agent is connected. ---
+  const { data: channel, isLoading: isChannelLoading } = useChannel(spaceId, selectedChannelId);
+  const { data: timeline, isLoading: isTimelineLoading } = useTimeline(channel?.streamId);
+  const { sendMessage, isPending: isSending } = useSendMessage(channel?.streamId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +39,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !currentUser || isSending || !agent) return;
+    if (!messageInput.trim() || !currentUser || isSending || !channel?.streamId) return;
 
     try {
       await sendMessage({ text: messageInput });
@@ -50,15 +49,6 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
       alert('Failed to send message. Check console for details.');
     }
   };
-  
-  // --- If the agent isn't ready yet, we show a loading state ---
-  if (!agent || isChannelLoading) {
-    return (
-        <div className="w-full h-screen bg-gray-50 flex items-center justify-center">
-            <LoadingSpinner />
-        </div>
-    );
-  }
 
   return (
     <div className="w-full h-screen bg-gray-50 flex flex-col">
@@ -69,7 +59,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
             <h1 className="font-adonis text-3xl">Knead Chat</h1>
             <p className="font-georgia-pro text-sm text-gray-600">
               {currentUser?.alias} · <span className="text-xs">{currentUser?.membershipTier}</span>
-              {agent && <span className="text-xs text-green-600 ml-2">● Connected</span>}
+              <span className="text-xs text-green-600 ml-2">● Connected</span>
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -86,7 +76,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
             <h2 className="font-georgia-pro font-semibold text-sm text-gray-500 uppercase mb-4">Channels</h2>
             <nav className="space-y-2">
               <button className="w-full text-left px-4 py-2 rounded-lg font-georgia-pro bg-black text-white">
-                # {channel?.name || 'general'}
+                # {isChannelLoading ? 'Loading...' : channel?.name || 'general'}
               </button>
             </nav>
           </div>
@@ -96,11 +86,13 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {isTimelineLoading ? <LoadingSpinner /> : (
               timeline?.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">No messages yet.</div>
+                <div className="text-center text-gray-500 py-8">No messages yet. Be the first to start the conversation!</div>
               ) : (
                 timeline?.map((event) => (
                   <div key={event.id} className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex-shrink-0" />
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                      {(event.sender || 'A').slice(0, 2).toUpperCase()}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-baseline gap-2 mb-1">
                         <span className="font-georgia-pro font-semibold">{event.sender || 'Anonymous'}</span>
@@ -122,10 +114,12 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder="Type a message..."
-                className="flex-1 px-4 py-3 border rounded-lg"
-                disabled={isSending}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                disabled={isSending || isChannelLoading}
               />
-              <button type="submit" disabled={isSending || !messageInput.trim()} className="px-6 bg-black text-white rounded-lg">Send</button>
+              <button type="submit" disabled={isSending || !messageInput.trim()} className="px-6 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50">
+                {isSending ? 'Sending...' : 'Send'}
+              </button>
             </form>
           </div>
         </main>
