@@ -165,22 +165,6 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         return true; // Grant temporary access while loading
       }
       
-      // For premium access, do a quick background check to ensure NFT still exists
-      if (membershipType === "premium" && requiredLevel === "premium") {
-        // Revalidate every time premium content is accessed (async, doesn't block)
-        fetch(`/api/check-membership?address=${account.address}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.membershipType !== "premium") {
-              console.log("Premium membership no longer valid, clearing cache");
-              localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
-              // Force a refresh
-              fetchMembershipType(account.address);
-            }
-          })
-          .catch(err => console.error("Premium revalidation check failed:", err));
-      }
-      
       if (requiredLevel === "premium") {
         return membershipType === "premium";
       }
