@@ -9,11 +9,12 @@ import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
 
-// --- FIXES BUILD WARNING ---
-import { providers } from 'ethers'; // Correct import for ethers v5
+// --- THIS IS THE DEFINITIVE FIX ---
+// We import providers from the aliased ethers-v5 package.
+import { providers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 
-// This helper function is now correct for ethers v5
+// This helper function now correctly uses ethers v5 to create the signer.
 function walletClientToSigner(walletClient: WalletClient) {
   const { account, chain, transport } = walletClient;
   if (!account || !chain) return undefined;
@@ -24,10 +25,12 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address,
   };
 
-  const provider = new providers.Web3Provider(transport, network); // Use Web3Provider for v5
+  // This is guaranteed to be the ethers v5 Web3Provider.
+  const provider = new providers.Web3Provider(transport, network);
   const signer = provider.getSigner(account.address);
   return signer;
 }
+
 
 //
 // ... THE REST OF THE FILE IS UNCHANGED ...
