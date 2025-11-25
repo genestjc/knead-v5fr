@@ -363,11 +363,16 @@ export async function POST(req: NextRequest) {
       );
 
       // Save payment details to database
+      const customerId =
+        typeof paymentIntent.customer === "string"
+          ? paymentIntent.customer
+          : null;
+
       await supabase.from("subscriptions").upsert(
         {
           wallet_address: walletAddress.toLowerCase(),
           subscription_id: paymentIntent.id, // Use payment intent ID as identifier
-          customer_id: paymentIntent.customer as string || null,
+          customer_id: customerId,
           status: "active",
           created_at: new Date().toISOString(),
         },
@@ -378,7 +383,7 @@ export async function POST(req: NextRequest) {
       const mintResult = await mintPremiumNFT(
         walletAddress,
         paymentIntent.id,
-        paymentIntent.customer as string,
+        customerId || undefined,
       );
 
       return NextResponse.json({

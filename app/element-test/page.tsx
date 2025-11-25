@@ -224,10 +224,10 @@ export default function ElementTestPage() {
               $5
               <span className="text-base font-adonis text-gray-600">/month</span>
             </p>
-            <p className="font-georgia-pro mb-6 text-left">
+            <ul className="font-georgia-pro mb-6 text-left list-disc list-inside">
               <li>Unlimited access to stories</li>
               <li>Priority access to our stories, events, and other activations</li>
-            </p>
+            </ul>
             {isLoading ? (
               <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
             ) : hasAccess("premium") ? (
