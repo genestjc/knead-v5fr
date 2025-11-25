@@ -65,7 +65,7 @@ export default function JoinPage() {
           </div>
           
           {/* Membership Cards - Flexbox container for responsive layout */}
-          <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0 mb-12 cloud-float-delay-2">
+          <div className="flex flex-col md:flex-row md:justify-center md:space-x-6 space-y-6 md:space-y-0 mb-12 cloud-float-delay-2">
             
             {/* Free Membership Card */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
@@ -134,6 +134,7 @@ export default function JoinPage() {
                 </div>
               )}
             </div>
+          </div>
           
           {/* FAQ Section */}
           <div className="mt-16 pt-8 border-t border-gray-100 cloud-float-delay-3">
