@@ -105,7 +105,7 @@ function PaymentForm({
               Processing...
             </>
           ) : (
-            "Pay $5.00"
+            "Subscribe"
           )}
         </button>
         <button
