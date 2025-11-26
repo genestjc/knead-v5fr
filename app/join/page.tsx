@@ -11,7 +11,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -27,10 +26,8 @@ const stripePromise = loadStripe(
 
 function PaymentForm({
   onSuccess,
-  onCancel,
 }: {
   onSuccess: () => void;
-  onCancel: () => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -74,7 +71,7 @@ function PaymentForm({
           {errorMessage}
         </div>
       )}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col items-center gap-3">
         <button
           type="submit"
           disabled={!stripe || isProcessing}
@@ -107,13 +104,6 @@ function PaymentForm({
           ) : (
             "Join Today"
           )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-gray-600 hover:text-gray-800 font-georgia-pro text-sm underline"
-        >
-          Cancel
         </button>
       </div>
     </form>
@@ -166,11 +156,6 @@ export default function JoinPage() {
   };
 
   const handlePaymentSuccess = () => {
-    setIsModalOpen(false);
-    setClientSecret(null);
-  };
-
-  const handleCloseModal = () => {
     setIsModalOpen(false);
     setClientSecret(null);
   };
@@ -341,18 +326,14 @@ export default function JoinPage() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-adonis text-xl">
+            <DialogTitle className="font-adonis text-xl text-center">
               Subscribe to Knead Monthly
             </DialogTitle>
-            <DialogDescription className="font-georgia-pro">
-              Enter your payment details below to complete your subscription.
-            </DialogDescription>
           </DialogHeader>
           {clientSecret && stripeOptions && (
             <Elements stripe={stripePromise} options={stripeOptions}>
               <PaymentForm
                 onSuccess={handlePaymentSuccess}
-                onCancel={handleCloseModal}
               />
             </Elements>
           )}
