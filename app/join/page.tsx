@@ -105,7 +105,7 @@ function PaymentForm({
               Processing...
             </>
           ) : (
-            "Subscribe"
+            "Join Today"
           )}
         </button>
         <button
