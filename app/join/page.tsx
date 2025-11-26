@@ -323,8 +323,8 @@ export default function JoinPage() {
         </div>
       </section>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-md">
+       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-adonis text-xl text-center">
               Subscribe to Knead Monthly
