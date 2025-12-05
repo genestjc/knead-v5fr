@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, type TouchEvent } from "react"
+import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import { Header } from "@/components/header"
 import { motion } from "framer-motion"
@@ -173,7 +173,7 @@ export default function TownsIntroChatPage() {
     useEffect(() => {
       const observer = new IntersectionObserver(
         (entries) => {
-          entries. forEach((entry) => {
+          entries.forEach((entry) => {
             if (entry.isIntersecting) {
               setCurrentSlide(id)
               setIsVisible(true)
@@ -203,12 +203,12 @@ export default function TownsIntroChatPage() {
         }}
         className="min-h-screen flex items-center justify-center py-20 px-4 md:px-8"
       >
-        <motion. div
+        <motion.div
           initial="hidden"
           animate={isVisible ? "visible" : "hidden"}
           variants={{
             hidden: { opacity: 0 },
-            visible: { opacity: 1, transition: { duration: 0. 8 } },
+            visible: { opacity: 1, transition: { duration: 0.8 } },
           }}
           className="w-full max-w-5xl"
         >
@@ -245,7 +245,7 @@ export default function TownsIntroChatPage() {
               key={i}
               onClick={(e) => scrollToSlide(i, e)}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                currentSlide === i ? "bg-white scale-125" : "bg-gray-500 hover:bg-gray-300"
+                currentSlide === i ?  "bg-white scale-125" : "bg-gray-500 hover:bg-gray-300"
               }`}
               aria-label={`Go to slide ${i + 1}`}
               type="button"
@@ -328,7 +328,7 @@ export default function TownsIntroChatPage() {
               <p className="text-lg font-georgia-pro text-gray-300">Curated feedback on creative work from industry experts</p>
             </div>
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
-              <h3 className="text-2xl font-adonis mb-3">& More</h3>
+              <h3 className="text-2xl font-adonis mb-3">&amp; More</h3>
               <p className="text-lg font-georgia-pro text-gray-300">Custom events and experiences</p>
             </div>
           </motion.div>
@@ -339,12 +339,12 @@ export default function TownsIntroChatPage() {
       <Slide id={3}>
         <div className="space-y-8">
           <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis text-center">
-            Multipliers & Rewards
+            Multipliers &amp; Rewards
           </motion.h2>
           <motion.div variants={fadeIn} className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-xl font-adonis mb-4">In-Thread Debates</h3>
-              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation.</p>
+              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation. </p>
               <p className="text-sm text-gray-400 italic">Creates incentive for substantive back-and-forth dialogue</p>
             </div>
 
@@ -426,7 +426,7 @@ export default function TownsIntroChatPage() {
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-2xl font-adonis mb-4">Weekly Budget Model</h3>
               <p className="text-lg font-georgia-pro mb-6">
-                Contributors are allocated a budget of $TOWNS every week to distribute among Participants.
+                Contributors are allocated a budget of $TOWNS every week to distribute among Participants. 
               </p>
               <div className="space-y-3 text-lg font-georgia-pro">
                 <p className="text-gray-300">
@@ -462,11 +462,11 @@ export default function TownsIntroChatPage() {
               </div>
               <div className="bg-white/5 backdrop-blur-sm p-6 rounded-xl border border-white/10">
                 <h3 className="text-xl font-adonis mb-3">Chat Settings</h3>
-                <p className="text-lg font-georgia-pro text-gray-300">Transfer funds & access private keys (hidden by default)</p>
+                <p className="text-lg font-georgia-pro text-gray-300">Transfer funds &amp; access private keys (hidden by default)</p>
               </div>
               <div className="bg-white/5 backdrop-blur-sm p-6 rounded-xl border border-white/10">
                 <h3 className="text-xl font-adonis mb-3">Admin Dashboard</h3>
-                <p className="text-lg font-georgia-pro text-gray-300">Manual Knead Memberships & Contributor tags</p>
+                <p className="text-lg font-georgia-pro text-gray-300">Manual Knead Memberships &amp; Contributor tags</p>
               </div>
               <div className="bg-white/5 backdrop-blur-sm p-6 rounded-xl border border-white/10">
                 <h3 className="text-xl font-adonis mb-3">Getting Started</h3>
@@ -519,11 +519,11 @@ export default function TownsIntroChatPage() {
           <motion.div variants={fadeIn} className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-2 gap-6">
             <div className="bg-blue-500/10 backdrop-blur-sm p-6 rounded-xl border border-blue-500/30">
               <h3 className="text-xl font-adonis mb-2">Daily</h3>
-              <p className="text-lg font-georgia-pro text-gray-300">Live interviews & conversations</p>
+              <p className="text-lg font-georgia-pro text-gray-300">Live interviews &amp; conversations</p>
             </div>
             <div className="bg-purple-500/10 backdrop-blur-sm p-6 rounded-xl border border-purple-500/30">
               <h3 className="text-xl font-adonis mb-2">Towns</h3>
-              <p className="text-lg font-georgia-pro text-gray-300">Messaging & rewards system</p>
+              <p className="text-lg font-georgia-pro text-gray-300">Messaging &amp; rewards system</p>
             </div>
             <div className="bg-green-500/10 backdrop-blur-sm p-6 rounded-xl border border-green-500/30">
               <h3 className="text-xl font-adonis mb-2">OpenAI</h3>
@@ -531,7 +531,7 @@ export default function TownsIntroChatPage() {
             </div>
             <div className="bg-orange-500/10 backdrop-blur-sm p-6 rounded-xl border border-orange-500/30">
               <h3 className="text-xl font-adonis mb-2">ThirdWeb</h3>
-              <p className="text-lg font-georgia-pro text-gray-300">Non-custodial wallets & minting</p>
+              <p className="text-lg font-georgia-pro text-gray-300">Non-custodial wallets &amp; minting</p>
             </div>
           </motion.div>
 
@@ -554,7 +554,7 @@ export default function TownsIntroChatPage() {
               <h3 className="text-2xl font-adonis mb-4">The System in 4 Points</h3>
               <ul className="space-y-4 text-lg font-georgia-pro text-gray-300">
                 <li className="flex items-start">
-                  <span className="font-bold mr-3">1. </span>
+                  <span className="font-bold mr-3">1.</span>
                   <span><span className="font-bold">Participants</span> earn $TOWNS through quality engagement and participation in community events</span>
                 </li>
                 <li className="flex items-start">
