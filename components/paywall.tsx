@@ -102,7 +102,7 @@ function PaymentForm({
               Processing...
             </>
           ) : (
-            "Subscribe Now"
+            "Join Today"
           )}
         </button>
       </div>
