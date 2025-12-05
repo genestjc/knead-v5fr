@@ -222,7 +222,7 @@ export default function JoinPage() {
                 <div className="animate-pulse h-8 bg-gray-100 rounded"></div>
               ) : account?.address ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  You're signed in!
+                  You're already signed in
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -246,7 +246,7 @@ export default function JoinPage() {
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
               ) : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  You are already a premium member!
+                  You're already a premium member
                 </div>
               ) : account?.address ? (
                 <button
