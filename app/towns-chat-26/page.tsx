@@ -45,7 +45,7 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
       if (password === "towns26") {
         onSuccess()
       } else {
-        setError("Incorrect password.  Please try again.")
+        setError("Incorrect password.   Please try again.")
         setPassword("")
       }
       setIsLoading(false)
@@ -68,8 +68,8 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
             className="text-3xl md:text-4xl font-adonis mb-4"
           >
             Knead Magazine
-          </motion. h1>
-          <motion. p
+          </motion.h1>
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.6 }}
@@ -127,7 +127,7 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
           className="text-center mt-8"
         >
           <p className="text-sm text-gray-400 font-georgia-pro">Towns Chat - Community for High-Level Conversation</p>
-        </motion. div>
+        </motion.div>
       </motion.div>
     </div>
   )
@@ -344,7 +344,7 @@ export default function TownsIntroChatPage() {
           <motion.div variants={fadeIn} className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-xl font-adonis mb-4">In-Thread Debates</h3>
-              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation. </p>
+              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation.  </p>
               <p className="text-sm text-gray-400 italic">Creates incentive for substantive back-and-forth dialogue</p>
             </div>
 
@@ -426,7 +426,7 @@ export default function TownsIntroChatPage() {
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-2xl font-adonis mb-4">Weekly Budget Model</h3>
               <p className="text-lg font-georgia-pro mb-6">
-                Contributors are allocated a budget of $TOWNS every week to distribute among Participants.
+                Contributors are allocated a budget of $TOWNS every week to distribute among Participants. 
               </p>
               <div className="space-y-3 text-lg font-georgia-pro">
                 <p className="text-gray-300">
@@ -554,7 +554,7 @@ export default function TownsIntroChatPage() {
               <h3 className="text-2xl font-adonis mb-4">The System in 4 Points</h3>
               <ul className="space-y-4 text-lg font-georgia-pro text-gray-300">
                 <li className="flex items-start">
-                  <span className="font-bold mr-3">1. </span>
+                  <span className="font-bold mr-3">1.</span>
                   <span><span className="font-bold">Participants</span> earn $TOWNS through quality engagement and participation in community events</span>
                 </li>
                 <li className="flex items-start">
@@ -575,7 +575,7 @@ export default function TownsIntroChatPage() {
             <div className="bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-2xl font-adonis mb-4">Result</h3>
               <p className="text-xl font-georgia-pro">
-                A self-sustaining community where high-level conversation is directly incentivized, quality is automatically rewarded, and authentic engagement drives network growth.
+                A self-sustaining community where high-level conversation is directly incentivized, quality is automatically rewarded, and authentic engagement drives network growth. 
               </p>
             </div>
           </motion.div>
