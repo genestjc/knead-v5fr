@@ -181,7 +181,7 @@ export default function TownsIntroChatPage() {
             }
           })
         },
-        { threshold: 0. 5 }
+        { threshold: 0.5 }
       )
 
       const element = slideRefs.current[id]
