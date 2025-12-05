@@ -45,7 +45,7 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
       if (password === "towns26") {
         onSuccess()
       } else {
-        setError("Incorrect password.  Please try again.")
+        setError("Incorrect password.   Please try again.")
         setPassword("")
       }
       setIsLoading(false)
@@ -54,10 +54,10 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
-      <motion.div
+      <motion. div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0. 6 }}
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
@@ -95,7 +95,7 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent tra[...]"
               placeholder="Password"
               required
               disabled={isLoading}
@@ -181,7 +181,7 @@ export default function TownsIntroChatPage() {
             }
           })
         },
-        { threshold: 0. 5 },
+        { threshold: 0. 5 }
       )
 
       const element = slideRefs.current[id]
@@ -205,7 +205,7 @@ export default function TownsIntroChatPage() {
       >
         <motion.div
           initial="hidden"
-          animate={isVisible ? "visible" : "hidden"}
+          animate={isVisible ?  "visible" : "hidden"}
           variants={{
             hidden: { opacity: 0 },
             visible: { opacity: 1, transition: { duration: 0.8 } },
@@ -245,7 +245,7 @@ export default function TownsIntroChatPage() {
               key={i}
               onClick={(e) => scrollToSlide(i, e)}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                currentSlide === i ?  "bg-white scale-125" : "bg-gray-500 hover:bg-gray-300"
+                currentSlide === i ? "bg-white scale-125" : "bg-gray-500 hover:bg-gray-300"
               }`}
               aria-label={`Go to slide ${i + 1}`}
               type="button"
@@ -344,7 +344,7 @@ export default function TownsIntroChatPage() {
           <motion.div variants={fadeIn} className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-xl font-adonis mb-4">In-Thread Debates</h3>
-              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation. </p>
+              <p className="text-lg font-georgia-pro mb-4">Comments that start an in-thread debate are rewarded for <span className="font-bold">every contribution</span> to that conversation.  </p>
               <p className="text-sm text-gray-400 italic">Creates incentive for substantive back-and-forth dialogue</p>
             </div>
 
@@ -426,7 +426,7 @@ export default function TownsIntroChatPage() {
             <div className="bg-white/5 backdrop-blur-sm p-8 rounded-xl border border-white/10">
               <h3 className="text-2xl font-adonis mb-4">Weekly Budget Model</h3>
               <p className="text-lg font-georgia-pro mb-6">
-                Contributors are allocated a budget of $TOWNS every week to distribute among Participants. 
+                Contributors are allocated a budget of $TOWNS every week to distribute among Participants.  
               </p>
               <div className="space-y-3 text-lg font-georgia-pro">
                 <p className="text-gray-300">
@@ -488,7 +488,7 @@ export default function TownsIntroChatPage() {
               <div>
                 <h3 className="text-2xl font-adonis mb-4">Non-Custodial Wallet Integration</h3>
                 <p className="text-lg font-georgia-pro text-gray-300 mb-4">
-                  ThirdWeb's solution enables users to access their private keys while maintaining regulatory compliance.
+                  ThirdWeb's solution enables users to access their private keys while maintaining regulatory compliance. 
                 </p>
               </div>
 
@@ -554,7 +554,7 @@ export default function TownsIntroChatPage() {
               <h3 className="text-2xl font-adonis mb-4">The System in 4 Points</h3>
               <ul className="space-y-4 text-lg font-georgia-pro text-gray-300">
                 <li className="flex items-start">
-                  <span className="font-bold mr-3">1.</span>
+                  <span className="font-bold mr-3">1. </span>
                   <span><span className="font-bold">Participants</span> earn $TOWNS through quality engagement and participation in community events</span>
                 </li>
                 <li className="flex items-start">
