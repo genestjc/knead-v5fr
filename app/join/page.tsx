@@ -207,13 +207,13 @@ export default function JoinPage() {
             
             {/* Free Membership Card */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
-              <h3 className="font-adonis text-2xl mb-4 text-left">Free Membership</h3>
+              <h3 className="font-adonis text-2xl mb-4 text-left">Free</h3>
               <p className="text-4xl font-adonis mb-4 text-left">
                 $0
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
               <p className="font-georgia-pro mb-6 text-left">
-                <li>Read three articles per month</li>
+                <li>Read three stories per month</li>
               </p>
               <p className="font-georgia-pro italic mb-4 text-left">
                 Sign In below to get started
@@ -240,7 +240,7 @@ export default function JoinPage() {
               </p>
               <p className="font-georgia-pro mb-6 text-left">
                 <li>Unlimited access to stories</li>
-                <li>Priority access to our stories, events, and other activations</li>
+                <li>Priority access to events and other activations</li>
               </p>
               {isLoading ? (
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
