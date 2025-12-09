@@ -8,10 +8,20 @@ import {
 import { base } from "thirdweb/chains";
 import {
   getMaxFreeAllocation,
-  validateFreeAllocation,
   translateContractError,
   waitWithTimeout,
 } from "@/lib/towns/space-utils";
+
+// Type definition for transaction log entries
+interface TransactionLog {
+  eventName?: string;
+  eventSignature?: string;
+  args?: {
+    spaceId?: bigint | string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 
 // Minimal ABI for createSpace and SpaceCreated event
 const SPACE_FACTORY_ABI = [
@@ -86,7 +96,6 @@ export async function POST(req: NextRequest) {
     console.log(`🚀 Creating Towns space: "${name}"`);
     console.log(`📊 Request details:`)
     console.log(`   - Space name: ${name}`);
-    console.log(`   - Free allocation requested: ${freeAllocation || 'default (100)'}`);
     console.log(`   - Timestamp: ${new Date().toISOString()}`);
     
     // Step 1: Query network's max free allocation limit
@@ -96,26 +105,17 @@ export async function POST(req: NextRequest) {
     );
     console.log(`✅ Network max free allocation: ${maxFreeAllocation}`);
     
-    // Step 2: Validate free allocation if provided
-    const requestedAllocation = freeAllocation ? BigInt(freeAllocation) : 100n;
-    console.log(`\n🔍 Step 2: Validating free allocation...`);
-    console.log(`   - Requested: ${requestedAllocation}`);
-    console.log(`   - Network limit: ${maxFreeAllocation}`);
+    // Note: The current createSpace(string name) function uses the contract's 
+    // default free allocation. If the default exceeds the network limit,
+    // the transaction will fail with Membership__InvalidFreeAllocation.
+    // This query helps us provide a better error message to users.
     
-    const validation = validateFreeAllocation(requestedAllocation, maxFreeAllocation);
-    if (!validation.valid) {
-      console.error('❌ Validation failed:', validation.error);
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: validation.error,
-          requestedAllocation: requestedAllocation.toString(),
-          maxAllocation: maxFreeAllocation.toString(),
-        },
-        { status: 400 }
-      );
+    // Step 2: Check if custom free allocation is supported (future enhancement)
+    if (freeAllocation) {
+      console.log(`\n⚠️  Note: Custom free allocation specified but not yet supported by this endpoint`);
+      console.log(`   - Requested: ${freeAllocation}`);
+      console.log(`   - The contract will use its default free allocation`);
     }
-    console.log('✅ Validation passed');
 
     console.log('\n🔍 Step 3: Initializing blockchain connection...');
 
@@ -186,9 +186,8 @@ export async function POST(req: NextRequest) {
     console.log(`   - Total logs: ${logs?.length || 0}`);
     
     const eventSignature = "SpaceCreated(uint256,address,string)";
-    const spaceCreatedLog = logs.find(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (log: any) =>
+    const spaceCreatedLog = (logs as TransactionLog[]).find(
+      (log) =>
         log.eventName === "SpaceCreated" || log.eventSignature === eventSignature,
     );
 

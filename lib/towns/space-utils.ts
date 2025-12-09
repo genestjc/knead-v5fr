@@ -17,8 +17,10 @@ import { base } from "thirdweb/chains";
 // SpaceFactory contract address on Base
 const SPACE_FACTORY_ADDRESS = "0x9978c826d93883701522d2ca645d5436e5654252";
 
-// Minimal ABI for querying max free supply from the Architect contract
-const ARCHITECT_ABI = [
+// Minimal ABI for querying max free allocation from the SpaceFactory contract
+// Note: The SpaceFactory contract on Base Omega implements the Architect interface
+// which includes the getMaxFreeAllocation method
+const SPACE_FACTORY_ABI = [
   {
     inputs: [],
     name: "getMaxFreeAllocation",
@@ -30,7 +32,11 @@ const ARCHITECT_ABI = [
 
 /**
  * Query the network's maximum free allocation limit
- * This is the Towns Protocol's on-chain limit for free memberships
+ * This is the Towns Protocol's on-chain limit for free memberships.
+ * 
+ * On Omega network, this is typically 100. Other networks may have different limits.
+ * The value is queried dynamically from the SpaceFactory contract which implements
+ * the Architect interface.
  * 
  * @param clientId - ThirdWeb client ID
  * @returns Maximum free allocation as bigint
@@ -43,7 +49,7 @@ export async function getMaxFreeAllocation(clientId: string): Promise<bigint> {
       client,
       chain: base,
       address: SPACE_FACTORY_ADDRESS,
-      abi: ARCHITECT_ABI,
+      abi: SPACE_FACTORY_ABI,
     });
 
     const maxFreeAllocation = await readContract({
@@ -65,6 +71,10 @@ export async function getMaxFreeAllocation(clientId: string): Promise<bigint> {
 /**
  * Validate free allocation against network limits
  * 
+ * Note: This function is prepared for future enhancement when the endpoint
+ * supports custom free allocation parameters. Currently, the createSpace
+ * function uses the contract's default free allocation.
+ * 
  * @param requestedAllocation - The free allocation being requested
  * @param maxAllocation - The network's maximum free allocation
  * @returns Validation result with error message if invalid
@@ -83,15 +93,28 @@ export function validateFreeAllocation(
   return { valid: true };
 }
 
+// Type definition for contract errors
+interface ContractError {
+  message?: string;
+  reason?: string;
+  code?: string;
+  data?: {
+    message?: string;
+  };
+}
+
 /**
  * Translate Solidity revert errors to user-friendly messages
  * 
  * @param error - The error object from the transaction
  * @returns User-friendly error message
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function translateContractError(error: any): string {
-  const errorMessage = error?.message || error?.toString() || '';
+export function translateContractError(error: Error | ContractError | unknown): string {
+  // Type guard to safely access error properties
+  const errorMessage = 
+    (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') 
+      ? error.message 
+      : String(error);
   
   // Check for specific Solidity revert reasons
   if (errorMessage.includes('Membership__InvalidFreeAllocation')) {
@@ -123,12 +146,12 @@ export function translateContractError(error: any): string {
  * Wraps Engine.waitForTransactionHash with a timeout to prevent hanging
  * 
  * @param waitFn - The async function to execute
- * @param timeoutMs - Timeout in milliseconds (default 60s)
+ * @param timeoutMs - Timeout in milliseconds (default 90s)
  * @returns Promise that resolves with transaction result or rejects on timeout
  */
 export async function waitWithTimeout<T>(
   waitFn: () => Promise<T>,
-  timeoutMs: number = 60000
+  timeoutMs: number = 90000
 ): Promise<T> {
   return Promise.race([
     waitFn(),
