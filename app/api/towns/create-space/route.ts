@@ -10,6 +10,8 @@ import {
   getMaxFreeAllocation,
   translateContractError,
   waitWithTimeout,
+  SPACE_FACTORY_ADDRESS,
+  DEFAULT_TRANSACTION_TIMEOUT_MS,
 } from "@/lib/towns/space-utils";
 
 // Type definition for transaction log entries
@@ -137,10 +139,10 @@ export async function POST(req: NextRequest) {
     const contract = getContract({
       client,
       chain: base,
-      address: "0x9978c826d93883701522d2ca645d5436e5654252",
+      address: SPACE_FACTORY_ADDRESS,
       abi: SPACE_FACTORY_ABI,
     });
-    console.log('✅ Contract initialized: 0x9978c826d93883701522d2ca645d5436e5654252');
+    console.log(`✅ Contract initialized: ${SPACE_FACTORY_ADDRESS}`);
 
     // Prepare the transaction
     console.log('\n🔍 Step 4: Preparing transaction...');
@@ -165,16 +167,16 @@ export async function POST(req: NextRequest) {
 
     console.log('\n🔍 Step 6: Waiting for transaction hash...');
     console.log(`   - Transaction ID: ${transactionId}`);
-    console.log(`   - Timeout: 90 seconds`);
+    console.log(`   - Timeout: ${DEFAULT_TRANSACTION_TIMEOUT_MS / 1000} seconds`);
     const waitStartTime = Date.now();
 
-    // Wait for the transaction hash with timeout (90s)
+    // Wait for the transaction hash with timeout
     const { transactionHash, logs } = await waitWithTimeout(
       () => Engine.waitForTransactionHash({
         client,
         transactionId,
       }),
-      90000 // 90 second timeout
+      DEFAULT_TRANSACTION_TIMEOUT_MS
     );
 
     const waitTime = Date.now() - waitStartTime;

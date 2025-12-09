@@ -15,20 +15,23 @@ import {
 import { base } from "thirdweb/chains";
 
 // SpaceFactory contract address on Base
-const SPACE_FACTORY_ADDRESS = "0x9978c826d93883701522d2ca645d5436e5654252";
+export const SPACE_FACTORY_ADDRESS = "0x9978c826d93883701522d2ca645d5436e5654252";
+
+// Default transaction timeout in milliseconds (90 seconds)
+export const DEFAULT_TRANSACTION_TIMEOUT_MS = 90000;
 
 // Minimal ABI for querying max free allocation from the SpaceFactory contract
 // Note: The SpaceFactory contract on Base Omega implements the Architect interface
 // which includes the getMaxFreeAllocation method
-const SPACE_FACTORY_ABI = [
-  {
-    inputs: [],
-    name: "getMaxFreeAllocation",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+const GET_MAX_FREE_ALLOCATION_ABI = {
+  inputs: [],
+  name: "getMaxFreeAllocation",
+  outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+  stateMutability: "view",
+  type: "function",
+} as const;
+
+const SPACE_FACTORY_ABI = [GET_MAX_FREE_ALLOCATION_ABI] as const;
 
 /**
  * Query the network's maximum free allocation limit
@@ -54,7 +57,7 @@ export async function getMaxFreeAllocation(clientId: string): Promise<bigint> {
 
     const maxFreeAllocation = await readContract({
       contract,
-      method: "function getMaxFreeAllocation() view returns (uint256)",
+      method: GET_MAX_FREE_ALLOCATION_ABI,
       params: [],
     });
 
@@ -151,12 +154,24 @@ export function translateContractError(error: Error | ContractError | unknown): 
  */
 export async function waitWithTimeout<T>(
   waitFn: () => Promise<T>,
-  timeoutMs: number = 90000
+  timeoutMs: number = DEFAULT_TRANSACTION_TIMEOUT_MS
 ): Promise<T> {
-  return Promise.race([
-    waitFn(),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Transaction timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
+  let timeoutId: NodeJS.Timeout | undefined;
+  
+  try {
+    return await Promise.race([
+      waitFn(),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`Transaction timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    // Clear timeout to prevent memory leak
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
