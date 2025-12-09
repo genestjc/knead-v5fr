@@ -57,9 +57,14 @@ export default function CreateSpaceClientComponent() {
   };
 
   const handleCopy = async (text: string, field: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      // Fallback: user will need to manually copy
+    }
   };
 
   const handleRedirectToChat = () => {
@@ -154,17 +159,19 @@ export default function CreateSpaceClientComponent() {
                     <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
                       {response.transactionHash}
                     </code>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleCopy(response.transactionHash!, 'txHash')}
-                    >
-                      {copiedField === 'txHash' ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {response.transactionHash && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleCopy(response.transactionHash || '', 'txHash')}
+                      >
+                        {copiedField === 'txHash' ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                   {response.explorerUrl && (
                     <a
@@ -185,17 +192,19 @@ export default function CreateSpaceClientComponent() {
                     <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
                       {response.spaceId}
                     </code>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleCopy(response.spaceId!, 'spaceId')}
-                    >
-                      {copiedField === 'spaceId' ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {response.spaceId && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleCopy(response.spaceId || '', 'spaceId')}
+                      >
+                        {copiedField === 'spaceId' ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -206,17 +215,19 @@ export default function CreateSpaceClientComponent() {
                     <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
                       {response.defaultChannelId}
                     </code>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleCopy(response.defaultChannelId!, 'channelId')}
-                    >
-                      {copiedField === 'channelId' ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {response.defaultChannelId && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleCopy(response.defaultChannelId || '', 'channelId')}
+                      >
+                        {copiedField === 'channelId' ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
