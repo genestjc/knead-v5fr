@@ -5,17 +5,33 @@ import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../../thirdwe
 import kneadMembershipABI from "../../../abi/kneadMembershipABI.json";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
-const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || "your-temporary-secret";
 
 export async function POST(req: NextRequest) {
   try {
-    // Basic auth
-    const { searchParams } = new URL(req.url);
-    const key = searchParams.get("key");
+    // Verify admin secret via Authorization header
+    const authHeader = req.headers.get("authorization");
     
-    if (key !== ADMIN_SECRET) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Unauthorized: Missing or invalid authorization header" },
+        { status: 401 }
+      );
+    }
+
+    const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY;
+    if (!ADMIN_SECRET) {
+      console.error("ADMIN_SECRET_KEY environment variable not set");
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
+    const token = authHeader.substring(7); // Remove "Bearer " prefix
+    
+    if (token !== ADMIN_SECRET) {
+      return NextResponse.json(
+        { error: "Unauthorized: Invalid credentials" },
         { status: 401 }
       );
     }
@@ -25,6 +41,14 @@ export async function POST(req: NextRequest) {
     if (!wallet_address) {
       return NextResponse.json(
         { error: "Missing wallet_address" },
+        { status: 400 }
+      );
+    }
+
+    // Validate Ethereum address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+      return NextResponse.json(
+        { error: "Invalid Ethereum address format" },
         { status: 400 }
       );
     }
@@ -71,12 +95,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error in manual mint:", error);
-    return NextResponse.json(
-      { 
-        error: error.message,
-        stack: error.stack 
-      },
-      { status: 500 }
-    );
+    
+    // Don't leak stack traces in production
+    const errorResponse = process.env.NODE_ENV === 'production'
+      ? { error: "Internal server error" }
+      : { error: error.message, stack: error.stack };
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
