@@ -1,14 +1,33 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Verify Vercel Cron Secret
+  const authHeader = req.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (!cronSecret) {
+    console.error('CRON_SECRET environment variable not set');
+    return NextResponse.json(
+      { message: 'Server configuration error' },
+      { status: 500 }
+    );
+  }
+  
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    console.error('CRON: Unauthorized request attempt');
+    return NextResponse.json(
+      { message: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   // Defensive check: Ensure environment variables are loaded.
-  // This helps prevent build failures if the variables are missing during Vercel's analysis.
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('CRON Error: Missing Supabase environment variables.');
     return NextResponse.json(
