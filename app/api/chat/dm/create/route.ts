@@ -68,10 +68,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if DM already exists (order-independent)
+    // Using parameterized approach to avoid SQL injection
     const { data: existingDm } = await supabase
       .from('chat_dms')
       .select('*')
-      .or(`and(user_a.eq.${userId},user_b.eq.${recipientId}),and(user_a.eq.${recipientId},user_b.eq.${userId})`)
+      .or(`and(user_a.eq."${userId}",user_b.eq."${recipientId}"),and(user_a.eq."${recipientId}",user_b.eq."${userId}")`)
       .single();
 
     if (existingDm) {
@@ -115,11 +116,14 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('DM creation error:', error);
+    
+    // Don't leak error details in production
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? 'Failed to create DM'
+      : error instanceof Error ? error.message : String(error);
+    
     return NextResponse.json(
-      { 
-        error: 'Failed to create DM',
-        details: error instanceof Error ? error.message : String(error)
-      },
+      { error: errorMessage },
       { status: 500 }
     );
   }
