@@ -73,7 +73,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate JWT token for authenticated access
-    const jwtSecret = process.env.JWT_SECRET || "fallback-secret-change-in-production"
+    const jwtSecret = process.env.JWT_SECRET
+    if (!jwtSecret) {
+      console.error("JWT_SECRET environment variable not set")
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+    }
+
     const token = jwt.sign({ vipAccess: true, timestamp: Date.now() }, jwtSecret, { expiresIn: "1h" })
 
     return NextResponse.json({
@@ -83,6 +88,12 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("VIP access verification error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    
+    // Don't leak error details in production
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? "Internal server error" 
+      : error instanceof Error ? error.message : "Unknown error"
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
