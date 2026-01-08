@@ -16,22 +16,22 @@ import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process. env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process. env.SUPABASE_URL! ,
+  process.env. SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
+  process.env. NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PAID_TOKEN_ID = 1n;
 
 async function mintPremiumNFT(
   walletAddress: string,
-  subscriptionId?: string,
+  subscriptionId?:  string,
   customerId?: string,
 ) {
   const contract = getContract({
@@ -48,14 +48,14 @@ async function mintPremiumNFT(
     tokenId: PAID_TOKEN_ID,
   });
 
-  if (balance.value > 0n) {
+  if (balance. value > 0n) {
     return { alreadyHasToken: true };
   }
 
   // Prepare and send mint transaction
   const transaction = prepareContractCall({
     contract,
-    method:
+    method: 
       "function mint(address to, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
     gasLimit: 300000n,
@@ -76,7 +76,7 @@ async function mintPremiumNFT(
       .from("subscriptions")
       .update({
         token_minted: true,
-        token_id: PAID_TOKEN_ID.toString(),
+        token_id:  PAID_TOKEN_ID. toString(),
         mint_transaction_hash: transactionHash,
       })
       .eq("subscription_id", subscriptionId);
@@ -91,7 +91,7 @@ async function mintPremiumNFT(
 
 async function burnPremiumNFT(
   walletAddress: string,
-  subscriptionId?: string,
+  subscriptionId?:  string,
 ) {
   const contract = getContract({
     client,
@@ -107,7 +107,7 @@ async function burnPremiumNFT(
     tokenId: PAID_TOKEN_ID,
   });
 
-  if (!balance || balance.value === 0n) {
+  if (! balance || balance.value === 0n) {
     return { 
       success: true, 
       noTokenToBurn: true,
@@ -118,7 +118,7 @@ async function burnPremiumNFT(
   // Prepare and send burn transaction
   const transaction = prepareContractCall({
     contract,
-    method:
+    method: 
       "function adminBurn(address from, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
     gasLimit: 300000n,
@@ -185,65 +185,29 @@ export async function POST(req: NextRequest) {
         signature,
         process.env.STRIPE_WEBHOOK_SECRET!,
       );
-    } catch (err: any) {
+    } catch (err:  any) {
       return NextResponse.json(
         { error: err.message },
         { status: 400 },
       );
     }
 
-    // --- Handle checkout.session.completed (for one-time payments) ---
-    if (event.type === "checkout.session.completed") {
-      const session = event.data
-        .object as Stripe.Checkout.Session;
-      const walletAddress = session.metadata?.walletAddress;
-      if (!walletAddress) {
-        return NextResponse.json(
-          { error: "No wallet address provided" },
-          { status: 400 },
-        );
-      }
-
-      // Save subscription details to database
-      await supabase
-        .from("subscriptions")
-        .insert({
-          wallet_address: walletAddress.toLowerCase(),
-          subscription_id: session.subscription as string,
-          customer_id: session.customer as string,
-          status: "active",
-          created_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      // Mint NFT
-      const mintResult = await mintPremiumNFT(
-        walletAddress,
-        session.subscription as string,
-        session.customer as string,
-      );
-      return NextResponse.json({
-        success: true,
-        ...mintResult,
-      });
-    }
-
-    // --- Handle invoice.payment_succeeded (for subscriptions) ---
+    // --- Handle invoice.payment_succeeded (for subscriptions with Stripe Elements) ---
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = invoice.subscription as string;
-      let walletAddress: string | undefined;
+      
+      // Skip if this is not a subscription invoice
+      if (!subscriptionId) {
+        console.log("Skipping non-subscription invoice");
+        return NextResponse.json({ received: true });
+      }
+
+      let walletAddress:  string | undefined;
 
       // Try to get wallet address from subscription metadata
-      if (invoice.subscription) {
-        const subscription =
-          await stripe.subscriptions.retrieve(
-            subscriptionId,
-          );
-        walletAddress =
-          subscription.metadata?.walletAddress;
-      }
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      walletAddress = subscription. metadata?.walletAddress;
 
       // Fallback: try to get from customer metadata
       if (!walletAddress && invoice.customer) {
@@ -251,38 +215,46 @@ export async function POST(req: NextRequest) {
           invoice.customer as string,
         );
         if (typeof customer !== "string") {
-          walletAddress = customer.metadata?.walletAddress;
+          walletAddress = customer. metadata?.walletAddress;
         }
       }
 
-      if (!walletAddress) {
+      if (! walletAddress) {
+        console.error(
+          `No wallet address found for subscription ${subscriptionId}`
+        );
         return NextResponse.json(
           {
-            error:
+            error: 
               "No wallet address found in subscription/customer metadata",
           },
           { status: 400 },
         );
       }
 
+      console.log(
+        `Invoice payment succeeded for subscription: ${subscriptionId}, wallet: ${walletAddress}`
+      );
+
       // Save subscription details to database (if not already present)
-      await supabase.from("subscriptions").upsert(
+      await supabase. from("subscriptions").upsert(
         {
           wallet_address: walletAddress.toLowerCase(),
           subscription_id: subscriptionId,
-          customer_id: invoice.customer as string,
+          customer_id:  invoice.customer as string,
           status: "active",
           created_at: new Date().toISOString(),
         },
-        { onConflict: ["subscription_id"] },
+        { onConflict: "subscription_id" },
       );
 
-      // Mint NFT
+      // Mint NFT (only mints if user doesn't have one)
       const mintResult = await mintPremiumNFT(
         walletAddress,
         subscriptionId,
         invoice.customer as string,
       );
+      
       return NextResponse.json({
         success: true,
         ...mintResult,
@@ -290,14 +262,14 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Handle subscription cancellation ---
-    if (event.type === "customer.subscription.deleted") {
+    if (event. type === "customer.subscription.deleted") {
       const subscription = event.data
         .object as Stripe.Subscription;
       const subscriptionId = subscription.id;
       let walletAddress =
         subscription.metadata?.walletAddress;
 
-      // Fallback: try to get from DB
+      // Fallback:  try to get from DB
       if (!walletAddress) {
         const { data } = await supabase
           .from("subscriptions")
@@ -307,9 +279,13 @@ export async function POST(req: NextRequest) {
         walletAddress = data?.wallet_address;
       }
 
+      console.log(
+        `Subscription deleted:  ${subscriptionId}, wallet: ${walletAddress}`
+      );
+
       // Update subscription status in database
       await supabase
-        .from("subscriptions")
+        . from("subscriptions")
         .update({
           status: "cancelled",
           updated_at: new Date().toISOString(),
@@ -333,7 +309,7 @@ export async function POST(req: NextRequest) {
         } catch (error) {
           // Log error but continue - don't fail the webhook
           console.error(
-            `Failed to burn NFT for subscription ${subscriptionId}:`,
+            `Failed to burn NFT for subscription ${subscriptionId}: `,
             error,
           );
         }
@@ -346,59 +322,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // --- Handle payment_intent.succeeded (for Payment Intent flow from element-test) ---
-    if (event.type === "payment_intent.succeeded") {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const walletAddress = paymentIntent.metadata?.walletAddress;
-
-      if (!walletAddress) {
-        console.log(
-          "payment_intent.succeeded received but no wallet address in metadata",
-        );
-        return NextResponse.json({ received: true });
-      }
-
-      console.log(
-        `Payment Intent succeeded for wallet: ${walletAddress}`,
+    // --- Handle payment failures ---
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = invoice.subscription as string;
+      
+      console.warn(
+        `Payment failed for subscription: ${subscriptionId}`
       );
-
-      // Save payment details to database
-      const customerId =
-        typeof paymentIntent.customer === "string"
-          ? paymentIntent.customer
-          : null;
-
-      await supabase.from("subscriptions").upsert(
-        {
-          wallet_address: walletAddress.toLowerCase(),
-          subscription_id: paymentIntent.id, // Use payment intent ID as identifier
-          customer_id: customerId,
-          status: "active",
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: ["subscription_id"] },
-      );
-
-      // Mint NFT
-      const mintResult = await mintPremiumNFT(
-        walletAddress,
-        paymentIntent.id,
-        customerId || undefined,
-      );
-
-      return NextResponse.json({
-        success: true,
-        ...mintResult,
-      });
+      
+      // Optionally:  Update subscription status or notify user
+      // For now, just log it - Stripe will retry automatically
+      
+      return NextResponse.json({ received: true });
     }
 
     // Return a response for other event types
+    console.log(`Received unhandled webhook event: ${event.type}`);
     return NextResponse.json({ received: true });
   } catch (err: any) {
+    console.error("Webhook handler error:", err);
     return NextResponse.json(
       {
         error: "Webhook handler failed",
-        details: err?.message || String(err),
+        details: err?. message || String(err),
       },
       { status: 500 },
     );
