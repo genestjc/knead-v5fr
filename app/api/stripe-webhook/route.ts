@@ -16,12 +16,12 @@ import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process. env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
 const supabase = createClient(
-  process. env.SUPABASE_URL! ,
+  process.env.SUPABASE_URL! ,
   process.env. SUPABASE_SERVICE_ROLE_KEY!,
 );
 
@@ -30,7 +30,7 @@ const CONTRACT_ADDRESS =
 const PAID_TOKEN_ID = 1n;
 
 async function mintPremiumNFT(
-  walletAddress: string,
+  walletAddress:  string,
   subscriptionId?:  string,
   customerId?: string,
 ) {
@@ -76,7 +76,7 @@ async function mintPremiumNFT(
       .from("subscriptions")
       .update({
         token_minted: true,
-        token_id:  PAID_TOKEN_ID. toString(),
+        token_id: PAID_TOKEN_ID. toString(),
         mint_transaction_hash: transactionHash,
       })
       .eq("subscription_id", subscriptionId);
@@ -97,17 +97,17 @@ async function burnPremiumNFT(
     client,
     address: CONTRACT_ADDRESS,
     chain: base,
-    abi: kneadMembershipABI,
+    abi:  kneadMembershipABI,
   });
 
   // Check if user has premium token
   const balance = await balanceOf({
     contract,
     owner: walletAddress,
-    tokenId: PAID_TOKEN_ID,
+    tokenId:  PAID_TOKEN_ID,
   });
 
-  if (! balance || balance.value === 0n) {
+  if (!balance || balance.value === 0n) {
     return { 
       success: true, 
       noTokenToBurn: true,
@@ -118,7 +118,7 @@ async function burnPremiumNFT(
   // Prepare and send burn transaction
   const transaction = prepareContractCall({
     contract,
-    method: 
+    method:
       "function adminBurn(address from, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
     gasLimit: 300000n,
@@ -146,7 +146,7 @@ async function burnPremiumNFT(
       
       if (error) {
         console.error(
-          `Database error updating burn info for subscription ${subscriptionId}:`,
+          `Database error updating burn info for subscription ${subscriptionId}: `,
           error,
         );
       }
@@ -192,79 +192,105 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Handle invoice.payment_succeeded (for subscriptions with Stripe Elements) ---
+    // --- Handle invoice. payment_succeeded (for subscriptions with Stripe Elements) ---
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = invoice.subscription as string;
       
-      // Skip if this is not a subscription invoice
-      if (!subscriptionId) {
-        console.log("Skipping non-subscription invoice");
+      console.log("=== INVOICE PAYMENT SUCCEEDED ===");
+      console.log("Invoice ID:", invoice.id);
+      console.log("Billing reason:", invoice.billing_reason);
+      
+      // Get subscription ID from EITHER location (old API or new API)
+      let subscriptionId:  string | undefined;
+      
+      // Try old API format (top-level subscription field)
+      if (invoice.subscription && typeof invoice.subscription === 'string') {
+        subscriptionId = invoice.subscription;
+        console.log("Found subscription ID (old format):", subscriptionId);
+      } 
+      // Try new API format (parent.subscription_details.subscription)
+      else if ((invoice as any).parent?.subscription_details?.subscription) {
+        subscriptionId = (invoice as any).parent.subscription_details. subscription;
+        console.log("Found subscription ID (new format):", subscriptionId);
+      }
+      
+      if (! subscriptionId) {
+        console.log("⚠️ No subscription ID found - skipping");
         return NextResponse.json({ received: true });
       }
-
-      let walletAddress:  string | undefined;
-
-      // Try to get wallet address from subscription metadata
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      walletAddress = subscription. metadata?.walletAddress;
-
-      // Fallback: try to get from customer metadata
+      
+      console.log("Processing subscription:", subscriptionId);
+      
+      // Get wallet address - try multiple locations
+      let walletAddress: string | undefined;
+      
+      // First try: subscription metadata
+      try {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        walletAddress = subscription.metadata?.walletAddress;
+        console.log("Wallet from subscription metadata:", walletAddress);
+      } catch (err) {
+        console.error("Error retrieving subscription:", err);
+      }
+      
+      // Second try: invoice parent metadata (new API format)
+      if (!walletAddress) {
+        walletAddress = (invoice as any).parent?.subscription_details?.metadata?.walletAddress;
+        console.log("Wallet from invoice parent metadata:", walletAddress);
+      }
+      
+      // Third try: customer metadata
       if (!walletAddress && invoice.customer) {
-        const customer = await stripe.customers.retrieve(
-          invoice.customer as string,
-        );
+        const customer = await stripe.customers.retrieve(invoice.customer as string);
         if (typeof customer !== "string") {
-          walletAddress = customer. metadata?.walletAddress;
+          walletAddress = customer.metadata?.walletAddress;
+          console.log("Wallet from customer metadata:", walletAddress);
         }
       }
-
-      if (! walletAddress) {
-        console.error(
-          `No wallet address found for subscription ${subscriptionId}`
-        );
+      
+      if (!walletAddress) {
+        console.error("❌ No wallet address found!");
         return NextResponse.json(
-          {
-            error: 
-              "No wallet address found in subscription/customer metadata",
-          },
-          { status: 400 },
+          { error: "No wallet address found" },
+          { status:  400 }
         );
       }
-
-      console.log(
-        `Invoice payment succeeded for subscription: ${subscriptionId}, wallet: ${walletAddress}`
-      );
-
-      // Save subscription details to database (if not already present)
-      await supabase. from("subscriptions").upsert(
+      
+      console.log("✅ Found wallet address:", walletAddress);
+      
+      // Save subscription to database
+      await supabase.from("subscriptions").upsert(
         {
-          wallet_address: walletAddress.toLowerCase(),
-          subscription_id: subscriptionId,
-          customer_id:  invoice.customer as string,
+          wallet_address: walletAddress. toLowerCase(),
+          subscription_id:  subscriptionId,
+          customer_id: invoice.customer as string,
           status: "active",
           created_at: new Date().toISOString(),
         },
-        { onConflict: "subscription_id" },
+        { onConflict:  "subscription_id" }
       );
-
-      // Mint NFT (only mints if user doesn't have one)
+      
+      console.log("💎 Minting NFT...");
+      
+      // Mint NFT
       const mintResult = await mintPremiumNFT(
         walletAddress,
         subscriptionId,
-        invoice.customer as string,
+        invoice.customer as string
       );
+      
+      console.log("✅ Mint result:", JSON.stringify(mintResult));
       
       return NextResponse.json({
         success: true,
-        ...mintResult,
+        ... mintResult,
       });
     }
 
     // --- Handle subscription cancellation ---
     if (event. type === "customer.subscription.deleted") {
       const subscription = event.data
-        .object as Stripe.Subscription;
+        .object as Stripe. Subscription;
       const subscriptionId = subscription.id;
       let walletAddress =
         subscription.metadata?.walletAddress;
@@ -280,12 +306,12 @@ export async function POST(req: NextRequest) {
       }
 
       console.log(
-        `Subscription deleted:  ${subscriptionId}, wallet: ${walletAddress}`
+        `Subscription deleted: ${subscriptionId}, wallet:  ${walletAddress}`
       );
 
       // Update subscription status in database
       await supabase
-        . from("subscriptions")
+        .from("subscriptions")
         .update({
           status: "cancelled",
           updated_at: new Date().toISOString(),
@@ -303,13 +329,13 @@ export async function POST(req: NextRequest) {
             subscriptionId,
           );
           console.log(
-            `NFT burn result:`,
+            `NFT burn result: `,
             JSON.stringify(burnResult),
           );
         } catch (error) {
           // Log error but continue - don't fail the webhook
           console.error(
-            `Failed to burn NFT for subscription ${subscriptionId}: `,
+            `Failed to burn NFT for subscription ${subscriptionId}:`,
             error,
           );
         }
@@ -324,11 +350,11 @@ export async function POST(req: NextRequest) {
 
     // --- Handle payment failures ---
     if (event.type === "invoice.payment_failed") {
-      const invoice = event.data.object as Stripe.Invoice;
+      const invoice = event. data.object as Stripe.Invoice;
       const subscriptionId = invoice.subscription as string;
       
-      console.warn(
-        `Payment failed for subscription: ${subscriptionId}`
+      console. warn(
+        `Payment failed for subscription:  ${subscriptionId}`
       );
       
       // Optionally:  Update subscription status or notify user
@@ -340,7 +366,7 @@ export async function POST(req: NextRequest) {
     // Return a response for other event types
     console.log(`Received unhandled webhook event: ${event.type}`);
     return NextResponse.json({ received: true });
-  } catch (err: any) {
+  } catch (err:  any) {
     console.error("Webhook handler error:", err);
     return NextResponse.json(
       {
