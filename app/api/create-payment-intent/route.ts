@@ -12,53 +12,37 @@ export async function POST(req: NextRequest) {
     const { walletAddress, amount } = await req.json();
 
     if (!walletAddress) {
-      return NextResponse.json(
+      return NextResponse. json(
         { error: "Missing wallet address" },
         { status: 400 },
       );
     }
 
-    // Amount in cents (default $5 for monthly subscription)
-    const paymentAmount = amount || 500;
-
     // Step 1: Create or retrieve customer
-    let customer:  Stripe.Customer;
+    let customer: Stripe.Customer;
     
-    // Check if customer already exists with this wallet address
-    const existingCustomers = await stripe.customers.list({
+    // Search for existing customer with this wallet address
+    const existingCustomers = await stripe.customers.search({
+      query: `metadata['walletAddress']:'${walletAddress}'`,
       limit: 1,
     });
     
-    const existingCustomer = existingCustomers.data. find(
-      (c) => c.metadata?.walletAddress === walletAddress
-    );
-
-    if (existingCustomer) {
-      customer = existingCustomer;
+    if (existingCustomers.data. length > 0) {
+      customer = existingCustomers.data[0];
     } else {
       customer = await stripe.customers.create({
         metadata: {
-          walletAddress:  walletAddress,
+          walletAddress: walletAddress,
         },
       });
     }
 
     // Step 2: Create the subscription
-    const subscription = await stripe. subscriptions.create({
+    const subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [
         {
-          price_data: {
-            currency: "usd",
-            product_data:  {
-              name: "Knead Monthly Membership",
-              description: "Unlimited access to Knead Monthly content",
-            },
-            unit_amount: paymentAmount,
-            recurring: {
-              interval: "month",
-            },
-          },
+          price: process.env. STRIPE_PRICE_ID!, // Use your existing Price ID
         },
       ],
       payment_behavior: "default_incomplete",
@@ -83,8 +67,8 @@ export async function POST(req: NextRequest) {
   } catch (err:  unknown) {
     const errorMessage =
       err instanceof Error
-        ?  err.message
-        : "Failed to create subscription";
+        ? err.message
+        :  "Failed to create subscription";
     console.error("Error creating subscription:", err);
     return NextResponse.json(
       { error: errorMessage },
