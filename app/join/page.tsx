@@ -282,7 +282,7 @@ export default function JoinPage() {
                 question="How does the Knead Monthly subscription work?"
                 answer={
                   <span className="faq-answer text-left block">
-                    We mint you a membership token that enables access to all paywalls, experiences, and other perks.
+                    We mint you a membership that enables access to all paywalls, experiences, and other perks.
                   </span>
                 }
               />
@@ -314,7 +314,7 @@ export default function JoinPage() {
                 question="Will I get access immediately after subscribing?"
                 answer={
                   <span className="faq-answer text-left block">
-                    Absolutely. We mint you a membership token to access unlimited stories and other perks.
+                    Absolutely. We mint you a membership token to access unlimited stories and other perks. If you're having trouble, try refreshing the page after purchase.
                   </span>
                 }
               />
