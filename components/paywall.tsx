@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -287,6 +288,9 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
             <DialogTitle className="font-adonis text-xl text-center">
               Subscribe to Knead Monthly
             </DialogTitle>
+            <DialogDescription className="font-georgia-pro text-sm text-center text-gray-600">
+              Complete your payment to get unlimited access to all Knead stories
+            </DialogDescription>
           </DialogHeader>
           {clientSecret && stripeOptions && (
             <Elements stripe={stripePromise} options={stripeOptions}>
