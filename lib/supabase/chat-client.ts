@@ -185,123 +185,61 @@ export async function checkFreemiumTimeRemaining(userId: string): Promise<number
 }
 
 /**
- * Award like - Contributor awards points to participant
+ * Record a like on a message (for UI only, no points awarded)
+ * Points are now handled directly via blockchain transfers
  */
-export async function awardLike(
+export async function recordLike(
   messageId: string,
-  contributorId: string,
-  actionType: ActionType,
-  eventType: EventType
-): Promise<{ success: boolean; points?: number; budgetRemaining?: number; error?: string }> {
-  const supabase = createSupabaseAdmin();
-
-  try {
-    const { data, error } = await supabase.rpc('award_like', {
-      p_message_id: messageId,
-      p_contributor_id: contributorId,
-      p_action_type: actionType,
-      p_event_type: eventType,
-    });
-
-    if (error) {
-      console.error('Error awarding like:', error);
-      return { success: false, error: error.message };
-    }
-
-    return {
-      success: true,
-      points: data?.points_awarded,
-      budgetRemaining: data?.budget_remaining,
-    };
-  } catch (error: any) {
-    console.error('Error in awardLike:', error);
-    return { success: false, error: error.message || 'Failed to award like' };
-  }
-}
-
-/**
- * Unlike message - Reverse like within 5 minutes
- */
-export async function unlikeMessage(
-  messageId: string,
-  contributorId: string
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createSupabaseAdmin();
 
   try {
-    const { data, error } = await supabase.rpc('unlike_message', {
-      p_message_id: messageId,
-      p_contributor_id: contributorId,
-    });
+    // Simply record the like in the database for UI display
+    const { error } = await supabase
+      .from('message_likes')
+      .insert({
+        message_id: messageId,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      });
 
     if (error) {
-      console.error('Error unliking message:', error);
+      console.error('Error recording like:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error in unlikeMessage:', error);
-    return { success: false, error: error.message || 'Failed to unlike message' };
+    console.error('Error in recordLike:', error);
+    return { success: false, error: error.message || 'Failed to record like' };
   }
 }
 
 /**
- * Award automatic bonus - System-triggered bonuses
+ * Remove a like from a message
  */
-export async function awardAutomaticBonus(
-  userId: string,
-  bonusType: 'guest_response' | 'thread_starter' | 'viral' | 'attendance',
-  metadata: Record<string, any> = {}
-): Promise<{ success: boolean; points?: number; error?: string }> {
+export async function removeLike(
+  messageId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
   const supabase = createSupabaseAdmin();
 
   try {
-    const { data, error } = await supabase.rpc('award_automatic_bonus', {
-      p_user_id: userId,
-      p_bonus_type: bonusType,
-      p_metadata: metadata,
-    });
+    const { error } = await supabase
+      .from('message_likes')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', userId);
 
     if (error) {
-      console.error('Error awarding automatic bonus:', error);
+      console.error('Error removing like:', error);
       return { success: false, error: error.message };
     }
 
-    return {
-      success: true,
-      points: data?.points_awarded,
-    };
+    return { success: true };
   } catch (error: any) {
-    console.error('Error in awardAutomaticBonus:', error);
-    return { success: false, error: error.message || 'Failed to award bonus' };
-  }
-}
-
-/**
- * Get contributor stats - Analytics for contributor dashboard
- */
-export async function getContributorStats(contributorId: string): Promise<{
-  totalLikesAwarded: number;
-  totalPointsDistributed: number;
-  budgetRemaining: number;
-  topRecipients: Array<{ userId: string; displayName: string; points: number }>;
-} | null> {
-  const supabase = createSupabaseAdmin();
-
-  try {
-    const { data, error } = await supabase.rpc('get_contributor_stats', {
-      p_contributor_id: contributorId,
-    });
-
-    if (error || !data) {
-      console.error('Error getting contributor stats:', error);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error in getContributorStats:', error);
-    return null;
+    console.error('Error in removeLike:', error);
+    return { success: false, error: error.message || 'Failed to remove like' };
   }
 }

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-// --- CORRECTED: Removing useSyncAgent and relying on the parent's conditional rendering ---
 import { useAgentConnection, useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { ChatLayout } from '@/components/chat/ChatLayout';
+import { MessageBubble, EventBanner, TypingIndicator } from '@/components/chat/MessageBubble';
 import type { ChatUser } from '@/types/chat';
+import { useActiveAccount } from 'thirdweb/react';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -22,11 +23,11 @@ const LoadingSpinner = () => (
 export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
   const [selectedChannelId, setSelectedChannelId] = useState(defaultChannelId);
+  const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?: string} | null>(null);
   
   const { disconnect } = useAgentConnection();
+  const activeAccount = useActiveAccount();
 
-  // --- CORRECTED LOGIC: Call the hooks directly. They will work because this
-  //      component is only rendered *after* the agent is connected. ---
   const { data: channel, isLoading: isChannelLoading } = useChannel(spaceId, selectedChannelId);
   const { data: timeline, isLoading: isTimelineLoading } = useTimeline(channel?.streamId);
   const { sendMessage, isPending: isSending } = useSendMessage(channel?.streamId);
@@ -50,80 +51,84 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
     }
   };
 
+  // Transform timeline events to message format
+  const messages = timeline?.map((event: any) => ({
+    id: event.id,
+    content: event.message?.text || '',
+    sender: {
+      id: event.creatorUserId || '',
+      name: event.sender || 'Anonymous',
+      avatar: undefined,
+    },
+    timestamp: event.timestamp || Date.now(),
+    isOwn: event.creatorUserId === activeAccount?.address,
+  })) || [];
+
   return (
-    <div className="w-full h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="font-adonis text-3xl">Knead Chat</h1>
-            <p className="font-georgia-pro text-sm text-gray-600">
-              {currentUser?.alias} · <span className="text-xs">{currentUser?.membershipTier}</span>
-              <span className="text-xs text-green-600 ml-2">● Connected</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => disconnect()} className="text-xs text-gray-500 hover:text-gray-700">Disconnect</button>
-            <ThirdWebConnectButton />
-          </div>
+    <ChatLayout>
+      <div className="h-full flex flex-col bg-white">
+        {/* Event Indicator Banner */}
+        {activeEvent && (
+          <EventBanner
+            eventTitle={activeEvent.title}
+            timeRemaining={activeEvent.timeRemaining}
+            isLive={true}
+          />
+        )}
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto">
+          {isTimelineLoading ? (
+            <LoadingSpinner />
+          ) : messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500 py-8">
+                <p className="font-georgia-pro text-lg">No messages yet.</p>
+                <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+              </div>
+            </div>
+          ) : (
+            <div className="py-4">
+              {messages.map((message: any) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isOwn={message.isOwn || false}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
-      </header>
 
-      {/* Main Chat Area */}
-      <div className="flex max-w-7xl mx-auto w-full flex-grow">
-        <aside className="w-64 bg-white border-r border-gray-200 flex-shrink-0">
-          <div className="p-4">
-            <h2 className="font-georgia-pro font-semibold text-sm text-gray-500 uppercase mb-4">Channels</h2>
-            <nav className="space-y-2">
-              <button className="w-full text-left px-4 py-2 rounded-lg font-georgia-pro bg-black text-white">
-                # {isChannelLoading ? 'Loading...' : channel?.name || 'general'}
-              </button>
-            </nav>
-          </div>
-        </aside>
-
-        <main className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {isTimelineLoading ? <LoadingSpinner /> : (
-              timeline?.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">No messages yet. Be the first to start the conversation!</div>
-              ) : (
-                timeline?.map((event) => (
-                  <div key={event.id} className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                      {(event.sender || 'A').slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="font-georgia-pro font-semibold">{event.sender || 'Anonymous'}</span>
-                        <span className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleTimeString()}</span>
-                      </div>
-                      <p className="font-georgia-pro text-gray-800">{event.message?.text}</p>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="border-t border-gray-200 p-4 bg-white">
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                disabled={isSending || isChannelLoading}
-              />
-              <button type="submit" disabled={isSending || !messageInput.trim()} className="px-6 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50">
-                {isSending ? 'Sending...' : 'Send'}
-              </button>
-            </form>
-          </div>
-        </main>
+        {/* Input Area - iMessage Style */}
+        <div className="border-t border-gray-200 p-4 bg-white">
+          <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+            <input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              placeholder="iMessage"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
+              disabled={isSending || isChannelLoading}
+            />
+            <button 
+              type="submit" 
+              disabled={isSending || !messageInput.trim()} 
+              className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                fill="currentColor" 
+                className="w-5 h-5"
+              >
+                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+              </svg>
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </ChatLayout>
   );
 }

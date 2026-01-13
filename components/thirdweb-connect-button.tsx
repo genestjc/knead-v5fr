@@ -12,6 +12,7 @@ const wallets = [
     auth: {
       options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
     },
+    hidePrivateKeyExport: false, // ✅ CRITICAL: Enable private key export for non-custodial compliance
   }),
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),

@@ -47,6 +47,17 @@ body {
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* iMessage-style chat colors */
+    --font-heading: 'Adonis', serif;
+    --font-body: 'Georgia Pro', serif;
+    --chat-background: #FFFFFF;
+    --chat-text-primary: #000000;
+    --chat-text-secondary: #666666;
+    --bubble-sent: #007AFF; /* iMessage blue */
+    --bubble-received: #E5E5EA; /* iMessage gray */
+    --accent-knead: #FF6B6B; /* Knead brand red */
+    --border-radius-bubble: 18px;
   }
   .dark {
     --background: 0 0% 3.9%;
