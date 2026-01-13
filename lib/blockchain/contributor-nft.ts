@@ -8,7 +8,6 @@
 import { getContract, readContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client as thirdwebClient } from "@/thirdweb-client";
-import type { Address } from "thirdweb/wallets";
 
 export type ContributorType = 'appointed' | 'earned' | 'invited' | null;
 
@@ -31,14 +30,14 @@ export async function isContributor(address: string): Promise<boolean> {
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: nftContractAddress as Address,
+      address: nftContractAddress,
     });
 
     // Check ERC721 balance
     const balance = await readContract({
       contract,
       method: "function balanceOf(address owner) view returns (uint256)",
-      params: [address as Address],
+      params: [address],
     });
 
     return Number(balance) > 0;
@@ -70,14 +69,14 @@ export async function getContributorType(address: string): Promise<ContributorTy
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: nftContractAddress as Address,
+      address: nftContractAddress,
     });
 
     // First check if user has any NFTs
     const balance = await readContract({
       contract,
       method: "function balanceOf(address owner) view returns (uint256)",
-      params: [address as Address],
+      params: [address],
     });
 
     if (Number(balance) === 0) {

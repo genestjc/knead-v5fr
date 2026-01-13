@@ -8,7 +8,7 @@
 import { getContract, readContract, prepareContractCall, sendTransaction, toWei } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client as thirdwebClient } from "@/thirdweb-client";
-import type { Address, Wallet } from "thirdweb/wallets";
+import type { Account } from "thirdweb/wallets";
 import { logTransactionAnalytics } from "@/lib/analytics/transaction-logger";
 
 /**
@@ -27,13 +27,13 @@ export async function getUserTownsBalance(walletAddress: string): Promise<number
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress as Address,
+      address: townsContractAddress,
     });
 
     const balance = await readContract({
       contract,
       method: "function balanceOf(address account) view returns (uint256)",
-      params: [walletAddress as Address],
+      params: [walletAddress],
     });
 
     // Convert from wei (18 decimals) to $TOWNS tokens
@@ -49,18 +49,18 @@ export async function getUserTownsBalance(walletAddress: string): Promise<number
 /**
  * Award $TOWNS tokens directly from contributor wallet to participant
  * 
- * @param contributorWallet - Contributor's wallet instance (must be connected)
+ * @param contributorAccount - Contributor's account instance (must be connected)
  * @param participantAddress - Participant's wallet address
  * @param amount - Amount of $TOWNS tokens to award (as number)
  * @param eventId - Optional event ID for analytics
- * @returns Transaction hash and block number
+ * @returns Transaction hash
  */
 export async function awardTownsTokens(
-  contributorWallet: Wallet,
+  contributorAccount: Account,
   participantAddress: string,
   amount: number,
   eventId?: string
-): Promise<{ transactionHash: string; blockNumber?: bigint }> {
+): Promise<{ transactionHash: string }> {
   try {
     const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
     if (!townsContractAddress) {
@@ -70,7 +70,7 @@ export async function awardTownsTokens(
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress as Address,
+      address: townsContractAddress,
     });
 
     // Convert amount to wei (18 decimals)
@@ -80,18 +80,18 @@ export async function awardTownsTokens(
     const transaction = prepareContractCall({
       contract,
       method: "function transfer(address to, uint256 amount) returns (bool)",
-      params: [participantAddress as Address, amountInWei],
+      params: [participantAddress, amountInWei],
     });
 
-    // Send transaction from contributor's wallet
+    // Send transaction from contributor's account
     const receipt = await sendTransaction({
       transaction,
-      account: contributorWallet,
+      account: contributorAccount,
     });
 
     // Log to analytics (not source of truth)
     await logTransactionAnalytics({
-      from: contributorWallet.address || "",
+      from: contributorAccount.address,
       to: participantAddress,
       amount,
       txHash: receipt.transactionHash,
@@ -101,7 +101,6 @@ export async function awardTownsTokens(
 
     return {
       transactionHash: receipt.transactionHash,
-      blockNumber: receipt.blockNumber,
     };
   } catch (error) {
     console.error("Error awarding $TOWNS tokens:", error);
@@ -126,7 +125,7 @@ export async function getTownsTotalSupply(): Promise<number> {
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress as Address,
+      address: townsContractAddress,
     });
 
     const totalSupply = await readContract({
