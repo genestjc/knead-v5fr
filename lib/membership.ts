@@ -1,6 +1,7 @@
 import { getContract } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
+import { logger } from "./logger";
 
 // The only contract that will be checked for membership.
 const MEMBERSHIP_CONTRACTS = [
@@ -27,11 +28,11 @@ export async function getMembershipType(
   address: string,
 ): Promise<MembershipType> {
   try {
-    console.log(`🔍 Starting simplified membership check for: ${address}`);
+    logger.log(`🔍 Starting simplified membership check for: ${address}`);
     
     const contractInfo = MEMBERSHIP_CONTRACTS[0];
     
-    console.log(`📋 Checking contract: ${contractInfo.name} on ${contractInfo.chain.name || contractInfo.chain.id}`);
+    logger.log(`📋 Checking contract: ${contractInfo.name} on ${contractInfo.chain.name || contractInfo.chain.id}`);
       
     const contractInstance = getContract({
       client,
@@ -39,47 +40,43 @@ export async function getMembershipType(
       address: contractInfo.address,
     });
 
-    // 1. Check for the premium token first.
-    try {
-      console.log(`⚡ Checking premium token (ID: ${contractInfo.tokenIds.premium})`);
-      const premiumBalance = await balanceOf({
+    // Parallelize balance checks for better performance (~50% faster)
+    logger.log(`⚡ Checking premium and freemium tokens in parallel`);
+    const [premiumBalance, freemiumBalance] = await Promise.all([
+      balanceOf({
         contract: contractInstance,
         owner: address,
         tokenId: BigInt(contractInfo.tokenIds.premium),
-      });
-
-      if (premiumBalance > 0n) {
-        console.log(`✅ Found premium membership in ${contractInfo.name}!`);
-        return "premium";
-      }
-    } catch (err) {
-      console.error(`Error checking premium token for ${contractInfo.name}:`, err);
-      // If premium check fails, we can still check for freemium.
-    }
-    
-    // 2. If not premium, check for the freemium token.
-    try {
-      console.log(`⚡ Checking freemium token (ID: ${contractInfo.tokenIds.freemium})`);
-      const freemiumBalance = await balanceOf({
+      }).catch(err => {
+        logger.error(`Error checking premium token for ${contractInfo.name}:`, err);
+        return 0n;
+      }),
+      balanceOf({
         contract: contractInstance,
         owner: address,
         tokenId: BigInt(contractInfo.tokenIds.freemium),
-      });
+      }).catch(err => {
+        logger.error(`Error checking freemium token for ${contractInfo.name}:`, err);
+        return 0n;
+      })
+    ]);
 
-      if (freemiumBalance > 0n) {
-        console.log(`✅ Found freemium membership in ${contractInfo.name}!`);
-        return "freemium";
-      }
-    } catch (err) {
-      console.error(`Error checking freemium token for ${contractInfo.name}:`, err);
+    if (premiumBalance > 0n) {
+      logger.log(`✅ Found premium membership in ${contractInfo.name}!`);
+      return "premium";
+    }
+
+    if (freemiumBalance > 0n) {
+      logger.log(`✅ Found freemium membership in ${contractInfo.name}!`);
+      return "freemium";
     }
     
     // 3. If neither token is found, return null.
-    console.log(`🚫 No membership found for address: ${address}`);
+    logger.log(`🚫 No membership found for address: ${address}`);
     return null;
 
   } catch (error) {
-    console.error("A general error occurred in getMembershipType:", error);
+    logger.error("A general error occurred in getMembershipType:", error);
     // Return null on any unexpected errors to prevent accidental access.
     return null;
   }

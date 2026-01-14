@@ -1,6 +1,7 @@
 import { getClient, urlFor } from "./sanity"
 import type { Post, Author } from "./types"
 import { posts as mockPosts } from "./mock-data"
+import { logger } from "./logger"
 
 // Transform Sanity author to our app's author format
 function transformAuthor(sanityAuthor: any): Author {
@@ -24,7 +25,7 @@ function transformAuthor(sanityAuthor: any): Author {
 
 // Transform Sanity post to our app's post format
 function transformPost(sanityPost: any, author: Author): Post {
-  console.log("🔍 TITLE DEBUG - Raw Sanity post title:", sanityPost.title)
+  logger.debug("🔍 TITLE DEBUG - Raw Sanity post title:", sanityPost.title)
 
   const transformedPost = {
     id: sanityPost._id,
@@ -39,7 +40,7 @@ function transformPost(sanityPost: any, author: Author): Post {
     isPremium: sanityPost.isPremium || false,
   }
 
-  console.log("🔍 TITLE DEBUG - After transformPost:", transformedPost.title)
+  logger.debug("🔍 TITLE DEBUG - After transformPost:", transformedPost.title)
   return transformedPost
 }
 
@@ -86,7 +87,7 @@ function transformBlockContent(blocks: any[]): string {
 export async function getPosts(preview = false): Promise<Post[]> {
   // Use mock data if no Sanity project ID is set
   if (!process.env.NEXT_PUBLIC_SANITY_PROJECT_ID) {
-    console.log("Using mock post data (no Sanity project ID found)")
+    logger.log("Using mock post data (no Sanity project ID found)")
     return mockPosts
   }
 
@@ -116,9 +117,9 @@ export async function getPosts(preview = false): Promise<Post[]> {
       }
     }`
 
-    console.log("🔍 TITLE DEBUG - Fetching posts from Sanity...")
+    logger.debug("🔍 TITLE DEBUG - Fetching posts from Sanity...")
     const sanityPosts = await client.fetch(query)
-    console.log(
+    logger.debug(
       "🔍 TITLE DEBUG - Raw Sanity response (first 3 titles):",
       sanityPosts.slice(0, 3).map((p: any) => ({ id: p._id, title: p.title })),
     )
@@ -130,15 +131,15 @@ export async function getPosts(preview = false): Promise<Post[]> {
         return transformPost(post, author)
       })
 
-    console.log(
+    logger.debug(
       "🔍 TITLE DEBUG - After transformation (first 3 titles):",
       transformedPosts.slice(0, 3).map((p: Post) => ({ id: p.id, title: p.title })),
     )
 
     return transformedPosts
   } catch (error) {
-    console.error("Error fetching posts from Sanity:", error)
-    console.log("Falling back to mock data")
+    logger.error("Error fetching posts from Sanity:", error)
+    logger.log("Falling back to mock data")
     return mockPosts
   }
 }
@@ -147,7 +148,7 @@ export async function getPosts(preview = false): Promise<Post[]> {
 export async function getPostBySlug(slug: string, preview = false): Promise<Post | null> {
   // Use mock data if no Sanity project ID is set
   if (!process.env.NEXT_PUBLIC_SANITY_PROJECT_ID) {
-    console.log("Using mock post data (no Sanity project ID found)")
+    logger.log("Using mock post data (no Sanity project ID found)")
     const post = mockPosts.find((p) => p.slug === slug)
     return post || null
   }
@@ -178,11 +179,11 @@ export async function getPostBySlug(slug: string, preview = false): Promise<Post
       }
     }`
 
-    console.log("🔍 TITLE DEBUG - Fetching single post by slug:", slug)
+    logger.debug("🔍 TITLE DEBUG - Fetching single post by slug:", slug)
     const sanityPost = await client.fetch(query, { slug })
 
     if (sanityPost) {
-      console.log("🔍 TITLE DEBUG - Raw single post title:", sanityPost.title)
+      logger.debug("🔍 TITLE DEBUG - Raw single post title:", sanityPost.title)
     }
 
     if (!sanityPost || !sanityPost.author || !sanityPost.author._id) {
@@ -192,11 +193,11 @@ export async function getPostBySlug(slug: string, preview = false): Promise<Post
     const author = transformAuthor(sanityPost.author)
     const transformedPost = transformPost(sanityPost, author)
 
-    console.log("🔍 TITLE DEBUG - Final single post title:", transformedPost.title)
+    logger.debug("🔍 TITLE DEBUG - Final single post title:", transformedPost.title)
     return transformedPost
   } catch (error) {
-    console.error("Error fetching post from Sanity:", error)
-    console.log("Falling back to mock data")
+    logger.error("Error fetching post from Sanity:", error)
+    logger.log("Falling back to mock data")
     const post = mockPosts.find((p) => p.slug === slug)
     return post || null
   }

@@ -3,6 +3,7 @@ import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../app/abi/kneadMembershipABI.json";
 import { client, serverWallet } from "../thirdweb-server-wallet";
+import { logger } from "./logger";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PREMIUM_TOKEN_ID = 1;
@@ -10,7 +11,7 @@ const FREEMIUM_TOKEN_ID = 0;
 
 export async function mintPremiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to mint premium NFT for ${walletAddress}`);
+    logger.log(`Attempting to mint premium NFT for ${walletAddress}`);
     
     const contract = getContract({
       client,
@@ -27,7 +28,7 @@ export async function mintPremiumNFT(walletAddress: string) {
     });
     
     if (balance > 0n) {
-      console.log(`User ${walletAddress} already has premium token, skipping mint`);
+      logger.log(`User ${walletAddress} already has premium token, skipping mint`);
       return { success: true, alreadyMinted: true };
     }
     
@@ -50,17 +51,17 @@ export async function mintPremiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Premium NFT minted successfully: ${transactionHash}`);
+    logger.log(`Premium NFT minted successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error minting premium NFT:", error);
+    logger.error("Error minting premium NFT:", error);
     throw new Error(`Failed to mint premium NFT: ${error.message}`);
   }
 }
 
 export async function burnPremiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to burn premium NFT from ${walletAddress}`);
+    logger.log(`Attempting to burn premium NFT from ${walletAddress}`);
     
     const contract = getContract({
       client,
@@ -77,7 +78,7 @@ export async function burnPremiumNFT(walletAddress: string) {
     });
     
     if (balance === 0n) {
-      console.log(`User ${walletAddress} does not have premium token, skipping burn`);
+      logger.log(`User ${walletAddress} does not have premium token, skipping burn`);
       return { success: true, notOwned: true };
     }
     
@@ -100,17 +101,17 @@ export async function burnPremiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Premium NFT burned successfully: ${transactionHash}`);
+    logger.log(`Premium NFT burned successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error burning premium NFT:", error);
+    logger.error("Error burning premium NFT:", error);
     throw new Error(`Failed to burn premium NFT: ${error.message}`);
   }
 }
 
 export async function mintFreemiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to mint freemium NFT for ${walletAddress}`);
+    logger.log(`Attempting to mint freemium NFT for ${walletAddress}`);
     
     const contract = getContract({
       client,
@@ -127,7 +128,7 @@ export async function mintFreemiumNFT(walletAddress: string) {
     });
     
     if (balance > 0n) {
-      console.log(`User ${walletAddress} already has freemium token, skipping mint`);
+      logger.log(`User ${walletAddress} already has freemium token, skipping mint`);
       return { success: true, alreadyMinted: true };
     }
     
@@ -150,10 +151,10 @@ export async function mintFreemiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Freemium NFT minted successfully: ${transactionHash}`);
+    logger.log(`Freemium NFT minted successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error minting freemium NFT:", error);
+    logger.error("Error minting freemium NFT:", error);
     throw new Error(`Failed to mint freemium NFT: ${error.message}`);
   }
 }

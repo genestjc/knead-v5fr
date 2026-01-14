@@ -16,9 +16,11 @@ if (process.env.NODE_ENV !== 'production') {
   }
 }
 
-// Create client with proper error handling
+// Create client with proper error handling - fail fast if missing
 export const client = createThirdwebClient({ 
-  clientId: clientId || "44984f2bc038cebc6138d4ceb602c35d" // Fallback for development
+  clientId: clientId || (() => {
+    throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required');
+  })()
 });
 
 // --- THIS IS THE ONLY INTENDED ADDITION ---
