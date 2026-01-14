@@ -2,6 +2,7 @@ import { createThirdwebClient, getNativeBalance } from "thirdweb"; // Restored g
 import { base } from "thirdweb/chains";
 import { balanceOf } from "thirdweb/extensions/erc1155"; // Restored balanceOf
 import { getContract } from "thirdweb"; // Restored getContract
+import { logger } from "./lib/logger";
 
 // Client ID from environment with diagnostic checks
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
@@ -9,16 +10,18 @@ const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
 // Print diagnostic info on initialization, but only in non-production
 if (process.env.NODE_ENV !== 'production') {
   if (!clientId) {
-    console.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set!");
-    console.warn("ThirdWeb functionality may be limited. Check your .env file.");
+    logger.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set!");
+    logger.warn("ThirdWeb functionality may be limited. Check your .env file.");
   } else {
-    console.log("✅ ThirdWeb client ID configured correctly");
+    logger.log("✅ ThirdWeb client ID configured correctly");
   }
 }
 
-// Create client with proper error handling
+// Create client with proper error handling - fail fast if missing
 export const client = createThirdwebClient({ 
-  clientId: clientId || "44984f2bc038cebc6138d4ceb602c35d" // Fallback for development
+  clientId: clientId || (() => {
+    throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required');
+  })()
 });
 
 // --- THIS IS THE ONLY INTENDED ADDITION ---
@@ -26,7 +29,7 @@ export const client = createThirdwebClient({
 export const activeChain = base;
 
 // Log initialization status
-console.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
+logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
 // Your existing contract definitions are unchanged.
 export const KNEAD_MEMBERSHIP_CONTRACT = {

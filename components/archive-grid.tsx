@@ -5,6 +5,7 @@ import Image from "next/image"
 import { formatDate } from "@/lib/utils"
 import { urlFor } from "@/lib/sanity"
 import { useEffect, useState } from "react"
+import { logger } from "@/lib/logger"
 
 interface Post {
   slug: string | { current: string }
@@ -22,14 +23,14 @@ export function ArchiveGrid({ posts }: ArchiveGridProps) {
   const [visiblePosts, setVisiblePosts] = useState<Set<number>>(new Set())
 
   useEffect(() => {
-    console.log("🔍 TITLE DEBUG - Archive Grid received posts:")
+    logger.debug("🔍 TITLE DEBUG - Archive Grid received posts:")
     posts.forEach((post, index) => {
-      console.log(`🔍 Post ${index}: "${post.title}"`)
+      logger.debug(`🔍 Post ${index}: "${post.title}"`)
     })
   }, [posts])
 
   const cleanTitle = (title: string) => {
-    console.log("🔍 TITLE DEBUG - cleanTitle input:", title)
+    logger.debug("🔍 TITLE DEBUG - cleanTitle input:", title)
 
     // Remove duplicate text and timestamps
     let cleaned = title
@@ -37,7 +38,7 @@ export function ArchiveGrid({ posts }: ArchiveGridProps) {
       .replace(/(.+?)\1+/, "$1") // Remove duplicated text
       .trim()
 
-    console.log("🔍 TITLE DEBUG - After timestamp/duplicate removal:", cleaned)
+    logger.debug("🔍 TITLE DEBUG - After timestamp/duplicate removal:", cleaned)
 
     // Simple string replacements for actual misspellings only
     const corrections = [
@@ -65,16 +66,16 @@ export function ArchiveGrid({ posts }: ArchiveGridProps) {
 
     corrections.forEach(({ from, to }) => {
       if (cleaned.includes(from)) {
-        console.log(`🔧 Applying correction: ${from} → ${to}`)
+        logger.debug(`🔧 Applying correction: ${from} → ${to}`)
         cleaned = cleaned.replace(from, to)
       }
     })
 
     if (originalCleaned !== cleaned) {
-      console.log("✅ Title corrected from:", originalCleaned)
-      console.log("✅ Title corrected to:", cleaned)
+      logger.debug("✅ Title corrected from:", originalCleaned)
+      logger.debug("✅ Title corrected to:", cleaned)
     } else {
-      console.log("🔍 TITLE DEBUG - No corrections needed for:", cleaned)
+      logger.debug("🔍 TITLE DEBUG - No corrections needed for:", cleaned)
     }
 
     return cleaned
@@ -113,26 +114,26 @@ export function ArchiveGrid({ posts }: ArchiveGridProps) {
     if (post.mainImage?.asset) {
       try {
         const url = urlFor(post.mainImage).width(600).height(400).auto("format").fit("crop").crop("focalpoint").url()
-        console.log("Generated Sanity URL for", post.title, ":", url)
+        logger.debug("Generated Sanity URL for", post.title, ":", url)
         return url
       } catch (error) {
-        console.error("Error generating Sanity image URL for post:", post.title, error)
+        logger.error("Error generating Sanity image URL for post:", post.title, error)
       }
     }
 
     // Check if mainImage has a direct URL
     if (post.mainImage?.asset?.url) {
-      console.log("Using direct asset URL for", post.title, ":", post.mainImage.asset.url)
+      logger.debug("Using direct asset URL for", post.title, ":", post.mainImage.asset.url)
       return post.mainImage.asset.url
     }
 
     // Check if mainImage is a direct URL string
     if (typeof post.mainImage === "string" && post.mainImage.startsWith("http")) {
-      console.log("Using direct string URL for", post.title, ":", post.mainImage)
+      logger.debug("Using direct string URL for", post.title, ":", post.mainImage)
       return post.mainImage
     }
 
-    console.log("No valid image found for post:", post.title, "mainImage:", post.mainImage)
+    logger.debug("No valid image found for post:", post.title, "mainImage:", post.mainImage)
     return null
   }
 

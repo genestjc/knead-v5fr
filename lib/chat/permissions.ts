@@ -3,6 +3,7 @@ import { createThirdwebClient, getContract } from 'thirdweb';
 import { getOwnedNFTs } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 // --- CONFIG & SETUP ---
 
@@ -40,7 +41,7 @@ async function isContributor(userAddress: string): Promise<boolean> {
         // Per ThirdWeb AI: Comparison is safe as `nfts.id` is bigint and our array contains bigints.
         return nfts.some(nft => CONTRIBUTOR_TOKEN_IDS.includes(nft.id));
     } catch (error) {
-        console.error(`On-chain contributor check failed for ${userAddress}:`, error);
+        logger.error(`On-chain contributor check failed for ${userAddress}:`, error);
         return false;
     }
 }
@@ -56,7 +57,7 @@ async function isPremiumMember(userAddress: string): Promise<boolean> {
         const nfts = await getOwnedNFTs({ contract: membershipContract, owner: userAddress });
         return nfts.some(nft => nft.id === PREMIUM_TOKEN_ID);
     } catch (error) {
-        console.error(`On-chain premium check failed for ${userAddress}:`, error);
+        logger.error(`On-chain premium check failed for ${userAddress}:`, error);
         return false;
     }
 }
@@ -75,7 +76,7 @@ async function isLiveEventActive(supabase: SupabaseClient): Promise<boolean> {
     .select('id', { count: 'exact', head: true })
     .eq('status', 'live');
   if (error) {
-    console.error("Permissions Error: Could not check for active events.", error);
+    logger.error("Permissions Error: Could not check for active events.", error);
     return false;
   }
   return (count ?? 0) > 0;

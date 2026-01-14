@@ -6,7 +6,8 @@ import {
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 // Token IDs
 const FREEMIUM_TOKEN_ID = 0;
@@ -68,12 +69,8 @@ export async function GET(req: NextRequest) {
 
     // 2. Fallback: Check Supabase for pending subscription
     // (User paid via Stripe but NFT hasn't been minted yet)
-    // Initialize Supabase client inside the function
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY,
-      );
+      const supabase = getSupabaseAdmin();
 
       const { data: subscription } = await supabase
         .from("subscriptions")
@@ -95,10 +92,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ membershipType: "none" });
     
   } catch (error) {
-    console.error("Failed to check membership:", error);
+    logger.error("Failed to check membership:", error);
     
-    // On blockchain errors, return "none" instead of assuming freemium
-    // This prevents false positives
+    // On blockchain errors, return generic error
     return NextResponse.json({
       membershipType: "none",
       error: "Failed to verify membership"

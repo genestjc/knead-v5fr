@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { verifyAdminByAddress } from '@/lib/middleware/admin';
 import type { ApiResponse, ChatEvent } from '@/types/chat';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,46 +22,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (userError || !user) {
+    // Verify admin permissions using middleware
+    const { user, error } = await verifyAdminByAddress(adminAddress);
+    
+    if (error || !user) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+        { success: false, error: error || 'User not found' },
+        { status: error === 'Insufficient permissions' ? 403 : 404 }
       );
     }
 
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions - admin only' },
-        { status: 403 }
-      );
-    }
+    const supabase = getSupabaseAdmin();
 
     // Fetch all events with host and guest details
-    const { data: events, error } = await supabase
+    const { data: events, error: fetchError } = await supabase
       .from('chat_events')
       .select(`
         *,
@@ -74,8 +49,8 @@ export async function GET(req: NextRequest) {
       `)
       .order('scheduled_start', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching events:', error);
+    if (fetchError) {
+      logger.error('Error fetching events:', fetchError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to fetch events' },
         { status: 500 }
@@ -131,9 +106,9 @@ export async function GET(req: NextRequest) {
       data: formattedEvents,
     });
   } catch (error) {
-    console.error('Error in GET /api/admin/events:', error);
+    logger.error('Error in GET /api/admin/events:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: 'Failed to process request' },
       { status: 500 }
     );
   }
@@ -155,43 +130,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (userError || !user) {
+    // Verify admin permissions using middleware
+    const { user, error } = await verifyAdminByAddress(adminAddress);
+    
+    if (error || !user) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+        { success: false, error: error || 'User not found' },
+        { status: error === 'Insufficient permissions' ? 403 : 404 }
       );
     }
 
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions - admin only' },
-        { status: 403 }
-      );
-    }
+    const supabase = getSupabaseAdmin();
 
     // Update event
     const { data: event, error: updateError } = await supabase
@@ -202,7 +151,7 @@ export async function PATCH(req: NextRequest) {
       .single();
 
     if (updateError || !event) {
-      console.error('Error updating event:', updateError);
+      logger.error('Error updating event:', updateError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to update event' },
         { status: 500 }
@@ -236,9 +185,9 @@ export async function PATCH(req: NextRequest) {
       message: 'Event updated successfully',
     });
   } catch (error) {
-    console.error('Error in PATCH /api/admin/events:', error);
+    logger.error('Error in PATCH /api/admin/events:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: 'Failed to process request' },
       { status: 500 }
     );
   }
