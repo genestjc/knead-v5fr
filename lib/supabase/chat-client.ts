@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { ChatUser, UserPermissions, ActionType, EventType, ParticipantTier } from '@/types/chat';
 import { getTierFromPoints } from '@/lib/chat/config';
+import { getSupabaseAdmin } from './server';
+import { logger } from '../logger';
 
-// Admin client for server-side operations
+// Admin client for server-side operations - use centralized singleton
 export function createSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return getSupabaseAdmin();
 }
 
 // Client-side Supabase client
@@ -68,7 +67,7 @@ export async function getOrCreateChatUser(
       .single();
 
     if (createError || !newUser) {
-      console.error('Error creating chat user:', createError);
+      logger.error('Error creating chat user:', createError);
       return null;
     }
 
@@ -87,7 +86,7 @@ export async function getOrCreateChatUser(
       updatedAt: new Date(newUser.updated_at),
     };
   } catch (error) {
-    console.error('Error in getOrCreateChatUser:', error);
+    logger.error('Error in getOrCreateChatUser:', error);
     return null;
   }
 }
@@ -108,13 +107,13 @@ export async function checkUserPermissions(
     });
 
     if (error || !data) {
-      console.error('Error checking user permissions:', error);
+      logger.error('Error checking user permissions:', error);
       return null;
     }
 
     return data as UserPermissions;
   } catch (error) {
-    console.error('Error in checkUserPermissions:', error);
+    logger.error('Error in checkUserPermissions:', error);
     return null;
   }
 }
@@ -133,7 +132,7 @@ export async function startFreemiumSession(userId: string): Promise<boolean> {
 
     return !error;
   } catch (error) {
-    console.error('Error starting freemium session:', error);
+    logger.error('Error starting freemium session:', error);
     return false;
   }
 }
@@ -155,7 +154,7 @@ export async function endFreemiumSession(sessionId: string): Promise<boolean> {
 
     return !error;
   } catch (error) {
-    console.error('Error ending freemium session:', error);
+    logger.error('Error ending freemium session:', error);
     return false;
   }
 }
@@ -172,14 +171,14 @@ export async function checkFreemiumTimeRemaining(userId: string): Promise<number
     });
 
     if (error || data === null) {
-      console.error('Error checking freemium time:', error);
+      logger.error('Error checking freemium time:', error);
       return 60; // Default to full time remaining on error
     }
 
     const minutesUsed = data as number;
     return Math.max(0, 60 - minutesUsed);
   } catch (error) {
-    console.error('Error in checkFreemiumTimeRemaining:', error);
+    logger.error('Error in checkFreemiumTimeRemaining:', error);
     return 60;
   }
 }
@@ -205,13 +204,13 @@ export async function recordLike(
       });
 
     if (error) {
-      console.error('Error recording like:', error);
+      logger.error('Error recording like:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error in recordLike:', error);
+    logger.error('Error in recordLike:', error);
     return { success: false, error: error.message || 'Failed to record like' };
   }
 }
@@ -233,13 +232,13 @@ export async function removeLike(
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error removing like:', error);
+      logger.error('Error removing like:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error in removeLike:', error);
+    logger.error('Error in removeLike:', error);
     return { success: false, error: error.message || 'Failed to remove like' };
   }
 }

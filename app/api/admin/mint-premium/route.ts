@@ -3,6 +3,7 @@ import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../../thirdweb-server-wallet";
 import kneadMembershipABI from "../../../abi/kneadMembershipABI.json";
+import { logger } from "@/lib/logger";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
 
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY;
     if (!ADMIN_SECRET) {
-      console.error("ADMIN_SECRET_KEY environment variable not set");
+      logger.error("ADMIN_SECRET_KEY environment variable not set");
       return NextResponse.json(
         { error: "Server configuration error" },
         { status: 500 }
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
     }
     
     // Log server wallet info
-    console.log("Server wallet address:", SERVER_WALLET_ADDRESS);
-    console.log("Contract address:", CONTRACT_ADDRESS);
+    logger.log("Server wallet address:", SERVER_WALLET_ADDRESS);
+    logger.log("Contract address:", CONTRACT_ADDRESS);
     
     // Get contract
     const contract = getContract({
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     });
     
     // Prepare mint transaction
-    console.log(`Preparing to mint premium NFT to ${wallet_address}`);
+    logger.log(`Preparing to mint premium NFT to ${wallet_address}`);
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     });
     
     // Send transaction using Engine
-    console.log("Sending mint transaction...");
+    logger.log("Sending mint transaction...");
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
     
-    console.log("Mint transaction sent:", transactionHash);
+    logger.log("Mint transaction sent:", transactionHash);
     
     return NextResponse.json({
       success: true,
@@ -94,13 +95,9 @@ export async function POST(req: NextRequest) {
       message: `Premium membership minted to ${wallet_address}`
     });
   } catch (error: any) {
-    console.error("Error in manual mint:", error);
+    logger.error("Error in manual mint:", error);
     
-    // Don't leak stack traces in production
-    const errorResponse = process.env.NODE_ENV === 'production'
-      ? { error: "Internal server error" }
-      : { error: error.message, stack: error.stack };
-    
-    return NextResponse.json(errorResponse, { status: 500 });
+    // Generic error message - don't leak implementation details
+    return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
   }
 }
