@@ -198,27 +198,25 @@ export async function POST(req: NextRequest) {
     } catch (mintError: any) {
       logger.error("❌ Error minting token:", mintError);
       
-      // Check for common errors
+      // Check for common errors and log details server-side
       const errorMsg = mintError.message || String(mintError);
       if (errorMsg.includes("insufficient funds")) {
-        logger.error("💰 Server wallet has insufficient funds for gas");
+        logger.error("💰 Server wallet has insufficient funds for gas", { wallet: SERVER_WALLET_ADDRESS });
         return NextResponse.json(
           { 
-            error: "Server wallet has insufficient funds for gas", 
-            success: false,
-            walletAddress: SERVER_WALLET_ADDRESS
+            error: "Failed to process request", 
+            success: false
           },
           { status: 500 },
         );
       }
       
       if (errorMsg.includes("execution reverted")) {
-        logger.error("🚫 Contract execution reverted - server wallet may not have minter role");
+        logger.error("🚫 Contract execution reverted - server wallet may not have minter role", { wallet: SERVER_WALLET_ADDRESS });
         return NextResponse.json(
           { 
-            error: "Contract execution reverted - check permissions", 
-            success: false,
-            walletAddress: SERVER_WALLET_ADDRESS
+            error: "Failed to process request", 
+            success: false
           },
           { status: 500 },
         );

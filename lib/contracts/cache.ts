@@ -8,7 +8,7 @@ import kneadMembershipABI from '@/app/abi/kneadMembershipABI.json';
  * Prevents redundant contract instance creation
  * Impact: ~30% faster contract interactions
  */
-const contractCache = new Map<string, any>();
+const contractCache = new Map<string, ReturnType<typeof getContract>>();
 
 /**
  * Get cached Knead Membership contract instance

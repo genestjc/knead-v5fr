@@ -42,33 +42,33 @@ export async function getMembershipType(
 
     // Parallelize balance checks for better performance (~50% faster)
     logger.log(`⚡ Checking premium and freemium tokens in parallel`);
-    const [premiumBalance, freemiumBalance] = await Promise.all([
+    const [premiumResult, freemiumResult] = await Promise.allSettled([
       balanceOf({
         contract: contractInstance,
         owner: address,
         tokenId: BigInt(contractInfo.tokenIds.premium),
-      }).catch(err => {
-        logger.error(`Error checking premium token for ${contractInfo.name}:`, err);
-        return 0n;
       }),
       balanceOf({
         contract: contractInstance,
         owner: address,
         tokenId: BigInt(contractInfo.tokenIds.freemium),
-      }).catch(err => {
-        logger.error(`Error checking freemium token for ${contractInfo.name}:`, err);
-        return 0n;
       })
     ]);
 
-    if (premiumBalance > 0n) {
+    // Handle premium token result
+    if (premiumResult.status === 'fulfilled' && premiumResult.value > 0n) {
       logger.log(`✅ Found premium membership in ${contractInfo.name}!`);
       return "premium";
+    } else if (premiumResult.status === 'rejected') {
+      logger.error(`Error checking premium token for ${contractInfo.name}:`, premiumResult.reason);
     }
 
-    if (freemiumBalance > 0n) {
+    // Handle freemium token result
+    if (freemiumResult.status === 'fulfilled' && freemiumResult.value > 0n) {
       logger.log(`✅ Found freemium membership in ${contractInfo.name}!`);
       return "freemium";
+    } else if (freemiumResult.status === 'rejected') {
+      logger.error(`Error checking freemium token for ${contractInfo.name}:`, freemiumResult.reason);
     }
     
     // 3. If neither token is found, return null.

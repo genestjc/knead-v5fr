@@ -14,9 +14,9 @@ export const logger = {
   log: isDev ? console.log.bind(console) : () => {},
   
   /**
-   * Debug logs - only in development
+   * Debug logs - only in development (uses console.debug for semantic clarity)
    */
-  debug: isDev ? console.log.bind(console) : () => {},
+  debug: isDev ? console.debug.bind(console) : () => {},
   
   /**
    * Error logs - always logged (critical issues)
