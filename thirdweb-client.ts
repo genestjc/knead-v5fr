@@ -2,31 +2,31 @@ import { createThirdwebClient, getNativeBalance } from "thirdweb"; // Restored g
 import { base } from "thirdweb/chains";
 import { balanceOf } from "thirdweb/extensions/erc1155"; // Restored balanceOf
 import { getContract } from "thirdweb"; // Restored getContract
+import { logger } from "@/lib/logger";
 
-// Client ID from environment with diagnostic checks
+// Client ID from environment - REQUIRED, no fallback for security
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
 
-// Print diagnostic info on initialization, but only in non-production
-if (process.env.NODE_ENV !== 'production') {
-  if (!clientId) {
-    console.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set!");
-    console.warn("ThirdWeb functionality may be limited. Check your .env file.");
-  } else {
-    console.log("✅ ThirdWeb client ID configured correctly");
+// Validate client ID exists
+if (!clientId) {
+  const errorMsg = "NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required but not set in environment variables";
+  if (process.env.NODE_ENV !== 'production') {
+    console.error("❌ " + errorMsg);
   }
+  throw new Error(errorMsg);
 }
 
-// Create client with proper error handling
+// Create client - no fallback, fail fast if missing
 export const client = createThirdwebClient({ 
-  clientId: clientId || "44984f2bc038cebc6138d4ceb602c35d" // Fallback for development
+  clientId
 });
 
 // --- THIS IS THE ONLY INTENDED ADDITION ---
 // Export the active chain so other components can use it consistently.
 export const activeChain = base;
 
-// Log initialization status
-console.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
+// Log initialization status (only in development)
+logger.debug(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
 // Your existing contract definitions are unchanged.
 export const KNEAD_MEMBERSHIP_CONTRACT = {

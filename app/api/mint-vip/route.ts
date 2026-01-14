@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getContract,
-  prepareContractCall,
-  Engine,
-} from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
-import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
+import { prepareContractCall, Engine } from "thirdweb";
+import { getMembershipContract } from "@/lib/contracts/getters";
+import { checkTokenOwnership } from "@/lib/contracts/helpers";
 import { verifyVipToken } from "@/lib/verify-vip-token";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
-
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,26 +41,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const contract = getContract({
-      client,
-      chain: base,
-      address: CONTRACT_ADDRESS,
-      abi: kneadMembershipABI,
-    });
+    // Use shared helper to check token ownership
+    const { owned } = await checkTokenOwnership(user_address, 1n);
 
-    const balance = await balanceOf({
-      contract,
-      owner: user_address,
-      tokenId: 1n,
-    });
-
-    if (balance > 0n) {
+    if (owned) {
       return NextResponse.json({
         success: true,
         alreadyMinted: true,
         message: "User already has a premium membership",
       });
     }
+
+    const contract = getMembershipContract();
 
     const transaction = prepareContractCall({
       contract,
@@ -90,6 +71,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (email) {
+      const supabase = createSupabaseAdmin();
       await supabase.from("users").upsert(
         {
           wallet_address: user_address.toLowerCase(),
@@ -109,7 +91,7 @@ export async function POST(req: NextRequest) {
       message: "VIP membership minted successfully",
     });
   } catch (error) {
-    console.error("VIP mint error:", error);
+    logger.error("VIP mint error:", error);
     return NextResponse.json(
       { error: "Failed to mint VIP token" },
       { status: 500 },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { verifyAdminPermissions } from '@/lib/chat/middleware';
+import { logger } from '@/lib/logger';
 import type { ApiResponse, ChatEvent } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -21,43 +22,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Use shared middleware for admin verification
+    const verification = await verifyAdminPermissions(adminAddress);
+    if (!verification.success) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: verification.error || 'Unauthorized' },
+        { status: verification.error === 'User not found' ? 404 : 403 }
+      );
+    }
+
     const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions - admin only' },
-        { status: 403 }
-      );
-    }
 
     // Fetch all events with host and guest details
     const { data: events, error } = await supabase
@@ -75,7 +49,7 @@ export async function GET(req: NextRequest) {
       .order('scheduled_start', { ascending: false });
 
     if (error) {
-      console.error('Error fetching events:', error);
+      logger.error('Error fetching events:', error);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to fetch events' },
         { status: 500 }

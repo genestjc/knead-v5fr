@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { verifyAdminPermissionsById } from '@/lib/chat/middleware';
+import { logger } from '@/lib/logger';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -21,43 +22,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Use shared middleware for admin verification
+    const verification = await verifyAdminPermissionsById(adminId);
+    if (!verification.success) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: verification.error || 'Unauthorized' },
+        { status: verification.error === 'User not found' ? 404 : 403 }
+      );
+    }
+
     const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('id', adminId)
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
 
     // Get flagged messages (high moderation scores or manually flagged)
     const { data: flaggedMessages, error: flaggedError } = await supabase
@@ -83,7 +57,7 @@ export async function GET(req: NextRequest) {
       .limit(50);
 
     if (flaggedError) {
-      console.error('Error fetching flagged messages:', flaggedError);
+      logger.error('Error fetching flagged messages:', flaggedError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to fetch flagged messages' },
         { status: 500 }
@@ -109,7 +83,7 @@ export async function GET(req: NextRequest) {
       .limit(100);
 
     if (logsError) {
-      console.error('Error fetching moderation logs:', logsError);
+      logger.error('Error fetching moderation logs:', logsError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to fetch moderation logs' },
         { status: 500 }
@@ -144,7 +118,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error in GET /api/admin/moderation:', error);
+    logger.error('Error in GET /api/admin/moderation:', error);
     return NextResponse.json<ApiResponse<null>>(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -190,44 +164,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Use shared middleware for admin verification
+    const verification = await verifyAdminPermissionsById(adminId);
+    if (!verification.success) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: verification.error || 'Unauthorized' },
+        { status: verification.error === 'User not found' ? 404 : 403 }
+      );
+    }
+
     const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('id', adminId)
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
-
     let actionMessage = '';
 
     // Handle message hide/unhide
@@ -239,7 +185,7 @@ export async function POST(req: NextRequest) {
         .eq('id', messageId);
 
       if (updateError) {
-        console.error('Error updating message:', updateError);
+        logger.error('Error updating message:', updateError);
         return NextResponse.json<ApiResponse<null>>(
           { success: false, error: 'Failed to update message' },
           { status: 500 }
@@ -282,7 +228,7 @@ export async function POST(req: NextRequest) {
         .eq('id', userId);
 
       if (banError) {
-        console.error('Error banning/unbanning user:', banError);
+        logger.error('Error banning/unbanning user:', banError);
         return NextResponse.json<ApiResponse<null>>(
           { success: false, error: 'Failed to update user ban status' },
           { status: 500 }
@@ -307,7 +253,7 @@ export async function POST(req: NextRequest) {
       message: actionMessage,
     });
   } catch (error) {
-    console.error('Error in POST /api/admin/moderation:', error);
+    logger.error('Error in POST /api/admin/moderation:', error);
     return NextResponse.json<ApiResponse<null>>(
       { success: false, error: 'Internal server error' },
       { status: 500 }
