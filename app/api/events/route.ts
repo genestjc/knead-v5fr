@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { verifyAdminPermissionsById } from '@/lib/chat/middleware';
+import { logger } from '@/lib/logger';
 import type { ApiResponse, ChatEvent, EventType } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -44,40 +45,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseAdmin();
-
-    // Verify creator has admin permissions
-    const { data: creator, error: creatorError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('id', creatorId)
-      .single();
-
-    if (creatorError || !creator) {
+    // Use shared middleware for admin verification
+    const verification = await verifyAdminPermissionsById(creatorId);
+    if (!verification.success) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Creator not found' },
-        { status: 404 }
+        { success: false, error: verification.error === 'User not found' ? 'Creator not found' : 'Only admins can create events' },
+        { status: verification.error === 'User not found' ? 404 : 403 }
       );
     }
 
-    const chatUser = {
-      id: creator.id,
-      address: creator.address,
-      displayName: creator.display_name,
-      avatar: creator.avatar,
-      role: creator.role,
-      membershipTier: creator.membership_tier,
-      contributorType: creator.contributor_type,
-      isBanned: creator.is_banned,
-      bio: creator.bio,
-      alias: creator.alias,
-      createdAt: new Date(creator.created_at),
-      updatedAt: new Date(creator.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Only admins can create events' },
+    const supabase = createSupabaseAdmin();
         { status: 403 }
       );
     }

@@ -1,35 +1,25 @@
-import { getContract, prepareContractCall, Engine } from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
-import kneadMembershipABI from "../app/abi/kneadMembershipABI.json";
+import { prepareContractCall, Engine } from "thirdweb";
+import { getMembershipContract } from "./contracts/getters";
+import { checkTokenOwnership } from "./contracts/helpers";
 import { client, serverWallet } from "../thirdweb-server-wallet";
+import { logger } from "./logger";
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PREMIUM_TOKEN_ID = 1;
 const FREEMIUM_TOKEN_ID = 0;
 
 export async function mintPremiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to mint premium NFT for ${walletAddress}`);
-    
-    const contract = getContract({
-      client,
-      address: CONTRACT_ADDRESS,
-      chain: base,
-      abi: kneadMembershipABI,
-    });
+    logger.debug(`Attempting to mint premium NFT for ${walletAddress}`);
     
     // Idempotency: only mint if not already owned
-    const balance = await balanceOf({
-      contract,
-      owner: walletAddress,
-      tokenId: BigInt(PREMIUM_TOKEN_ID),
-    });
+    const { owned } = await checkTokenOwnership(walletAddress, BigInt(PREMIUM_TOKEN_ID));
     
-    if (balance > 0n) {
-      console.log(`User ${walletAddress} already has premium token, skipping mint`);
+    if (owned) {
+      logger.debug(`User already has premium token, skipping mint`);
       return { success: true, alreadyMinted: true };
     }
+    
+    const contract = getMembershipContract();
     
     // Prepare transaction with explicit gas settings
     const transaction = prepareContractCall({
@@ -50,36 +40,27 @@ export async function mintPremiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Premium NFT minted successfully: ${transactionHash}`);
+    logger.logTransaction("Premium NFT minted successfully", transactionHash);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error minting premium NFT:", error);
+    logger.error("Error minting premium NFT:", error);
     throw new Error(`Failed to mint premium NFT: ${error.message}`);
   }
 }
 
 export async function burnPremiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to burn premium NFT from ${walletAddress}`);
-    
-    const contract = getContract({
-      client,
-      address: CONTRACT_ADDRESS,
-      chain: base,
-      abi: kneadMembershipABI,
-    });
+    logger.debug(`Attempting to burn premium NFT from ${walletAddress}`);
     
     // Idempotency: only burn if owned
-    const balance = await balanceOf({
-      contract,
-      owner: walletAddress,
-      tokenId: BigInt(PREMIUM_TOKEN_ID),
-    });
+    const { owned } = await checkTokenOwnership(walletAddress, BigInt(PREMIUM_TOKEN_ID));
     
-    if (balance === 0n) {
-      console.log(`User ${walletAddress} does not have premium token, skipping burn`);
+    if (!owned) {
+      logger.debug(`User does not have premium token, skipping burn`);
       return { success: true, notOwned: true };
     }
+    
+    const contract = getMembershipContract();
     
     // Prepare burn transaction with explicit gas settings
     const transaction = prepareContractCall({
@@ -100,36 +81,27 @@ export async function burnPremiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Premium NFT burned successfully: ${transactionHash}`);
+    logger.logTransaction("Premium NFT burned successfully", transactionHash);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error burning premium NFT:", error);
+    logger.error("Error burning premium NFT:", error);
     throw new Error(`Failed to burn premium NFT: ${error.message}`);
   }
 }
 
 export async function mintFreemiumNFT(walletAddress: string) {
   try {
-    console.log(`Attempting to mint freemium NFT for ${walletAddress}`);
-    
-    const contract = getContract({
-      client,
-      address: CONTRACT_ADDRESS,
-      chain: base,
-      abi: kneadMembershipABI,
-    });
+    logger.debug(`Attempting to mint freemium NFT for ${walletAddress}`);
     
     // Idempotency: only mint if not already owned
-    const balance = await balanceOf({
-      contract,
-      owner: walletAddress,
-      tokenId: BigInt(FREEMIUM_TOKEN_ID),
-    });
+    const { owned } = await checkTokenOwnership(walletAddress, BigInt(FREEMIUM_TOKEN_ID));
     
-    if (balance > 0n) {
-      console.log(`User ${walletAddress} already has freemium token, skipping mint`);
+    if (owned) {
+      logger.debug(`User already has freemium token, skipping mint`);
       return { success: true, alreadyMinted: true };
     }
+    
+    const contract = getMembershipContract();
     
     // Prepare transaction with explicit gas settings
     const transaction = prepareContractCall({
@@ -150,10 +122,10 @@ export async function mintFreemiumNFT(walletAddress: string) {
       transactionId,
     });
     
-    console.log(`Freemium NFT minted successfully: ${transactionHash}`);
+    logger.logTransaction("Freemium NFT minted successfully", transactionHash);
     return { success: true, transactionHash, transactionId };
   } catch (error: any) {
-    console.error("Error minting freemium NFT:", error);
+    logger.error("Error minting freemium NFT:", error);
     throw new Error(`Failed to mint freemium NFT: ${error.message}`);
   }
 }

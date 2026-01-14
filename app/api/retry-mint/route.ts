@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getContract, prepareContractCall, Engine } from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
-import { createClient } from "@supabase/supabase-js";
-import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
+import { prepareContractCall, Engine } from "thirdweb";
+import { getMembershipContract } from "@/lib/contracts/getters";
+import { checkTokenOwnership } from "@/lib/contracts/helpers";
+import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { logger } from "@/lib/logger";
 
 // Mark as dynamic
 export const dynamic = 'force-dynamic';
@@ -14,18 +15,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
-// Initialize supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // NFT contract details
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PAID_TOKEN_ID = 1; // Premium token ID
-
-// Import ABI
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Retry mint request for wallet: ${walletAddress}, session: ${sessionId}`);
+    logger.debug(`Retry mint request for wallet: ${walletAddress}, session: ${sessionId}`);
 
     // First check if the session is valid
     const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -64,54 +55,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Set up wallet for minting
-    console.log("Setting up server wallet for minting...");
-    console.log("Server wallet address:", SERVER_WALLET_ADDRESS);
-
-    console.log("Getting contract...");
-    const contract = getContract({
-      client,
-      address: CONTRACT_ADDRESS,
-      chain: base,
-      abi: kneadMembershipABI,
-    });
-
-    console.log(`Preparing to mint premium NFT for ${walletAddress}...`);
+    logger.debug("Getting contract...");
     
-    // Check if user already has premium token - FIXED PATTERN
-    try {
-      const balance = await balanceOf({
-        contract,
-        owner: walletAddress,
-        tokenId: BigInt(PAID_TOKEN_ID),
-      });
+    // Check if user already has premium token using shared helper
+    const { owned, balance } = await checkTokenOwnership(walletAddress, BigInt(PAID_TOKEN_ID));
 
-      if (balance > 0n) {
-        console.log(`User ${walletAddress} already has premium token, skipping mint`);
-        
-        // Make sure subscription is marked as minted in DB
-        await supabase
-          .from("subscriptions")
-          .update({
-            token_minted: true,
-            token_id: PAID_TOKEN_ID,
-          })
-          .eq("subscription_id", session.subscription)
-          .eq("wallet_address", walletAddress.toLowerCase());
+    if (owned) {
+      logger.debug(`User already has premium token, skipping mint`);
+      
+      // Make sure subscription is marked as minted in DB
+      const supabase = createSupabaseAdmin();
+      await supabase
+        .from("subscriptions")
+        .update({
+          token_minted: true,
+          token_id: PAID_TOKEN_ID,
+        })
+        .eq("subscription_id", session.subscription)
+        .eq("wallet_address", walletAddress.toLowerCase());
         
         return NextResponse.json({
           success: true,
           message: "User already has premium token",
           alreadyHasToken: true,
         });
-      }
-    } catch (error) {
-      console.error("Error checking token balance:", error);
-      // Continue with mint attempt anyway
     }
 
     // Prepare the mint transaction with explicit gas parameters
-    console.log("Preparing mint transaction...");
+    logger.debug("Preparing mint transaction...");
+    const contract = getMembershipContract();
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
@@ -120,22 +92,21 @@ export async function POST(req: NextRequest) {
     });
 
     // Execute the mint transaction using Engine
-    console.log("Enqueueing mint transaction...");
+    logger.debug("Enqueueing mint transaction...");
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
 
-    console.log(`Waiting for transaction hash (ID: ${transactionId})...`);
+    logger.debug(`Waiting for transaction hash (ID: ${transactionId})...`);
     const { transactionHash } = await Engine.waitForTransactionHash({
       client,
       transactionId,
     });
 
-    console.log("NFT mint transaction successful");
-    console.log(`Transaction hash: ${transactionHash}`);
-    console.log(`View on Basescan: https://basescan.org/tx/${transactionHash}`);
+    logger.logTransaction("NFT mint transaction successful", transactionHash);
 
     // Update subscription in database with mint info
+    const supabase = createSupabaseAdmin();
     await supabase
       .from("subscriptions")
       .update({
@@ -152,11 +123,10 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
   } catch (error: any) {
-    console.error("Error in retry-mint:", error);
+    logger.error("Error in retry-mint:", error);
     return NextResponse.json(
       {
         error: "Failed to mint NFT",
-        details: error.message || String(error),
       },
       { status: 500 }
     );

@@ -1,24 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getContract,
-  prepareContractCall,
-  Engine,
-} from "thirdweb";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
-import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import {
-  client,
-  serverWallet,
-} from "../../../thirdweb-server-wallet";
+import { prepareContractCall, Engine } from "thirdweb";
+import { getMembershipContract } from "@/lib/contracts/getters";
+import { checkTokenOwnership } from "@/lib/contracts/helpers";
+import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { logger } from "@/lib/logger";
 
 const FREEMIUM_TOKEN_ID = 0;
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const CONTRACT_ADDRESS =
-    process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
   const { address } = await req.json();
   if (!address) {
     return NextResponse.json(
@@ -28,26 +19,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    if (!CONTRACT_ADDRESS) {
-      throw new Error(
-        "NFT contract address not configured",
-      );
-    }
+    // Use shared helper to check token ownership
+    const { owned } = await checkTokenOwnership(address, BigInt(FREEMIUM_TOKEN_ID));
 
-    const contract = getContract({
-      client,
-      address: CONTRACT_ADDRESS,
-      chain: base,
-      abi: kneadMembershipABI,
-    });
-
-    const freemiumBalance = await balanceOf({
-      contract,
-      owner: address,
-      tokenId: BigInt(FREEMIUM_TOKEN_ID),
-    });
-
-    if (freemiumBalance > 0n) {
+    if (owned) {
       return NextResponse.json({
         success: true,
         alreadyMinted: true,
@@ -55,10 +30,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const contract = getMembershipContract();
+
     const transaction = prepareContractCall({
       contract,
-      method:
-        "function mint(address to, uint256 id, uint256 amount)",
+      method: "function mint(address to, uint256 id, uint256 amount)",
       params: [address, BigInt(FREEMIUM_TOKEN_ID), 1n],
       gasLimit: 300000n,
     });
@@ -79,10 +55,10 @@ export async function POST(req: NextRequest) {
       message: "Freemium NFT minted",
     });
   } catch (error: any) {
-    console.error("Error minting freemium NFT:", error);
+    logger.error("Error minting freemium NFT:", error);
     return NextResponse.json(
       {
-        error: error.message || "Mint failed",
+        error: "Mint failed",
         success: false,
       },
       { status: 500 },
