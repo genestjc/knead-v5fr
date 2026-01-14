@@ -3,8 +3,9 @@ import Stripe from "stripe";
 import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
+import { logger } from "@/lib/logger";
 
 // Mark as dynamic
 export const dynamic = 'force-dynamic';
@@ -13,12 +14,6 @@ export const dynamic = 'force-dynamic';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
-
-// Initialize supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 // NFT contract details
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
@@ -45,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Retry mint request for wallet: ${walletAddress}, session: ${sessionId}`);
+    logger.log(`Retry mint request for wallet: ${walletAddress}, session: ${sessionId}`);
 
     // First check if the session is valid
     const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -65,10 +60,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Set up wallet for minting
-    console.log("Setting up server wallet for minting...");
-    console.log("Server wallet address:", SERVER_WALLET_ADDRESS);
+    logger.log("Setting up server wallet for minting...");
+    logger.log("Server wallet address:", SERVER_WALLET_ADDRESS);
 
-    console.log("Getting contract...");
+    logger.log("Getting contract...");
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
@@ -76,7 +71,9 @@ export async function POST(req: NextRequest) {
       abi: kneadMembershipABI,
     });
 
-    console.log(`Preparing to mint premium NFT for ${walletAddress}...`);
+    logger.log(`Preparing to mint premium NFT for ${walletAddress}...`);
+    
+    const supabase = getSupabaseAdmin();
     
     // Check if user already has premium token - FIXED PATTERN
     try {
@@ -87,7 +84,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (balance > 0n) {
-        console.log(`User ${walletAddress} already has premium token, skipping mint`);
+        logger.log(`User ${walletAddress} already has premium token, skipping mint`);
         
         // Make sure subscription is marked as minted in DB
         await supabase
@@ -106,12 +103,12 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (error) {
-      console.error("Error checking token balance:", error);
+      logger.error("Error checking token balance:", error);
       // Continue with mint attempt anyway
     }
 
     // Prepare the mint transaction with explicit gas parameters
-    console.log("Preparing mint transaction...");
+    logger.log("Preparing mint transaction...");
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
@@ -120,20 +117,20 @@ export async function POST(req: NextRequest) {
     });
 
     // Execute the mint transaction using Engine
-    console.log("Enqueueing mint transaction...");
+    logger.log("Enqueueing mint transaction...");
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
 
-    console.log(`Waiting for transaction hash (ID: ${transactionId})...`);
+    logger.log(`Waiting for transaction hash (ID: ${transactionId})...`);
     const { transactionHash } = await Engine.waitForTransactionHash({
       client,
       transactionId,
     });
 
-    console.log("NFT mint transaction successful");
-    console.log(`Transaction hash: ${transactionHash}`);
-    console.log(`View on Basescan: https://basescan.org/tx/${transactionHash}`);
+    logger.log("NFT mint transaction successful");
+    logger.log(`Transaction hash: ${transactionHash}`);
+    logger.log(`View on Basescan: https://basescan.org/tx/${transactionHash}`);
 
     // Update subscription in database with mint info
     await supabase
@@ -152,12 +149,9 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
   } catch (error: any) {
-    console.error("Error in retry-mint:", error);
+    logger.error("Error in retry-mint:", error);
     return NextResponse.json(
-      {
-        error: "Failed to mint NFT",
-        details: error.message || String(error),
-      },
+      { error: "Failed to process request" },
       { status: 500 }
     );
   }

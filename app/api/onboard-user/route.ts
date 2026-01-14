@@ -3,8 +3,9 @@ import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
+import { logger } from "@/lib/logger";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const FREEMIUM_TOKEN_ID = 0;
@@ -12,62 +13,58 @@ const FREEMIUM_TOKEN_ID = 0;
 // Mark as dynamic to ensure fresh data
 export const dynamic = 'force-dynamic';
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-
 export async function POST(req: NextRequest) {
-  console.log("🔍 onboard-user API called");
+  logger.log("🔍 onboard-user API called");
   const { walletAddress } = await req.json();
   
   if (!walletAddress) {
-    console.error("❌ Missing wallet address in request");
+    logger.error("❌ Missing wallet address in request");
     return NextResponse.json(
       { error: "Missing wallet address" },
       { status: 400 },
     );
   }
 
-  console.log(`👤 Processing onboarding for wallet: ${walletAddress}`);
+  logger.log(`👤 Processing onboarding for wallet: ${walletAddress}`);
 
   try {
     // Verify we have all required environment variables
     if (!CONTRACT_ADDRESS) {
-      console.error("❌ Missing NFT contract address environment variable");
+      logger.error("❌ Missing NFT contract address environment variable");
       return NextResponse.json(
-        { error: "Server configuration error: Missing contract address" },
+        { error: "Server configuration error" },
         { status: 500 },
       );
     }
     
     // Verify server wallet is initialized
     if (!SERVER_WALLET_ADDRESS) {
-      console.error("❌ Server wallet not properly initialized");
+      logger.error("❌ Server wallet not properly initialized");
       return NextResponse.json(
-        { error: "Server configuration error: Server wallet not initialized" },
+        { error: "Server configuration error" },
         { status: 500 },
       );
     }
     
     // Log server wallet address for debugging
-    console.log(`🔐 Using server wallet: ${SERVER_WALLET_ADDRESS}`);
+    logger.log(`🔐 Using server wallet: ${SERVER_WALLET_ADDRESS}`);
     
     const normalizedAddress = walletAddress.toLowerCase();
     
+    const supabase = getSupabaseAdmin();
+    
     // Check if user exists in our database
-    console.log(`📊 Checking if user exists in database: ${normalizedAddress}`);
+    logger.log(`📊 Checking if user exists in database: ${normalizedAddress}`);
     const { data: existingUser } = await supabase
       .from("users")
       .select("*")
       .eq("wallet_address", normalizedAddress)
       .single();
       
-    console.log(existingUser ? "📝 User found in database" : "📝 New user, not in database");
+    logger.log(existingUser ? "📝 User found in database" : "📝 New user, not in database");
       
     // Get the contract instance
-    console.log(`📜 Connecting to contract at ${CONTRACT_ADDRESS}`);
+    logger.log(`📜 Connecting to contract at ${CONTRACT_ADDRESS}`);
     const contract = getContract({
       client,
       address: CONTRACT_ADDRESS,
@@ -76,21 +73,21 @@ export async function POST(req: NextRequest) {
     });
     
     // Check current token balance
-    console.log(`⚖️ Checking if user already has freemium token (ID: ${FREEMIUM_TOKEN_ID})`);
+    logger.log(`⚖️ Checking if user already has freemium token (ID: ${FREEMIUM_TOKEN_ID})`);
     const balance = await balanceOf({
       contract,
       owner: walletAddress,
       tokenId: BigInt(FREEMIUM_TOKEN_ID),
     });
     
-    console.log(`🔢 Current token balance: ${balance.toString()}`);
+    logger.log(`🔢 Current token balance: ${balance.toString()}`);
     
     // If user already has token, just return success
     if (balance > 0n) {
-      console.log("✅ User already has freemium token, skipping mint");
+      logger.log("✅ User already has freemium token, skipping mint");
       // Make sure user is in database
       if (!existingUser) {
-        console.log("📊 Adding existing token holder to database");
+        logger.log("📊 Adding existing token holder to database");
         await supabase.from("users").insert([
           {
             wallet_address: normalizedAddress,
@@ -109,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Mint freemium token
-    console.log(`🪙 Preparing to mint freemium token to ${walletAddress}`);
+    logger.log(`🪙 Preparing to mint freemium token to ${walletAddress}`);
     
     try {
       const transaction = prepareContractCall({
@@ -119,19 +116,19 @@ export async function POST(req: NextRequest) {
         gasLimit: 300000n,
       });
 
-      console.log("📤 Enqueueing mint transaction...");
+      logger.log("📤 Enqueueing mint transaction...");
       const { transactionId } = await serverWallet.enqueueTransaction({
         transaction,
       });
 
-      console.log(`⏳ Waiting for transaction hash (ID: ${transactionId})...`);
+      logger.log(`⏳ Waiting for transaction hash (ID: ${transactionId})...`);
       const { transactionHash } = await Engine.waitForTransactionHash({
         client,
         transactionId,
       });
       
-      console.log(`✅ Mint transaction complete! Hash: ${transactionHash}`);
-      console.log(`🔗 Transaction URL: https://basescan.org/tx/${transactionHash}`);
+      logger.log(`✅ Mint transaction complete! Hash: ${transactionHash}`);
+      logger.log(`🔗 Transaction URL: https://basescan.org/tx/${transactionHash}`);
 
       // Add retry logic to verify the token was actually minted
       const MAX_RETRIES = 3;
@@ -141,7 +138,7 @@ export async function POST(req: NextRequest) {
       
       for (let retry = 0; retry < MAX_RETRIES; retry++) {
         try {
-          console.log(`🔍 Verifying mint (attempt ${retry + 1}/${MAX_RETRIES})...`);
+          logger.log(`🔍 Verifying mint (attempt ${retry + 1}/${MAX_RETRIES})...`);
           // Wait a bit before checking
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           
@@ -153,24 +150,24 @@ export async function POST(req: NextRequest) {
           });
           
           if (newBalance > 0n) {
-            console.log("✅ Mint verification successful!");
+            logger.log("✅ Mint verification successful!");
             verificationSucceeded = true;
             break;
           } else {
-            console.log("⚠️ Token not yet reflected in balance, retrying...");
+            logger.log("⚠️ Token not yet reflected in balance, retrying...");
           }
         } catch (verifyError) {
-          console.error(`❌ Verification attempt ${retry + 1} failed:`, verifyError);
+          logger.error(`❌ Verification attempt ${retry + 1} failed:`, verifyError);
         }
       }
       
       if (!verificationSucceeded) {
-        console.warn("⚠️ Could not verify token mint, but transaction was sent");
+        logger.warn("⚠️ Could not verify token mint, but transaction was sent");
       }
 
       // Update or create user in database
       if (existingUser) {
-        console.log("📊 Updating existing user in database");
+        logger.log("📊 Updating existing user in database");
         await supabase
           .from("users")
           .update({
@@ -179,7 +176,7 @@ export async function POST(req: NextRequest) {
           })
           .eq("wallet_address", normalizedAddress);
       } else {
-        console.log("📊 Adding new user to database");
+        logger.log("📊 Adding new user to database");
         await supabase.from("users").insert([
           {
             wallet_address: normalizedAddress,
@@ -199,12 +196,12 @@ export async function POST(req: NextRequest) {
       });
       
     } catch (mintError: any) {
-      console.error("❌ Error minting token:", mintError);
+      logger.error("❌ Error minting token:", mintError);
       
       // Check for common errors
       const errorMsg = mintError.message || String(mintError);
       if (errorMsg.includes("insufficient funds")) {
-        console.error("💰 Server wallet has insufficient funds for gas");
+        logger.error("💰 Server wallet has insufficient funds for gas");
         return NextResponse.json(
           { 
             error: "Server wallet has insufficient funds for gas", 
@@ -216,7 +213,7 @@ export async function POST(req: NextRequest) {
       }
       
       if (errorMsg.includes("execution reverted")) {
-        console.error("🚫 Contract execution reverted - server wallet may not have minter role");
+        logger.error("🚫 Contract execution reverted - server wallet may not have minter role");
         return NextResponse.json(
           { 
             error: "Contract execution reverted - check permissions", 
@@ -228,17 +225,17 @@ export async function POST(req: NextRequest) {
       }
       
       return NextResponse.json(
-        { error: `Mint failed: ${errorMsg}`, success: false },
+        { error: "Failed to process request", success: false },
         { status: 500 },
       );
     }
     
   } catch (error: any) {
-    console.error("❌ Error in onboarding process:", error);
+    logger.error("❌ Error in onboarding process:", error);
     
     return NextResponse.json(
       { 
-        error: `Failed to onboard user: ${error.message || String(error)}`,
+        error: "Failed to process request",
         success: false
       },
       { status: 500 },
