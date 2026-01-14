@@ -55,9 +55,6 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseAdmin();
-        { status: 403 }
-      );
-    }
 
     let dailyRoomUrl: string | undefined;
     let dailyRoomName: string | undefined;

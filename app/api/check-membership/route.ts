@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createThirdwebClient } from "thirdweb";
 import { checkMembershipType } from "@/lib/contracts/helpers";
 import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
 import { logger } from "@/lib/logger";
