@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { sendTownsTokens, getTreasuryBalance } from '@/lib/thirdweb/treasury';
+import { logger } from '@/lib/logger';
 import type { Address } from 'thirdweb';
 
 /**
@@ -14,19 +15,7 @@ import type { Address } from 'thirdweb';
  */
 export async function POST(req: NextRequest) {
   try {
-    // Initialize Supabase client inside the function
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const supabase = createSupabaseAdmin();
 
     const { userId, amount, recipientAddress } = await req.json();
 
@@ -168,11 +157,10 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Claim processing error:', error);
+    logger.error('Claim processing error:', error);
     return NextResponse.json(
       { 
-        error: 'Failed to process claim',
-        details: error instanceof Error ? error.message : String(error)
+        error: 'Failed to process claim'
       },
       { status: 500 }
     );
@@ -186,19 +174,7 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    // Initialize Supabase client inside the function
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const supabase = createSupabaseAdmin();
 
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
@@ -226,11 +202,10 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Get claims error:', error);
+    logger.error('Get claims error:', error);
     return NextResponse.json(
       { 
-        error: 'Failed to get claim history',
-        details: error instanceof Error ? error.message : String(error)
+        error: 'Failed to get claim history'
       },
       { status: 500 }
     );
