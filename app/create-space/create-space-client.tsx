@@ -3,13 +3,27 @@
 import React, { useState } from 'react';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
+import { viemAdapter } from 'thirdweb/adapters/viem';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, CheckCircle, Loader2 } from 'lucide-react';
-import { ethers } from 'ethers';
-import { Client as TownsClient } from '@towns-protocol/sdk';
-import { makeSignerContext, makeCryptoStore, makeRpcClient } from '@towns-protocol/sdk';
+import { ethers } from 'ethers-v5';
+import type { WalletClient } from 'viem';
+import { townsEnv } from '@towns-protocol/sdk';
+
+// Helper to convert Viem WalletClient to Ethers v5 Signer
+function walletClientToSigner(walletClient: WalletClient) {
+  const { account, chain, transport } = walletClient;
+  const network = {
+    chainId: chain.id,
+    name: chain.name,
+    ensAddress: chain.contracts?.ensRegistry?.address,
+  };
+  const provider = new ethers.providers.Web3Provider(transport, network);
+  const signer = provider.getSigner(account. address);
+  return signer;
+}
 
 export default function CreateSpaceClientComponent() {
   const wallet = useActiveWallet();
@@ -30,44 +44,46 @@ export default function CreateSpaceClientComponent() {
     try {
       console.log('🚀 Initializing Towns SDK...');
 
-      // Get Web3 provider and signer from ThirdWeb wallet
-      const provider = new ethers.providers.Web3Provider(
-        await wallet.getEthersProvider()
-      );
-      const signer = provider.getSigner();
-
-      console.log('✅ Wallet connected:', await signer.getAddress());
-
-      // Initialize Towns SDK Client
-      const townsClient = new TownsClient({
-        signerContext: await makeSignerContext(signer),
-        rpcClient: makeRpcClient({ 
-          env: 'omega', // Use 'omega' for testnet, 'prod' for mainnet
-        }),
-        cryptoStore: makeCryptoStore(),
+      // Convert ThirdWeb wallet to Viem WalletClient
+      const viemWalletClient = viemAdapter. wallet. toViem({ 
+        wallet, 
+        client, 
+        chain: activeChain 
       });
 
-      console.log('✅ Towns client initialized');
+      // Convert to Ethers v5 Signer (matching your chat-test pattern)
+      const signer = await walletClientToSigner(viemWalletClient);
+      
+      const address = await signer.getAddress();
+      console.log('✅ Wallet connected:', address);
 
-      // Initialize user in Towns Protocol
-      console.log('🔄 Initializing user.. .');
-      await townsClient.initializeUser();
-      console.log('✅ User initialized');
+      // Initialize Towns config (using omega environment)
+      const townsConfig = townsEnv().makeTownsConfig('omega');
+      console.log('✅ Towns config created');
+
+      // Create agent using Towns SDK
+      const agent = await townsConfig.createAgent({ signer });
+      console.log('✅ Towns agent created');
 
       // Create space
       console.log('🔄 Creating space...');
-      const spaceResult = await townsClient.createSpace({
-        spaceName: 'Knead Magazine',
-        // Add other config as needed
+      
+      // Use the agent to create a space
+      // Note: Check Towns SDK docs for exact createSpace API
+      // This is the pattern based on their SDK structure
+      const spaceResult = await agent.createSpace({
+        name: 'Knead Magazine',
+        // Add other config as needed per Towns docs
       });
 
-      console.log('✅ Space created! ', spaceResult);
+      console.log('✅ Space created:', spaceResult);
 
       setResponse({
         success: true,
-        spaceId: spaceResult.spaceId,
+        spaceId: spaceResult. spaceId || spaceResult.id,
         streamId: spaceResult.streamId,
-        defaultChannelId: spaceResult.spaceId, // Usually same as spaceId
+        defaultChannelId: spaceResult.spaceId || spaceResult.id,
+        rawResult: spaceResult,
       });
 
     } catch (error:  any) {
@@ -119,15 +135,15 @@ export default function CreateSpaceClientComponent() {
         {/* Action Card */}
         <Card className="border-2">
           <CardHeader>
-            <CardTitle className="font-adonis text-2xl">Create Space with Towns SDK</CardTitle>
+            <CardTitle className="font-adonis text-2xl">Create Space</CardTitle>
             <CardDescription className="font-georgia-pro">
-              This uses the Towns Protocol SDK to create your space. 
+              Using Towns Protocol SDK on Omega network
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {! wallet ? (
               <div className="space-y-4 text-center">
-                <p className="font-georgia-pro text-gray-600">Connect your wallet to continue</p>
+                <p className="font-georgia-pro text-gray-600">Connect wallet to continue</p>
                 <ConnectButton client={client} chain={activeChain} />
               </div>
             ) : (
@@ -151,7 +167,7 @@ export default function CreateSpaceClientComponent() {
                 {isCreating && (
                   <Alert>
                     <AlertDescription className="font-georgia-pro">
-                      Initializing Towns SDK and creating space...
+                      Initializing Towns agent and creating space...
                     </AlertDescription>
                   </Alert>
                 )}
@@ -166,7 +182,7 @@ export default function CreateSpaceClientComponent() {
             <CardHeader>
               <CardTitle className="font-adonis text-2xl flex items-center gap-2">
                 <CheckCircle className="text-green-600" />
-                Space Created! 
+                Space Created Successfully!
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -208,7 +224,7 @@ export default function CreateSpaceClientComponent() {
 
               {/* Environment Variables */}
               <div className="bg-gray-50 p-4 rounded border mt-4">
-                <p className="font-georgia-pro font-semibold mb-2">Add to . env. local: </p>
+                <p className="font-georgia-pro font-semibold mb-2">Add to . env. local:</p>
                 <div className="space-y-2 font-mono text-sm">
                   <div className="flex items-center justify-between gap-4">
                     <code className="flex-1">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={response.spaceId}</code>
@@ -220,8 +236,30 @@ export default function CreateSpaceClientComponent() {
                       {copiedField === 'env1' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </Button>
                   </div>
+                  {response.defaultChannelId && (
+                    <div className="flex items-center justify-between gap-4">
+                      <code className="flex-1">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={response. defaultChannelId}</code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopy(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${response.defaultChannelId}`, 'env2')}
+                      >
+                        {copiedField === 'env2' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Raw result for debugging */}
+              <details className="text-xs">
+                <summary className="cursor-pointer font-georgia-pro font-semibold">
+                  View Raw Response (Debug)
+                </summary>
+                <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto max-h-40">
+                  {JSON.stringify(response.rawResult, null, 2)}
+                </pre>
+              </details>
             </CardContent>
           </Card>
         )}
@@ -240,7 +278,7 @@ export default function CreateSpaceClientComponent() {
                   {response.details && (
                     <>
                       <p className="font-semibold text-red-700 mt-2">Details:</p>
-                      <pre className="text-xs overflow-auto">{response.details}</pre>
+                      <pre className="text-xs overflow-auto max-h-40">{response.details}</pre>
                     </>
                   )}
                 </AlertDescription>
