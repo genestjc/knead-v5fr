@@ -21,7 +21,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading... </p>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
         </div>
     </div>
 );
@@ -56,9 +56,11 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const townsConfig = townsEnv().makeTownsConfig('omega');
 
-    // Get space data to extract channel ID
-    const { data: space } = useSpace(spaceId || '');
-    const defaultChannelId = space?.channelIds?.[0]; // Default #general channel
+    // CRITICAL FIX: Only call useSpace when we have a valid spaceId AND are connected
+    const { data: space } = useSpace(
+      (isAgentConnected && spaceId) ? spaceId : ''
+    );
+    const defaultChannelId = space?.channelIds? .[0];
 
     const currentUser = mockUser; 
 
@@ -101,12 +103,17 @@ export default function ChatTestClient() {
             setIsCreatingSpace(false);
         }
     };
+
+    // Don't render anything until we check connection status
+    if (isAgentConnecting) {
+        return <LoadingSpinner />;
+    }
     
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             {isAgentConnected ?  (
                 <>
-                    {! spaceId ?  (
+                    {! spaceId ? (
                         <div className="text-center max-w-md">
                             <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
                             <p className="font-georgia-pro text-lg mb-6 text-gray-600">
@@ -129,7 +136,12 @@ export default function ChatTestClient() {
                             />
                         </div>
                     ) : (
-                        <LoadingSpinner />
+                        <div className="text-center">
+                            <LoadingSpinner />
+                            <p className="font-georgia-pro text-gray-600 mt-4">
+                                Loading space data...
+                            </p>
+                        </div>
                     )}
                 </>
             ) : (
