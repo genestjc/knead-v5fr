@@ -1,5 +1,6 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useAgentConnection, useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
