@@ -1,9 +1,9 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
@@ -32,7 +32,7 @@ function walletClientToSigner(walletClient: WalletClient) {
   
   const network = { chainId: chain.id, name: chain.name, ensAddress: chain.contracts?.ensRegistry?.address };
   const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account.address);
+  const signer = provider.getSigner(account. address);
   return signer;
 }
 
@@ -44,68 +44,87 @@ const mockUser = {
 };
 
 export default function ChatTestPage() {
-    // --- READING THE ENVIRONMENT VARIABLES ---
-    const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-    const defaultChannelId = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
-
-    // --- ADDED THE CONSOLE LOGS FOR DEBUGGING ---
-    console.log('--- ENV VAR CHECK ---');
-    console.log('spaceId read from process.env:', spaceId);
-    console.log('defaultChannelId read from process.env:', defaultChannelId);
-    console.log('---------------------');
+    const [spaceId, setSpaceId] = useState<string | null>(null);
+    const [isCreatingSpace, setIsCreatingSpace] = useState(false);
 
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
+    const { createSpace } = useCreateSpace();
     const wallet = useActiveWallet();
     const townsConfig = townsEnv().makeTownsConfig('omega');
+
+    // Get space data to extract channel ID
+    const { data: space } = useSpace(spaceId || '');
+    const defaultChannelId = space?.channelIds?.[0]; // Default #general channel
 
     const currentUser = mockUser; 
 
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client, chain: activeChain });
+          const viemWalletClient = viemAdapter. wallet. toViem({ wallet, client, chain: activeChain });
           const signer = await walletClientToSigner(viemWalletClient);
-          if (!signer) throw new Error('Could not create signer.');
+          if (! signer) throw new Error('Could not create signer.');
           await connect(signer, { townsConfig });
         } catch (e) {
           console.error("Failed to connect to Towns:", e);
         }
     };
 
-    if (!spaceId || !defaultChannelId) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white p-4">
-                <div className="max-w-2xl w-full bg-yellow-50 rounded-lg p-8 text-center border border-yellow-200">
-                    <h1 className="font-adonis text-4xl mb-4 text-yellow-800">Configuration Error</h1>
-                    <p className="font-georgia-pro text-lg mb-6 text-yellow-900">
-                        The chat environment variables are not set. Please ensure your `.env.local` file is correct and you have restarted the server.
-                    </p>
-                    {/* Displaying the values directly in the error UI for clarity */}
-                    <div className="text-left bg-yellow-100 p-4 rounded-md font-mono text-sm">
-                        <p>Value for NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID: {spaceId || 'undefined'}</p>
-                        <p>Value for NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID: {defaultChannelId || 'undefined'}</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const handleCreateSpace = async () => {
+        if (!wallet) return;
+        setIsCreatingSpace(true);
+        try {
+            const viemWalletClient = viemAdapter.wallet.toViem({ wallet, client, chain:  activeChain });
+            const signer = await walletClientToSigner(viemWalletClient);
+            if (!signer) throw new Error('Could not create signer.');
+            
+            const result = await createSpace({ spaceName: 'Knead Chat Space' }, signer);
+            console.log('Space created:', result. spaceId);
+            setSpaceId(result.spaceId);
+        } catch (e) {
+            console.error("Failed to create space:", e);
+            alert('Failed to create space. See console for details.');
+        } finally {
+            setIsCreatingSpace(false);
+        }
+    };
     
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            {isAgentConnected ? (
-                <div className="w-full h-full">
-                    <ConnectedChat
-                        currentUser={currentUser}
-                        spaceId={spaceId}
-                        defaultChannelId={defaultChannelId}
-                    />
-                </div>
+            {isAgentConnected ?  (
+                <>
+                    {! spaceId ?  (
+                        <div className="text-center">
+                            <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
+                            <p className="font-georgia-pro text-lg mb-6">
+                                You need to create a Towns space first. 
+                            </p>
+                            <Button 
+                                onClick={handleCreateSpace} 
+                                disabled={isCreatingSpace}
+                                className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
+                            >
+                                {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                            </Button>
+                        </div>
+                    ) : defaultChannelId ? (
+                        <div className="w-full h-full">
+                            <ConnectedChat
+                                currentUser={currentUser}
+                                spaceId={spaceId}
+                                defaultChannelId={defaultChannelId}
+                            />
+                        </div>
+                    ) : (
+                        <LoadingSpinner />
+                    )}
+                </>
             ) : (
                 <div className="text-center">
                     {!wallet ? (
                         <>
                             <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                            <p className="font-georgia-pro text-lg mb-6">Connect your wallet to access Knead Chat.</p>
+                            <p className="font-georgia-pro text-lg mb-6">Connect your wallet to access Knead Chat. </p>
                             <ConnectButton client={client} chain={activeChain} />
                         </>
                     ) : (
