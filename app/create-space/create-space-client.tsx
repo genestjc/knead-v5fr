@@ -3,38 +3,19 @@
 import React, { useState } from 'react';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
-import { viemAdapter } from 'thirdweb/adapters/viem';
-import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, CheckCircle, Loader2 } from 'lucide-react';
-import { ethers } from 'ethers-v5';
-import type { WalletClient } from 'viem';
-import { townsEnv } from '@towns-protocol/sdk';
-
-// Helper to convert Viem WalletClient to Ethers v5 Signer
-function walletClientToSigner(walletClient:  WalletClient) {
-  const { account, chain, transport } = walletClient;
-  const network = {
-    chainId: chain.id,
-    name: chain.name,
-    ensAddress: chain.contracts?.ensRegistry?.address,
-  };
-  const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account. address);
-  return signer;
-}
 
 export default function CreateSpaceClientComponent() {
   const wallet = useActiveWallet();
-  const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   
   const [isCreating, setIsCreating] = useState(false);
   const [response, setResponse] = useState<any>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const handleConnectAndCreateSpace = async () => {
+  const handleCreateSpace = async () => {
     if (!wallet) {
       alert('Please connect your wallet first');
       return;
@@ -44,35 +25,9 @@ export default function CreateSpaceClientComponent() {
     setResponse(null);
 
     try {
-      console.log('🚀 Connecting to Towns.. .');
+      console.log('🚀 Creating space via API (Engine wallet pays gas)...');
 
-      // Convert wallet to signer (matching your chat-test pattern)
-      const viemWalletClient = viemAdapter. wallet. toViem({ 
-        wallet, 
-        client, 
-        chain: activeChain 
-      });
-      const signer = await walletClientToSigner(viemWalletClient);
-      
-      const address = await signer.getAddress();
-      console.log('✅ Wallet:', address);
-
-      // Get Towns config
-      const townsConfig = townsEnv().makeTownsConfig('omega');
-      console.log('✅ Towns config created');
-
-      // Connect to Towns using the React SDK hook
-      if (! isAgentConnected) {
-        console.log('🔄 Connecting to Towns agent...');
-        await connect({ signer });
-        console.log('✅ Connected to Towns agent');
-      }
-
-      // Now we need to create the space via API or contract
-      // The Towns SDK might not have a direct "createSpace" method
-      // Let's call your existing API route instead
-      
-      console.log('🔄 Creating space via API...');
+      // Just call the API - no Towns SDK needed for creation
       const apiResponse = await fetch('/api/towns/create-space', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +42,7 @@ export default function CreateSpaceClientComponent() {
         throw new Error(data.error || 'API request failed');
       }
 
-      console.log('✅ Space created via API:', data);
+      console.log('✅ Space created:', data);
 
       setResponse({
         success: true,
@@ -95,6 +50,7 @@ export default function CreateSpaceClientComponent() {
         defaultChannelId: data.defaultChannelId,
         transactionHash: data.transactionHash,
         explorerUrl: data.explorerUrl,
+        serverWallet: data.serverWallet,
       });
 
     } catch (error:  any) {
@@ -127,7 +83,7 @@ export default function CreateSpaceClientComponent() {
         <div className="text-center space-y-2">
           <h1 className="font-adonis text-5xl">Create Knead Space</h1>
           <p className="font-georgia-pro text-lg text-gray-600">
-            Initialize your Towns Protocol space
+            Deploy your Towns Protocol space on Base
           </p>
         </div>
 
@@ -137,11 +93,9 @@ export default function CreateSpaceClientComponent() {
             <CardHeader>
               <CardTitle className="font-georgia-pro text-sm">Connected Wallet</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent>
               <p className="font-mono text-sm break-all">{wallet.getAccount()?. address}</p>
-              {isAgentConnected && (
-                <p className="text-xs text-green-600">✅ Connected to Towns</p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">Logged in (no gas required from your wallet)</p>
             </CardContent>
           </Card>
         )}
@@ -151,7 +105,7 @@ export default function CreateSpaceClientComponent() {
           <CardHeader>
             <CardTitle className="font-adonis text-2xl">Create Space</CardTitle>
             <CardDescription className="font-georgia-pro">
-              Using your Engine wallet via API (no gas cost to you)
+              Your Engine wallet will deploy the space contract.  No gas cost to you. 
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -163,27 +117,25 @@ export default function CreateSpaceClientComponent() {
             ) : (
               <>
                 <Button
-                  onClick={handleConnectAndCreateSpace}
-                  disabled={isCreating || isAgentConnecting}
+                  onClick={handleCreateSpace}
+                  disabled={isCreating}
                   className="w-full py-6 text-lg font-georgia-pro"
                   size="lg"
                 >
-                  {isCreating || isAgentConnecting ? (
+                  {isCreating ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      {isAgentConnecting ? 'Connecting to Towns...' : 'Creating Space...'}
+                      Creating Space...
                     </>
                   ) : (
                     'Create Knead Space'
                   )}
                 </Button>
 
-                {(isCreating || isAgentConnecting) && (
+                {isCreating && (
                   <Alert>
                     <AlertDescription className="font-georgia-pro">
-                      {isAgentConnecting 
-                        ? 'Connecting to Towns Protocol.. .' 
-                        : 'Creating space via Engine wallet...'}
+                      Deploying space contract on Base.  This may take 30-60 seconds... 
                     </AlertDescription>
                   </Alert>
                 )}
@@ -223,7 +175,7 @@ export default function CreateSpaceClientComponent() {
                       href={response.explorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
                     >
                       View on BaseScan →
                     </a>
@@ -249,27 +201,45 @@ export default function CreateSpaceClientComponent() {
               </div>
 
               {/* Default Channel ID */}
-              <div className="space-y-2">
-                <p className="font-georgia-pro font-semibold">Default Channel ID</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
-                    {response.defaultChannelId}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleCopy(response.defaultChannelId, 'channelId')}
-                  >
-                    {copiedField === 'channelId' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
+              {response.defaultChannelId && (
+                <div className="space-y-2">
+                  <p className="font-georgia-pro font-semibold">Default Channel ID</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
+                      {response.defaultChannelId}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleCopy(response.defaultChannelId, 'channelId')}
+                    >
+                      {copiedField === 'channelId' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Server Wallet */}
+              {response.serverWallet && (
+                <div className="space-y-2">
+                  <p className="font-georgia-pro font-semibold">Deployed By (Engine Wallet)</p>
+                  <code className="block bg-white p-3 rounded border font-mono text-xs break-all">
+                    {response.serverWallet}
+                  </code>
+                </div>
+              )}
 
               {/* Environment Variables */}
               <div className="bg-gray-50 p-4 rounded border mt-4">
-                <p className="font-georgia-pro font-semibold mb-2">Add to . env. local: </p>
+                <p className="font-georgia-pro font-semibold mb-3">📋 Next Steps: </p>
+                <ol className="list-decimal list-inside space-y-2 text-sm font-georgia-pro mb-4">
+                  <li>Copy the environment variables below</li>
+                  <li>Add to <code className="bg-gray-200 px-1 rounded">.env. local</code></li>
+                  <li>Restart dev server:  <code className="bg-gray-200 px-1 rounded">npm run dev</code></li>
+                  <li>Go to <code className="bg-gray-200 px-1 rounded">/chat-test</code> to test</li>
+                </ol>
                 <div className="space-y-2 font-mono text-xs">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4 bg-white p-2 rounded">
                     <code className="flex-1 break-all">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={response.spaceId}</code>
                     <Button
                       variant="ghost"
@@ -279,20 +249,19 @@ export default function CreateSpaceClientComponent() {
                       {copiedField === 'env1' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <code className="flex-1 break-all">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={response.defaultChannelId}</code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopy(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${response.defaultChannelId}`, 'env2')}
-                    >
-                      {copiedField === 'env2' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
+                  {response.defaultChannelId && (
+                    <div className="flex items-center justify-between gap-4 bg-white p-2 rounded">
+                      <code className="flex-1 break-all">NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID={response. defaultChannelId}</code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopy(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${response.defaultChannelId}`, 'env2')}
+                      >
+                        {copiedField === 'env2' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-gray-600 mt-3">
-                  After adding these, restart your dev server and go to /chat-test
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -302,7 +271,7 @@ export default function CreateSpaceClientComponent() {
         {response && ! response.success && (
           <Card className="border-2 border-red-500 bg-red-50">
             <CardHeader>
-              <CardTitle className="font-adonis text-2xl text-red-700">Error</CardTitle>
+              <CardTitle className="font-adonis text-2xl text-red-700">Error Creating Space</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <Alert className="bg-white">
@@ -319,7 +288,7 @@ export default function CreateSpaceClientComponent() {
                   )}
                 </AlertDescription>
               </Alert>
-              <Button onClick={handleConnectAndCreateSpace} className="w-full" variant="destructive">
+              <Button onClick={handleCreateSpace} className="w-full" variant="destructive">
                 Try Again
               </Button>
             </CardContent>
