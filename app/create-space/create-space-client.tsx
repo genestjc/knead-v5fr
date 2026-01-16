@@ -1,89 +1,67 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { getContract, readContract, prepareContractCall, sendTransaction } from 'thirdweb';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Copy, CheckCircle, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
+import { Copy, CheckCircle, Loader2, ArrowRight, Search } from 'lucide-react';
 import { base } from 'thirdweb/chains';
 
 // Space Owner NFT Contract on Base
 const SPACE_NFT_CONTRACT = '0x2824d1235d1cbca6d61c00c3ceecb9155cd33a42';
 
-// Engine wallet address (from your env)
+// Engine wallet address
 const ENGINE_WALLET_ADDRESS = '0x8659096DE4dc09b48F0414DbD868b3792b557A10';
 
-// ERC721 ABI for Space Owner NFT
+// ERC721 ABI
 const SPACE_NFT_ABI = [
   {
-    inputs: [{ name: "owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type:  "function",
-  },
-  {
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "index", type: "uint256" }
-    ],
-    name: "tokenOfOwnerByIndex",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
+    inputs:  [{ name: "tokenId", type: "uint256" }],
+    name: "ownerOf",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability:  "view",
     type: "function",
   },
   {
     inputs: [
       { name: "from", type: "address" },
-      { name: "to", type: "address" },
+      { name: "to", type:   "address" },
       { name: "tokenId", type:  "uint256" }
-    ],
-    name: "transferFrom",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "from", type: "address" },
-      { name: "to", type:  "address" },
-      { name: "tokenId", type: "uint256" }
     ],
     name: "safeTransferFrom",
     outputs: [],
     stateMutability: "nonpayable",
-    type:  "function",
+    type:   "function",
   },
 ];
-
-interface SpaceNFT {
-  tokenId: string;
-  spaceId: string;
-}
 
 export default function CreateSpaceClientComponent() {
   const wallet = useActiveWallet();
   
+  const [tokenId, setTokenId] = useState('463997'); // Pre-filled with your token! 
   const [isChecking, setIsChecking] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
-  const [ownedSpaces, setOwnedSpaces] = useState<SpaceNFT[]>([]);
+  const [ownershipVerified, setOwnershipVerified] = useState(false);
   const [response, setResponse] = useState<any>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Check for owned Space NFTs
-  const checkOwnedSpaces = async () => {
-    if (!wallet) return;
+  // Verify ownership of a specific token ID
+  const verifyOwnership = async () => {
+    if (!wallet || !tokenId) return;
 
     setIsChecking(true);
+    setOwnershipVerified(false);
+    setResponse(null);
+
     try {
       const userAddress = wallet.getAccount()?.address;
       if (!userAddress) return;
 
-      console.log('🔍 Checking for Space NFTs owned by:', userAddress);
-      console.log('📍 Space Owner Contract:', SPACE_NFT_CONTRACT);
+      console.log('🔍 Checking ownership of Space NFT #' + tokenId);
 
       const contract = getContract({
         client,
@@ -92,56 +70,38 @@ export default function CreateSpaceClientComponent() {
         abi: SPACE_NFT_ABI,
       });
 
-      // Get balance
-      const balance = await readContract({
+      // Get the owner of this token ID
+      const owner = await readContract({
         contract,
-        method: "function balanceOf(address owner) view returns (uint256)",
-        params: [userAddress],
+        method: "function ownerOf(uint256 tokenId) view returns (address)",
+        params: [BigInt(tokenId)],
       });
 
-      console.log('✅ Space NFT balance:', balance. toString());
+      console.log('✅ Token owner:', owner);
+      console.log('   Your address:', userAddress);
 
-      if (balance === 0n) {
-        setOwnedSpaces([]);
-        return;
+      if (owner. toLowerCase() === userAddress.toLowerCase()) {
+        console.log('✅ Ownership verified! ');
+        setOwnershipVerified(true);
+      } else {
+        throw new Error(`You don't own this Space NFT.  Current owner: ${owner}`);
       }
 
-      // Get all token IDs
-      const spaces:  SpaceNFT[] = [];
-      for (let i = 0; i < Number(balance); i++) {
-        const tokenId = await readContract({
-          contract,
-          method:  "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
-          params: [userAddress, BigInt(i)],
-        });
-
-        spaces.push({
-          tokenId:  tokenId.toString(),
-          spaceId: tokenId.toString(), // Space ID = Token ID
-        });
-      }
-
-      console.log('✅ Found spaces:', spaces);
-      setOwnedSpaces(spaces);
-
-    } catch (error) {
-      console.error('❌ Error checking spaces:', error);
-      setOwnedSpaces([]);
+    } catch (error:  any) {
+      console.error('❌ Error verifying ownership:', error);
+      setResponse({
+        success: false,
+        error: error.message || 'Failed to verify ownership',
+        details: error.reason || 'Token might not exist or you may not own it',
+      });
     } finally {
       setIsChecking(false);
     }
   };
 
-  // Auto-check when wallet connects
-  useEffect(() => {
-    if (wallet) {
-      checkOwnedSpaces();
-    }
-  }, [wallet]);
-
   // Transfer Space NFT to Engine wallet
-  const transferSpaceToEngine = async (tokenId: string) => {
-    if (!wallet) return;
+  const transferSpaceToEngine = async () => {
+    if (!wallet || !tokenId || ! ownershipVerified) return;
 
     setIsTransferring(true);
     setResponse(null);
@@ -152,7 +112,7 @@ export default function CreateSpaceClientComponent() {
         throw new Error('Wallet not connected');
       }
 
-      console.log(`🔄 Transferring Space NFT ${tokenId} to Engine wallet...`);
+      console.log(`🔄 Transferring Space NFT #${tokenId} to Engine wallet... `);
       console.log(`   From: ${userAddress}`);
       console.log(`   To: ${ENGINE_WALLET_ADDRESS}`);
 
@@ -160,7 +120,7 @@ export default function CreateSpaceClientComponent() {
         client,
         chain: base,
         address: SPACE_NFT_CONTRACT,
-        abi:  SPACE_NFT_ABI,
+        abi:   SPACE_NFT_ABI,
       });
 
       // Prepare safe transfer transaction
@@ -189,12 +149,9 @@ export default function CreateSpaceClientComponent() {
         message: 'Space NFT transferred to Engine wallet successfully!',
       });
 
-      // Refresh owned spaces after 2 seconds
-      setTimeout(() => {
-        checkOwnedSpaces();
-      }, 2000);
+      setOwnershipVerified(false); // Reset after transfer
 
-    } catch (error:  any) {
+    } catch (error:   any) {
       console.error('❌ Transfer error:', error);
       setResponse({
         success: false,
@@ -228,10 +185,10 @@ export default function CreateSpaceClientComponent() {
         </div>
 
         {/* Wallet Connection */}
-        {!wallet ? (
+        {! wallet ? (
           <Card className="border-2">
             <CardContent className="pt-6 text-center space-y-4">
-              <p className="font-georgia-pro text-gray-600">Connect your wallet to check for Space NFTs</p>
+              <p className="font-georgia-pro text-gray-600">Connect your wallet to continue</p>
               <ConnectButton client={client} chain={activeChain} />
             </CardContent>
           </Card>
@@ -249,128 +206,113 @@ export default function CreateSpaceClientComponent() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Engine Wallet (Transfer Destination)</p>
-                  <p className="font-mono text-sm break-all">{ENGINE_WALLET_ADDRESS}</p>
+                  <p className="font-mono text-sm break-all text-blue-600">{ENGINE_WALLET_ADDRESS}</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={checkOwnedSpaces}
-                  disabled={isChecking}
-                  className="w-full"
-                >
-                  {isChecking ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking for Spaces...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Refresh Owned Spaces
-                    </>
-                  )}
-                </Button>
               </CardContent>
             </Card>
 
-            {/* Owned Spaces */}
-            {ownedSpaces.length > 0 && (
-              <Card className="border-2 border-blue-500 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="font-adonis text-2xl">✨ Your Space NFTs Found!</CardTitle>
-                  <CardDescription className="font-georgia-pro">
-                    Transfer one to the Engine wallet to enable automated chat management
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {ownedSpaces.map((space) => (
-                    <div key={space.tokenId} className="bg-white p-4 rounded-lg border-2 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <p className="font-georgia-pro font-semibold text-lg">
-                            Space #{space.spaceId}
-                          </p>
-                          <p className="text-sm text-gray-600">Token ID: {space.tokenId}</p>
-                          <p className="text-xs text-gray-500 font-mono break-all">
-                            Contract: {SPACE_NFT_CONTRACT}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => transferSpaceToEngine(space.tokenId)}
-                          disabled={isTransferring}
-                          className="font-georgia-pro"
-                          size="lg"
-                        >
-                          {isTransferring ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Transferring...
-                            </>
-                          ) : (
-                            <>
-                              Transfer
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      <Alert className="bg-blue-50 border-blue-200">
-                        <AlertDescription className="text-xs">
-                          <strong>What happens: </strong> You'll pay a small gas fee (~$0.50) to transfer ownership 
-                          to the Engine wallet. The Engine wallet will then manage this space for Knead Magazine.
-                        </AlertDescription>
-                      </Alert>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            {/* Token ID Input & Verification */}
+            <Card className="border-2 border-blue-500 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="font-adonis text-2xl">Enter Your Space NFT Token ID</CardTitle>
+                <CardDescription className="font-georgia-pro">
+                  Find your token ID on{' '}
+                  <a
+                    href={`https://basescan.org/token/0x2824d1235d1cbca6d61c00c3ceecb9155cd33a42? a=${wallet.getAccount()?.address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline font-semibold"
+                  >
+                    BaseScan
+                  </a>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-georgia-pro font-semibold">Token ID</label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={tokenId}
+                      onChange={(e) => {
+                        setTokenId(e.target.value);
+                        setOwnershipVerified(false);
+                        setResponse(null);
+                      }}
+                      placeholder="e.g.  463997"
+                      className="font-mono"
+                      disabled={isChecking || isTransferring}
+                    />
+                    <Button
+                      onClick={verifyOwnership}
+                      disabled={! tokenId || isChecking || isTransferring}
+                      variant="outline"
+                    >
+                      {isChecking ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="mr-2 h-4 w-4" />
+                          Verify
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Your Space NFT:  <code className="bg-white px-1 rounded">463997</code> (pre-filled)
+                  </p>
+                </div>
 
-            {/* No Spaces Found */}
-            {! isChecking && ownedSpaces.length === 0 && (
-              <Card className="border-2 border-orange-500 bg-orange-50">
-                <CardHeader>
-                  <CardTitle className="font-adonis text-2xl">No Space NFTs Found</CardTitle>
-                  <CardDescription className="font-georgia-pro">
-                    You need to create a space on Towns. com first
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert className="bg-white">
-                    <AlertDescription className="font-georgia-pro space-y-3">
-                      <p className="font-semibold">📋 Steps to create a Space:</p>
-                      <ol className="list-decimal list-inside text-sm space-y-2 ml-2">
-                        <li>
-                          Go to{' '}
-                          <a 
-                            href="https://www.towns.com" 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-blue-600 underline font-semibold"
-                          >
-                            towns.com
-                          </a>
-                        </li>
-                        <li>
-                          Connect <strong>this wallet</strong>:{' '}
-                          <code className="bg-gray-100 px-1 rounded text-xs break-all">
-                            {wallet.getAccount()?.address}
-                          </code>
-                        </li>
-                        <li>Create a new space (name it "Knead Magazine")</li>
-                        <li>Wait for the transaction to confirm</li>
-                        <li>Return here and click "Refresh Owned Spaces"</li>
-                        <li>Transfer the Space NFT to the Engine wallet</li>
-                      </ol>
-                      <p className="text-xs text-gray-600 mt-3">
-                        <strong>Note:</strong> Space creation on towns.com is free, but you'll pay a small 
-                        gas fee when transferring it to the Engine wallet here.
-                      </p>
+                {ownershipVerified && (
+                  <Alert className="bg-green-50 border-green-500">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="font-georgia-pro">
+                      <strong className="text-green-700">✅ Ownership Verified!</strong> You own Space NFT #{tokenId}
                     </AlertDescription>
                   </Alert>
-                </CardContent>
-              </Card>
-            )}
+                )}
+
+                {ownershipVerified && (
+                  <div className="bg-white p-4 rounded-lg border-2 space-y-3">
+                    <div className="space-y-2">
+                      <p className="font-georgia-pro font-semibold text-lg">
+                        Space #{tokenId}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Contract: <code className="bg-gray-100 px-1 rounded">{SPACE_NFT_CONTRACT}</code>
+                      </p>
+                    </div>
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <AlertDescription className="text-xs">
+                        <strong>What happens: </strong> You'll pay a small gas fee (~$0.50) to transfer ownership 
+                        to the Engine wallet.  The Engine wallet will then manage this space for Knead Magazine.
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      onClick={transferSpaceToEngine}
+                      disabled={isTransferring}
+                      className="w-full font-georgia-pro"
+                      size="lg"
+                    >
+                      {isTransferring ?  (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Transferring...
+                        </>
+                      ) : (
+                        <>
+                          Transfer to Engine Wallet
+                          <ArrowRight className="ml-2 h-5 w-5" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
 
@@ -380,7 +322,7 @@ export default function CreateSpaceClientComponent() {
             <CardHeader>
               <CardTitle className="font-adonis text-2xl flex items-center gap-2">
                 <CheckCircle className="text-green-600" />
-                {response.message || 'Success! '}
+                🎉 Space NFT Transferred Successfully!
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -415,7 +357,7 @@ export default function CreateSpaceClientComponent() {
 
               {/* Space ID */}
               <div className="space-y-2">
-                <p className="font-georgia-pro font-semibold">Space ID (Token ID)</p>
+                <p className="font-georgia-pro font-semibold">Space ID</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 bg-white p-3 rounded border font-mono text-sm break-all">
                     {response.spaceId}
@@ -423,16 +365,16 @@ export default function CreateSpaceClientComponent() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => handleCopy(response. spaceId, 'spaceId')}
+                    onClick={() => handleCopy(response.spaceId, 'spaceId')}
                   >
-                    {copiedField === 'spaceId' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedField === 'spaceId' ?  <CheckCircle className="h-4 w-4" /> :  <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
 
               {/* Environment Variables */}
               <div className="bg-gray-50 p-4 rounded border mt-4">
-                <p className="font-georgia-pro font-semibold mb-3">📋 Next Steps:</p>
+                <p className="font-georgia-pro font-semibold mb-3">📋 Final Steps: </p>
                 <ol className="list-decimal list-inside space-y-2 text-sm font-georgia-pro mb-4">
                   <li>Copy the environment variable below</li>
                   <li>Add to <code className="bg-gray-200 px-1 rounded">.env. local</code></li>
@@ -440,7 +382,7 @@ export default function CreateSpaceClientComponent() {
                   <li>Go to <code className="bg-gray-200 px-1 rounded">/chat-test</code> to test your space! </li>
                 </ol>
                 <div className="space-y-2 font-mono text-xs">
-                  <div className="flex items-center justify-between gap-4 bg-white p-2 rounded border">
+                  <div className="flex items-center justify-between gap-4 bg-white p-3 rounded border-2 border-green-500">
                     <code className="flex-1 break-all">NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID={response.spaceId}</code>
                     <Button
                       variant="ghost"
@@ -465,7 +407,7 @@ export default function CreateSpaceClientComponent() {
             <CardContent className="space-y-4">
               <Alert className="bg-white">
                 <AlertDescription className="font-georgia-pro space-y-2">
-                  <p className="font-semibold text-red-700">Error: </p>
+                  <p className="font-semibold text-red-700">Error:</p>
                   <p className="text-sm">{response.error}</p>
                   {response.details && (
                     <>
