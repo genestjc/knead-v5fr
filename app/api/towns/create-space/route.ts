@@ -16,10 +16,10 @@ import {
 
 // Type definition for transaction log entries
 interface TransactionLog {
-  eventName?: string;
-  eventSignature?: string;
+  eventName?:  string;
+  eventSignature?:  string;
   args?: {
-    spaceId?: bigint | string;
+    spaceId?:  bigint | string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -28,7 +28,7 @@ interface TransactionLog {
 // Minimal ABI for createSpace and SpaceCreated event
 const SPACE_FACTORY_ABI = [
   {
-    inputs: [{ internalType: "string", name: "name", type: "string" }],
+    inputs:  [{ internalType: "string", name:  "name", type: "string" }],
     name: "createSpace",
     outputs: [{ internalType: "uint256", name: "spaceId", type: "uint256" }],
     stateMutability: "nonpayable",
@@ -41,7 +41,7 @@ const SPACE_FACTORY_ABI = [
         indexed: true,
         internalType: "uint256",
         name: "spaceId",
-        type: "uint256",
+        type:  "uint256",
       },
       {
         indexed: true,
@@ -49,7 +49,7 @@ const SPACE_FACTORY_ABI = [
         name: "owner",
         type: "address",
       },
-      { indexed: false, internalType: "string", name: "name", type: "string" },
+      { indexed: false, internalType:  "string", name: "name", type: "string" },
     ],
     name: "SpaceCreated",
     type: "event",
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
   
   try {
-    const { name, freeAllocation } = await req.json();
+    const { name, freeAllocation } = await req. json();
 
     if (!name) {
       return NextResponse.json(
@@ -70,10 +70,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate environment variables
-    if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
-      console.error('❌ NEXT_PUBLIC_THIRDWEB_CLIENT_ID not configured');
+    if (!process.env.THIRDWEB_CLIENT_ID) {
+      console.error('❌ THIRDWEB_CLIENT_ID not configured');
       return NextResponse.json(
-        { success: false, error: 'NEXT_PUBLIC_THIRDWEB_CLIENT_ID not configured' },
+        { success: false, error: 'THIRDWEB_CLIENT_ID not configured' },
         { status: 500 }
       );
     }
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🚀 Creating Towns space: "${name}"`);
+    console.log(`🚀 Creating Towns space:  "${name}"`);
     console.log(`📊 Request details:`)
     console.log(`   - Space name: ${name}`);
     console.log(`   - Timestamp: ${new Date().toISOString()}`);
@@ -103,12 +103,12 @@ export async function POST(req: NextRequest) {
     // Step 1: Query network's max free allocation limit
     console.log('\n🔍 Step 1: Querying network limits...');
     const maxFreeAllocation = await getMaxFreeAllocation(
-      process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID
+      process.env. THIRDWEB_CLIENT_ID
     );
     console.log(`✅ Network max free allocation: ${maxFreeAllocation}`);
     
     // Note: The current createSpace(string name) function uses the contract's 
-    // default free allocation. If the default exceeds the network limit,
+    // default free allocation.  If the default exceeds the network limit,
     // the transaction will fail with Membership__InvalidFreeAllocation.
     // This query helps us provide a better error message to users.
     
@@ -123,14 +123,14 @@ export async function POST(req: NextRequest) {
 
     // Initialize ThirdWeb client
     const client = createThirdwebClient({
-      clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
+      clientId: process.env.THIRDWEB_CLIENT_ID,
     });
 
     // Initialize Engine server wallet
     const myServerWallet = Engine.serverWallet({
       client,
       address: process.env.ENGINE_SERVER_WALLET_ADDRESS,
-      vaultAccessToken: process.env.ENGINE_VAULT_ACCESS_TOKEN,
+      vaultAccessToken: process.env. ENGINE_VAULT_ACCESS_TOKEN,
     });
 
     console.log(`✅ Server wallet: ${process.env.ENGINE_SERVER_WALLET_ADDRESS}`);
@@ -139,10 +139,10 @@ export async function POST(req: NextRequest) {
     const contract = getContract({
       client,
       chain: base,
-      address: SPACE_FACTORY_ADDRESS,
+      address:  SPACE_FACTORY_ADDRESS,
       abi: SPACE_FACTORY_ABI,
     });
-    console.log(`✅ Contract initialized: ${SPACE_FACTORY_ADDRESS}`);
+    console.log(`✅ Contract initialized:  ${SPACE_FACTORY_ADDRESS}`);
 
     // Prepare the transaction
     console.log('\n🔍 Step 4: Preparing transaction...');
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
     });
 
     const enqueueTime = Date.now() - enqueueStartTime;
-    console.log(`✅ Transaction enqueued: ${transactionId}`);
+    console. log(`✅ Transaction enqueued:  ${transactionId}`);
     console.log(`   - Enqueue time: ${enqueueTime}ms`);
 
     console.log('\n🔍 Step 6: Waiting for transaction hash...');
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
 
     // Find the SpaceCreated event in the logs
     console.log('\n🔍 Step 7: Parsing transaction logs...');
-    console.log(`   - Total logs: ${logs?.length || 0}`);
+    console.log(`   - Total logs: ${logs?. length || 0}`);
     
     const eventSignature = "SpaceCreated(uint256,address,string)";
     const spaceCreatedLog = (logs as TransactionLog[]).find(
@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
 
     if (!spaceId) {
       console.error('❌ spaceId not found in SpaceCreated event');
-      console.error('Event data:', JSON.stringify(spaceCreatedLog, null, 2));
+      console.error('Event data:', JSON. stringify(spaceCreatedLog, null, 2));
       throw new Error('spaceId not found in SpaceCreated event');
     }
 
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
     console.log(`   - Explorer: https://basescan.org/tx/${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-    return NextResponse.json({
+    return NextResponse. json({
       success: true,
       transactionId,
       transactionHash,
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
       serverWallet: process.env.ENGINE_SERVER_WALLET_ADDRESS,
       processingTime: totalTime,
-      networkMaxFreeAllocation: maxFreeAllocation.toString(),
+      networkMaxFreeAllocation:  maxFreeAllocation.toString(),
     });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
