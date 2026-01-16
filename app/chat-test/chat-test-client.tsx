@@ -21,7 +21,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading...</p>
+            <p className="font-georgia-pro text-gray-600">Loading... </p>
         </div>
     </div>
 );
@@ -49,6 +49,7 @@ const mockUser = {
 
 export default function ChatTestClient() {
     const [spaceId, setSpaceId] = useState<string | null>(null);
+    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
 
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
@@ -56,18 +57,12 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const townsConfig = townsEnv().makeTownsConfig('omega');
 
-    // CRITICAL FIX: Only call useSpace when we have a valid spaceId AND are connected
-    const { data: space } = useSpace(
-      (isAgentConnected && spaceId) ? spaceId : ''
-    );
-    const defaultChannelId = space?.channelIds? .[0];
-
     const currentUser = mockUser; 
 
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          const viemWalletClient = viemAdapter.wallet. toViem({ 
+          const viemWalletClient = viemAdapter.wallet.toViem({ 
             wallet, 
             client, 
             chain: activeChain 
@@ -93,9 +88,12 @@ export default function ChatTestClient() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
+            // OPTIMIZATION: createSpace returns both spaceId AND defaultChannelId
             const result = await createSpace({ spaceName: 'Knead Chat Space' }, signer);
-            console.log('✅ Space created:', result. spaceId);
+            console.log('✅ Space created:', result.spaceId);
+            console.log('✅ Default channel:', result.defaultChannelId);
             setSpaceId(result.spaceId);
+            setDefaultChannelId(result.defaultChannelId);
         } catch (e) {
             console.error("❌ Failed to create space:", e);
             alert('Failed to create space. See console for details.');
@@ -113,7 +111,7 @@ export default function ChatTestClient() {
         <div className="min-h-screen flex items-center justify-center bg-white">
             {isAgentConnected ?  (
                 <>
-                    {! spaceId ? (
+                    {! spaceId ?  (
                         <div className="text-center max-w-md">
                             <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
                             <p className="font-georgia-pro text-lg mb-6 text-gray-600">
@@ -165,7 +163,7 @@ export default function ChatTestClient() {
                                 disabled={isAgentConnecting} 
                                 className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                             >
-                                {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                                {isAgentConnecting ?  'Connecting...' : 'Connect to Towns'}
                             </Button>
                         </>
                     )}
