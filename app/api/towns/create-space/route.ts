@@ -11,7 +11,7 @@ import {
   SPACE_FACTORY_ADDRESS,
   DEFAULT_TRANSACTION_TIMEOUT_MS,
 } from "@/lib/towns/space-utils";
-import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { client, serverWallet } from "@/thirdweb-server-wallet";
 
 // Type definition for transaction log entries
 interface TransactionLog {
