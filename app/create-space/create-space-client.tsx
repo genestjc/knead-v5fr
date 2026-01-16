@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Copy, CheckCircle, Loader2, ArrowRight, Search } from 'lucide-react';
+import { Copy, CheckCircle, Loader2, ArrowRight, Search, Shield } from 'lucide-react';
 import { base } from 'thirdweb/chains';
 
 // Space Owner NFT Contract on Base
@@ -17,44 +17,75 @@ const SPACE_NFT_CONTRACT = '0x2824d1235d1cbca6d61c00c3ceecb9155cd33a42';
 // Engine wallet address
 const ENGINE_WALLET_ADDRESS = '0x8659096DE4dc09b48F0414DbD868b3792b557A10';
 
-// ERC721 ABI
+// ERC721 ABI with approval
 const SPACE_NFT_ABI = [
   {
-    inputs:  [{ name: "tokenId", type: "uint256" }],
+    inputs: [{ name: "tokenId", type: "uint256" }],
     name: "ownerOf",
     outputs: [{ name: "", type: "address" }],
-    stateMutability:  "view",
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    name: "getApproved",
+    outputs:  [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" }
+    ],
+    name: "approve",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
     inputs: [
       { name: "from", type: "address" },
-      { name: "to", type:   "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" }
+    ],
+    name: "transferFrom",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type:  "function",
+  },
+  {
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
       { name: "tokenId", type:  "uint256" }
     ],
     name: "safeTransferFrom",
     outputs: [],
     stateMutability: "nonpayable",
-    type:   "function",
+    type: "function",
   },
 ];
 
 export default function CreateSpaceClientComponent() {
   const wallet = useActiveWallet();
   
-  const [tokenId, setTokenId] = useState('463997'); // Pre-filled with your token! 
+  const [tokenId, setTokenId] = useState('463997');
   const [isChecking, setIsChecking] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [ownershipVerified, setOwnershipVerified] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   const [response, setResponse] = useState<any>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Verify ownership of a specific token ID
+  // Verify ownership and approval status
   const verifyOwnership = async () => {
     if (!wallet || !tokenId) return;
 
     setIsChecking(true);
     setOwnershipVerified(false);
+    setIsApproved(false);
     setResponse(null);
 
     try {
@@ -70,7 +101,7 @@ export default function CreateSpaceClientComponent() {
         abi: SPACE_NFT_ABI,
       });
 
-      // Get the owner of this token ID
+      // Check ownership
       const owner = await readContract({
         contract,
         method: "function ownerOf(uint256 tokenId) view returns (address)",
@@ -80,11 +111,32 @@ export default function CreateSpaceClientComponent() {
       console.log('✅ Token owner:', owner);
       console.log('   Your address:', userAddress);
 
-      if (owner. toLowerCase() === userAddress.toLowerCase()) {
-        console.log('✅ Ownership verified! ');
-        setOwnershipVerified(true);
-      } else {
+      if (owner. toLowerCase() !== userAddress.toLowerCase()) {
         throw new Error(`You don't own this Space NFT.  Current owner: ${owner}`);
+      }
+
+      setOwnershipVerified(true);
+
+      // Check if already approved
+      try {
+        const approved = await readContract({
+          contract,
+          method: "function getApproved(uint256 tokenId) view returns (address)",
+          params: [BigInt(tokenId)],
+        });
+
+        console.log('   Approved address:', approved);
+
+        if (approved.toLowerCase() === ENGINE_WALLET_ADDRESS.toLowerCase()) {
+          console.log('✅ Already approved for Engine wallet');
+          setIsApproved(true);
+        } else {
+          console.log('⚠️ Not yet approved');
+          setIsApproved(false);
+        }
+      } catch (approvalError) {
+        console.log('⚠️ Could not check approval (might not be supported)');
+        setIsApproved(false);
       }
 
     } catch (error:  any) {
@@ -99,11 +151,11 @@ export default function CreateSpaceClientComponent() {
     }
   };
 
-  // Transfer Space NFT to Engine wallet
-  const transferSpaceToEngine = async () => {
+  // Approve Engine wallet to transfer the NFT
+  const approveTransfer = async () => {
     if (!wallet || !tokenId || ! ownershipVerified) return;
 
-    setIsTransferring(true);
+    setIsApproving(true);
     setResponse(null);
 
     try {
@@ -112,33 +164,89 @@ export default function CreateSpaceClientComponent() {
         throw new Error('Wallet not connected');
       }
 
-      console.log(`🔄 Transferring Space NFT #${tokenId} to Engine wallet... `);
-      console.log(`   From: ${userAddress}`);
-      console.log(`   To: ${ENGINE_WALLET_ADDRESS}`);
+      console.log(`🔐 Approving Engine wallet to transfer Space NFT #${tokenId}...`);
 
       const contract = getContract({
         client,
         chain: base,
         address: SPACE_NFT_CONTRACT,
-        abi:   SPACE_NFT_ABI,
+        abi: SPACE_NFT_ABI,
       });
 
-      // Prepare safe transfer transaction
+      // Prepare approval transaction
       const transaction = prepareContractCall({
         contract,
-        method: "function safeTransferFrom(address from, address to, uint256 tokenId)",
-        params: [userAddress, ENGINE_WALLET_ADDRESS, BigInt(tokenId)],
+        method: "function approve(address to, uint256 tokenId)",
+        params: [ENGINE_WALLET_ADDRESS, BigInt(tokenId)],
       });
 
-      console.log('📝 Transaction prepared, waiting for user signature...');
+      console.log('📝 Approval transaction prepared, waiting for user signature...');
 
-      // Send transaction (user pays gas)
+      // Send approval transaction
       const receipt = await sendTransaction({
         transaction,
         account: wallet.getAccount()!,
       });
 
-      console.log('✅ Transfer successful:', receipt. transactionHash);
+      console.log('✅ Approval successful:', receipt. transactionHash);
+
+      setIsApproved(true);
+
+      // Show success message but don't set full response
+      alert('✅ Approval successful! Now click "Transfer to Engine Wallet"');
+
+    } catch (error: any) {
+      console.error('❌ Approval error:', error);
+      setResponse({
+        success: false,
+        error: error.message || 'Failed to approve transfer',
+        details: error.reason || error.stack,
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // Transfer Space NFT to Engine wallet (using regular transferFrom)
+  const transferSpaceToEngine = async () => {
+    if (!wallet || !tokenId || !ownershipVerified) return;
+
+    setIsTransferring(true);
+    setResponse(null);
+
+    try {
+      const userAddress = wallet. getAccount()?.address;
+      if (!userAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      console. log(`🔄 Transferring Space NFT #${tokenId} to Engine wallet...`);
+      console.log(`   From: ${userAddress}`);
+      console.log(`   To: ${ENGINE_WALLET_ADDRESS}`);
+
+      const contract = getContract({
+        client,
+        chain:  base,
+        address: SPACE_NFT_CONTRACT,
+        abi: SPACE_NFT_ABI,
+      });
+
+      // Try regular transferFrom (not safeTransferFrom)
+      const transaction = prepareContractCall({
+        contract,
+        method:  "function transferFrom(address from, address to, uint256 tokenId)",
+        params: [userAddress, ENGINE_WALLET_ADDRESS, BigInt(tokenId)],
+      });
+
+      console.log('📝 Transaction prepared, waiting for user signature...');
+
+      // Send transaction
+      const receipt = await sendTransaction({
+        transaction,
+        account: wallet. getAccount()!,
+      });
+
+      console.log('✅ Transfer successful:', receipt.transactionHash);
 
       setResponse({
         success: true,
@@ -149,15 +257,26 @@ export default function CreateSpaceClientComponent() {
         message: 'Space NFT transferred to Engine wallet successfully!',
       });
 
-      setOwnershipVerified(false); // Reset after transfer
+      setOwnershipVerified(false);
+      setIsApproved(false);
 
-    } catch (error:   any) {
+    } catch (error: any) {
       console.error('❌ Transfer error:', error);
-      setResponse({
-        success: false,
-        error: error.message || 'Failed to transfer Space NFT',
-        details: error.reason || error.stack,
-      });
+      
+      // Check if it's the same error signature
+      if (error.message?. includes('0xed551c30')) {
+        setResponse({
+          success: false,
+          error: '⚠️ This Space NFT appears to be non-transferable (soulbound)',
+          details:  'Towns Protocol Space NFTs might be locked to the original owner.  You may need to contact Towns team to enable transfer or use a different approach.',
+        });
+      } else {
+        setResponse({
+          success: false,
+          error:  error.message || 'Failed to transfer Space NFT',
+          details: error.reason || error.stack,
+        });
+      }
     } finally {
       setIsTransferring(false);
     }
@@ -237,15 +356,16 @@ export default function CreateSpaceClientComponent() {
                       onChange={(e) => {
                         setTokenId(e.target.value);
                         setOwnershipVerified(false);
+                        setIsApproved(false);
                         setResponse(null);
                       }}
                       placeholder="e.g.  463997"
                       className="font-mono"
-                      disabled={isChecking || isTransferring}
+                      disabled={isChecking || isApproving || isTransferring}
                     />
                     <Button
                       onClick={verifyOwnership}
-                      disabled={! tokenId || isChecking || isTransferring}
+                      disabled={! tokenId || isChecking || isApproving || isTransferring}
                       variant="outline"
                     >
                       {isChecking ? (
@@ -285,22 +405,60 @@ export default function CreateSpaceClientComponent() {
                         Contract: <code className="bg-gray-100 px-1 rounded">{SPACE_NFT_CONTRACT}</code>
                       </p>
                     </div>
+
+                    {/* Approval Status */}
+                    {isApproved ? (
+                      <Alert className="bg-green-50 border-green-500">
+                        <Shield className="h-4 w-4 text-green-600" />
+                        <AlertDescription className="text-xs">
+                          <strong className="text-green-700">✅ Approved!</strong> Ready to transfer
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <>
+                        <Alert className="bg-yellow-50 border-yellow-500">
+                          <AlertDescription className="text-xs">
+                            <strong>Step 1:</strong> Approve the Engine wallet to transfer this NFT
+                          </AlertDescription>
+                        </Alert>
+                        <Button
+                          onClick={approveTransfer}
+                          disabled={isApproving || isTransferring}
+                          className="w-full font-georgia-pro"
+                          variant="outline"
+                          size="lg"
+                        >
+                          {isApproving ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Approving...
+                            </>
+                          ) : (
+                            <>
+                              <Shield className="mr-2 h-5 w-5" />
+                              Approve Transfer
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Transfer Button */}
                     <Alert className="bg-blue-50 border-blue-200">
                       <AlertDescription className="text-xs">
-                        <strong>What happens: </strong> You'll pay a small gas fee (~$0.50) to transfer ownership 
-                        to the Engine wallet.  The Engine wallet will then manage this space for Knead Magazine.
+                        <strong>Step 2:</strong> Transfer ownership to the Engine wallet
                       </AlertDescription>
                     </Alert>
                     <Button
                       onClick={transferSpaceToEngine}
-                      disabled={isTransferring}
+                      disabled={isTransferring || isApproving}
                       className="w-full font-georgia-pro"
                       size="lg"
                     >
                       {isTransferring ?  (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Transferring...
+                          Transferring... 
                         </>
                       ) : (
                         <>
@@ -347,7 +505,7 @@ export default function CreateSpaceClientComponent() {
                       href={response.explorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover: underline inline-flex items-center gap-1"
+                      className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
                     >
                       View on BaseScan →
                     </a>
@@ -367,17 +525,17 @@ export default function CreateSpaceClientComponent() {
                     size="icon"
                     onClick={() => handleCopy(response.spaceId, 'spaceId')}
                   >
-                    {copiedField === 'spaceId' ?  <CheckCircle className="h-4 w-4" /> :  <Copy className="h-4 w-4" />}
+                    {copiedField === 'spaceId' ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
 
               {/* Environment Variables */}
               <div className="bg-gray-50 p-4 rounded border mt-4">
-                <p className="font-georgia-pro font-semibold mb-3">📋 Final Steps: </p>
+                <p className="font-georgia-pro font-semibold mb-3">📋 Final Steps:</p>
                 <ol className="list-decimal list-inside space-y-2 text-sm font-georgia-pro mb-4">
                   <li>Copy the environment variable below</li>
-                  <li>Add to <code className="bg-gray-200 px-1 rounded">.env. local</code></li>
+                  <li>Add to <code className="bg-gray-200 px-1 rounded">. env. local</code></li>
                   <li>Restart dev server:  <code className="bg-gray-200 px-1 rounded">npm run dev</code></li>
                   <li>Go to <code className="bg-gray-200 px-1 rounded">/chat-test</code> to test your space! </li>
                 </ol>
@@ -407,7 +565,7 @@ export default function CreateSpaceClientComponent() {
             <CardContent className="space-y-4">
               <Alert className="bg-white">
                 <AlertDescription className="font-georgia-pro space-y-2">
-                  <p className="font-semibold text-red-700">Error:</p>
+                  <p className="font-semibold text-red-700">Error: </p>
                   <p className="text-sm">{response.error}</p>
                   {response.details && (
                     <>
