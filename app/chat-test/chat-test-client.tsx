@@ -1,9 +1,9 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useCreateSpace, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
@@ -21,7 +21,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading... </p>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
         </div>
     </div>
 );
@@ -51,6 +51,12 @@ export default function ChatTestClient() {
     const [spaceId, setSpaceId] = useState<string | null>(null);
     const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Ensure we're only running in the browser
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
     const { createSpace } = useCreateSpace();
@@ -62,7 +68,7 @@ export default function ChatTestClient() {
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          const viemWalletClient = viemAdapter.wallet.toViem({ 
+          const viemWalletClient = viemAdapter. wallet.toViem({ 
             wallet, 
             client, 
             chain: activeChain 
@@ -88,12 +94,11 @@ export default function ChatTestClient() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            // OPTIMIZATION: createSpace returns both spaceId AND defaultChannelId
             const result = await createSpace({ spaceName: 'Knead Chat Space' }, signer);
             console.log('✅ Space created:', result.spaceId);
             console.log('✅ Default channel:', result.defaultChannelId);
             setSpaceId(result.spaceId);
-            setDefaultChannelId(result.defaultChannelId);
+            setDefaultChannelId(result. defaultChannelId);
         } catch (e) {
             console.error("❌ Failed to create space:", e);
             alert('Failed to create space. See console for details.');
@@ -102,8 +107,8 @@ export default function ChatTestClient() {
         }
     };
 
-    // Don't render anything until we check connection status
-    if (isAgentConnecting) {
+    // Don't render until mounted (browser only)
+    if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
     }
     
@@ -111,11 +116,11 @@ export default function ChatTestClient() {
         <div className="min-h-screen flex items-center justify-center bg-white">
             {isAgentConnected ?  (
                 <>
-                    {! spaceId ?  (
+                    {! spaceId ? (
                         <div className="text-center max-w-md">
                             <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
                             <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                                Create a Towns space to start chatting. 
+                                Create a Towns space to start chatting.  
                             </p>
                             <Button 
                                 onClick={handleCreateSpace} 
@@ -163,7 +168,7 @@ export default function ChatTestClient() {
                                 disabled={isAgentConnecting} 
                                 className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                             >
-                                {isAgentConnecting ?  'Connecting...' : 'Connect to Towns'}
+                                {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                             </Button>
                         </>
                     )}
