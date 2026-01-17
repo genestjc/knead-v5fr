@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useCreateSpace, useJoinSpace } from '@towns-protocol/react-sdk'; // ✅ Add useJoinSpace
+import { useAgentConnection, useCreateSpace, useJoinSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
@@ -12,11 +12,10 @@ import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
-// ✅ Environment configuration
-const SAVED_SPACE_ID = process.env. NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+// ✅ Fixed spacing - no space before NEXT_PUBLIC
+const SAVED_SPACE_ID = process. env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env. NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-// ✅ Hardcode omega (Base Mainnet)
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
 const CHAIN_ID = 8453;
@@ -42,7 +41,7 @@ function walletClientToSigner(walletClient: WalletClient) {
   const network = { 
     chainId: chain.id, 
     name: chain.name, 
-    ensAddress: chain.contracts?. ensRegistry?.address 
+    ensAddress: chain.contracts?.ensRegistry?.address 
   };
   const provider = new ethers.providers.Web3Provider(transport, network);
   const signer = provider.getSigner(account. address);
@@ -56,7 +55,6 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-// Inner component that uses Towns hooks - only renders when connected
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
@@ -69,17 +67,17 @@ function TownsConnectedContent() {
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
-    const { joinSpace } = useJoinSpace(); // ✅ Add this hook
+    const { joinSpace } = useJoinSpace();
     const currentUser = mockUser;
 
-    // ✅ Auto-join space if we have saved space ID
+    // Auto-join space if we have saved space ID
     useEffect(() => {
-        if (SAVED_SPACE_ID && ! hasJoined && !isJoiningSpace) {
+        if (SAVED_SPACE_ID && !hasJoined && ! isJoiningSpace) {
             handleJoinSpace(SAVED_SPACE_ID);
         }
-    }, []);
+    }, [hasJoined, isJoiningSpace]);
 
-    // ✅ Join space function
+    // ✅ CORRECTED: Now passes signer to joinSpace
     const handleJoinSpace = async (spaceIdToJoin: string) => {
         if (!wallet) return;
         setIsJoiningSpace(true);
@@ -87,16 +85,26 @@ function TownsConnectedContent() {
         try {
             console.log('🚪 Joining space:', spaceIdToJoin);
             
-            await joinSpace(spaceIdToJoin);
+            // ✅ Get the signer
+            const viemWalletClient = viemAdapter.wallet.toViem({ 
+                wallet, 
+                client, 
+                chain: activeChain
+            });
+            const signer = await walletClientToSigner(viemWalletClient);
+            if (!signer) throw new Error('Could not create signer.');
+            
+            // ✅ Pass signer to joinSpace
+            await joinSpace(spaceIdToJoin, signer);
             
             console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
             setDefaultChannelId(spaceIdToJoin);
             setHasJoined(true);
             
-        } catch (error:  any) {
+        } catch (error: any) {
             console.error('❌ Failed to join space:', error);
-            alert(`Failed to join space: ${error. message}`);
+            alert(`Failed to join space: ${error.message}`);
         } finally {
             setIsJoiningSpace(false);
         }
@@ -109,7 +117,7 @@ function TownsConnectedContent() {
         try {
             console.log(`🚀 Creating space via Towns SDK on ${NETWORK_NAME}...`);
             
-            const viemWalletClient = viemAdapter.wallet. toViem({ 
+            const viemWalletClient = viemAdapter.wallet.toViem({ 
               wallet, 
               client, 
               chain: activeChain
@@ -124,11 +132,13 @@ function TownsConnectedContent() {
             );
 
             console.log('✅ Space created successfully:', result);
+            console.log('   - Space ID:', result.spaceId);
+            console.log('   - Default Channel ID:', result.defaultChannelId);
             console.log('📋 Add to . env. local:');
             console.log(`   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
-            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result. defaultChannelId}`);
+            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
 
-            // ✅ Auto-join after creating
+            // Auto-join after creating
             await handleJoinSpace(result.spaceId);
 
         } catch (error: any) {
@@ -145,7 +155,7 @@ function TownsConnectedContent() {
         }
     };
 
-    // ✅ If joined and have space ID, show chat
+    // If joined and have space ID, show chat
     if (hasJoined && spaceId && defaultChannelId) {
         return (
             <div className="w-full h-screen">
@@ -158,24 +168,24 @@ function TownsConnectedContent() {
         );
     }
 
-    // ✅ Show joining state
+    // Show joining state
     if (isJoiningSpace) {
         return (
             <div className="text-center max-w-md space-y-6">
-                <h1 className="font-adonis text-4xl mb-4">Joining Space...</h1>
+                <h1 className="font-adonis text-4xl mb-4">Joining Space... </h1>
                 <LoadingSpinner />
             </div>
         );
     }
 
-    // ✅ Show create/join UI
+    // Show create/join UI
     return (
         <div className="text-center max-w-md space-y-6">
             <h1 className="font-adonis text-4xl mb-4">
                 {SAVED_SPACE_ID ? 'Join Knead Chat' : 'Create Your Chat Space'}
             </h1>
             
-            {SAVED_SPACE_ID ?  (
+            {SAVED_SPACE_ID ? (
                 <>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Space ID: <code className="bg-gray-100 px-2 py-1 rounded">{SAVED_SPACE_ID}</code>
@@ -201,10 +211,9 @@ function TownsConnectedContent() {
                         {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
                     </Button>
 
-                    {/* Manual Space ID Entry */}
                     <div className="border-t pt-6 mt-6">
                         <p className="font-georgia-pro text-sm text-gray-600 mb-3">
-                            Already have a space? Enter Space ID:
+                            Already have a space? Enter Space ID: 
                         </p>
                         <div className="flex gap-2">
                             <input
@@ -216,7 +225,7 @@ function TownsConnectedContent() {
                             />
                             <Button
                                 onClick={handleManualSpaceId}
-                                disabled={!manualSpaceId. trim()}
+                                disabled={! manualSpaceId.trim()}
                                 variant="outline"
                                 className="px-6"
                             >
@@ -230,7 +239,6 @@ function TownsConnectedContent() {
     );
 }
 
-// Main component - handles wallet connection and Towns Protocol connection
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     
@@ -259,7 +267,7 @@ export default function ChatTestClient() {
           console.log('✅ Connected to Towns Protocol');
         } catch (e:  any) {
           console.error("Failed to connect to Towns:", e);
-          alert(`Failed to connect to Towns:  ${e.message}`);
+          alert(`Failed to connect to Towns: ${e.message}`);
         }
     };
 
@@ -273,7 +281,7 @@ export default function ChatTestClient() {
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Connect your wallet to access Knead Chat.
+                        Connect your wallet to access Knead Chat. 
                     </p>
                     <ConnectButton client={client} chain={activeChain} />
                 </div>
