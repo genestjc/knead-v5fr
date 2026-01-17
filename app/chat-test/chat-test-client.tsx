@@ -3,8 +3,13 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
+import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
+import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
+import { townsEnv } from '@towns-protocol/sdk';
+import { ethers } from 'ethers-v5';
+import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
@@ -21,6 +26,20 @@ const LoadingSpinner = () => (
     </div>
 );
 
+function walletClientToSigner(walletClient: WalletClient) {
+  const { account, chain, transport } = walletClient;
+  if (!account || !chain) return undefined;
+  
+  const network = { 
+    chainId: chain.id, 
+    name: chain.name, 
+    ensAddress: chain.contracts?.ensRegistry?.address 
+  };
+  const provider = new ethers.providers.Web3Provider(transport, network);
+  const signer = provider.getSigner(account. address);
+  return signer;
+}
+
 const mockUser = {
     id: 'user-123',
     alias: 'KneadUser',
@@ -28,53 +47,48 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-export default function ChatTestClient() {
+// Inner component that uses Towns hooks - only renders when connected
+function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(null);
     const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
-    const [isMounted, setIsMounted] = useState(false);
 
     const wallet = useActiveWallet();
+    const townsConfig = townsEnv().makeTownsConfig('omega');
+    
+    // NOW it's safe to call these hooks because we're inside TownsSyncProvider
+    // and only rendering when isAgentConnected is true
+    const { createSpace } = useCreateSpace();
 
-    // Ensure we're only running in the browser
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
+    const currentUser = mockUser;
 
-    const currentUser = mockUser; 
-
-    // Create space using your EXISTING backend API
     const handleCreateSpace = async () => {
         if (!wallet) return;
         setIsCreatingSpace(true);
         
         try {
-            console.log('🚀 Creating space via backend API...');
+            console.log('🚀 Creating space via Towns SDK.. .');
             
-            // Call YOUR existing backend route
-            const response = await fetch('/api/towns/create-space', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: 'Knead Chat Space',
-                }),
+            const viemWalletClient = viemAdapter. wallet. toViem({ 
+              wallet, 
+              client, 
+              chain: activeChain 
             });
+            const signer = await walletClientToSigner(viemWalletClient);
+            if (!signer) throw new Error('Could not create signer.');
+            
+            // Use the Towns SDK createSpace method with user's signer
+            const result = await createSpace(
+                { spaceName: 'Knead Chat Space' }, 
+                signer
+            );
 
-            const data = await response.json();
+            console.log('✅ Space created successfully:', result);
+            console.log('   - Space ID:', result.spaceId);
+            console.log('   - Default Channel ID:', result.defaultChannelId);
 
-            if (! data.success) {
-                throw new Error(data.error || 'Failed to create space');
-            }
-
-            console.log('✅ Space created successfully:', data);
-            console.log('   - Space ID:', data.spaceId);
-            console.log('   - Default Channel ID:', data. defaultChannelId);
-            console.log('   - Transaction:', data.transactionHash);
-
-            setSpaceId(data.spaceId);
-            setDefaultChannelId(data.defaultChannelId);
+            setSpaceId(result.spaceId);
+            setDefaultChannelId(result.defaultChannelId);
 
         } catch (error:  any) {
             console.error('❌ Failed to create space:', error);
@@ -84,8 +98,78 @@ export default function ChatTestClient() {
         }
     };
 
-    // Don't render until mounted (browser only)
-    if (!isMounted) {
+    if (!spaceId) {
+        return (
+            <div className="text-center max-w-md">
+                <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
+                <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                    Create a Towns space to start chatting. 
+                </p>
+                <Button 
+                    onClick={handleCreateSpace} 
+                    disabled={isCreatingSpace}
+                    className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
+                >
+                    {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                </Button>
+            </div>
+        );
+    }
+
+    if (! defaultChannelId) {
+        return (
+            <div className="text-center">
+                <LoadingSpinner />
+                <p className="font-georgia-pro text-gray-600 mt-4">
+                    Loading space data...
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full h-screen">
+            <ConnectedChat
+                currentUser={currentUser}
+                spaceId={spaceId}
+                defaultChannelId={defaultChannelId}
+            />
+        </div>
+    );
+}
+
+// Main component - handles wallet connection and Towns Protocol connection
+export default function ChatTestClient() {
+    const [isMounted, setIsMounted] = useState(false);
+    
+    const wallet = useActiveWallet();
+    const townsConfig = townsEnv().makeTownsConfig('omega');
+    
+    // These hooks are safe because they're designed to work without SyncAgent
+    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    const handleConnectToTowns = async () => {
+        if (!wallet) return;
+        try {
+          const viemWalletClient = viemAdapter.wallet.toViem({ 
+            wallet, 
+            client, 
+            chain: activeChain 
+          });
+          const signer = await walletClientToSigner(viemWalletClient);
+          if (!signer) throw new Error('Could not create signer.');
+          await connect(signer, { townsConfig });
+        } catch (e) {
+          console.error("Failed to connect to Towns:", e);
+          alert('Failed to connect to Towns.  Check console for details.');
+        }
+    };
+
+    if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
     }
     
@@ -95,39 +179,27 @@ export default function ChatTestClient() {
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Connect your wallet to access Knead Chat. 
+                        Connect your wallet to access Knead Chat.
                     </p>
                     <ConnectButton client={client} chain={activeChain} />
                 </div>
-            ) : !spaceId ? (
+            ) : !isAgentConnected ? (
                 <div className="text-center max-w-md">
-                    <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
+                    <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Create a Towns space to start chatting.  
+                        Sign a message to enter the chat.
                     </p>
                     <Button 
-                        onClick={handleCreateSpace} 
-                        disabled={isCreatingSpace}
+                        onClick={handleConnectToTowns} 
+                        disabled={isAgentConnecting} 
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                     </Button>
                 </div>
-            ) : defaultChannelId ? (
-                <div className="w-full h-screen">
-                    <ConnectedChat
-                        currentUser={currentUser}
-                        spaceId={spaceId}
-                        defaultChannelId={defaultChannelId}
-                    />
-                </div>
             ) : (
-                <div className="text-center">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-gray-600 mt-4">
-                        Loading space data...
-                    </p>
-                </div>
+                // Only render component with Towns hooks AFTER successful connection
+                <TownsConnectedContent />
             )}
         </div>
     );
