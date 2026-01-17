@@ -3,13 +3,8 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
-import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
-import { townsEnv } from '@towns-protocol/sdk';
-import { ethers } from 'ethers-v5';
-import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
@@ -26,20 +21,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-function walletClientToSigner(walletClient: WalletClient) {
-  const { account, chain, transport } = walletClient;
-  if (!account || !chain) return undefined;
-  
-  const network = { 
-    chainId: chain.id, 
-    name: chain.name, 
-    ensAddress: chain.contracts?.ensRegistry?.address 
-  };
-  const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account. address);
-  return signer;
-}
-
 const mockUser = {
     id: 'user-123',
     alias: 'KneadUser',
@@ -53,125 +34,99 @@ export default function ChatTestClient() {
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
+    const wallet = useActiveWallet();
+
     // Ensure we're only running in the browser
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
-    const { createSpace } = useCreateSpace();
-    const wallet = useActiveWallet();
-    const townsConfig = townsEnv().makeTownsConfig('omega');
-
     const currentUser = mockUser; 
 
-    const handleConnectToTowns = async () => {
-        if (!wallet) return;
-        try {
-          const viemWalletClient = viemAdapter. wallet.toViem({ 
-            wallet, 
-            client, 
-            chain: activeChain 
-          });
-          const signer = await walletClientToSigner(viemWalletClient);
-          if (! signer) throw new Error('Could not create signer.');
-          await connect(signer, { townsConfig });
-        } catch (e) {
-          console.error("Failed to connect to Towns:", e);
-          alert('Failed to connect to Towns. Check console for details.');
-        }
-    };
-
+    // Create space using your EXISTING backend API
     const handleCreateSpace = async () => {
         if (!wallet) return;
         setIsCreatingSpace(true);
+        
         try {
-            const viemWalletClient = viemAdapter.wallet.toViem({ 
-              wallet, 
-              client, 
-              chain: activeChain 
-            });
-            const signer = await walletClientToSigner(viemWalletClient);
-            if (!signer) throw new Error('Could not create signer.');
+            console.log('🚀 Creating space via backend API...');
             
-            const result = await createSpace({ spaceName: 'Knead Chat Space' }, signer);
-            console.log('✅ Space created:', result.spaceId);
-            console.log('✅ Default channel:', result.defaultChannelId);
-            setSpaceId(result.spaceId);
-            setDefaultChannelId(result. defaultChannelId);
-        } catch (e) {
-            console.error("❌ Failed to create space:", e);
-            alert('Failed to create space. See console for details.');
+            // Call YOUR existing backend route
+            const response = await fetch('/api/towns/create-space', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: 'Knead Chat Space',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (! data.success) {
+                throw new Error(data.error || 'Failed to create space');
+            }
+
+            console.log('✅ Space created successfully:', data);
+            console.log('   - Space ID:', data.spaceId);
+            console.log('   - Default Channel ID:', data. defaultChannelId);
+            console.log('   - Transaction:', data.transactionHash);
+
+            setSpaceId(data.spaceId);
+            setDefaultChannelId(data.defaultChannelId);
+
+        } catch (error:  any) {
+            console.error('❌ Failed to create space:', error);
+            alert(`Failed to create space: ${error. message}`);
         } finally {
             setIsCreatingSpace(false);
         }
     };
 
     // Don't render until mounted (browser only)
-    if (!isMounted || isAgentConnecting) {
+    if (!isMounted) {
         return <LoadingSpinner />;
     }
     
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            {isAgentConnected ?  (
-                <>
-                    {! spaceId ? (
-                        <div className="text-center max-w-md">
-                            <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
-                            <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                                Create a Towns space to start chatting.  
-                            </p>
-                            <Button 
-                                onClick={handleCreateSpace} 
-                                disabled={isCreatingSpace}
-                                className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
-                            >
-                                {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
-                            </Button>
-                        </div>
-                    ) : defaultChannelId ? (
-                        <div className="w-full h-screen">
-                            <ConnectedChat
-                                currentUser={currentUser}
-                                spaceId={spaceId}
-                                defaultChannelId={defaultChannelId}
-                            />
-                        </div>
-                    ) : (
-                        <div className="text-center">
-                            <LoadingSpinner />
-                            <p className="font-georgia-pro text-gray-600 mt-4">
-                                Loading space data...
-                            </p>
-                        </div>
-                    )}
-                </>
-            ) : (
+            {! wallet ? (
                 <div className="text-center max-w-md">
-                    {!wallet ? (
-                        <>
-                            <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                            <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                                Connect your wallet to access Knead Chat.
-                            </p>
-                            <ConnectButton client={client} chain={activeChain} />
-                        </>
-                    ) : (
-                        <>
-                            <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
-                            <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                                Sign a message to enter the chat.
-                            </p>
-                            <Button 
-                                onClick={handleConnectToTowns} 
-                                disabled={isAgentConnecting} 
-                                className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
-                            >
-                                {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
-                            </Button>
-                        </>
-                    )}
+                    <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Connect your wallet to access Knead Chat. 
+                    </p>
+                    <ConnectButton client={client} chain={activeChain} />
+                </div>
+            ) : !spaceId ? (
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Create a Towns space to start chatting.  
+                    </p>
+                    <Button 
+                        onClick={handleCreateSpace} 
+                        disabled={isCreatingSpace}
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
+                    >
+                        {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                    </Button>
+                </div>
+            ) : defaultChannelId ? (
+                <div className="w-full h-screen">
+                    <ConnectedChat
+                        currentUser={currentUser}
+                        spaceId={spaceId}
+                        defaultChannelId={defaultChannelId}
+                    />
+                </div>
+            ) : (
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-gray-600 mt-4">
+                        Loading space data...
+                    </p>
                 </div>
             )}
         </div>
