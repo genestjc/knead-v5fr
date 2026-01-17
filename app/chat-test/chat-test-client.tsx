@@ -6,14 +6,17 @@ import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain } from '@/thirdweb-client';
+import { client } from '@/thirdweb-client';
+import { base } from 'thirdweb/chains'; // ✅ EXPLICITLY import Base Mainnet
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
-// Shared Towns config constant
+// ✅ OMEGA = Base Mainnet
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+// ✅ Use Base Mainnet explicitly
+const ACTIVE_CHAIN = base;
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -69,17 +72,18 @@ function TownsConnectedContent() {
         setIsCreatingSpace(true);
         
         try {
-            console.log('🚀 Creating space via Towns SDK.. .');
-            console.log('   - You should see MetaMask prompts to sign and approve');
+            console.log('🚀 Creating space via Towns SDK on OMEGA (Base Mainnet)...');
+            console.log('   - Network: Base Mainnet (Chain ID 8453)');
+            console. log('   - You should see MetaMask prompts to sign and approve');
             
-            const viemWalletClient = viemAdapter.wallet.toViem({ 
+            const viemWalletClient = viemAdapter. wallet.toViem({ 
               wallet, 
               client, 
-              chain: activeChain 
+              chain: ACTIVE_CHAIN // ✅ Use Base Mainnet
             });
             
             const signer = await walletClientToSigner(viemWalletClient);
-            if (!signer) throw new Error('Could not create signer.');
+            if (! signer) throw new Error('Could not create signer.');
             
             console.log('   - Signer created, requesting space creation...');
             
@@ -93,7 +97,7 @@ function TownsConnectedContent() {
             console.log('   - Space ID:', result.spaceId);
             console.log('   - Default Channel ID:', result.defaultChannelId);
 
-            setSpaceId(result. spaceId);
+            setSpaceId(result.spaceId);
             setDefaultChannelId(result.defaultChannelId);
 
         } catch (error:  any) {
@@ -106,6 +110,8 @@ function TownsConnectedContent() {
                 errorMessage = 'Insufficient Base ETH for gas fees. Please add Base ETH to your wallet and try again.';
             } else if (errorMessage.includes('user rejected') || errorMessage.includes('denied')) {
                 errorMessage = 'Transaction was rejected in MetaMask. ';
+            } else if (errorMessage.includes('Factory__FailedDeployment')) {
+                errorMessage = 'Space deployment failed. Please ensure you\'re on Base Mainnet and have sufficient ETH. ';
             }
             
             alert(`Failed to create space: ${errorMessage}`);
@@ -121,8 +127,11 @@ function TownsConnectedContent() {
                 <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                     Create a Towns space to start chatting. 
                 </p>
+                <p className="font-georgia-pro text-sm mb-2 text-gray-500">
+                    Network: <strong>Base Mainnet</strong>
+                </p>
                 <p className="font-georgia-pro text-sm mb-6 text-gray-500">
-                    Note: You'll need Base ETH for gas fees (~0.01 ETH)
+                    Note: You'll need Base ETH for gas fees (~0.01-0.05 ETH)
                 </p>
                 <Button 
                     onClick={handleCreateSpace} 
@@ -140,7 +149,7 @@ function TownsConnectedContent() {
             <div className="text-center">
                 <LoadingSpinner />
                 <p className="font-georgia-pro text-gray-600 mt-4">
-                    Loading space data...
+                    Loading space data... 
                 </p>
             </div>
         );
@@ -173,18 +182,18 @@ export default function ChatTestClient() {
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          console.log('🔐 Connecting to Towns Protocol...');
+          console.log('🔐 Connecting to Towns Protocol (OMEGA - Base Mainnet)...');
           console.log('   - You should see a MetaMask signature request');
           
           const viemWalletClient = viemAdapter.wallet.toViem({ 
             wallet, 
             client, 
-            chain: activeChain 
+            chain:  ACTIVE_CHAIN // ✅ Use Base Mainnet
           });
           const signer = await walletClientToSigner(viemWalletClient);
           if (!signer) throw new Error('Could not create signer.');
           
-          await connect(signer, { townsConfig:  TOWNS_CONFIG });
+          await connect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol');
         } catch (e:  any) {
@@ -211,9 +220,12 @@ export default function ChatTestClient() {
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Connect your wallet to access Knead Chat.
                     </p>
-                    <ConnectButton client={client} chain={activeChain} />
+                    <p className="font-georgia-pro text-sm mb-6 text-blue-600">
+                        Network:  Base Mainnet
+                    </p>
+                    <ConnectButton client={client} chain={ACTIVE_CHAIN} />
                 </div>
-            ) : !isAgentConnected ? (
+            ) : ! isAgentConnected ? (
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
