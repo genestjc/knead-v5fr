@@ -24,7 +24,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading... </p>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
         </div>
     </div>
 );
@@ -65,11 +65,12 @@ function TownsConnectedContent() {
     const currentUser = mockUser;
 
     const handleCreateSpace = async () => {
-        if (!wallet) return;
+        if (! wallet) return;
         setIsCreatingSpace(true);
         
         try {
-            console.log('🚀 Creating space via Towns SDK...');
+            console.log('🚀 Creating space via Towns SDK.. .');
+            console.log('   - You should see MetaMask prompts to sign and approve');
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
               wallet, 
@@ -77,22 +78,10 @@ function TownsConnectedContent() {
               chain: activeChain 
             });
             
-            // ✅ CHECK BALANCE BEFORE CREATING SPACE
-            const balance = await viemWalletClient.getBalance({ 
-              address: viemWalletClient.account. address 
-            });
-            const balanceInEth = Number(balance) / 1e18;
-            console.log('💰 Wallet balance:', balanceInEth, 'ETH on Base');
-            
-            if (balanceInEth < 0.005) {
-              throw new Error(
-                `Insufficient balance: ${balanceInEth. toFixed(6)} ETH. ` +
-                `You need at least 0.01 ETH on Base to create a space.`
-              );
-            }
-            
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
+            
+            console.log('   - Signer created, requesting space creation...');
             
             // Use the Towns SDK createSpace method with user's signer
             const result = await createSpace(
@@ -104,23 +93,36 @@ function TownsConnectedContent() {
             console.log('   - Space ID:', result.spaceId);
             console.log('   - Default Channel ID:', result.defaultChannelId);
 
-            setSpaceId(result.spaceId);
+            setSpaceId(result. spaceId);
             setDefaultChannelId(result.defaultChannelId);
 
         } catch (error:  any) {
             console.error('❌ Failed to create space:', error);
-            alert(`Failed to create space: ${error. message}`);
+            
+            // Give helpful error messages
+            let errorMessage = error.message || 'Unknown error';
+            
+            if (errorMessage.includes('insufficient funds') || errorMessage.includes('gas')) {
+                errorMessage = 'Insufficient Base ETH for gas fees. Please add Base ETH to your wallet and try again.';
+            } else if (errorMessage.includes('user rejected') || errorMessage.includes('denied')) {
+                errorMessage = 'Transaction was rejected in MetaMask. ';
+            }
+            
+            alert(`Failed to create space: ${errorMessage}`);
         } finally {
             setIsCreatingSpace(false);
         }
     };
 
-    if (! spaceId) {
+    if (!spaceId) {
         return (
             <div className="text-center max-w-md">
                 <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
                 <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                     Create a Towns space to start chatting. 
+                </p>
+                <p className="font-georgia-pro text-sm mb-6 text-gray-500">
+                    Note: You'll need Base ETH for gas fees (~0.01 ETH)
                 </p>
                 <Button 
                     onClick={handleCreateSpace} 
@@ -133,7 +135,7 @@ function TownsConnectedContent() {
         );
     }
 
-    if (! defaultChannelId) {
+    if (!defaultChannelId) {
         return (
             <div className="text-center">
                 <LoadingSpinner />
@@ -171,6 +173,9 @@ export default function ChatTestClient() {
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
+          console.log('🔐 Connecting to Towns Protocol...');
+          console.log('   - You should see a MetaMask signature request');
+          
           const viemWalletClient = viemAdapter.wallet.toViem({ 
             wallet, 
             client, 
@@ -178,10 +183,19 @@ export default function ChatTestClient() {
           });
           const signer = await walletClientToSigner(viemWalletClient);
           if (!signer) throw new Error('Could not create signer.');
+          
           await connect(signer, { townsConfig:  TOWNS_CONFIG });
-        } catch (e) {
+          
+          console.log('✅ Connected to Towns Protocol');
+        } catch (e:  any) {
           console.error("Failed to connect to Towns:", e);
-          alert('Failed to connect to Towns.  Check console for details.');
+          
+          let errorMessage = e.message || 'Unknown error';
+          if (errorMessage.includes('user rejected') || errorMessage.includes('denied')) {
+            errorMessage = 'Signature request was rejected in MetaMask.';
+          }
+          
+          alert(`Failed to connect to Towns: ${errorMessage}`);
         }
     };
 
@@ -210,7 +224,7 @@ export default function ChatTestClient() {
                         disabled={isAgentConnecting} 
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isAgentConnecting ? 'Connecting...' :  'Connect to Towns'}
+                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                     </Button>
                 </div>
             ) : (
