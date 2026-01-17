@@ -12,6 +12,9 @@ import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
+// Shared Towns config constant
+const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
   loading: () => <LoadingSpinner />,
@@ -21,7 +24,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading...</p>
+            <p className="font-georgia-pro text-gray-600">Loading... </p>
         </div>
     </div>
 );
@@ -54,7 +57,6 @@ function TownsConnectedContent() {
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
 
     const wallet = useActiveWallet();
-    const townsConfig = townsEnv().makeTownsConfig('omega');
     
     // NOW it's safe to call these hooks because we're inside TownsSyncProvider
     // and only rendering when isAgentConnected is true
@@ -67,13 +69,28 @@ function TownsConnectedContent() {
         setIsCreatingSpace(true);
         
         try {
-            console.log('🚀 Creating space via Towns SDK.. .');
+            console.log('🚀 Creating space via Towns SDK...');
             
-            const viemWalletClient = viemAdapter. wallet. toViem({ 
+            const viemWalletClient = viemAdapter.wallet.toViem({ 
               wallet, 
               client, 
               chain: activeChain 
             });
+            
+            // ✅ CHECK BALANCE BEFORE CREATING SPACE
+            const balance = await viemWalletClient.getBalance({ 
+              address: viemWalletClient.account. address 
+            });
+            const balanceInEth = Number(balance) / 1e18;
+            console.log('💰 Wallet balance:', balanceInEth, 'ETH on Base');
+            
+            if (balanceInEth < 0.005) {
+              throw new Error(
+                `Insufficient balance: ${balanceInEth. toFixed(6)} ETH. ` +
+                `You need at least 0.01 ETH on Base to create a space.`
+              );
+            }
+            
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
@@ -98,7 +115,7 @@ function TownsConnectedContent() {
         }
     };
 
-    if (!spaceId) {
+    if (! spaceId) {
         return (
             <div className="text-center max-w-md">
                 <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
@@ -143,7 +160,6 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     
     const wallet = useActiveWallet();
-    const townsConfig = townsEnv().makeTownsConfig('omega');
     
     // These hooks are safe because they're designed to work without SyncAgent
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
@@ -162,7 +178,7 @@ export default function ChatTestClient() {
           });
           const signer = await walletClientToSigner(viemWalletClient);
           if (!signer) throw new Error('Could not create signer.');
-          await connect(signer, { townsConfig });
+          await connect(signer, { townsConfig:  TOWNS_CONFIG });
         } catch (e) {
           console.error("Failed to connect to Towns:", e);
           alert('Failed to connect to Towns.  Check console for details.');
@@ -194,7 +210,7 @@ export default function ChatTestClient() {
                         disabled={isAgentConnecting} 
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                        {isAgentConnecting ? 'Connecting...' :  'Connect to Towns'}
                     </Button>
                 </div>
             ) : (
