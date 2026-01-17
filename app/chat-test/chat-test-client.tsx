@@ -6,14 +6,19 @@ import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain } from '@/thirdweb-client'; // ✅ Import activeChain from your config
+import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
+// ✅ Get saved space from env vars
+const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+const TOWNS_NETWORK = process.env. NEXT_PUBLIC_TOWNS_NETWORK || 'omega';
+
 // ✅ OMEGA = Base Mainnet
-const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+const TOWNS_CONFIG = townsEnv().makeTownsConfig(TOWNS_NETWORK as 'omega' | 'gamma');
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -52,39 +57,47 @@ const mockUser = {
 
 // Inner component that uses Towns hooks - only renders when connected
 function TownsConnectedContent() {
-    const [spaceId, setSpaceId] = useState<string | null>(null);
-    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(null);
+    // ✅ Initialize with saved space ID from env
+    const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
+    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
+        SAVED_CHANNEL_ID || SAVED_SPACE_ID || null
+    );
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
+    const [manualSpaceId, setManualSpaceId] = useState('');
 
     const wallet = useActiveWallet();
-    
-    // NOW it's safe to call these hooks because we're inside TownsSyncProvider
-    // and only rendering when isAgentConnected is true
     const { createSpace } = useCreateSpace();
-
     const currentUser = mockUser;
 
+    // ✅ Auto-enter chat if we have saved space ID
+    useEffect(() => {
+        if (SAVED_SPACE_ID) {
+            console.log('✅ Using saved space:', SAVED_SPACE_ID);
+            setSpaceId(SAVED_SPACE_ID);
+            setDefaultChannelId(SAVED_CHANNEL_ID || SAVED_SPACE_ID);
+        }
+    }, []);
+
     const handleCreateSpace = async () => {
-        if (! wallet) return;
+        if (!wallet) return;
         setIsCreatingSpace(true);
         
         try {
-            console.log('🚀 Creating space via Towns SDK on OMEGA (Base Mainnet)...');
-            console.log('   - Network:  Base Mainnet (Chain ID 8453)');
+            console.log(`🚀 Creating space via Towns SDK on ${TOWNS_NETWORK. toUpperCase()}...`);
+            console.log('   - Network:', TOWNS_NETWORK === 'omega' ? 'Base Mainnet (8453)' : 'Base Sepolia (84532)');
             console.log('   - You should see MetaMask prompts to sign and approve');
             
-            const viemWalletClient = viemAdapter. wallet. toViem({ 
+            const viemWalletClient = viemAdapter. wallet.toViem({ 
               wallet, 
               client, 
-              chain: activeChain // ✅ Use activeChain from config (Base Mainnet)
+              chain: activeChain
             });
             
             const signer = await walletClientToSigner(viemWalletClient);
-            if (! signer) throw new Error('Could not create signer.');
+            if (!signer) throw new Error('Could not create signer.');
             
             console.log('   - Signer created, requesting space creation...');
             
-            // Use the Towns SDK createSpace method with user's signer
             const result = await createSpace(
                 { spaceName: 'Knead Chat Space' }, 
                 signer
@@ -93,6 +106,9 @@ function TownsConnectedContent() {
             console.log('✅ Space created successfully:', result);
             console.log('   - Space ID:', result.spaceId);
             console.log('   - Default Channel ID:', result.defaultChannelId);
+            console.log('📋 Add to . env. local:');
+            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
+            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
 
             setSpaceId(result.spaceId);
             setDefaultChannelId(result.defaultChannelId);
@@ -100,65 +116,101 @@ function TownsConnectedContent() {
         } catch (error:  any) {
             console.error('❌ Failed to create space:', error);
             
-            // Give helpful error messages
-            let errorMessage = error.message || 'Unknown error';
-            
-            if (errorMessage.includes('insufficient funds') || errorMessage.includes('gas')) {
-                errorMessage = 'Insufficient Base ETH for gas fees.  Please add Base ETH to your wallet and try again.';
-            } else if (errorMessage.includes('user rejected') || errorMessage.includes('denied')) {
-                errorMessage = 'Transaction was rejected in MetaMask. ';
-            } else if (errorMessage.includes('Factory__FailedDeployment') || errorMessage.includes('0x2b1c2246')) {
-                errorMessage = 'Space deployment failed. Please ensure you\'re on Base Mainnet (not testnet) and have sufficient ETH.';
+            if (error.message?. includes('nonce') || error.code === -32603) {
+                alert(
+                    '⚠️ Transaction may have succeeded despite the error.\n\n' +
+                    'Check BaseScan for your transaction and enter the Space ID manually if needed.'
+                );
+            } else {
+                alert(`Failed to create space: ${error.message}`);
             }
-            
-            alert(`Failed to create space: ${errorMessage}`);
         } finally {
             setIsCreatingSpace(false);
         }
     };
 
-    if (!spaceId) {
+    const handleManualSpaceId = () => {
+        if (manualSpaceId.trim()) {
+            setSpaceId(manualSpaceId. trim());
+            setDefaultChannelId(manualSpaceId. trim());
+        }
+    };
+
+    // ✅ If we have a space ID, go straight to chat
+    if (spaceId && defaultChannelId) {
         return (
-            <div className="text-center max-w-md">
-                <h1 className="font-adonis text-4xl mb-4">Create Your Chat Space</h1>
-                <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                    Create a Towns space to start chatting. 
-                </p>
-                <p className="font-georgia-pro text-sm mb-2 text-gray-500">
-                    Network: <strong>Base Mainnet (Chain ID: 8453)</strong>
-                </p>
-                <p className="font-georgia-pro text-sm mb-6 text-gray-500">
-                    Note: You'll need Base ETH for gas fees (~0.01-0.05 ETH)
-                </p>
-                <Button 
-                    onClick={handleCreateSpace} 
-                    disabled={isCreatingSpace}
-                    className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
-                >
-                    {isCreatingSpace ?  'Creating Space...' : 'Create Space'}
-                </Button>
+            <div className="w-full h-screen">
+                <ConnectedChat
+                    currentUser={currentUser}
+                    spaceId={spaceId}
+                    defaultChannelId={defaultChannelId}
+                />
             </div>
         );
     }
 
-    if (! defaultChannelId) {
-        return (
-            <div className="text-center">
-                <LoadingSpinner />
-                <p className="font-georgia-pro text-gray-600 mt-4">
-                    Loading space data...
-                </p>
-            </div>
-        );
-    }
-
+    // ✅ Otherwise show space creation/entry UI
     return (
-        <div className="w-full h-screen">
-            <ConnectedChat
-                currentUser={currentUser}
-                spaceId={spaceId}
-                defaultChannelId={defaultChannelId}
-            />
+        <div className="text-center max-w-md space-y-6">
+            <h1 className="font-adonis text-4xl mb-4">
+                {SAVED_SPACE_ID ? 'Enter Knead Chat' : 'Create Your Chat Space'}
+            </h1>
+            
+            {SAVED_SPACE_ID ?  (
+                <>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Loading saved space:  <code className="bg-gray-100 px-2 py-1 rounded">{SAVED_SPACE_ID}</code>
+                    </p>
+                    <LoadingSpinner />
+                </>
+            ) : (
+                <>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Create a Towns space to start chatting. 
+                    </p>
+                    <p className="font-georgia-pro text-sm mb-2 text-gray-500">
+                        Network: <strong>{TOWNS_NETWORK === 'omega' ? 'Base Mainnet (8453)' : 'Base Sepolia (84532)'}</strong>
+                    </p>
+                    <p className="font-georgia-pro text-sm mb-6 text-gray-500">
+                        Note: You'll need Base ETH for gas fees (~0.01-0.05 ETH)
+                    </p>
+                    
+                    <Button 
+                        onClick={handleCreateSpace} 
+                        disabled={isCreatingSpace}
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
+                    >
+                        {isCreatingSpace ?  'Creating Space...' : 'Create Space'}
+                    </Button>
+
+                    {/* Manual Space ID Entry */}
+                    <div className="border-t pt-6 mt-6">
+                        <p className="font-georgia-pro text-sm text-gray-600 mb-3">
+                            Already created a space? Enter Space ID manually:
+                        </p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={manualSpaceId}
+                                onChange={(e) => setManualSpaceId(e.target.value)}
+                                placeholder="Enter Space ID (e.g., 464398)"
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            />
+                            <Button
+                                onClick={handleManualSpaceId}
+                                disabled={! manualSpaceId.trim()}
+                                variant="outline"
+                                className="px-6"
+                            >
+                                Use Space
+                            </Button>
+                        </div>
+                        <p className="font-georgia-pro text-xs text-gray-500 mt-2">
+                            Find your Space ID in the BaseScan transaction logs
+                        </p>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -168,8 +220,6 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     
     const wallet = useActiveWallet();
-    
-    // These hooks are safe because they're designed to work without SyncAgent
     const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
 
     useEffect(() => {
@@ -179,14 +229,14 @@ export default function ChatTestClient() {
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          console.log('🔐 Connecting to Towns Protocol (OMEGA - Base Mainnet)...');
-          console.log('   - Chain ID: 8453');
+          console.log(`🔐 Connecting to Towns Protocol (${TOWNS_NETWORK.toUpperCase()})...`);
+          console.log('   - Chain ID:', activeChain.id);
           console.log('   - You should see a MetaMask signature request');
           
           const viemWalletClient = viemAdapter.wallet.toViem({ 
             wallet, 
             client, 
-            chain: activeChain // ✅ Use activeChain from config (Base Mainnet)
+            chain: activeChain
           });
           const signer = await walletClientToSigner(viemWalletClient);
           if (!signer) throw new Error('Could not create signer.');
@@ -194,15 +244,9 @@ export default function ChatTestClient() {
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol');
-        } catch (e: any) {
-          console. error("Failed to connect to Towns:", e);
-          
-          let errorMessage = e.message || 'Unknown error';
-          if (errorMessage.includes('user rejected') || errorMessage.includes('denied')) {
-            errorMessage = 'Signature request was rejected in MetaMask.';
-          }
-          
-          alert(`Failed to connect to Towns: ${errorMessage}`);
+        } catch (e:  any) {
+          console.error("Failed to connect to Towns:", e);
+          alert(`Failed to connect to Towns:  ${e.message}`);
         }
     };
 
@@ -216,18 +260,18 @@ export default function ChatTestClient() {
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Connect your wallet to access Knead Chat.
+                        Connect your wallet to access Knead Chat. 
                     </p>
                     <p className="font-georgia-pro text-sm mb-6 text-blue-600 font-semibold">
-                        ⚠️ Make sure MetaMask is on Base Mainnet
+                        ⚠️ Make sure MetaMask is on {TOWNS_NETWORK === 'omega' ? 'Base Mainnet' : 'Base Sepolia'}
                     </p>
                     <ConnectButton client={client} chain={activeChain} />
                 </div>
-            ) : !isAgentConnected ? (
+            ) : !isAgentConnected ?  (
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Sign a message to enter the chat.
+                        Sign a message to enter the chat. 
                     </p>
                     <Button 
                         onClick={handleConnectToTowns} 
@@ -238,7 +282,6 @@ export default function ChatTestClient() {
                     </Button>
                 </div>
             ) : (
-                // Only render component with Towns hooks AFTER successful connection
                 <TownsConnectedContent />
             )}
         </div>
