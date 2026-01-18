@@ -45,7 +45,7 @@ export function middleware(request: NextRequest) {
       https://www.instagram.com
       https://cdn.sanity.io
       https://*.sanity.io;
-    img-src 'self' blob: data:
+    img-src 'self' blob:  data: 
       https://cdn.sanity.io
       https://*.sanity.io
       https://lh3.googleusercontent.com
@@ -82,15 +82,17 @@ export function middleware(request: NextRequest) {
       https://*.sanity.io
       *.towns.com;
     connect-src 'self'
-      https://devnet.rpc.river.build
+      https://devnet.rpc.river. build
       https://mainnet.rpc.river.build
+      https://*.figment.io
+      wss://*.figment.io
       *.towns.com
       https://*.towns.com
       https://api.stripe.com
       https://checkout.stripe.com
       https://c.thirdweb.com
       https://embedded-wallet.thirdweb.com
-      https://social.thirdweb.com
+      https://social. thirdweb.com
       https://1.rpc.thirdweb.com
       https://8453.rpc.thirdweb.com
       https://*.ipfscdn.io
@@ -104,13 +106,13 @@ export function middleware(request: NextRequest) {
       https://*.thirdweb.com
       https://mainnet.base.org
       https://base-mainnet.g.alchemy.com
-      https://base.llamarpc.com
+      https://base. llamarpc.com
       https://*.supabase.co
       ws://localhost:*
       wss://*.sanity.io;
     upgrade-insecure-requests;
   `
-    .replace(/\s{2,}/g, " ")
+    . replace(/\s{2,}/g, " ")
     .trim();
   
   response.headers.set(
