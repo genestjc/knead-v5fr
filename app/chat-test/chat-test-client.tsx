@@ -3,22 +3,20 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useCreateSpace, useJoinSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
-import { townsEnv } from '@towns-protocol/sdk';
+import { townsEnv, makeSpaceStreamId, makeDefaultChannelStreamId } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
-// ✅ Fixed spacing - no space before NEXT_PUBLIC
-const SAVED_SPACE_ID = process. env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const SAVED_CHANNEL_ID = process.env. NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
-const CHAIN_ID = 8453;
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -66,18 +64,15 @@ function TownsConnectedContent() {
     const [manualSpaceId, setManualSpaceId] = useState('');
 
     const wallet = useActiveWallet();
-    const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
     const currentUser = mockUser;
 
-    // Auto-join space if we have saved space ID
     useEffect(() => {
-        if (SAVED_SPACE_ID && !hasJoined && ! isJoiningSpace) {
+        if (SAVED_SPACE_ID && ! hasJoined && !isJoiningSpace) {
             handleJoinSpace(SAVED_SPACE_ID);
         }
     }, [hasJoined, isJoiningSpace]);
 
-    // ✅ CORRECTED: Now passes signer to joinSpace
     const handleJoinSpace = async (spaceIdToJoin: string) => {
         if (!wallet) return;
         setIsJoiningSpace(true);
@@ -85,8 +80,7 @@ function TownsConnectedContent() {
         try {
             console.log('🚪 Joining space:', spaceIdToJoin);
             
-            // ✅ Get the signer
-            const viemWalletClient = viemAdapter.wallet.toViem({ 
+            const viemWalletClient = viemAdapter. wallet. toViem({ 
                 wallet, 
                 client, 
                 chain: activeChain
@@ -94,7 +88,6 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            // ✅ Pass signer to joinSpace
             await joinSpace(spaceIdToJoin, signer);
             
             console.log('✅ Joined space successfully');
@@ -102,9 +95,9 @@ function TownsConnectedContent() {
             setDefaultChannelId(spaceIdToJoin);
             setHasJoined(true);
             
-        } catch (error: any) {
+        } catch (error:  any) {
             console.error('❌ Failed to join space:', error);
-            alert(`Failed to join space: ${error.message}`);
+            alert(`Failed to join space: ${error. message}`);
         } finally {
             setIsJoiningSpace(false);
         }
@@ -115,7 +108,7 @@ function TownsConnectedContent() {
         setIsCreatingSpace(true);
         
         try {
-            console.log(`🚀 Creating space via Towns SDK on ${NETWORK_NAME}...`);
+            console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
               wallet, 
@@ -126,20 +119,93 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            const result = await createSpace(
-                { spaceName: 'Knead Chat Space' }, 
+            // ✅ Import SpaceDapp to create on-chain only
+            const { createSpaceDapp } = await import('@towns-protocol/web3');
+            
+            const provider = new ethers.providers.Web3Provider(
+                viemWalletClient. transport as any, 
+                { chainId: 8453, name: 'Base' }
+            );
+            
+            const spaceDapp = createSpaceDapp(provider, TOWNS_CONFIG. base);
+            
+            // ✅ Create membership info
+            const membershipInfo = {
+                name: 'Knead Member',
+                symbol: 'KNEAD',
+                price: 0n,
+                maxSupply: 0n,
+                duration: 0n,
+                currency: '0x0000000000000000000000000000000000000000',
+                feeRecipient: await signer.getAddress(),
+                freeAllocation: 0n,
+                pricingModule: '0x0000000000000000000000000000000000000000',
+                locked: {
+                    minting: false,
+                    metadata: [],
+                    allowlistBytes: '0x',
+                    supply: false,
+                },
+                excludedTokenIds: [],
+            };
+            
+            // ✅ Submit transaction
+            console.log('📤 Submitting transaction...');
+            const tx = await spaceDapp.createSpace(
+                {
+                    spaceName: 'Knead Chat Space',
+                    uri: '',
+                    channelName: 'general',
+                    membership: membershipInfo,
+                    shortDescription: 'Knead community chat',
+                    longDescription:  '',
+                },
                 signer
             );
-
-            console.log('✅ Space created successfully:', result);
-            console.log('   - Space ID:', result.spaceId);
-            console.log('   - Default Channel ID:', result.defaultChannelId);
+            
+            console. log('✅ Transaction submitted:', tx.hash);
+            alert(`Transaction submitted!\n\nHash: ${tx.hash}\n\nWaiting for confirmation (this may take 30-60 seconds)...`);
+            
+            // ✅ Wait for confirmation
+            const receipt = await tx.wait();
+            console.log('✅ Transaction confirmed! ', receipt);
+            
+            // ✅ Extract space address
+            const spaceAddress = spaceDapp.getSpaceAddress(receipt, await signer.getAddress());
+            
+            if (! spaceAddress) {
+                throw new Error('Failed to extract space address from receipt');
+            }
+            
+            // ✅ Convert to spaceId format
+            const newSpaceId = makeSpaceStreamId(spaceAddress);
+            const newChannelId = makeDefaultChannelStreamId(spaceAddress);
+            
+            console.log('✅ Space created successfully! ');
+            console.log('   Space Address:', spaceAddress);
+            console.log('   Space ID:', newSpaceId);
+            console. log('   Channel ID:', newChannelId);
+            console.log('');
             console.log('📋 Add to . env. local:');
-            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
-            console.log(`   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
-
-            // Auto-join after creating
-            await handleJoinSpace(result.spaceId);
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${newSpaceId}`);
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${newChannelId}`);
+            console.log(`NEXT_PUBLIC_TOWNS_NETWORK=omega`);
+            
+            alert(
+                `✅ Space Created!\n\n` +
+                `Space ID: ${newSpaceId}\n\n` +
+                `Copy these to your .env.local:\n\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${newSpaceId}\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${newChannelId}\n` +
+                `NEXT_PUBLIC_TOWNS_NETWORK=omega`
+            );
+            
+            // Try to join (this might still fail without River registration)
+            try {
+                await handleJoinSpace(newSpaceId);
+            } catch (e) {
+                console.warn('Auto-join failed, but you can add the IDs to . env.local and restart');
+            }
 
         } catch (error: any) {
             console.error('❌ Failed to create space:', error);
@@ -155,7 +221,6 @@ function TownsConnectedContent() {
         }
     };
 
-    // If joined and have space ID, show chat
     if (hasJoined && spaceId && defaultChannelId) {
         return (
             <div className="w-full h-screen">
@@ -168,7 +233,6 @@ function TownsConnectedContent() {
         );
     }
 
-    // Show joining state
     if (isJoiningSpace) {
         return (
             <div className="text-center max-w-md space-y-6">
@@ -178,17 +242,16 @@ function TownsConnectedContent() {
         );
     }
 
-    // Show create/join UI
     return (
         <div className="text-center max-w-md space-y-6">
             <h1 className="font-adonis text-4xl mb-4">
                 {SAVED_SPACE_ID ? 'Join Knead Chat' : 'Create Your Chat Space'}
             </h1>
             
-            {SAVED_SPACE_ID ? (
+            {SAVED_SPACE_ID ?  (
                 <>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Space ID: <code className="bg-gray-100 px-2 py-1 rounded">{SAVED_SPACE_ID}</code>
+                        Space ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{SAVED_SPACE_ID}</code>
                     </p>
                     <Button 
                         onClick={() => handleJoinSpace(SAVED_SPACE_ID)}
@@ -219,7 +282,7 @@ function TownsConnectedContent() {
                             <input
                                 type="text"
                                 value={manualSpaceId}
-                                onChange={(e) => setManualSpaceId(e.target.value)}
+                                onChange={(e) => setManualSpaceId(e. target.value)}
                                 placeholder="Enter Space ID"
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                             />
@@ -267,7 +330,7 @@ export default function ChatTestClient() {
           console.log('✅ Connected to Towns Protocol');
         } catch (e:  any) {
           console.error("Failed to connect to Towns:", e);
-          alert(`Failed to connect to Towns: ${e.message}`);
+          alert(`Failed to connect to Towns:  ${e.message}`);
         }
     };
 
