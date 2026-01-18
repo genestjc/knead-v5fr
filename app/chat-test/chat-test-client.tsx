@@ -3,17 +3,17 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useJoinSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
-import { townsEnv, makeSpaceStreamId, makeDefaultChannelStreamId } from '@towns-protocol/sdk';
+import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const SAVED_CHANNEL_ID = process. env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+const SAVED_CHANNEL_ID = process.env. NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
@@ -27,7 +27,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading...</p>
+            <p className="font-georgia-pro text-gray-600">Loading... </p>
         </div>
     </div>
 );
@@ -42,7 +42,7 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address 
   };
   const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account. address); // ✅ Fixed spacing
+  const signer = provider.getSigner(account. address);
   return signer;
 }
 
@@ -64,6 +64,7 @@ function TownsConnectedContent() {
     const [manualSpaceId, setManualSpaceId] = useState('');
 
     const wallet = useActiveWallet();
+    const { createSpace } = useCreateSpace(); // ✅ Use SDK hook
     const { joinSpace } = useJoinSpace();
     const currentUser = mockUser;
 
@@ -74,13 +75,13 @@ function TownsConnectedContent() {
     }, [hasJoined, isJoiningSpace]);
 
     const handleJoinSpace = async (spaceIdToJoin: string) => {
-        if (!wallet) return;
+        if (! wallet) return;
         setIsJoiningSpace(true);
         
         try {
             console.log('🚪 Joining space:', spaceIdToJoin);
             
-            const viemWalletClient = viemAdapter.wallet.toViem({ // ✅ Fixed spacing
+            const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
                 client, 
                 chain: activeChain
@@ -97,7 +98,7 @@ function TownsConnectedContent() {
             
         } catch (error:  any) {
             console.error('❌ Failed to join space:', error);
-            alert(`Failed to join space: ${error.message}`);
+            alert(`Failed to join space: ${error. message}`);
         } finally {
             setIsJoiningSpace(false);
         }
@@ -119,93 +120,35 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            // ✅ Import SpaceDapp to create on-chain only
-            const { createSpaceDapp } = await import('@towns-protocol/web3');
-            
-            const provider = new ethers.providers.Web3Provider(
-                viemWalletClient.transport as any, // ✅ Fixed spacing
-                { chainId: 8453, name: 'Base' }
-            );
-            
-            const spaceDapp = createSpaceDapp(provider, TOWNS_CONFIG. base); // ✅ Fixed spacing
-            
-            // ✅ Create membership info
-            const membershipInfo = {
-                name: 'Knead Member',
-                symbol: 'KNEAD',
-                price: 0n,
-                maxSupply: 0n,
-                duration: 0n,
-                currency: '0x0000000000000000000000000000000000000000',
-                feeRecipient: await signer.getAddress(),
-                freeAllocation: 0n,
-                pricingModule: '0x0000000000000000000000000000000000000000',
-                locked: {
-                    minting: false,
-                    metadata: [],
-                    allowlistBytes: '0x',
-                    supply: false,
-                },
-                excludedTokenIds: [],
-            };
-            
-            // ✅ Submit transaction
-            console.log('📤 Submitting transaction...');
-            const tx = await spaceDapp.createSpace(
-                {
-                    spaceName: 'Knead Chat Space',
-                    uri: '',
-                    channelName: 'general',
-                    membership: membershipInfo,
-                    shortDescription: 'Knead community chat',
-                    longDescription:  '',
-                },
+            // ✅ Use SDK hook - it handles all the config internally
+            const result = await createSpace(
+                { spaceName: 'Knead Chat Space' }, 
                 signer
             );
-            
-            console. log('✅ Transaction submitted:', tx.hash); // ✅ Fixed spacing
-            alert(`Transaction submitted!\n\nHash: ${tx.hash}\n\nWaiting for confirmation (this may take 30-60 seconds)...`);
-            
-            // ✅ Wait for confirmation
-            const receipt = await tx.wait();
-            console.log('✅ Transaction confirmed! ', receipt); // ✅ Fixed spacing
-            
-            // ✅ Extract space address
-            const spaceAddress = spaceDapp.getSpaceAddress(receipt, await signer.getAddress());
-            
-            if (! spaceAddress) {
-                throw new Error('Failed to extract space address from receipt');
-            }
-            
-            // ✅ Convert to spaceId format
-            const newSpaceId = makeSpaceStreamId(spaceAddress);
-            const newChannelId = makeDefaultChannelStreamId(spaceAddress);
-            
-            console.log('✅ Space created successfully!');
-            console.log('   Space Address:', spaceAddress);
-            console.log('   Space ID:', newSpaceId);
-            console. log('   Channel ID:', newChannelId);
-            console.log('');
-            console.log('📋 Add to . env.local:'); // ✅ Fixed spacing
-            console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${newSpaceId}`);
-            console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${newChannelId}`);
+
+            console.log('✅ Space created successfully:', result);
+            console.log('   - Space ID:', result.spaceId);
+            console.log('   - Default Channel ID:', result. defaultChannelId);
+            console.log('📋 Add to . env. local:');
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
             console.log(`NEXT_PUBLIC_TOWNS_NETWORK=omega`);
             
             alert(
                 `✅ Space Created!\n\n` +
-                `Space ID: ${newSpaceId}\n\n` +
+                `Space ID: ${result.spaceId}\n\n` +
                 `Copy these to your .env.local:\n\n` +
-                `NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${newSpaceId}\n` +
-                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${newChannelId}\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result. defaultChannelId}\n` +
                 `NEXT_PUBLIC_TOWNS_NETWORK=omega`
             );
-            
-            // ⚠️ DON'T auto-join - River may not have synced yet
-            console.warn('⚠️ Add IDs to .env.local and restart app instead of auto-joining');
+
+            // Try to auto-join
+            await handleJoinSpace(result.spaceId);
 
         } catch (error: any) {
-            console.error('❌ Failed to create space:', error);
-            alert(`Failed to create space: ${error.message}`);
+            console. error('❌ Failed to create space:', error);
+            alert(`Failed to create space: ${error. message}`);
         } finally {
             setIsCreatingSpace(false);
         }
@@ -213,7 +156,7 @@ function TownsConnectedContent() {
 
     const handleManualSpaceId = () => {
         if (manualSpaceId.trim()) {
-            handleJoinSpace(manualSpaceId. trim()); // ✅ Fixed spacing
+            handleJoinSpace(manualSpaceId. trim());
         }
     };
 
@@ -232,7 +175,7 @@ function TownsConnectedContent() {
     if (isJoiningSpace) {
         return (
             <div className="text-center max-w-md space-y-6">
-                <h1 className="font-adonis text-4xl mb-4">Joining Space... </h1>
+                <h1 className="font-adonis text-4xl mb-4">Joining Space...</h1>
                 <LoadingSpinner />
             </div>
         );
@@ -259,7 +202,7 @@ function TownsConnectedContent() {
             ) : (
                 <>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Create a Towns space to start chatting.  
+                        Create a Towns space to start chatting. 
                     </p>
                     
                     <Button 
@@ -272,13 +215,13 @@ function TownsConnectedContent() {
 
                     <div className="border-t pt-6 mt-6">
                         <p className="font-georgia-pro text-sm text-gray-600 mb-3">
-                            Already have a space? Enter Space ID:  
+                            Already have a space? Enter Space ID: 
                         </p>
                         <div className="flex gap-2">
                             <input
                                 type="text"
                                 value={manualSpaceId}
-                                onChange={(e) => setManualSpaceId(e.target.value)} // ✅ Fixed spacing
+                                onChange={(e) => setManualSpaceId(e.target.value)}
                                 placeholder="Enter Space ID"
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                             />
@@ -324,8 +267,8 @@ export default function ChatTestClient() {
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol');
-        } catch (e: any) {
-          console. error("Failed to connect to Towns:", e);
+        } catch (e:  any) {
+          console.error("Failed to connect to Towns:", e);
           alert(`Failed to connect to Towns: ${e.message}`);
         }
     };
@@ -348,7 +291,7 @@ export default function ChatTestClient() {
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Sign a message to enter the chat. 
+                        Sign a message to enter the chat.
                     </p>
                     <Button 
                         onClick={handleConnectToTowns} 
