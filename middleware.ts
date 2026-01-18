@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
   
   // HSTS - only in production
   if (process.env.NODE_ENV === 'production') {
-    response.headers.set(
+    response.headers. set(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains; preload"
     );
@@ -37,7 +37,7 @@ export function middleware(request: NextRequest) {
       https://cdn.sanity.io
       https://*.sanity.io
       https://*.thirdweb.com
-      *.towns.com;
+      *.towns. com;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
@@ -45,7 +45,7 @@ export function middleware(request: NextRequest) {
       https://www.instagram.com
       https://cdn.sanity.io
       https://*.sanity.io;
-    img-src 'self' blob:  data: 
+    img-src 'self' blob: data: 
       https://cdn.sanity.io
       https://*.sanity.io
       https://lh3.googleusercontent.com
@@ -82,12 +82,18 @@ export function middleware(request: NextRequest) {
       https://*.sanity.io
       *.towns.com;
     connect-src 'self'
-      https://devnet.rpc.river. build
+      https://devnet.rpc.river.build
       https://mainnet.rpc.river.build
       https://*.figment.io
-      wss://*.figment.io
-      *.towns.com
       https://*.towns.com
+      https://*.towns-u4.com
+      https://*.river.lgns.net
+      https://*.nansen.ai
+      wss://*.figment.io
+      wss://*.towns.com
+      wss://*.towns-u4.com
+      wss://*.river.lgns.net
+      wss://*.nansen.ai
       https://api.stripe.com
       https://checkout.stripe.com
       https://c.thirdweb.com
