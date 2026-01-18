@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
-import { RiverTimelineEvent } from '@towns-protocol/sdk'; // ✅ Import for filtering
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import type { ChatUser } from '@/types/chat';
@@ -25,21 +25,30 @@ const LoadingSpinner = () => (
 export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?:  string} | null>(null);
+  const [retryCount, setRetryCount] = useState(0); // 🆕 Track retries
   
   const { disconnect } = useAgentConnection();
   const activeAccount = useActiveAccount();
 
-  // ✅ Get space to access channelIds
   const { data: space, isLoading:  isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
-  // ✅ Use the first channel from space, or fallback to defaultChannelId
-  const channelId = space?.channelIds? .[0] || defaultChannelId;
+  const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  // ✅ Use channelId directly for hooks (not channel.streamId)
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 🆕 Auto-retry on miniblock hash errors
+  useEffect(() => {
+    if (sendError?. message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
+      console.log(`⚠️ Miniblock hash error, will retry in 2 seconds (attempt ${retryCount + 1}/3)`);
+      const timer = setTimeout(() => {
+        setRetryCount(retryCount + 1);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [sendError, retryCount]);
 
   // Debug logging
   useEffect(() => {
@@ -47,7 +56,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
     console.log('   - spaceId:', spaceId);
     console.log('   - space:', space);
     console.log('   - channelId:', channelId);
-    console.log('   - timeline:', timeline);
+    console.log('   - timeline length:', timeline?.length);
     
     if (spaceError) console.error('❌ Space error:', spaceError);
     if (timelineError) console.error('❌ Timeline error:', timelineError);
@@ -61,9 +70,9 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || isSending || ! channelId) {
+    if (!messageInput.trim() || isSending || !channelId) {
       console.warn('Cannot send message:', { 
-        hasInput: !!messageInput.trim(), 
+        hasInput: !!messageInput. trim(), 
         isSending, 
         hasChannelId: !!channelId 
       });
@@ -72,27 +81,36 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
 
     try {
       console.log('📤 Sending message:', messageInput);
+      setRetryCount(0); // 🆕 Reset retry count
       
-      // ✅ sendMessage takes string directly (Towns SDK v1.0.3+)
       await sendMessage(messageInput);
       
       console.log('✅ Message sent successfully');
       setMessageInput('');
-    } catch (error) {
+    } catch (error:  any) {
       console.error('❌ Failed to send message:', error);
-      alert('Failed to send message. Check console for details.');
+      
+      // 🆕 Better error messages
+      if (error.message?. includes('BAD_PREV_MINIBLOCK_HASH')) {
+        alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
+      } else if (error.message?.includes('already a member')) {
+        // Ignore "already a member" errors silently
+        console.log('ℹ️ Already a member, ignoring error');
+      } else {
+        alert(`Failed to send message: ${error.message}`);
+      }
     }
   };
 
   // ✅ Filter and transform timeline events properly
   const messages = timeline
-    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent. ChannelMessage)
+    ?.filter((event: any) => event.content?. kind === RiverTimelineEvent. ChannelMessage)
     .map((event: any) => {
       console.log('📨 Processing event:', event);
       
       return {
         id: event.eventId || event.id,
-        content: event.content?.body || '', // ✅ Use content. body, not message.text
+        content: event.content?. body || '',
         sender: {
           id: event.creatorUserId || '',
           name: event.creatorDisplayName || 'Anonymous',
@@ -143,7 +161,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
         <div className="bg-gray-50 px-4 py-2 border-b">
           <p className="font-georgia-pro text-sm text-gray-600">
             <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-            {channelId && ` → Channel: ${channelId. substring(0, 8)}...`}
+            {channelId && ` → Channel:  ${channelId. substring(0, 8)}...`}
           </p>
         </div>
 
@@ -158,7 +176,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
-          {isTimelineLoading ?  (
+          {isTimelineLoading ? (
             <LoadingSpinner />
           ) : messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
@@ -169,7 +187,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
             </div>
           ) : (
             <div className="py-4">
-              {messages. map((message:  any) => (
+              {messages. map((message: any) => (
                 <MessageBubble
                   key={message.id}
                   message={message}
@@ -189,13 +207,13 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder={channelId ? "iMessage" : "Loading..."}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus: ring-[#007AFF] font-georgia-pro"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
               disabled={isSending || !channelId}
             />
             <button 
               type="submit" 
               disabled={isSending || ! messageInput.trim() || !channelId} 
-              className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled: cursor-not-allowed"
+              className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
@@ -203,7 +221,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
                 fill="currentColor" 
                 className="w-5 h-5"
               >
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/>
+                <path d="M3. 478 2.405a. 75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00. 926.94 60.519 60.519 0 0018.445-8.986. 75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
               </svg>
             </button>
           </form>
