@@ -10,8 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useTownsDm } from '@/lib/towns/dm';
-import { useTownsSendMessage } from '@/lib/towns/client';
+import { useDm, useSendMessage } from '@towns-protocol/react-sdk';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -26,8 +25,8 @@ export function DirectMessageInterface({
   currentUserId,
   otherUserName,
 }: DirectMessageInterfaceProps) {
-  const { messages, isLoading } = useTownsDm(townsDmId);
-  const { sendMessage, isSending } = useTownsSendMessage();
+  const { data: messages, isLoading } = useDm(townsDmId);
+  const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -40,12 +39,8 @@ export function DirectMessageInterface({
     if (!messageInput.trim() || isSending) return;
 
     try {
-      // Send DM via Towns
-      await sendMessage(townsDmId, messageInput, {
-        kneadUserId: currentUserId,
-        dmId: dmId,
-        timestamp: new Date().toISOString(),
-      });
+      // ✅ CORRECT: Send DM via Towns SDK (no custom metadata)
+      await sendMessage(messageInput);
 
       setMessageInput('');
     } catch (error) {
@@ -82,13 +77,13 @@ export function DirectMessageInterface({
           <div className="text-center text-gray-500 py-8">
             Loading messages...
           </div>
-        ) : messages.length === 0 ? (
+        ) : (messages || []).length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <p>No messages yet.</p>
             <p className="text-sm mt-2">Start the conversation!</p>
           </div>
         ) : (
-          messages.map((msg) => {
+          (messages || []).map((msg) => {
             const isCurrentUser = msg.author.did === currentUserId;
             
             return (

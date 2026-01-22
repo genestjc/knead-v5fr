@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 
-import { useAgentConnection, useCreateSpace, useJoinSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
@@ -56,7 +56,7 @@ const mockUser = {
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
-        SAVED_CHANNEL_ID || SAVED_SPACE_ID || null
+        SAVED_CHANNEL_ID || null
     );
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
@@ -67,7 +67,16 @@ function TownsConnectedContent() {
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
+    const { data: space } = useSpace(spaceId || ''); // 🆕 Get space data to extract channel ID
     const currentUser = mockUser;
+
+    // 🆕 Set channel ID from space data
+    useEffect(() => {
+        if (space?.channelIds?.[0] && !defaultChannelId) {
+            console.log('📡 Setting channel ID from space:', space.channelIds[0]);
+            setDefaultChannelId(space.channelIds[0]);
+        }
+    }, [space, defaultChannelId]);
 
     useEffect(() => {
         // 🆕 Only attempt once
@@ -96,7 +105,7 @@ function TownsConnectedContent() {
             
             console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
-            setDefaultChannelId(spaceIdToJoin);
+            // ✅ CORRECT: Don't set defaultChannelId here - let useSpace hook handle it
             setHasJoined(true);
             
         } catch (error:  any) {
@@ -106,7 +115,7 @@ function TownsConnectedContent() {
             if (error.message?. includes('already a member')) {
                 console.log('ℹ️ Already a member, continuing...');
                 setSpaceId(spaceIdToJoin);
-                setDefaultChannelId(spaceIdToJoin);
+                // ✅ CORRECT: Don't set defaultChannelId here - let useSpace hook handle it
                 setHasJoined(true);
             } else {
                 alert(`Failed to join space: ${error. message}`);

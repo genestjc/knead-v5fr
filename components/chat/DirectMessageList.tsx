@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useUserTownsDms } from '@/lib/towns/dm';
+import { useUserDms } from '@towns-protocol/react-sdk';
 
 interface DmConversation {
   id: string;
@@ -37,32 +37,22 @@ export function DirectMessageList({
   onSelectDm, 
   selectedDmId 
 }: DirectMessageListProps) {
-  const [dms, setDms] = useState<DmConversation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchDms();
-  }, [userId]);
-
-  const fetchDms = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`/api/chat/dm/list?userId=${userId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setDms(data.data);
-      } else {
-        setError(data.error);
-      }
-    } catch (err) {
-      setError('Failed to load DM conversations');
-      console.error('Error fetching DMs:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ✅ CORRECT: Use Towns SDK's useUserDms hook
+  const { data: townsDms, isLoading, error: dmsError } = useUserDms();
+  
+  // Transform Towns DM data to match component's expected format
+  const dms: DmConversation[] = (townsDms || []).map((dm: any) => ({
+    id: dm.id,
+    towns_dm_id: dm.id,
+    created_at: dm.createdAt || new Date().toISOString(),
+    last_message_at: dm.lastMessageAt || dm.createdAt || new Date().toISOString(),
+    other_user: {
+      id: dm.otherUserId || '',
+      wallet_address: dm.otherUserId || '',
+      role: 'contributor',
+      display_name: dm.otherUserName || 'Unknown',
+    },
+  }));
 
   if (isLoading) {
     return (
@@ -72,10 +62,10 @@ export function DirectMessageList({
     );
   }
 
-  if (error) {
+  if (dmsError) {
     return (
       <div className="p-4 text-sm text-red-500">
-        {error}
+        {dmsError.message || 'Failed to load conversations'}
       </div>
     );
   }
