@@ -6,11 +6,12 @@ import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain } from '@/thirdweb-client';
+import { client, activeChain, paymasterUrl } from '@/thirdweb-client'; // 🆕 Import paymasterUrl
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
+import { createWallet } from 'thirdweb/wallets'; // 🆕 Import createWallet
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -53,6 +54,22 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
+// 🆕 Configure wallets with smart wallet support for gas sponsorship
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  createWallet("inApp", {
+    auth: {
+      options: ["email", "google", "apple", "phone"],
+    },
+    smartAccount: paymasterUrl ? {
+      chain: activeChain,
+      sponsorGas: true, // 🔑 Enable gas sponsorship if paymaster available
+    } : undefined,
+  }),
+];
+
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
@@ -69,8 +86,6 @@ function TownsConnectedContent() {
     const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
     const currentUser = mockUser;
-
-
 
     // Set channel ID from space data
     useEffect(() => {
@@ -92,8 +107,8 @@ function TownsConnectedContent() {
         setIsJoiningSpace(true);
         
         try {
-            console.log('🚪 Starting gasless space join flow');
-            console.log('   - Space ID:', spaceIdToJoin);
+            console.log('🚪 Joining space:', spaceIdToJoin);
+            console.log(paymasterUrl ? '💰 Gas sponsorship enabled' : '⚠️ No gas sponsorship');
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
@@ -103,47 +118,10 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            const userAddress = await signer.getAddress();
-            console.log('   - User address:', userAddress);
+            // ✅ If using smart wallet, gas will be sponsored automatically
+            await joinSpace(spaceIdToJoin, signer);
             
-            // Step 1: Server mints membership NFT (server pays gas)
-            console.log('\n🎫 Step 1: Minting membership NFT via server...');
-            try {
-                const mintResponse = await fetch('/api/towns/mint-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        userAddress, 
-                        spaceId: spaceIdToJoin 
-                    }),
-                });
-                
-                const mintResult = await mintResponse.json();
-                
-                if (!mintResponse.ok) {
-                    throw new Error(mintResult.error || 'Failed to mint membership NFT');
-                }
-                
-                if (mintResult.alreadyMinted) {
-                    console.log('ℹ️  User already has membership NFT');
-                } else {
-                    console.log('✅ Membership NFT minted successfully');
-                    console.log('   - Transaction:', mintResult.transactionHash);
-                }
-            } catch (mintError: any) {
-                console.error('⚠️  Mint error:', mintError);
-                console.log('⚠️  Continuing to join - user may already have NFT or join will provide error');
-                // Continue to join even if minting fails - user might already have NFT
-                // The join step will fail with a clear error if NFT is actually missing
-            }
-            
-            // Step 2: Join space with skipMintMembership (no gas needed!)
-            console.log('\n🚪 Step 2: Joining space with skipMintMembership...');
-            await joinSpace(spaceIdToJoin, signer, { 
-                skipMintMembership: true 
-            });
-            
-            console.log('✅ Joined space successfully (gasless!)');
+            console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
             setHasJoined(true);
             
@@ -342,7 +320,16 @@ export default function ChatTestClient() {
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Connect your wallet to access Knead Chat.
                     </p>
-                    <ConnectButton client={client} chain={activeChain} />
+                    {/* 🆕 Updated with wallets config and account abstraction */}
+                    <ConnectButton 
+                        client={client} 
+                        chain={activeChain}
+                        wallets={wallets}
+                        accountAbstraction={paymasterUrl ? {
+                            chain: activeChain,
+                            sponsorGas: true,
+                        } : undefined}
+                    />
                 </div>
             ) : !isAgentConnected ? (
                 <div className="text-center max-w-md">
