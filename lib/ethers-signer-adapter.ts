@@ -3,7 +3,12 @@
 
 /**
  * Converts ThirdWeb wallet to Ethers v5 Signer
- * Properly extends ethers.Signer class
+ * 
+ * Properly extends ethers.Signer class with correct signature formatting
+ * to bridge thirdweb wallets with ethers v5 for Towns SDK compatibility.
+ * 
+ * @see https://docs.ethers.org/v5/api/signer/
+ * @see https://portal.thirdweb.com/references/wallets/latest/signMessage
  */
 export async function getEthersV5Signer(wallet: any, chain: any) {
   // Dynamic import to avoid hydration issues
@@ -20,7 +25,10 @@ export async function getEthersV5Signer(wallet: any, chain: any) {
     name: chain.name || 'Base',
   });
 
-  // Create a proper Signer class
+  /**
+   * Custom Signer that wraps a ThirdWeb wallet
+   * Implements the ethers v5 Signer interface
+   */
   class ThirdWebSigner extends ethers.Signer {
     readonly address: string;
     readonly provider: ethers.providers.Provider;
@@ -38,21 +46,44 @@ export async function getEthersV5Signer(wallet: any, chain: any) {
     }
 
     async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
-      const messageString = typeof message === 'string' 
-        ? message 
-        : ethers.utils.toUtf8String(message);
+      // Convert message to appropriate format for ThirdWeb
+      let messageString: string;
+      
+      if (typeof message === 'string') {
+        messageString = message;
+      } else if (message instanceof Uint8Array) {
+        // Convert Uint8Array to hex string for ThirdWeb
+        messageString = ethers.utils.hexlify(message);
+      } else {
+        messageString = ethers.utils.toUtf8String(message);
+      }
+      
+      console.log('🔐 Signing message with ThirdWeb wallet...');
       
       try {
+        // Use ThirdWeb's signMessage method
         const signature = await this.wallet.signMessage({ message: messageString });
-        return signature;
-      } catch (error) {
-        console.error('❌ signMessage error:', error);
-        throw error;
+        
+        console.log('✅ Signature received from wallet');
+        
+        // Validate signature format
+        if (!signature || typeof signature !== 'string') {
+          throw new Error('Invalid signature format from wallet');
+        }
+        
+        // Ensure signature has 0x prefix (required by ethers v5)
+        const formattedSignature = signature.startsWith('0x') ? signature : `0x${signature}`;
+        
+        return formattedSignature;
+      } catch (error: any) {
+        console.error('❌ Failed to sign message:', error);
+        throw new Error(`Signing failed: ${error.message || 'Unknown error'}`);
       }
     }
 
     async signTransaction(transaction: ethers.providers.TransactionRequest): Promise<string> {
-      throw new Error('signTransaction not implemented - use sendTransaction instead');
+      // Towns SDK doesn't use this, but it's required by the Signer interface
+      throw new Error('signTransaction not supported - use sendTransaction instead');
     }
 
     connect(provider: ethers.providers.Provider): ethers.Signer {
@@ -60,5 +91,9 @@ export async function getEthersV5Signer(wallet: any, chain: any) {
     }
   }
 
-  return new ThirdWebSigner(account.address, provider, wallet);
+  const signer = new ThirdWebSigner(account.address, provider, wallet);
+  
+  console.log('✅ Created ethers v5 signer for address:', account.address);
+  
+  return signer;
 }
