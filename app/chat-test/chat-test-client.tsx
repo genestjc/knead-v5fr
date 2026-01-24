@@ -8,7 +8,7 @@ import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
-import { getEthersV5Signer } from '@/lib/ethers-signer-adapter'; // ✅ CHANGED
+import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -139,14 +139,13 @@ function TownsConnectedContent() {
             // Step 3: Convert to ethers v5 signer (Towns SDK compatible)
             console.log('🔐 Converting wallet to ethers v5 signer...');
             
-            const ethersSigner = await getEthersV5Signer(wallet, activeChain); // ✅ CHANGED
+            const ethersSigner = await getEthersV5Signer(wallet, activeChain, client);
             
             console.log('✅ Got ethers v5 signer');
             
             // Verify signer works
             const signerAddress = await ethersSigner.getAddress();
             console.log('✅ Signer address:', signerAddress);
-            console.log('✅ Signer type:', ethersSigner.constructor.name);
             
             if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
                 throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
@@ -185,7 +184,7 @@ function TownsConnectedContent() {
         try {
             console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
             
-            const signer = await getEthersV5Signer(wallet, activeChain); // ✅ CHANGED
+            const signer = await getEthersV5Signer(wallet, activeChain, client);
             
             const result = await createSpace(
                 { spaceName: 'Knead Chat Space' }, 
@@ -321,7 +320,7 @@ export default function ChatTestClient() {
         try {
           console.log(`🔐 Connecting to Towns Protocol (omega)...`);
           
-          const signer = await getEthersV5Signer(wallet, activeChain); // ✅ CHANGED
+          const signer = await getEthersV5Signer(wallet, activeChain, client);
           
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
