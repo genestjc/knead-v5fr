@@ -70,33 +70,7 @@ function TownsConnectedContent() {
     const { data: space } = useSpace(spaceId || '');
     const currentUser = mockUser;
 
-    // 🆕 DEBUG: Log space data to find membership contract
-    useEffect(() => {
-        if (space) {
-            console.log('═══════════════════════════════════════');
-            console.log('🏢 SPACE DATA FOR MEMBERSHIP CONTRACT:');
-            console.log('═══════════════════════════════════════');
-            console.log('Full space object:', space);
-            console.log('\n📋 All available fields:');
-            console.log(Object.keys(space));
-            
-            console.log('\n🔍 Looking for membership contract...');
-            const contractFields = Object.entries(space).filter(([key, value]) => 
-                (key.toLowerCase().includes('contract') ||
-                 key.toLowerCase().includes('address') ||
-                 key.toLowerCase().includes('member') ||
-                 key.toLowerCase().includes('token')) &&
-                typeof value === 'string' &&
-                value.startsWith('0x')
-            );
-            
-            console.log('🎫 Possible membership contract fields:');
-            contractFields.forEach(([key, value]) => {
-                console.log(`   ${key}: ${value}`);
-            });
-            console.log('═══════════════════════════════════════');
-        }
-    }, [space]);
+
 
     // Set channel ID from space data
     useEffect(() => {
@@ -118,7 +92,34 @@ function TownsConnectedContent() {
         setIsJoiningSpace(true);
         
         try {
-            console.log('🚪 Joining space:', spaceIdToJoin);
+            const userAddress = wallet.getAccount()?.address;
+            if (!userAddress) throw new Error('Could not get wallet address');
+
+            // Step 1: Server mints membership NFT (server pays gas)
+            console.log('🎫 Step 1: Minting membership NFT...');
+            const mintResponse = await fetch('/api/towns/mint-membership', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userAddress,
+                    spaceId: spaceIdToJoin,
+                }),
+            });
+
+            const mintResult = await mintResponse.json();
+            
+            if (!mintResponse.ok) {
+                throw new Error(mintResult.error || 'Failed to mint membership');
+            }
+
+            if (mintResult.alreadyHasMembership) {
+                console.log('ℹ️ User already has membership');
+            } else {
+                console.log('✅ Membership minted:', mintResult.transactionHash);
+            }
+
+            // Step 2: Join space WITHOUT minting (no gas needed - just signature)
+            console.log('🔐 Step 2: Joining space...');
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
@@ -128,7 +129,9 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            await joinSpace(spaceIdToJoin, signer);
+            await joinSpace(spaceIdToJoin, signer, { 
+                skipMintMembership: true  // 🎉 No gas needed!
+            });
             
             console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
