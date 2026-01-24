@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    
     console.log('🔍 Sponsorship verification request:', body);
 
     const { userAddress, contractAddress, chainId } = body;
@@ -17,8 +16,8 @@ export async function POST(req: NextRequest) {
     if (chainId && chainId !== 8453) {
       console.log('❌ Wrong chain:', chainId);
       return NextResponse.json({ 
-        result: false // 🆕 Changed from shouldSponsor to result
-      });
+        shouldSponsor: false // <-- MUST be shouldSponsor
+      }, { status: 200 });
     }
 
     // 2. Verify correct contract (if provided)
@@ -26,8 +25,8 @@ export async function POST(req: NextRequest) {
     if (contractAddress && SPACE_CONTRACT && contractAddress.toLowerCase() !== SPACE_CONTRACT) {
       console.log('❌ Wrong contract:', contractAddress);
       return NextResponse.json({ 
-        result: false
-      });
+        shouldSponsor: false
+      }, { status: 200 });
     }
 
     // 3. Rate limiting - one join per user per day
@@ -38,26 +37,22 @@ export async function POST(req: NextRequest) {
 
       if (lastJoin && (now - lastJoin) < ONE_DAY) {
         console.log('⚠️ Rate limited:', userAddress);
-        // Still sponsor, but log it
-        // return NextResponse.json({ result: false });
+        // Optionally, you can deny sponsorship here:
+        // return NextResponse.json({ shouldSponsor: false }, { status: 200 });
       } else {
         recentJoins.set(userAddress.toLowerCase(), now);
       }
     }
 
     console.log('✅ Sponsorship approved');
-    
-    // 🆕 Simplified response format
     return NextResponse.json({ 
-      result: true
-    });
+      shouldSponsor: true // <-- MUST be shouldSponsor
+    }, { status: 200 });
 
   } catch (error: any) {
     console.error('❌ Verification error:', error);
-    
-    // On error, deny sponsorship
     return NextResponse.json({ 
-      result: false
-    }, { status: 200 }); // 🆕 Return 200 even on error
+      shouldSponsor: false
+    }, { status: 200 });
   }
 }
