@@ -53,7 +53,7 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-// 🆕 Regular EOA wallets (no smart accounts) - compatible with Towns signatures
+// Regular EOA wallets (no smart accounts) - compatible with Towns signatures
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -62,7 +62,6 @@ const wallets = [
     auth: {
       options: ["email", "google", "apple", "phone"],
     },
-    // No smartAccount config - regular EOA wallet for Towns compatibility
   }),
 ];
 
@@ -133,15 +132,46 @@ function TownsConnectedContent() {
                         await new Promise(resolve => setTimeout(resolve, 5000));
                     }
                 } else {
-                    console.warn('⚠️ Could not mint NFT, will try joining anyway');
+                    const errorData = await mintResponse.json();
+                    throw new Error(errorData.error || 'Failed to mint NFT');
                 }
-            } catch (mintError) {
-                console.warn('⚠️ NFT minting failed:', mintError);
-                console.log('Attempting to join anyway (may already have NFT)...');
+            } catch (mintError: any) {
+                console.error('⚠️ NFT minting failed:', mintError);
+                throw new Error(`NFT minting failed: ${mintError.message}`);
             }
 
-            // Step 2: Join space with EOA wallet signature
-            console.log('🔐 Joining space with wallet signature...');
+            // Step 2: Fund user's wallet with gas
+            console.log('💰 Funding wallet with gas...');
+            try {
+                const fundResponse = await fetch('/api/towns/fund-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress }),
+                });
+
+                if (fundResponse.ok) {
+                    const fundData = await fundResponse.json();
+                    
+                    if (fundData.alreadyFunded) {
+                        console.log('✅ Wallet already has gas');
+                    } else {
+                        console.log('✅ Wallet funded:', fundData.transactionHash);
+                        
+                        // Wait for gas to arrive
+                        console.log('⏳ Waiting for gas to arrive...');
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                    }
+                } else {
+                    const errorData = await fundResponse.json();
+                    throw new Error(errorData.error || 'Failed to fund wallet');
+                }
+            } catch (fundError: any) {
+                console.error('⚠️ Wallet funding failed:', fundError);
+                throw new Error(`Wallet funding failed: ${fundError.message}`);
+            }
+
+            // Step 3: Join space with skipMintMembership: true
+            console.log('🔐 Joining space with skipMintMembership...');
             const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
                 client, 
@@ -150,7 +180,10 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            await joinSpace(spaceIdToJoin, signer);
+            // Pass skipMintMembership: true since we minted server-side
+            await joinSpace(spaceIdToJoin, signer, { 
+                skipMintMembership: true 
+            });
             
             console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
@@ -351,7 +384,6 @@ export default function ChatTestClient() {
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Connect your wallet to access Knead Chat.
                     </p>
-                    {/* Regular EOA wallets - no smart account abstraction */}
                     <ConnectButton 
                         client={client} 
                         chain={activeChain}
