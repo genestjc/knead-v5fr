@@ -4,7 +4,7 @@ import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
-import { ethers5Adapter } from 'thirdweb/adapters/ethers5';
+import { ethers6Adapter } from 'thirdweb/adapters/ethers6'; // 🆕 Changed to ethers6
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
@@ -148,8 +148,8 @@ function TownsConnectedContent() {
             const account = wallet.getAccount();
             if (!account) throw new Error('No account found');
             
-            // Use ThirdWeb's ethers5 adapter directly
-            const ethersSigner = await ethers5Adapter.signer.toEthers({
+            // Use ThirdWeb's ethers6 adapter
+            const ethersSigner = await ethers6Adapter.signer.toEthers({
                 client,
                 chain: activeChain,
                 account,
@@ -203,8 +203,8 @@ function TownsConnectedContent() {
             const account = wallet.getAccount();
             if (!account) throw new Error('No account found');
             
-            // Use ThirdWeb's ethers5 adapter
-            const signer = await ethers5Adapter.signer.toEthers({
+            // Use ThirdWeb's ethers6 adapter
+            const signer = await ethers6Adapter.signer.toEthers({
                 client,
                 chain: activeChain,
                 account,
@@ -347,8 +347,8 @@ export default function ChatTestClient() {
           const account = wallet.getAccount();
           if (!account) throw new Error('No account found');
           
-          // Use ThirdWeb's ethers5 adapter
-          const signer = await ethers5Adapter.signer.toEthers({
+          // Use ThirdWeb's ethers6 adapter
+          const signer = await ethers6Adapter.signer.toEthers({
               client,
               chain: activeChain,
               account,
