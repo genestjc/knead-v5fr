@@ -3,6 +3,10 @@
 
 import { signMessage as thirdwebSignMessage } from "thirdweb/wallets";
 
+/**
+ * Converts ThirdWeb wallet to Ethers v5 Signer
+ * Uses EIP-1193 provider + Web3Provider for maximum compatibility
+ */
 export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const { ethers } = await import("ethers-v5");
   
@@ -10,98 +14,91 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   if (!account) throw new Error("No account connected");
 
   const rpcUrl = chain.rpc;
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl, {
+  
+  // Create a custom EIP-1193 provider that wraps ThirdWeb signing
+  const eip1193Provider = {
+    request: async ({ method, params }: { method: string; params?: any[] }) => {
+      console.log('🔌 RPC request:', method);
+      
+      // Account-related methods
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+        return [account.address];
+      }
+      
+      if (method === 'eth_chainId') {
+        return `0x${chain.id.toString(16)}`;
+      }
+      
+      // Signing methods - use ThirdWeb
+      if (method === 'personal_sign') {
+        const [message, address] = params || [];
+        console.log('🔐 Signing with personal_sign');
+        const signature = await thirdwebSignMessage({
+          account,
+          message,
+        });
+        return signature.startsWith('0x') ? signature : `0x${signature}`;
+      }
+      
+      if (method === 'eth_sign') {
+        const [address, message] = params || [];
+        console.log('🔐 Signing with eth_sign');
+        const signature = await thirdwebSignMessage({
+          account,
+          message,
+        });
+        return signature.startsWith('0x') ? signature : `0x${signature}`;
+      }
+      
+      if (method === 'eth_signTypedData_v4') {
+        console.log('🔐 Signing typed data');
+        // For now, throw - can implement later if needed
+        throw new Error('eth_signTypedData_v4 not implemented');
+      }
+      
+      // For all other methods, proxy to the RPC endpoint
+      console.log('📡 Proxying to RPC:', method);
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method,
+          params: params || [],
+        }),
+      });
+      
+      const json = await response.json();
+      if (json.error) {
+        console.error('❌ RPC error:', json.error);
+        throw new Error(json.error.message);
+      }
+      return json.result;
+    },
+    
+    // EIP-1193 event emitter (minimal implementation)
+    on: () => {},
+    removeListener: () => {},
+  };
+
+  // Create ethers Web3Provider from our EIP-1193 provider
+  const provider = new ethers.providers.Web3Provider(eip1193Provider as any, {
     chainId: chain.id,
-    name: chain.name || "Base",
+    name: chain.name || 'Base',
   });
 
-  class ThirdWebSigner extends ethers.Signer {
-    readonly address: string;
-    readonly provider: ethers.providers.Provider;
-    readonly _isSigner: boolean = true; // ✅ Required by ethers v5
-    private account: any;
-
-    constructor(address: string, provider: ethers.providers.Provider, account: any) {
-      super();
-      
-      // ✅ Define address and provider as non-enumerable properties
-      Object.defineProperty(this, 'address', {
-        enumerable: true,
-        value: address,
-        writable: false,
-      });
-      
-      Object.defineProperty(this, 'provider', {
-        enumerable: true,
-        value: provider,
-        writable: false,
-      });
-      
-      Object.defineProperty(this, '_isSigner', {
-        enumerable: false,
-        value: true,
-        writable: false,
-      });
-      
-      this.account = account;
-    }
-
-    async getAddress(): Promise<string> {
-      return Promise.resolve(this.address);
-    }
-
-    async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
-      let messageString: string;
-      if (typeof message === "string") {
-        messageString = message;
-      } else if (message instanceof Uint8Array) {
-        messageString = ethers.utils.hexlify(message);
-      } else {
-        messageString = ethers.utils.toUtf8String(message);
-      }
-
-      console.log('🔐 Signing message...');
-
-      try {
-        const signature = await thirdwebSignMessage({
-          account: this.account,
-          message: messageString,
-        });
-
-        console.log('✅ Signature received');
-        return signature.startsWith("0x") ? signature : `0x${signature}`;
-      } catch (error: any) {
-        console.error('❌ Signing failed:', error);
-        throw new Error(`Signing failed: ${error.message || 'Unknown error'}`);
-      }
-    }
-
-    async signTransaction(transaction: ethers.providers.TransactionRequest): Promise<string> {
-      throw new Error("signTransaction not supported - use sendTransaction");
-    }
-
-    connect(provider: ethers.providers.Provider): ethers.Signer {
-      return new ThirdWebSigner(this.address, provider, this.account);
-    }
-
-    // ✅ Add sendTransaction for completeness
-    async sendTransaction(transaction: ethers.providers.TransactionRequest): Promise<ethers.providers.TransactionResponse> {
-      throw new Error("sendTransaction not implemented");
-    }
-  }
-
-  const signer = new ThirdWebSigner(account.address, provider, account);
+  // Get the signer - this is a real JsonRpcSigner from ethers
+  const signer = provider.getSigner(account.address);
   
-  // ✅ Verify the signer is valid
-  console.log('✅ Signer created');
-  console.log('   Address:', signer.address);
+  console.log('✅ Created ethers v5 signer');
+  console.log('   Type:', signer.constructor.name);
   console.log('   _isSigner:', (signer as any)._isSigner);
-  console.log('   Has getAddress:', typeof signer.getAddress === 'function');
-  console.log('   Has signMessage:', typeof signer.signMessage === 'function');
   
-  // ✅ Test getAddress immediately
+  // Test that getAddress works
   const testAddress = await signer.getAddress();
-  console.log('   Test getAddress():', testAddress);
+  console.log('   Address:', testAddress);
+  console.log('   Match:', testAddress.toLowerCase() === account.address.toLowerCase());
   
   return signer;
 }
