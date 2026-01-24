@@ -26,6 +26,7 @@ export const activeChain = base;
 // 🆕 Gas sponsorship configuration
 export const paymasterUrl = process.env.NEXT_PUBLIC_THIRDWEB_PAYMASTER_URL;
 
+// Diagnostic check for paymaster
 if (process.env.NODE_ENV !== 'production') {
   if (!paymasterUrl) {
     logger.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_PAYMASTER_URL is not set!");
