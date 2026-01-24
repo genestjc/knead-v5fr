@@ -2,16 +2,15 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
-
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain, paymasterUrl } from '@/thirdweb-client'; // 🆕 Import paymasterUrl
+import { client, activeChain, paymasterUrl } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
-import { createWallet } from 'thirdweb/wallets'; // 🆕 Import createWallet
+import { createWallet, inAppWallet } from 'thirdweb/wallets';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -54,18 +53,19 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-// 🆕 Configure wallets with smart wallet support for gas sponsorship
+// 🆕 Simplified wallet config per ThirdWeb recommendations
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
   createWallet("me.rainbow"),
-  createWallet("inApp", {
+  inAppWallet({
     auth: {
       options: ["email", "google", "apple", "phone"],
     },
+    // 🆕 Enable smart account with gas sponsorship (simplified)
     smartAccount: paymasterUrl ? {
       chain: activeChain,
-      sponsorGas: true, // 🔑 Enable gas sponsorship if paymaster available
+      sponsorGas: true, // 🔑 This is all you need!
     } : undefined,
   }),
 ];
@@ -87,7 +87,6 @@ function TownsConnectedContent() {
     const { data: space } = useSpace(spaceId || '');
     const currentUser = mockUser;
 
-    // Set channel ID from space data
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
             console.log('📡 Setting channel ID from space:', space.channelIds[0]);
@@ -108,6 +107,9 @@ function TownsConnectedContent() {
         
         try {
             console.log('🚪 Joining space:', spaceIdToJoin);
+            console.log('🔍 Wallet ID:', wallet.id);
+            console.log('🔍 Wallet address:', wallet.getAccount()?.address);
+            console.log('🔍 Paymaster configured:', paymasterUrl ? 'YES ✅' : 'NO ❌');
             console.log(paymasterUrl ? '💰 Gas sponsorship enabled' : '⚠️ No gas sponsorship');
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
@@ -118,7 +120,6 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            // ✅ If using smart wallet, gas will be sponsored automatically
             await joinSpace(spaceIdToJoin, signer);
             
             console.log('✅ Joined space successfully');
@@ -284,6 +285,13 @@ export default function ChatTestClient() {
 
     useEffect(() => {
         setIsMounted(true);
+        
+        // 🆕 Debug logging
+        console.log('═══════════════════════════════════');
+        console.log('🔍 PAYMASTER DEBUG:');
+        console.log('paymasterUrl:', paymasterUrl);
+        console.log('Is it defined?', paymasterUrl ? 'YES ✅' : 'NO ❌');
+        console.log('═══════════════════════════════════');
     }, []);
 
     const handleConnectToTowns = async () => {
@@ -320,14 +328,14 @@ export default function ChatTestClient() {
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Connect your wallet to access Knead Chat.
                     </p>
-                    {/* 🆕 Updated with wallets config and account abstraction */}
+                    {/* 🆕 Simplified per ThirdWeb recommendations */}
                     <ConnectButton 
                         client={client} 
                         chain={activeChain}
                         wallets={wallets}
                         accountAbstraction={paymasterUrl ? {
                             chain: activeChain,
-                            sponsorGas: true,
+                            sponsorGas: true, // 🔑 Just this is enough!
                         } : undefined}
                     />
                 </div>
