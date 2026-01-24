@@ -2,20 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getContract,
   prepareContractCall,
-  Engine,
+  sendTransaction,
+  waitForReceipt,
   readContract,
-  getNativeBalance,
 } from "thirdweb";
 import { base } from "thirdweb/chains";
-import { client, serverWallet } from "@/thirdweb-server-wallet";
+import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-wallet";
 
 export const dynamic = "force-dynamic";
 
 const MEMBERSHIP_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
 const ALLOWED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SPACE_TOKEN_ID = 464407n;
-const MINT_GAS_LIMIT = 300000n;
-const MIN_WALLET_BALANCE = 0.01; // ETH
 
 // Simple in-memory rate limiting (use Redis/KV in production)
 const mintAttempts = new Map<string, number>();
@@ -24,8 +22,14 @@ export async function POST(req: NextRequest) {
   try {
     const { userAddress, spaceId } = await req.json();
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🎫 Mint Membership API Called');
+    console.log(`   User: ${userAddress}`);
+    console.log(`   Space: ${spaceId}`);
+
     // 🔒 Validation 1: Required fields
     if (!userAddress || !spaceId) {
+      console.error('❌ Missing required fields');
       return NextResponse.json({ 
         error: 'Missing required fields: userAddress and spaceId are required.' 
       }, { status: 400 });
@@ -54,30 +58,12 @@ export async function POST(req: NextRequest) {
     mintAttempts.set(ipKey, ipCount + 1);
     setTimeout(() => mintAttempts.delete(ipKey), 60 * 60 * 1000); // Clear after 1 hour
 
-    // 🔒 Validation 4: Check server wallet balance
-    const balance = await getNativeBalance({
-      client,
-      chain: base,
-      address: await serverWallet.getAddress(),
-    });
-
-    if (Number(balance.displayValue) < MIN_WALLET_BALANCE) {
-      console.error('🚨 Server wallet low on funds!');
-      console.error('   Balance:', balance.displayValue, 'ETH');
-      return NextResponse.json({
-        error: 'Service temporarily unavailable. Please contact support.',
-      }, { status: 503 });
-    }
-
     if (!MEMBERSHIP_CONTRACT_ADDRESS) {
       throw new Error("NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS not configured");
     }
 
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🎫 Minting membership NFT');
-    console.log(`   User: ${userAddress}`);
-    console.log(`   Space: ${spaceId}`);
-    console.log(`   Server Balance: ${balance.displayValue} ETH`);
+    console.log(`   Server Wallet: ${SERVER_WALLET_ADDRESS}`);
+    console.log(`   Contract: ${MEMBERSHIP_CONTRACT_ADDRESS}`);
 
     const contract = getContract({
       client,
@@ -85,13 +71,15 @@ export async function POST(req: NextRequest) {
       chain: base,
     });
 
-    // 🔒 Validation 5: Check if user already has NFT
+    // 🔒 Validation 4: Check if user already has NFT
     try {
       const userBalance = await readContract({
         contract,
         method: "function balanceOf(address account, uint256 id) view returns (uint256)",
         params: [userAddress, SPACE_TOKEN_ID],
       });
+
+      console.log(`   Current Balance: ${userBalance.toString()}`);
 
       if (userBalance > 0n) {
         console.log('✅ User already has membership NFT');
@@ -102,41 +90,51 @@ export async function POST(req: NextRequest) {
           message: "User already has membership NFT",
         });
       }
-    } catch (balanceError) {
-      console.warn('⚠️ Could not check balance, proceeding with mint');
+    } catch (balanceError: any) {
+      console.warn('⚠️ Could not check balance:', balanceError.message);
     }
 
-    // Mint the NFT
+    // Prepare the mint transaction
+    console.log('🔧 Preparing mint transaction...');
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [userAddress, SPACE_TOKEN_ID, 1n],
-      gasLimit: MINT_GAS_LIMIT,
     });
 
-    const { transactionId } = await serverWallet.enqueueTransaction({
+    // Send transaction using serverWallet (Engine.serverWallet API)
+    console.log('🔧 Sending transaction...');
+    const { transactionHash } = await sendTransaction({
       transaction,
+      account: serverWallet,
     });
 
-    const { transactionHash } = await Engine.waitForTransactionHash({
+    console.log(`   Transaction Hash: ${transactionHash}`);
+
+    // Wait for transaction to be mined
+    console.log('⏳ Waiting for confirmation...');
+    const receipt = await waitForReceipt({
       client,
-      transactionId,
+      chain: base,
+      transactionHash,
     });
 
-    console.log(`✅ Membership NFT minted: ${transactionHash}`);
+    console.log(`✅ Transaction confirmed in block ${receipt.blockNumber}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
       success: true,
       transactionHash,
-      transactionId,
+      blockNumber: receipt.blockNumber.toString(),
       message: "Membership NFT minted successfully",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
     });
 
   } catch (error: any) {
     console.error('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error("❌ Error minting membership NFT:", error);
+    console.error("❌ Error minting membership NFT:");
+    console.error("   Message:", error.message);
+    console.error("   Stack:", error.stack);
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     return NextResponse.json(
