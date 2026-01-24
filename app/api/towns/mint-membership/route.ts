@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getContract,
   prepareContractCall,
-  sendTransaction,
-  waitForReceipt,
+  Engine,
   readContract,
 } from "thirdweb";
 import { base } from "thirdweb/chains";
@@ -14,6 +13,7 @@ export const dynamic = "force-dynamic";
 const MEMBERSHIP_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
 const ALLOWED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SPACE_TOKEN_ID = 464407n;
+const MINT_GAS_LIMIT = 300000n;
 
 // Simple in-memory rate limiting (use Redis/KV in production)
 const mintAttempts = new Map<string, number>();
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const { userAddress, spaceId } = await req.json();
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🎫 Mint Membership API Called');
+    console.log('🎫 Minting membership NFT');
     console.log(`   User: ${userAddress}`);
     console.log(`   Space: ${spaceId}`);
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
     
     mintAttempts.set(ipKey, ipCount + 1);
-    setTimeout(() => mintAttempts.delete(ipKey), 60 * 60 * 1000); // Clear after 1 hour
+    setTimeout(() => mintAttempts.delete(ipKey), 60 * 60 * 1000);
 
     if (!MEMBERSHIP_CONTRACT_ADDRESS) {
       throw new Error("NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS not configured");
@@ -94,38 +94,37 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ Could not check balance:', balanceError.message);
     }
 
-    // Prepare the mint transaction
+    // Prepare mint transaction (same as Stripe webhook pattern)
     console.log('🔧 Preparing mint transaction...');
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [userAddress, SPACE_TOKEN_ID, 1n],
+      gasLimit: MINT_GAS_LIMIT,
     });
 
-    // Send transaction using serverWallet (Engine.serverWallet API)
-    console.log('🔧 Sending transaction...');
-    const { transactionHash } = await sendTransaction({
+    // Enqueue transaction (same as Stripe webhook)
+    console.log('🔧 Enqueueing transaction...');
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
-      account: serverWallet,
     });
 
-    console.log(`   Transaction Hash: ${transactionHash}`);
+    console.log(`   Transaction ID: ${transactionId}`);
 
-    // Wait for transaction to be mined
-    console.log('⏳ Waiting for confirmation...');
-    const receipt = await waitForReceipt({
+    // Wait for transaction hash (same as Stripe webhook)
+    console.log('⏳ Waiting for transaction hash...');
+    const { transactionHash } = await Engine.waitForTransactionHash({
       client,
-      chain: base,
-      transactionHash,
+      transactionId,
     });
 
-    console.log(`✅ Transaction confirmed in block ${receipt.blockNumber}`);
+    console.log(`✅ Membership NFT minted: ${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
       success: true,
       transactionHash,
-      blockNumber: receipt.blockNumber.toString(),
+      transactionId,
       message: "Membership NFT minted successfully",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
     });
