@@ -70,33 +70,7 @@ function TownsConnectedContent() {
     const { data: space } = useSpace(spaceId || '');
     const currentUser = mockUser;
 
-    // 🆕 DEBUG: Log space data to find membership contract
-    useEffect(() => {
-        if (space) {
-            console.log('═══════════════════════════════════════');
-            console.log('🏢 SPACE DATA FOR MEMBERSHIP CONTRACT:');
-            console.log('═══════════════════════════════════════');
-            console.log('Full space object:', space);
-            console.log('\n📋 All available fields:');
-            console.log(Object.keys(space));
-            
-            console.log('\n🔍 Looking for membership contract...');
-            const contractFields = Object.entries(space).filter(([key, value]) => 
-                (key.toLowerCase().includes('contract') ||
-                 key.toLowerCase().includes('address') ||
-                 key.toLowerCase().includes('member') ||
-                 key.toLowerCase().includes('token')) &&
-                typeof value === 'string' &&
-                value.startsWith('0x')
-            );
-            
-            console.log('🎫 Possible membership contract fields:');
-            contractFields.forEach(([key, value]) => {
-                console.log(`   ${key}: ${value}`);
-            });
-            console.log('═══════════════════════════════════════');
-        }
-    }, [space]);
+
 
     // Set channel ID from space data
     useEffect(() => {
@@ -118,7 +92,8 @@ function TownsConnectedContent() {
         setIsJoiningSpace(true);
         
         try {
-            console.log('🚪 Joining space:', spaceIdToJoin);
+            console.log('🚪 Starting gasless space join flow');
+            console.log('   - Space ID:', spaceIdToJoin);
             
             const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
@@ -128,9 +103,46 @@ function TownsConnectedContent() {
             const signer = await walletClientToSigner(viemWalletClient);
             if (!signer) throw new Error('Could not create signer.');
             
-            await joinSpace(spaceIdToJoin, signer);
+            const userAddress = await signer.getAddress();
+            console.log('   - User address:', userAddress);
             
-            console.log('✅ Joined space successfully');
+            // Step 1: Server mints membership NFT (server pays gas)
+            console.log('\n🎫 Step 1: Minting membership NFT via server...');
+            try {
+                const mintResponse = await fetch('/api/towns/mint-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userAddress, 
+                        spaceId: spaceIdToJoin 
+                    }),
+                });
+                
+                const mintResult = await mintResponse.json();
+                
+                if (!mintResponse.ok) {
+                    throw new Error(mintResult.error || 'Failed to mint membership NFT');
+                }
+                
+                if (mintResult.alreadyMinted) {
+                    console.log('ℹ️  User already has membership NFT');
+                } else {
+                    console.log('✅ Membership NFT minted successfully');
+                    console.log('   - Transaction:', mintResult.transactionHash);
+                }
+            } catch (mintError: any) {
+                console.error('⚠️  Mint error:', mintError);
+                // Continue to join even if minting fails - user might already have NFT
+                // or the join will fail with a helpful error
+            }
+            
+            // Step 2: Join space with skipMintMembership (no gas needed!)
+            console.log('\n🚪 Step 2: Joining space with skipMintMembership...');
+            await joinSpace(spaceIdToJoin, signer, { 
+                skipMintMembership: true 
+            });
+            
+            console.log('✅ Joined space successfully (gasless!)');
             setSpaceId(spaceIdToJoin);
             setHasJoined(true);
             
