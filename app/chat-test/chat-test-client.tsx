@@ -13,7 +13,7 @@ import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const SAVED_CHANNEL_ID = process.env. NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
@@ -27,7 +27,7 @@ const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading... </p>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
         </div>
     </div>
 );
@@ -42,7 +42,7 @@ function walletClientToSigner(walletClient: WalletClient) {
     ensAddress: chain.contracts?.ensRegistry?.address 
   };
   const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account. address);
+  const signer = provider.getSigner(account.address);
   return signer;
 }
 
@@ -62,15 +62,43 @@ function TownsConnectedContent() {
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
     const [manualSpaceId, setManualSpaceId] = useState('');
-    const [joinAttempted, setJoinAttempted] = useState(false); // 🆕 Prevent multiple joins
+    const [joinAttempted, setJoinAttempted] = useState(false);
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
-    const { data: space } = useSpace(spaceId || ''); // 🆕 Get space data to extract channel ID
+    const { data: space } = useSpace(spaceId || '');
     const currentUser = mockUser;
 
-    // 🆕 Set channel ID from space data
+    // 🆕 DEBUG: Log space data to find membership contract
+    useEffect(() => {
+        if (space) {
+            console.log('═══════════════════════════════════════');
+            console.log('🏢 SPACE DATA FOR MEMBERSHIP CONTRACT:');
+            console.log('═══════════════════════════════════════');
+            console.log('Full space object:', space);
+            console.log('\n📋 All available fields:');
+            console.log(Object.keys(space));
+            
+            console.log('\n🔍 Looking for membership contract...');
+            const contractFields = Object.entries(space).filter(([key, value]) => 
+                (key.toLowerCase().includes('contract') ||
+                 key.toLowerCase().includes('address') ||
+                 key.toLowerCase().includes('member') ||
+                 key.toLowerCase().includes('token')) &&
+                typeof value === 'string' &&
+                value.startsWith('0x')
+            );
+            
+            console.log('🎫 Possible membership contract fields:');
+            contractFields.forEach(([key, value]) => {
+                console.log(`   ${key}: ${value}`);
+            });
+            console.log('═══════════════════════════════════════');
+        }
+    }, [space]);
+
+    // Set channel ID from space data
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
             console.log('📡 Setting channel ID from space:', space.channelIds[0]);
@@ -79,15 +107,14 @@ function TownsConnectedContent() {
     }, [space, defaultChannelId]);
 
     useEffect(() => {
-        // 🆕 Only attempt once
-        if (SAVED_SPACE_ID && ! hasJoined && !isJoiningSpace && !joinAttempted) {
+        if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
             setJoinAttempted(true);
             handleJoinSpace(SAVED_SPACE_ID);
         }
     }, [hasJoined, isJoiningSpace, joinAttempted]);
 
     const handleJoinSpace = async (spaceIdToJoin: string) => {
-        if (! wallet || isJoiningSpace) return; // 🆕 Prevent concurrent joins
+        if (!wallet || isJoiningSpace) return;
         setIsJoiningSpace(true);
         
         try {
@@ -105,21 +132,18 @@ function TownsConnectedContent() {
             
             console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
-            // ✅ CORRECT: Don't set defaultChannelId here - let useSpace hook handle it
             setHasJoined(true);
             
-        } catch (error:  any) {
+        } catch (error: any) {
             console.error('❌ Failed to join space:', error);
             
-            // 🆕 Handle "already a member" as success
-            if (error.message?. includes('already a member')) {
+            if (error.message?.includes('already a member')) {
                 console.log('ℹ️ Already a member, continuing...');
                 setSpaceId(spaceIdToJoin);
-                // ✅ CORRECT: Don't set defaultChannelId here - let useSpace hook handle it
                 setHasJoined(true);
             } else {
-                alert(`Failed to join space: ${error. message}`);
-                setJoinAttempted(false); // Allow retry on real errors
+                alert(`Failed to join space: ${error.message}`);
+                setJoinAttempted(false);
             }
         } finally {
             setIsJoiningSpace(false);
@@ -150,7 +174,7 @@ function TownsConnectedContent() {
             console.log('✅ Space created successfully:', result);
             console.log('   - Space ID:', result.spaceId);
             console.log('   - Default Channel ID:', result.defaultChannelId);
-            console.log('📋 Add to . env. local: ');
+            console.log('📋 Add to .env.local:');
             console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
             console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
             console.log(`NEXT_PUBLIC_TOWNS_NETWORK=omega`);
@@ -164,7 +188,6 @@ function TownsConnectedContent() {
                 `NEXT_PUBLIC_TOWNS_NETWORK=omega`
             );
 
-            // Try to auto-join
             await handleJoinSpace(result.spaceId);
 
         } catch (error: any) {
@@ -177,7 +200,7 @@ function TownsConnectedContent() {
 
     const handleManualSpaceId = () => {
         if (manualSpaceId.trim()) {
-            handleJoinSpace(manualSpaceId. trim());
+            handleJoinSpace(manualSpaceId.trim());
         }
     };
 
@@ -208,7 +231,7 @@ function TownsConnectedContent() {
                 {SAVED_SPACE_ID ? 'Join Knead Chat' : 'Create Your Chat Space'}
             </h1>
             
-            {SAVED_SPACE_ID ?  (
+            {SAVED_SPACE_ID ? (
                 <>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Space ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{SAVED_SPACE_ID}</code>
@@ -236,7 +259,7 @@ function TownsConnectedContent() {
 
                     <div className="border-t pt-6 mt-6">
                         <p className="font-georgia-pro text-sm text-gray-600 mb-3">
-                            Already have a space? Enter Space ID: 
+                            Already have a space? Enter Space ID:
                         </p>
                         <div className="flex gap-2">
                             <input
@@ -248,7 +271,7 @@ function TownsConnectedContent() {
                             />
                             <Button
                                 onClick={handleManualSpaceId}
-                                disabled={! manualSpaceId.trim()}
+                                disabled={!manualSpaceId.trim()}
                                 variant="outline"
                                 className="px-6"
                             >
@@ -288,19 +311,19 @@ export default function ChatTestClient() {
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol');
-        } catch (e:  any) {
+        } catch (e: any) {
           console.error("Failed to connect to Towns:", e);
-          alert(`Failed to connect to Towns:  ${e.message}`);
+          alert(`Failed to connect to Towns: ${e.message}`);
         }
     };
 
-    if (! isMounted || isAgentConnecting) {
+    if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
     }
     
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            {! wallet ? (
+            {!wallet ? (
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
