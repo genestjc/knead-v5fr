@@ -132,8 +132,9 @@ function TownsConnectedContent() {
                 }
             } catch (mintError: any) {
                 console.error('⚠️  Mint error:', mintError);
+                console.log('⚠️  Continuing to join - user may already have NFT or join will provide error');
                 // Continue to join even if minting fails - user might already have NFT
-                // or the join will fail with a helpful error
+                // The join step will fail with a clear error if NFT is actually missing
             }
             
             // Step 2: Join space with skipMintMembership (no gas needed!)

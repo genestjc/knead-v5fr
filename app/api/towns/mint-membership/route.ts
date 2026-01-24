@@ -15,7 +15,13 @@ export const dynamic = "force-dynamic";
 
 // Towns space membership contract address
 const MEMBERSHIP_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
-const SPACE_TOKEN_ID = 464407n; // Token ID from space data
+
+// Token ID for the Towns space (from space data)
+// TODO: Make this configurable via environment variable if managing multiple spaces
+const SPACE_TOKEN_ID = 464407n;
+
+// Gas limit for minting transactions
+const MINT_GAS_LIMIT = 300000n;
 
 /**
  * POST /api/towns/mint-membership
@@ -45,10 +51,8 @@ export async function POST(req: NextRequest) {
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🎫 Minting membership NFT for gasless join');
-    console.log(`   - User: ${userAddress}`);
-    console.log(`   - Space ID: ${spaceId}`);
-    console.log(`   - Contract: ${MEMBERSHIP_CONTRACT_ADDRESS}`);
-    console.log(`   - Token ID: ${SPACE_TOKEN_ID}`);
+    console.log(`   User: ${userAddress}, Space: ${spaceId}`);
+    console.log(`   Contract: ${MEMBERSHIP_CONTRACT_ADDRESS}, Token: ${SPACE_TOKEN_ID}`);
 
     // Get the contract
     const contract = getContract({
@@ -58,7 +62,6 @@ export async function POST(req: NextRequest) {
     });
 
     // Check if user already has the membership NFT
-    console.log('\n🔍 Checking if user already has membership...');
     try {
       const balance = await readContract({
         contract,
@@ -76,34 +79,27 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (balanceError) {
-      console.log('⚠️  Could not check balance, proceeding with mint:', balanceError);
+      console.warn('⚠️  Could not check balance, proceeding with mint');
     }
 
     // Prepare mint transaction
-    console.log('\n🔍 Preparing mint transaction...');
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
       params: [userAddress, SPACE_TOKEN_ID, 1n],
-      gasLimit: 300000n,
+      gasLimit: MINT_GAS_LIMIT,
     });
 
-    console.log('\n🔍 Enqueueing transaction via Engine...');
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
-
-    console.log(`✅ Transaction enqueued: ${transactionId}`);
-    console.log('\n🔍 Waiting for transaction hash...');
 
     const { transactionHash } = await Engine.waitForTransactionHash({
       client,
       transactionId,
     });
 
-    console.log('✅ Membership NFT minted successfully!');
-    console.log(`   - Transaction: ${transactionHash}`);
-    console.log(`   - Explorer: https://basescan.org/tx/${transactionHash}`);
+    console.log(`✅ Membership NFT minted: ${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
