@@ -23,19 +23,6 @@ export const client = createThirdwebClient({
 
 export const activeChain = base;
 
-// 🆕 Gas sponsorship configuration
-export const paymasterUrl = process.env.NEXT_PUBLIC_THIRDWEB_PAYMASTER_URL;
-
-// Diagnostic check for paymaster
-if (process.env.NODE_ENV !== 'production') {
-  if (!paymasterUrl) {
-    logger.warn("⚠️ WARNING: NEXT_PUBLIC_THIRDWEB_PAYMASTER_URL is not set!");
-    logger.warn("Gas sponsorship will not be available.");
-  } else {
-    logger.log("✅ Gas sponsorship (paymaster) configured");
-  }
-}
-
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
 export const KNEAD_MEMBERSHIP_CONTRACT = {
