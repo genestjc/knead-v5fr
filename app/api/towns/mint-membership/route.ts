@@ -9,6 +9,7 @@ import { base } from "thirdweb/chains";
 import { client, serverWallet } from "../../../../thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
+const MEMBERSHIP_TOKEN_ID = 464407n; // Token ID for the membership NFT
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { userAddress, spaceId } = await req.json();
+    const { userAddress } = await req.json();
 
     if (!userAddress) {
       return NextResponse.json(
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       const balance = await readContract({
         contract,
         method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-        params: [userAddress, 464407n], // Token ID from problem statement
+        params: [userAddress, MEMBERSHIP_TOKEN_ID],
       });
 
       if (balance > 0n) {
@@ -66,12 +67,12 @@ export async function POST(req: NextRequest) {
 
     console.log(`🎫 Minting membership NFT for ${userAddress}...`);
 
-    // Prepare mint transaction
-    // Starting with safeMint(address) as suggested in problem statement
+    // Prepare mint transaction for ERC1155 contract
+    // Using mint with token ID since balance check uses ERC1155 balanceOf
     const transaction = prepareContractCall({
       contract,
-      method: "function safeMint(address to)",
-      params: [userAddress],
+      method: "function mint(address to, uint256 id, uint256 amount)",
+      params: [userAddress, MEMBERSHIP_TOKEN_ID, 1n],
       gasLimit: 300000n,
     });
 
@@ -80,11 +81,15 @@ export async function POST(req: NextRequest) {
       transaction,
     });
 
-    // Wait for transaction hash
-    const { transactionHash } = await Engine.waitForTransactionHash({
-      client,
-      transactionId,
+    // Wait for transaction hash with timeout (max 60 seconds)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Transaction timeout after 60 seconds')), 60000);
     });
+
+    const { transactionHash } = await Promise.race([
+      Engine.waitForTransactionHash({ client, transactionId }),
+      timeoutPromise,
+    ]);
 
     console.log(`✅ Membership minted successfully: ${transactionHash}`);
 
