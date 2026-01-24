@@ -4,12 +4,11 @@ import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
-import { viemAdapter } from 'thirdweb/adapters/viem';
+import { ethers5Adapter } from 'thirdweb/adapters/ethers5';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
-import { walletClientToSigner } from '@/lib/viem-to-ethers';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -93,78 +92,84 @@ function TownsConnectedContent() {
 
             // Step 1: Server mints membership NFT (server pays gas)
             console.log('🎫 Requesting membership NFT from server...');
-            try {
-                const mintResponse = await fetch('/api/towns/mint-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        userAddress, 
-                        spaceId: spaceIdToJoin 
-                    }),
-                });
+            const mintResponse = await fetch('/api/towns/mint-membership', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    userAddress, 
+                    spaceId: spaceIdToJoin 
+                }),
+            });
 
-                if (mintResponse.ok) {
-                    const mintData = await mintResponse.json();
-                    if (mintData.alreadyMinted) {
-                        console.log('✅ Already has membership NFT');
-                    } else {
-                        console.log('✅ Membership NFT minted:', mintData.transactionHash);
-                        console.log('🔗 View on Basescan:', mintData.explorerUrl);
-                        
-                        // Wait for blockchain to process the mint
-                        console.log('⏳ Waiting for NFT confirmation...');
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                    }
-                } else {
-                    const errorData = await mintResponse.json();
-                    throw new Error(errorData.error || 'Failed to mint NFT');
-                }
-            } catch (mintError: any) {
-                console.error('⚠️ NFT minting failed:', mintError);
-                throw new Error(`NFT minting failed: ${mintError.message}`);
+            if (!mintResponse.ok) {
+                const errorData = await mintResponse.json();
+                throw new Error(errorData.error || 'Failed to mint NFT');
+            }
+            
+            const mintData = await mintResponse.json();
+            if (mintData.alreadyMinted) {
+                console.log('✅ Already has membership NFT');
+            } else {
+                console.log('✅ Membership NFT minted:', mintData.transactionHash);
+                console.log('🔗 View on Basescan:', mintData.explorerUrl);
+                
+                // Wait for blockchain to process the mint
+                console.log('⏳ Waiting for NFT confirmation...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
 
             // Step 2: Fund user's wallet with gas
             console.log('💰 Funding wallet with gas...');
-            try {
-                const fundResponse = await fetch('/api/towns/fund-wallet', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress }),
-                });
+            const fundResponse = await fetch('/api/towns/fund-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userAddress }),
+            });
 
-                if (fundResponse.ok) {
-                    const fundData = await fundResponse.json();
-                    
-                    if (fundData.alreadyFunded) {
-                        console.log('✅ Wallet already has gas');
-                    } else {
-                        console.log('✅ Wallet funded:', fundData.transactionHash);
-                        
-                        // Wait for gas to arrive
-                        console.log('⏳ Waiting for gas to arrive...');
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                    }
-                } else {
-                    const errorData = await fundResponse.json();
-                    throw new Error(errorData.error || 'Failed to fund wallet');
-                }
-            } catch (fundError: any) {
-                console.error('⚠️ Wallet funding failed:', fundError);
-                throw new Error(`Wallet funding failed: ${fundError.message}`);
+            if (!fundResponse.ok) {
+                const errorData = await fundResponse.json();
+                throw new Error(errorData.error || 'Failed to fund wallet');
+            }
+            
+            const fundData = await fundResponse.json();
+            if (fundData.alreadyFunded) {
+                console.log('✅ Wallet already has gas');
+            } else {
+                console.log('✅ Wallet funded:', fundData.transactionHash);
+                
+                // Wait for gas to arrive
+                console.log('⏳ Waiting for gas to arrive...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
 
-            // Step 3: Join space with skipMintMembership: true
-            console.log('🔐 Joining space with skipMintMembership...');
-            const viemWalletClient = viemAdapter.wallet.toViem({ 
-                wallet, 
-                client, 
-                chain: activeChain
-            });
-            const signer = walletClientToSigner(viemWalletClient);
+            // Step 3: Convert to ethers signer using ThirdWeb's adapter
+            console.log('🔐 Converting wallet to ethers signer...');
             
-            // Pass skipMintMembership: true since we minted server-side
-            await joinSpace(spaceIdToJoin, signer, { 
+            const account = wallet.getAccount();
+            if (!account) throw new Error('No account found');
+            
+            // Use ThirdWeb's ethers5 adapter directly
+            const ethersSigner = await ethers5Adapter.signer.toEthers({
+                client,
+                chain: activeChain,
+                account,
+            });
+            
+            console.log('✅ Got ethers signer');
+            console.log('   Has getAddress?', typeof ethersSigner.getAddress === 'function');
+            console.log('   Has signMessage?', typeof ethersSigner.signMessage === 'function');
+            
+            // Verify signer works
+            const signerAddress = await ethersSigner.getAddress();
+            console.log('✅ Signer address:', signerAddress);
+            
+            if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
+                throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
+            }
+
+            // Step 4: Join space with skipMintMembership
+            console.log('🏃 Calling joinSpace...');
+            await joinSpace(spaceIdToJoin, ethersSigner, { 
                 skipMintMembership: true 
             });
             
@@ -195,13 +200,15 @@ function TownsConnectedContent() {
         try {
             console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
             
-            const viemWalletClient = viemAdapter.wallet.toViem({ 
-              wallet, 
-              client, 
-              chain: activeChain
-            });
+            const account = wallet.getAccount();
+            if (!account) throw new Error('No account found');
             
-            const signer = walletClientToSigner(viemWalletClient);
+            // Use ThirdWeb's ethers5 adapter
+            const signer = await ethers5Adapter.signer.toEthers({
+                client,
+                chain: activeChain,
+                account,
+            });
             
             const result = await createSpace(
                 { spaceName: 'Knead Chat Space' }, 
@@ -337,12 +344,15 @@ export default function ChatTestClient() {
         try {
           console.log(`🔐 Connecting to Towns Protocol (omega)...`);
           
-          const viemWalletClient = viemAdapter.wallet.toViem({ 
-            wallet, 
-            client, 
-            chain: activeChain
+          const account = wallet.getAccount();
+          if (!account) throw new Error('No account found');
+          
+          // Use ThirdWeb's ethers5 adapter
+          const signer = await ethers5Adapter.signer.toEthers({
+              client,
+              chain: activeChain,
+              account,
           });
-          const signer = walletClientToSigner(viemWalletClient);
           
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
