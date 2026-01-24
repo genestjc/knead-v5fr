@@ -8,7 +8,7 @@ import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
-import { thirdwebWalletToEthersV5Signer } from '@/lib/thirdweb-to-ethers5'; // 🆕 New import
+import { thirdwebWalletToEthersV5Signer } from '@/lib/thirdweb-to-ethers5';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -16,158 +16,369 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
 
-// ... rest stays the same until handleJoinSpace ...
+const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
+  ssr: false,
+  loading: () => <LoadingSpinner />,
+});
 
-const handleJoinSpace = async (spaceIdToJoin: string) => {
-    if (!wallet || isJoiningSpace) return;
-    setIsJoiningSpace(true);
-    
-    try {
-        const userAddress = wallet.getAccount()?.address;
-        if (!userAddress) throw new Error('No wallet address');
+const LoadingSpinner = () => (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
+        </div>
+    </div>
+);
 
-        console.log('🚪 Joining space:', spaceIdToJoin);
-        console.log('👤 User address:', userAddress);
+const mockUser = {
+    id: 'user-123',
+    alias: 'KneadUser',
+    displayName: 'Knead User',
+    membershipTier: 'Baker',
+};
 
-        // Step 1: Server mints membership NFT (server pays gas)
-        console.log('🎫 Requesting membership NFT from server...');
-        const mintResponse = await fetch('/api/towns/mint-membership', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                userAddress, 
-                spaceId: spaceIdToJoin 
-            }),
-        });
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "phone"],
+    },
+  }),
+];
 
-        if (!mintResponse.ok) {
-            const errorData = await mintResponse.json();
-            throw new Error(errorData.error || 'Failed to mint NFT');
+function TownsConnectedContent() {
+    const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
+    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
+        SAVED_CHANNEL_ID || null
+    );
+    const [isCreatingSpace, setIsCreatingSpace] = useState(false);
+    const [isJoiningSpace, setIsJoiningSpace] = useState(false);
+    const [hasJoined, setHasJoined] = useState(false);
+    const [manualSpaceId, setManualSpaceId] = useState('');
+    const [joinAttempted, setJoinAttempted] = useState(false);
+
+    const wallet = useActiveWallet();
+    const { createSpace } = useCreateSpace();
+    const { joinSpace } = useJoinSpace();
+    const { data: space } = useSpace(spaceId || '');
+    const currentUser = mockUser;
+
+    useEffect(() => {
+        if (space?.channelIds?.[0] && !defaultChannelId) {
+            console.log('📡 Setting channel ID from space:', space.channelIds[0]);
+            setDefaultChannelId(space.channelIds[0]);
         }
-        
-        const mintData = await mintResponse.json();
-        if (mintData.alreadyMinted) {
-            console.log('✅ Already has membership NFT');
-        } else {
-            console.log('✅ Membership NFT minted:', mintData.transactionHash);
-            console.log('🔗 View on Basescan:', mintData.explorerUrl);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+    }, [space, defaultChannelId]);
 
-        // Step 2: Fund user's wallet with gas
-        console.log('💰 Funding wallet with gas...');
-        const fundResponse = await fetch('/api/towns/fund-wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userAddress }),
-        });
-
-        if (!fundResponse.ok) {
-            const errorData = await fundResponse.json();
-            throw new Error(errorData.error || 'Failed to fund wallet');
+    useEffect(() => {
+        if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
+            setJoinAttempted(true);
+            handleJoinSpace(SAVED_SPACE_ID);
         }
-        
-        const fundData = await fundResponse.json();
-        if (fundData.alreadyFunded) {
-            console.log('✅ Wallet already has gas');
-        } else {
-            console.log('✅ Wallet funded:', fundData.transactionHash);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+    }, [hasJoined, isJoiningSpace, joinAttempted]);
 
-        // Step 3: Convert to ethers v5 signer (Towns SDK compatible)
-        console.log('🔐 Converting wallet to ethers v5 signer...');
+    const handleJoinSpace = async (spaceIdToJoin: string) => {
+        if (!wallet || isJoiningSpace) return;
+        setIsJoiningSpace(true);
         
-        const ethersSigner = await thirdwebWalletToEthersV5Signer(
-            wallet,
-            client,
-            activeChain
-        );
-        
-        console.log('✅ Got ethers v5 signer');
-        
-        // Verify signer works
-        const signerAddress = await ethersSigner.getAddress();
-        console.log('✅ Signer address:', signerAddress);
-        console.log('✅ Signer type:', ethersSigner.constructor.name);
-        
-        if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
-            throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
-        }
+        try {
+            const userAddress = wallet.getAccount()?.address;
+            if (!userAddress) throw new Error('No wallet address');
 
-        // Step 4: Join space with skipMintMembership
-        console.log('🏃 Calling joinSpace...');
-        await joinSpace(spaceIdToJoin, ethersSigner, { 
-            skipMintMembership: true 
-        });
-        
-        console.log('✅ Joined space successfully');
-        setSpaceId(spaceIdToJoin);
-        setHasJoined(true);
-        
-    } catch (error: any) {
-        console.error('❌ Failed to join space:', error);
-        
-        if (error.message?.includes('already a member')) {
-            console.log('ℹ️ Already a member, continuing...');
+            console.log('🚪 Joining space:', spaceIdToJoin);
+            console.log('👤 User address:', userAddress);
+
+            // Step 1: Server mints membership NFT (server pays gas)
+            console.log('🎫 Requesting membership NFT from server...');
+            const mintResponse = await fetch('/api/towns/mint-membership', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    userAddress, 
+                    spaceId: spaceIdToJoin 
+                }),
+            });
+
+            if (!mintResponse.ok) {
+                const errorData = await mintResponse.json();
+                throw new Error(errorData.error || 'Failed to mint NFT');
+            }
+            
+            const mintData = await mintResponse.json();
+            if (mintData.alreadyMinted) {
+                console.log('✅ Already has membership NFT');
+            } else {
+                console.log('✅ Membership NFT minted:', mintData.transactionHash);
+                console.log('🔗 View on Basescan:', mintData.explorerUrl);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+
+            // Step 2: Fund user's wallet with gas
+            console.log('💰 Funding wallet with gas...');
+            const fundResponse = await fetch('/api/towns/fund-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userAddress }),
+            });
+
+            if (!fundResponse.ok) {
+                const errorData = await fundResponse.json();
+                throw new Error(errorData.error || 'Failed to fund wallet');
+            }
+            
+            const fundData = await fundResponse.json();
+            if (fundData.alreadyFunded) {
+                console.log('✅ Wallet already has gas');
+            } else {
+                console.log('✅ Wallet funded:', fundData.transactionHash);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+
+            // Step 3: Convert to ethers v5 signer (Towns SDK compatible)
+            console.log('🔐 Converting wallet to ethers v5 signer...');
+            
+            const ethersSigner = await thirdwebWalletToEthersV5Signer(
+                wallet,
+                client,
+                activeChain
+            );
+            
+            console.log('✅ Got ethers v5 signer');
+            
+            // Verify signer works
+            const signerAddress = await ethersSigner.getAddress();
+            console.log('✅ Signer address:', signerAddress);
+            console.log('✅ Signer type:', ethersSigner.constructor.name);
+            
+            if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
+                throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
+            }
+
+            // Step 4: Join space with skipMintMembership
+            console.log('🏃 Calling joinSpace...');
+            await joinSpace(spaceIdToJoin, ethersSigner, { 
+                skipMintMembership: true 
+            });
+            
+            console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
             setHasJoined(true);
-        } else {
-            alert(`Failed to join space: ${error.message}`);
-            setJoinAttempted(false);
+            
+        } catch (error: any) {
+            console.error('❌ Failed to join space:', error);
+            
+            if (error.message?.includes('already a member')) {
+                console.log('ℹ️ Already a member, continuing...');
+                setSpaceId(spaceIdToJoin);
+                setHasJoined(true);
+            } else {
+                alert(`Failed to join space: ${error.message}`);
+                setJoinAttempted(false);
+            }
+        } finally {
+            setIsJoiningSpace(false);
         }
-    } finally {
-        setIsJoiningSpace(false);
-    }
-};
+    };
 
-// Update handleCreateSpace similarly:
-const handleCreateSpace = async () => {
-    if (!wallet) return;
-    setIsCreatingSpace(true);
+    const handleCreateSpace = async () => {
+        if (!wallet) return;
+        setIsCreatingSpace(true);
+        
+        try {
+            console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
+            
+            const signer = await thirdwebWalletToEthersV5Signer(
+                wallet,
+                client,
+                activeChain
+            );
+            
+            const result = await createSpace(
+                { spaceName: 'Knead Chat Space' }, 
+                signer
+            );
+
+            console.log('✅ Space created successfully:', result);
+            console.log('   - Space ID:', result.spaceId);
+            console.log('   - Default Channel ID:', result.defaultChannelId);
+            console.log('📋 Add to .env.local:');
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
+            console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
+            console.log(`NEXT_PUBLIC_TOWNS_NETWORK=omega`);
+            
+            alert(
+                `✅ Space Created!\n\n` +
+                `Space ID: ${result.spaceId}\n\n` +
+                `Copy these to your .env.local:\n\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}\n` +
+                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}\n` +
+                `NEXT_PUBLIC_TOWNS_NETWORK=omega`
+            );
+
+            await handleJoinSpace(result.spaceId);
+
+        } catch (error: any) {
+            console.error('❌ Failed to create space:', error);
+            alert(`Failed to create space: ${error.message}`);
+        } finally {
+            setIsCreatingSpace(false);
+        }
+    };
+
+    const handleManualSpaceId = () => {
+        if (manualSpaceId.trim()) {
+            handleJoinSpace(manualSpaceId.trim());
+        }
+    };
+
+    if (hasJoined && spaceId && defaultChannelId) {
+        return (
+            <div className="w-full h-screen">
+                <ConnectedChat
+                    currentUser={currentUser}
+                    spaceId={spaceId}
+                    defaultChannelId={defaultChannelId}
+                />
+            </div>
+        );
+    }
+
+    if (isJoiningSpace) {
+        return (
+            <div className="text-center max-w-md space-y-6">
+                <h1 className="font-adonis text-4xl mb-4">Joining Space...</h1>
+                <LoadingSpinner />
+            </div>
+        );
+    }
+
+    return (
+        <div className="text-center max-w-md space-y-6">
+            <h1 className="font-adonis text-4xl mb-4">
+                {SAVED_SPACE_ID ? 'Join Knead Chat' : 'Create Your Chat Space'}
+            </h1>
+            
+            {SAVED_SPACE_ID ? (
+                <>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Space ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{SAVED_SPACE_ID}</code>
+                    </p>
+                    <Button 
+                        onClick={() => handleJoinSpace(SAVED_SPACE_ID)}
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
+                    >
+                        Join Space
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Create a Towns space to start chatting.
+                    </p>
+                    
+                    <Button 
+                        onClick={handleCreateSpace} 
+                        disabled={isCreatingSpace}
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
+                    >
+                        {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                    </Button>
+
+                    <div className="border-t pt-6 mt-6">
+                        <p className="font-georgia-pro text-sm text-gray-600 mb-3">
+                            Already have a space? Enter Space ID:
+                        </p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={manualSpaceId}
+                                onChange={(e) => setManualSpaceId(e.target.value)}
+                                placeholder="Enter Space ID"
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            />
+                            <Button
+                                onClick={handleManualSpaceId}
+                                disabled={!manualSpaceId.trim()}
+                                variant="outline"
+                                className="px-6"
+                            >
+                                Join
+                            </Button>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+export default function ChatTestClient() {
+    const [isMounted, setIsMounted] = useState(false);
     
-    try {
-        console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
-        
-        const signer = await thirdwebWalletToEthersV5Signer(
-            wallet,
-            client,
-            activeChain
-        );
-        
-        const result = await createSpace(
-            { spaceName: 'Knead Chat Space' }, 
-            signer
-        );
+    const wallet = useActiveWallet();
+    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
 
-        console.log('✅ Space created successfully:', result);
-        // ... rest of the function
-        
-    } catch (error: any) {
-        console.error('❌ Failed to create space:', error);
-        alert(`Failed to create space: ${error.message}`);
-    } finally {
-        setIsCreatingSpace(false);
-    }
-};
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
-// Update handleConnectToTowns similarly:
-const handleConnectToTowns = async () => {
-    if (!wallet) return;
-    try {
-      console.log(`🔐 Connecting to Towns Protocol (omega)...`);
-      
-      const signer = await thirdwebWalletToEthersV5Signer(
-          wallet,
-          client,
-          activeChain
-      );
-      
-      await connect(signer, { townsConfig: TOWNS_CONFIG });
-      
-      console.log('✅ Connected to Towns Protocol');
-    } catch (e: any) {
-      console.error("Failed to connect to Towns:", e);
-      alert(`Failed to connect to Towns: ${e.message}`);
+    const handleConnectToTowns = async () => {
+        if (!wallet) return;
+        try {
+          console.log(`🔐 Connecting to Towns Protocol (omega)...`);
+          
+          const signer = await thirdwebWalletToEthersV5Signer(
+              wallet,
+              client,
+              activeChain
+          );
+          
+          await connect(signer, { townsConfig: TOWNS_CONFIG });
+          
+          console.log('✅ Connected to Towns Protocol');
+        } catch (e: any) {
+          console.error("Failed to connect to Towns:", e);
+          alert(`Failed to connect to Towns: ${e.message}`);
+        }
+    };
+
+    if (!isMounted || isAgentConnecting) {
+        return <LoadingSpinner />;
     }
-};
+    
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            {!wallet ? (
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Connect your wallet to access Knead Chat.
+                    </p>
+                    <ConnectButton 
+                        client={client} 
+                        chain={activeChain}
+                        wallets={wallets}
+                    />
+                </div>
+            ) : !isAgentConnected ? (
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
+                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
+                        Sign a message to enter the chat.
+                    </p>
+                    <Button 
+                        onClick={handleConnectToTowns} 
+                        disabled={isAgentConnecting} 
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
+                    >
+                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                    </Button>
+                </div>
+            ) : (
+                <TownsConnectedContent />
+            )}
+        </div>
+    );
+}
