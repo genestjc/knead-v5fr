@@ -4,72 +4,96 @@ import {
   prepareContractCall,
   Engine,
   readContract,
+  getNativeBalance,
 } from "thirdweb";
 import { base } from "thirdweb/chains";
-import {
-  client,
-  serverWallet,
-} from "@/thirdweb-server-wallet";
+import { client, serverWallet } from "@/thirdweb-server-wallet";
 
 export const dynamic = "force-dynamic";
 
-// Towns space membership contract address
 const MEMBERSHIP_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
-
-// Token ID for the Towns space (from space data)
-// TODO: Make this configurable via environment variable if managing multiple spaces
+const ALLOWED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SPACE_TOKEN_ID = 464407n;
-
-// Gas limit for minting transactions
 const MINT_GAS_LIMIT = 300000n;
+const MIN_WALLET_BALANCE = 0.01; // ETH
 
-/**
- * POST /api/towns/mint-membership
- * 
- * Mints a Towns space membership NFT to a user's address.
- * Server wallet pays gas fees for the transaction.
- * 
- * Used to enable gasless space joining - server pre-mints the NFT,
- * then user can join with skipMintMembership: true (no gas required).
- */
+// Simple in-memory rate limiting (use Redis/KV in production)
+const mintAttempts = new Map<string, number>();
+
 export async function POST(req: NextRequest) {
   try {
     const { userAddress, spaceId } = await req.json();
 
-    // Validate inputs
+    // 🔒 Validation 1: Required fields
     if (!userAddress || !spaceId) {
       return NextResponse.json({ 
         error: 'Missing required fields: userAddress and spaceId are required.' 
       }, { status: 400 });
     }
 
+    // 🔒 Validation 2: Only allow your space
+    if (spaceId !== ALLOWED_SPACE_ID) {
+      console.warn('⚠️ Invalid space ID attempt:', spaceId);
+      return NextResponse.json({ 
+        error: 'Invalid space ID' 
+      }, { status: 400 });
+    }
+
+    // 🔒 Validation 3: IP rate limiting (basic)
+    const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? 'unknown';
+    const ipKey = `ip:${ip}`;
+    const ipCount = mintAttempts.get(ipKey) || 0;
+    
+    if (ipCount >= 5) {
+      console.warn('⚠️ Rate limit exceeded for IP:', ip);
+      return NextResponse.json({ 
+        error: 'Rate limit exceeded. Please try again later.' 
+      }, { status: 429 });
+    }
+    
+    mintAttempts.set(ipKey, ipCount + 1);
+    setTimeout(() => mintAttempts.delete(ipKey), 60 * 60 * 1000); // Clear after 1 hour
+
+    // 🔒 Validation 4: Check server wallet balance
+    const balance = await getNativeBalance({
+      client,
+      chain: base,
+      address: await serverWallet.getAddress(),
+    });
+
+    if (Number(balance.displayValue) < MIN_WALLET_BALANCE) {
+      console.error('🚨 Server wallet low on funds!');
+      console.error('   Balance:', balance.displayValue, 'ETH');
+      return NextResponse.json({
+        error: 'Service temporarily unavailable. Please contact support.',
+      }, { status: 503 });
+    }
+
     if (!MEMBERSHIP_CONTRACT_ADDRESS) {
-      throw new Error(
-        "NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS not configured",
-      );
+      throw new Error("NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS not configured");
     }
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🎫 Minting membership NFT for gasless join');
-    console.log(`   User: ${userAddress}, Space: ${spaceId}`);
-    console.log(`   Contract: ${MEMBERSHIP_CONTRACT_ADDRESS}, Token: ${SPACE_TOKEN_ID}`);
+    console.log('🎫 Minting membership NFT');
+    console.log(`   User: ${userAddress}`);
+    console.log(`   Space: ${spaceId}`);
+    console.log(`   Server Balance: ${balance.displayValue} ETH`);
 
-    // Get the contract
     const contract = getContract({
       client,
       address: MEMBERSHIP_CONTRACT_ADDRESS,
       chain: base,
     });
 
-    // Check if user already has the membership NFT
+    // 🔒 Validation 5: Check if user already has NFT
     try {
-      const balance = await readContract({
+      const userBalance = await readContract({
         contract,
         method: "function balanceOf(address account, uint256 id) view returns (uint256)",
         params: [userAddress, SPACE_TOKEN_ID],
       });
 
-      if (balance > 0n) {
+      if (userBalance > 0n) {
         console.log('✅ User already has membership NFT');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         return NextResponse.json({
@@ -79,10 +103,10 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (balanceError) {
-      console.warn('⚠️  Could not check balance, proceeding with mint');
+      console.warn('⚠️ Could not check balance, proceeding with mint');
     }
 
-    // Prepare mint transaction
+    // Mint the NFT
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
