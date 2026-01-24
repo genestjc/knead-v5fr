@@ -3,7 +3,7 @@
 
 /**
  * Converts ThirdWeb wallet to Ethers v5 Signer
- * Uses dynamic imports to avoid SSR issues
+ * Properly extends ethers.Signer class
  */
 export async function getEthersV5Signer(wallet: any, chain: any) {
   // Dynamic import to avoid hydration issues
@@ -20,19 +20,45 @@ export async function getEthersV5Signer(wallet: any, chain: any) {
     name: chain.name || 'Base',
   });
 
-  // Use VoidSigner as base
-  const voidSigner = new ethers.VoidSigner(account.address, provider);
+  // Create a proper Signer class
+  class ThirdWebSigner extends ethers.Signer {
+    readonly address: string;
+    readonly provider: ethers.providers.Provider;
+    private wallet: any;
 
-  // Override signMessage
-  const customSigner = Object.create(voidSigner);
-  customSigner.signMessage = async (message: any) => {
-    const messageString = typeof message === 'string' ? message : message.toString();
-    // Use ThirdWeb's signing
-    const signature = await (wallet as any).signMessage({ message: messageString });
-    return signature;
-  };
+    constructor(address: string, provider: ethers.providers.Provider, wallet: any) {
+      super();
+      this.address = address;
+      this.provider = provider;
+      this.wallet = wallet;
+    }
 
-  customSigner.getAddress = () => Promise.resolve(account.address);
+    async getAddress(): Promise<string> {
+      return this.address;
+    }
 
-  return customSigner;
+    async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
+      const messageString = typeof message === 'string' 
+        ? message 
+        : ethers.utils.toUtf8String(message);
+      
+      try {
+        const signature = await this.wallet.signMessage({ message: messageString });
+        return signature;
+      } catch (error) {
+        console.error('❌ signMessage error:', error);
+        throw error;
+      }
+    }
+
+    async signTransaction(transaction: ethers.providers.TransactionRequest): Promise<string> {
+      throw new Error('signTransaction not implemented - use sendTransaction instead');
+    }
+
+    connect(provider: ethers.providers.Provider): ethers.Signer {
+      return new ThirdWebSigner(this.address, provider, this.wallet);
+    }
+  }
+
+  return new ThirdWebSigner(account.address, provider, wallet);
 }
