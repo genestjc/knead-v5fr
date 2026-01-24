@@ -7,10 +7,9 @@ import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
-import { ethers } from 'ethers-v5';
-import type { WalletClient } from 'viem';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { walletClientToSigner } from '@/lib/viem-to-ethers';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -32,20 +31,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-function walletClientToSigner(walletClient: WalletClient) {
-  const { account, chain, transport } = walletClient;
-  if (!account || !chain) return undefined;
-  
-  const network = { 
-    chainId: chain.id, 
-    name: chain.name, 
-    ensAddress: chain.contracts?.ensRegistry?.address 
-  };
-  const provider = new ethers.providers.Web3Provider(transport, network);
-  const signer = provider.getSigner(account.address);
-  return signer;
-}
-
 const mockUser = {
     id: 'user-123',
     alias: 'KneadUser',
@@ -53,7 +38,6 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-// Regular EOA wallets (no smart accounts) - compatible with Towns signatures
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -177,8 +161,7 @@ function TownsConnectedContent() {
                 client, 
                 chain: activeChain
             });
-            const signer = await walletClientToSigner(viemWalletClient);
-            if (!signer) throw new Error('Could not create signer.');
+            const signer = walletClientToSigner(viemWalletClient);
             
             // Pass skipMintMembership: true since we minted server-side
             await joinSpace(spaceIdToJoin, signer, { 
@@ -218,8 +201,7 @@ function TownsConnectedContent() {
               chain: activeChain
             });
             
-            const signer = await walletClientToSigner(viemWalletClient);
-            if (!signer) throw new Error('Could not create signer.');
+            const signer = walletClientToSigner(viemWalletClient);
             
             const result = await createSpace(
                 { spaceName: 'Knead Chat Space' }, 
@@ -360,8 +342,7 @@ export default function ChatTestClient() {
             client, 
             chain: activeChain
           });
-          const signer = await walletClientToSigner(viemWalletClient);
-          if (!signer) throw new Error('Could not create signer.');
+          const signer = walletClientToSigner(viemWalletClient);
           
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
