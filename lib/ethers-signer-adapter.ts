@@ -1,11 +1,9 @@
 // lib/ethers-signer-adapter.ts
 "use client";
 
-import { signMessage as thirdwebSignMessage } from "thirdweb/wallets";
-
 /**
  * Converts ThirdWeb wallet to Ethers v5 Signer
- * Properly extends ethers.Signer with defineReadOnly (Towns SDK approved)
+ * Uses account.signMessage() directly (ThirdWeb v5 recommended approach)
  */
 export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const { ethers } = await import("ethers-v5");
@@ -23,7 +21,7 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
 
   /**
    * Custom Signer class for ThirdWeb wallets
-   * Uses ethers.utils.defineReadOnly for proper property definition
+   * Uses account.signMessage() directly (no imports needed)
    */
   class ThirdWebEthersSigner extends ethers.Signer {
     private account: any;
@@ -51,16 +49,17 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
         messageString = ethers.utils.toUtf8String(message);
       }
       
-      console.log('🔐 Signing message with ThirdWeb');
+      console.log('🔐 Signing message with account.signMessage()');
       
       try {
-        const signature = await thirdwebSignMessage({
-          account: this.account,
-          message: messageString,
-        });
+        // Use the account's signMessage method directly (ThirdWeb v5)
+        if (typeof this.account.signMessage === 'function') {
+          const signature = await this.account.signMessage({ message: messageString });
+          console.log('✅ Signature received from account');
+          return signature.startsWith('0x') ? signature : `0x${signature}`;
+        }
         
-        console.log('✅ Signature received');
-        return signature.startsWith('0x') ? signature : `0x${signature}`;
+        throw new Error('Account does not support signMessage');
       } catch (error: any) {
         console.error('❌ Signing failed:', error);
         throw new Error(`Signing failed: ${error.message || 'Unknown error'}`);
@@ -89,6 +88,7 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   console.log('   Has provider:', !!signer.provider);
   console.log('   Has signMessage:', typeof signer.signMessage === 'function');
   console.log('   Has getAddress:', typeof signer.getAddress === 'function');
+  console.log('   Account has signMessage:', typeof account.signMessage === 'function');
   
   // Test it
   const testAddress = await signer.getAddress();
