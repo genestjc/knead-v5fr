@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { viemAdapter } from 'thirdweb/adapters/viem';
-import { client, activeChain, paymasterUrl } from '@/thirdweb-client';
+import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { ethers } from 'ethers-v5';
 import type { WalletClient } from 'viem';
@@ -53,7 +53,7 @@ const mockUser = {
     membershipTier: 'Baker',
 };
 
-// 🆕 Simplified wallet config per ThirdWeb recommendations
+// 🆕 Regular EOA wallets (no smart accounts) - compatible with Towns signatures
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -62,11 +62,7 @@ const wallets = [
     auth: {
       options: ["email", "google", "apple", "phone"],
     },
-    // 🆕 Enable smart account with gas sponsorship (simplified)
-    smartAccount: paymasterUrl ? {
-      chain: activeChain,
-      sponsorGas: true, // 🔑 This is all you need!
-    } : undefined,
+    // No smartAccount config - regular EOA wallet for Towns compatibility
   }),
 ];
 
@@ -106,12 +102,46 @@ function TownsConnectedContent() {
         setIsJoiningSpace(true);
         
         try {
+            const userAddress = wallet.getAccount()?.address;
+            if (!userAddress) throw new Error('No wallet address');
+
             console.log('🚪 Joining space:', spaceIdToJoin);
-            console.log('🔍 Wallet ID:', wallet.id);
-            console.log('🔍 Wallet address:', wallet.getAccount()?.address);
-            console.log('🔍 Paymaster configured:', paymasterUrl ? 'YES ✅' : 'NO ❌');
-            console.log(paymasterUrl ? '💰 Gas sponsorship enabled' : '⚠️ No gas sponsorship');
-            
+            console.log('👤 User address:', userAddress);
+
+            // Step 1: Server mints membership NFT (server pays gas)
+            console.log('🎫 Requesting membership NFT from server...');
+            try {
+                const mintResponse = await fetch('/api/towns/mint-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userAddress, 
+                        spaceId: spaceIdToJoin 
+                    }),
+                });
+
+                if (mintResponse.ok) {
+                    const mintData = await mintResponse.json();
+                    if (mintData.alreadyMinted) {
+                        console.log('✅ Already has membership NFT');
+                    } else {
+                        console.log('✅ Membership NFT minted:', mintData.transactionHash);
+                        console.log('🔗 View on Basescan:', mintData.explorerUrl);
+                        
+                        // Wait for blockchain to process the mint
+                        console.log('⏳ Waiting for NFT confirmation...');
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                    }
+                } else {
+                    console.warn('⚠️ Could not mint NFT, will try joining anyway');
+                }
+            } catch (mintError) {
+                console.warn('⚠️ NFT minting failed:', mintError);
+                console.log('Attempting to join anyway (may already have NFT)...');
+            }
+
+            // Step 2: Join space with EOA wallet signature
+            console.log('🔐 Joining space with wallet signature...');
             const viemWalletClient = viemAdapter.wallet.toViem({ 
                 wallet, 
                 client, 
@@ -285,13 +315,6 @@ export default function ChatTestClient() {
 
     useEffect(() => {
         setIsMounted(true);
-        
-        // 🆕 Debug logging
-        console.log('═══════════════════════════════════');
-        console.log('🔍 PAYMASTER DEBUG:');
-        console.log('paymasterUrl:', paymasterUrl);
-        console.log('Is it defined?', paymasterUrl ? 'YES ✅' : 'NO ❌');
-        console.log('═══════════════════════════════════');
     }, []);
 
     const handleConnectToTowns = async () => {
@@ -328,15 +351,11 @@ export default function ChatTestClient() {
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
                         Connect your wallet to access Knead Chat.
                     </p>
-                    {/* 🆕 Simplified per ThirdWeb recommendations */}
+                    {/* Regular EOA wallets - no smart account abstraction */}
                     <ConnectButton 
                         client={client} 
                         chain={activeChain}
                         wallets={wallets}
-                        accountAbstraction={paymasterUrl ? {
-                            chain: activeChain,
-                            sponsorGas: true, // 🔑 Just this is enough!
-                        } : undefined}
                     />
                 </div>
             ) : !isAgentConnected ? (
