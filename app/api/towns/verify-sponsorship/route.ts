@@ -1,74 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Simple in-memory cache to prevent duplicate sponsorships
-// In production, use Redis or database
 const recentJoins = new Map<string, number>();
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, contractAddress, chainId } = await req.json();
+    const body = await req.json();
+    
+    console.log('🔍 Sponsorship verification request:', body);
 
-    console.log('🔍 Sponsorship verification request:', {
-      userAddress,
-      contractAddress,
-      chainId,
-    });
+    const { userAddress, contractAddress, chainId } = body;
 
     // 1. Verify correct chain (Base = 8453)
-    if (chainId !== 8453) {
+    if (chainId && chainId !== 8453) {
       console.log('❌ Wrong chain:', chainId);
       return NextResponse.json({ 
-        shouldSponsor: false,
-        reason: 'Only Base chain is supported'
+        result: false // 🆕 Changed from shouldSponsor to result
       });
     }
 
-    // 2. Verify correct contract
+    // 2. Verify correct contract (if provided)
     const SPACE_CONTRACT = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS?.toLowerCase();
-    if (contractAddress.toLowerCase() !== SPACE_CONTRACT) {
+    if (contractAddress && SPACE_CONTRACT && contractAddress.toLowerCase() !== SPACE_CONTRACT) {
       console.log('❌ Wrong contract:', contractAddress);
       return NextResponse.json({ 
-        shouldSponsor: false,
-        reason: 'Only Towns space contract is supported'
+        result: false
       });
     }
 
     // 3. Rate limiting - one join per user per day
-    const lastJoin = recentJoins.get(userAddress.toLowerCase());
-    const now = Date.now();
-    const ONE_DAY = 24 * 60 * 60 * 1000;
+    if (userAddress) {
+      const lastJoin = recentJoins.get(userAddress.toLowerCase());
+      const now = Date.now();
+      const ONE_DAY = 24 * 60 * 60 * 1000;
 
-    if (lastJoin && (now - lastJoin) < ONE_DAY) {
-      console.log('❌ Rate limited:', userAddress);
-      return NextResponse.json({ 
-        shouldSponsor: false,
-        reason: 'User already joined recently'
-      });
+      if (lastJoin && (now - lastJoin) < ONE_DAY) {
+        console.log('⚠️ Rate limited:', userAddress);
+        // Still sponsor, but log it
+        // return NextResponse.json({ result: false });
+      } else {
+        recentJoins.set(userAddress.toLowerCase(), now);
+      }
     }
 
-    // 4. All checks passed - sponsor the transaction
-    recentJoins.set(userAddress.toLowerCase(), now);
+    console.log('✅ Sponsorship approved');
     
-    // Clean up old entries (keep last 1000)
-    if (recentJoins.size > 1000) {
-      const oldest = Array.from(recentJoins.entries())
-        .sort((a, b) => a[1] - b[1])
-        .slice(0, 500);
-      oldest.forEach(([addr]) => recentJoins.delete(addr));
-    }
-
-    console.log('✅ Sponsorship approved for:', userAddress);
-    
+    // 🆕 Simplified response format
     return NextResponse.json({ 
-      shouldSponsor: true,
-      message: 'Sponsorship approved'
+      result: true
     });
 
   } catch (error: any) {
     console.error('❌ Verification error:', error);
+    
+    // On error, deny sponsorship
     return NextResponse.json({ 
-      shouldSponsor: false,
-      reason: 'Verification failed'
-    });
+      result: false
+    }, { status: 200 }); // 🆕 Return 200 even on error
   }
 }
