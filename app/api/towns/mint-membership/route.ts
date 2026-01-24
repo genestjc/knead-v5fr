@@ -13,12 +13,13 @@ import {
 
 const MEMBERSHIP_CONTRACT = '0x616843F796B43E6ef972e7C345D2B06d85513543';
 const TOKEN_ID = 464407n;
+const GAS_LIMIT = 300000n;
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, spaceId } = await req.json();
+    const { userAddress } = await req.json();
     
     if (!userAddress) {
       return NextResponse.json(
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       contract: membershipContract,
       method: 'function mint(address,uint256,uint256,bytes)',
       params: [userAddress, TOKEN_ID, 1n, '0x'],
-      gasLimit: 300000n,
+      gasLimit: GAS_LIMIT,
     });
 
     const { transactionId } = await serverWallet.enqueueTransaction({

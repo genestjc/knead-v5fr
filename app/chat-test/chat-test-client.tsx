@@ -104,14 +104,13 @@ function TownsConnectedContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userAddress,
-                    spaceId: spaceIdToJoin,
                 }),
             });
 
             const mintData = await mintResponse.json();
 
-            if (!mintResponse.ok && !mintData.alreadyHasMembership) {
-                throw new Error(mintData.error || 'Failed to mint membership NFT');
+            if (!mintResponse.ok && !mintData?.alreadyHasMembership) {
+                throw new Error(mintData?.error || 'Failed to mint membership NFT');
             }
 
             console.log('✅ Step 1 complete: Membership NFT ready');
