@@ -16,6 +16,7 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
 const SIGNER_CONTEXT_KEY = 'knead_signer_context';
+const DELEGATE_KEY = 'knead_delegate_private_key';  // ✅ Add this
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -48,6 +49,25 @@ const wallets = [
     },
   }),
 ];
+
+// ✅ Helper: Get or create persistent delegate wallet
+async function getOrCreateDelegateWallet() {
+    const { ethers } = await import('ethers-v5');
+    
+    const savedKey = localStorage.getItem(DELEGATE_KEY);
+    
+    if (savedKey) {
+        console.log('🔄 Restoring delegate wallet from storage');
+        return new ethers.Wallet(savedKey);
+    }
+    
+    console.log('🆕 Creating new delegate wallet');
+    const newWallet = ethers.Wallet.createRandom();
+    localStorage.setItem(DELEGATE_KEY, newWallet.privateKey);
+    console.log('💾 Saved delegate wallet to storage');
+    
+    return newWallet;
+}
 
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
@@ -321,6 +341,7 @@ export default function ChatTestClient() {
                         onTokenExpired: () => {
                             console.log('⚠️ Token expired, clearing context');
                             localStorage.removeItem(SIGNER_CONTEXT_KEY);
+                            localStorage.removeItem(DELEGATE_KEY);
                             setSyncAgent(undefined);
                         }
                     });
@@ -332,6 +353,7 @@ export default function ChatTestClient() {
             } catch (error) {
                 console.error('❌ Auto-reconnect failed:', error);
                 localStorage.removeItem(SIGNER_CONTEXT_KEY);
+                localStorage.removeItem(DELEGATE_KEY);
             }
         };
 
@@ -346,10 +368,14 @@ export default function ChatTestClient() {
             
             const signer = await getEthersV5Signer(wallet, activeChain, client);
             
-            // ✅ Create persistent signer context (from @towns-protocol/sdk)
-            const signerContext = await makeSignerContext(signer);
+            // ✅ Get or create persistent delegate wallet
+            const delegateWallet = await getOrCreateDelegateWallet();
+            console.log('🔑 Delegate wallet address:', delegateWallet.address);
             
-            // ✅ Save context for future sessions (it's JSON-serializable!)
+            // ✅ Create signer context with BOTH parameters
+            const signerContext = await makeSignerContext(signer, delegateWallet);
+            
+            // ✅ Save context for future sessions
             localStorage.setItem(SIGNER_CONTEXT_KEY, JSON.stringify(signerContext));
             console.log('💾 Saved signer context to localStorage');
             
@@ -359,6 +385,7 @@ export default function ChatTestClient() {
                 onTokenExpired: () => {
                     console.log('⚠️ Token expired, clearing context');
                     localStorage.removeItem(SIGNER_CONTEXT_KEY);
+                    localStorage.removeItem(DELEGATE_KEY);
                     setSyncAgent(undefined);
                 }
             });
@@ -369,6 +396,7 @@ export default function ChatTestClient() {
         } catch (e: any) {
             console.error("Failed to connect to Towns:", e);
             localStorage.removeItem(SIGNER_CONTEXT_KEY);
+            localStorage.removeItem(DELEGATE_KEY);
             alert(`Failed to connect to Towns: ${e.message}`);
         }
     };
