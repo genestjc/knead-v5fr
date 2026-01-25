@@ -8,15 +8,21 @@ import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { TownsSyncProvider } from "@towns-protocol/react-sdk";
+import { useState, useEffect } from "react";
+import type { SyncAgent } from "@towns-protocol/sdk";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [syncAgent, setSyncAgent] = useState<SyncAgent | undefined>();
+
   return (
     <ErrorBoundary>
       <ThirdwebProvider>
-        <TownsSyncProvider
+        <TownsSyncProvider 
+          syncAgent={syncAgent}
           config={{
             onTokenExpired: () => {
               console.log('⚠️ Towns session expired, please reconnect');
+              setSyncAgent(undefined);
             }
           }}
         >
