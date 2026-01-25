@@ -301,40 +301,43 @@ function TownsConnectedContent() {
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
-    const [isConnectedToTowns, setIsConnectedToTowns] = useState(false);
-    const [isConnecting, setIsConnecting] = useState(false);
     
     const wallet = useActiveWallet();
-    const { connect } = useAgentConnection();
+    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();  // ✅ Get SDK state
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
+    // ✅ Log connection state for debugging
+    useEffect(() => {
+        console.log('🔍 Towns connection state:', {
+            isAgentConnected,
+            isAgentConnecting,
+            hasWallet: !!wallet,
+        });
+    }, [isAgentConnected, isAgentConnecting, wallet]);
+
     const handleConnectToTowns = async () => {
-        if (!wallet) return;
-        setIsConnecting(true);
+        if (!wallet || isAgentConnecting) return;
         
         try {
           console.log(`🔐 Connecting to Towns Protocol (omega)...`);
           
           const signer = await getEthersV5Signer(wallet, activeChain, client);
           
-          // ✅ Use connect from hook - it handles delegate signing AND sets context
           await connect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol');
-          setIsConnectedToTowns(true);
+          // ✅ No need to set state - SDK handles it
           
         } catch (e: any) {
           console.error("Failed to connect to Towns:", e);
           alert(`Failed to connect to Towns: ${e.message}`);
-        } finally {
-          setIsConnecting(false);
         }
     };
 
-    if (!isMounted || isConnecting) {
+    if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
     }
     
@@ -352,7 +355,7 @@ export default function ChatTestClient() {
                         wallets={wallets}
                     />
                 </div>
-            ) : !isConnectedToTowns ? (
+            ) : !isAgentConnected ? (  // ✅ Use SDK state
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
@@ -360,10 +363,10 @@ export default function ChatTestClient() {
                     </p>
                     <Button 
                         onClick={handleConnectToTowns} 
-                        disabled={isConnecting} 
+                        disabled={isAgentConnecting} 
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isConnecting ? 'Connecting...' : 'Connect to Towns'}
+                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                     </Button>
                 </div>
             ) : (
