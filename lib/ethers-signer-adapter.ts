@@ -65,21 +65,39 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
       }
       
       const account = this.getAccount();  // Fresh account every time
-      console.log('🔐 Signing message with account:', account.address);
-      console.log('🔐 Message to sign:', messageString);
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔐 SIGNING MESSAGE');
+      console.log('   Account address:', account.address);
+      console.log('   Message to sign:', messageString);
+      console.log('   Message type:', typeof message);
+      console.log('   Message length:', messageString.length);
       
       try {
         // Use the account's signMessage method directly (ThirdWeb v5)
         if (typeof account.signMessage === 'function') {
           const signature = await account.signMessage({ message: messageString });
-          console.log('✅ Signature received from account:', account.address);
-          console.log('✅ Signature:', signature.substring(0, 20) + '...');
+          
+          console.log('   ✅ Signature created:', signature.substring(0, 20) + '...');
+          
+          // Verify the signature recovers to the correct address
+          const recoveredAddress = ethers.utils.verifyMessage(messageString, signature);
+          console.log('   Recovered address:', recoveredAddress);
+          console.log('   Expected address:', account.address);
+          console.log('   Match:', recoveredAddress.toLowerCase() === account.address.toLowerCase());
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          
+          if (recoveredAddress.toLowerCase() !== account.address.toLowerCase()) {
+            throw new Error(`Signature verification failed! Recovered: ${recoveredAddress}, Expected: ${account.address}`);
+          }
+          
           return signature.startsWith('0x') ? signature : `0x${signature}`;
         }
         
         throw new Error('Account does not support signMessage');
       } catch (error: any) {
         console.error('❌ Signing failed:', error);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         throw new Error(`Signing failed: ${error.message || 'Unknown error'}`);
       }
     }
