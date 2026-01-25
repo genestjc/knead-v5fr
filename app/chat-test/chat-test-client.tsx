@@ -15,8 +15,7 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 const NETWORK_NAME = 'Base Mainnet';
-const SIGNER_CONTEXT_KEY = 'knead_signer_context';
-const DELEGATE_KEY = 'knead_delegate_private_key';  // ✅ Add this
+const DELEGATE_KEY = 'knead_delegate_private_key';
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -65,6 +64,7 @@ async function getOrCreateDelegateWallet() {
     const newWallet = ethers.Wallet.createRandom();
     localStorage.setItem(DELEGATE_KEY, newWallet.privateKey);
     console.log('💾 Saved delegate wallet to storage');
+    console.log('🔑 Delegate address:', newWallet.address);
     
     return newWallet;
 }
@@ -323,24 +323,32 @@ export default function ChatTestClient() {
         setIsMounted(true);
     }, []);
 
-    // ✅ Auto-reconnect on mount using saved SignerContext
+    // ✅ Auto-reconnect on mount by recreating SignerContext
     useEffect(() => {
         if (!isMounted || !wallet || syncAgent) return;
 
         const autoConnect = async () => {
             try {
-                const savedContextStr = localStorage.getItem(SIGNER_CONTEXT_KEY);
+                const savedDelegateKey = localStorage.getItem(DELEGATE_KEY);
                 
-                if (savedContextStr) {
-                    console.log('🔄 Found saved signer context, auto-reconnecting...');
-                    const savedContext: SignerContext = JSON.parse(savedContextStr);
+                if (savedDelegateKey) {
+                    console.log('🔄 Found saved delegate key, auto-reconnecting...');
                     
-                    // ✅ Reconnect using saved context
-                    const agent = await connectTowns(savedContext, { 
+                    // ✅ Recreate signer
+                    const signer = await getEthersV5Signer(wallet, activeChain, client);
+                    
+                    // ✅ Restore delegate wallet from saved key
+                    const { ethers } = await import('ethers-v5');
+                    const delegateWallet = new ethers.Wallet(savedDelegateKey);
+                    
+                    // ✅ Recreate signer context
+                    const signerContext = await makeSignerContext(signer, delegateWallet);
+                    
+                    // ✅ Connect using the recreated context
+                    const agent = await connectTowns(signerContext, { 
                         townsConfig: TOWNS_CONFIG,
                         onTokenExpired: () => {
-                            console.log('⚠️ Token expired, clearing context');
-                            localStorage.removeItem(SIGNER_CONTEXT_KEY);
+                            console.log('⚠️ Token expired, clearing delegate');
                             localStorage.removeItem(DELEGATE_KEY);
                             setSyncAgent(undefined);
                         }
@@ -352,7 +360,6 @@ export default function ChatTestClient() {
                 }
             } catch (error) {
                 console.error('❌ Auto-reconnect failed:', error);
-                localStorage.removeItem(SIGNER_CONTEXT_KEY);
                 localStorage.removeItem(DELEGATE_KEY);
             }
         };
@@ -375,16 +382,14 @@ export default function ChatTestClient() {
             // ✅ Create signer context with BOTH parameters
             const signerContext = await makeSignerContext(signer, delegateWallet);
             
-            // ✅ Save context for future sessions
-            localStorage.setItem(SIGNER_CONTEXT_KEY, JSON.stringify(signerContext));
-            console.log('💾 Saved signer context to localStorage');
+            // ✅ DON'T save SignerContext (has BigInt) - only save delegate key (already done)
+            console.log('💾 Delegate key already saved to localStorage');
             
             // ✅ Connect using the context
             const agent = await connectTowns(signerContext, { 
                 townsConfig: TOWNS_CONFIG,
                 onTokenExpired: () => {
-                    console.log('⚠️ Token expired, clearing context');
-                    localStorage.removeItem(SIGNER_CONTEXT_KEY);
+                    console.log('⚠️ Token expired, clearing delegate');
                     localStorage.removeItem(DELEGATE_KEY);
                     setSyncAgent(undefined);
                 }
@@ -395,7 +400,6 @@ export default function ChatTestClient() {
             
         } catch (e: any) {
             console.error("Failed to connect to Towns:", e);
-            localStorage.removeItem(SIGNER_CONTEXT_KEY);
             localStorage.removeItem(DELEGATE_KEY);
             alert(`Failed to connect to Towns: ${e.message}`);
         }
