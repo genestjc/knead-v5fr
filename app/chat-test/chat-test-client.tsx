@@ -9,6 +9,7 @@ import { townsEnv, makeSignerContext } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
+import { useTownsContext } from '@/app/providers';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -103,6 +104,8 @@ function TownsConnectedContent() {
             const userAddress = wallet.getAccount()?.address;
             if (!userAddress) throw new Error('No wallet address');
 
+            console.log('🚪 Joining space:', spaceIdToJoin);
+
             const validateResponse = await fetch('/api/towns/mint-membership', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -126,6 +129,7 @@ function TownsConnectedContent() {
             
             await joinSpace(spaceIdToJoin, ethersSigner, { skipMintMembership: false });
             
+            console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
             setHasJoined(true);
             
@@ -217,23 +221,74 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected, isAgentConnecting } = useAgentConnection();
+    const { setSyncAgent } = useTownsContext(); // ✅ Get setSyncAgent from context
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // ✅ Simple manual connect - no auto-reconnect for now
+    // ✅ Auto-reconnect on mount
+    useEffect(() => {
+        if (!isMounted || !wallet || isAgentConnected || isAgentConnecting) return;
+
+        const autoReconnect = async () => {
+            try {
+                const savedDelegateKey = localStorage.getItem(DELEGATE_KEY);
+                
+                if (savedDelegateKey) {
+                    console.log('🔄 Auto-reconnecting with saved delegate...');
+                    
+                    const signer = await getEthersV5Signer(wallet, activeChain, client);
+                    const { ethers } = await import('ethers-v5');
+                    const delegateWallet = new ethers.Wallet(savedDelegateKey);
+                    
+                    const signerContext = await makeSignerContext(signer, delegateWallet);
+                    
+                    const agent = await connectTowns(signerContext, { 
+                        townsConfig: TOWNS_CONFIG,
+                        onTokenExpired: () => {
+                            console.log('⚠️ Token expired, clearing delegate');
+                            localStorage.removeItem(DELEGATE_KEY);
+                            setSyncAgent(undefined);
+                        }
+                    });
+                    
+                    // ✅ Pass the agent to the provider!
+                    setSyncAgent(agent);
+                    console.log('✅ Auto-reconnected successfully');
+                }
+            } catch (error) {
+                console.error('❌ Auto-reconnect failed:', error);
+                localStorage.removeItem(DELEGATE_KEY);
+            }
+        };
+
+        autoReconnect();
+    }, [isMounted, wallet, isAgentConnected, isAgentConnecting, setSyncAgent]);
+
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         
         try {
+            console.log('🔐 Connecting to Towns Protocol...');
+            
             const signer = await getEthersV5Signer(wallet, activeChain, client);
             const delegateWallet = await getOrCreateDelegateWallet();
             const signerContext = await makeSignerContext(signer, delegateWallet);
             
-            await connectTowns(signerContext, { townsConfig: TOWNS_CONFIG });
+            const agent = await connectTowns(signerContext, { 
+                townsConfig: TOWNS_CONFIG,
+                onTokenExpired: () => {
+                    console.log('⚠️ Token expired, clearing delegate');
+                    localStorage.removeItem(DELEGATE_KEY);
+                    setSyncAgent(undefined);
+                }
+            });
             
+            // ✅ Pass the agent to the provider!
+            setSyncAgent(agent);
             console.log('✅ Connected to Towns');
+            
         } catch (e: any) {
             console.error("Failed to connect:", e);
             localStorage.removeItem(DELEGATE_KEY);
@@ -258,7 +313,7 @@ export default function ChatTestClient() {
                     <Button 
                         onClick={handleConnectToTowns} 
                         disabled={isAgentConnecting}
-                        className="px-8 py-4 bg-black text-white rounded-full"
+                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
                         {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
                     </Button>
