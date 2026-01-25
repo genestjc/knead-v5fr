@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prepareTransaction, toWei, sendTransaction, getNativeBalance } from "thirdweb";
+import { 
+  prepareTransaction, 
+  toWei, 
+  getBalance,
+  Engine 
+} from "thirdweb";
 import { base } from "thirdweb/chains";
-import { client, serverWallet } from "@/thirdweb-server-wallet";
+import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +46,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check user's current balance
-    const balance = await getNativeBalance({
+    // Check user's current balance (fixed import - use getBalance)
+    const balance = await getBalance({
       client,
       chain: base,
       address: userAddress,
@@ -63,9 +68,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log(`   Sending: ${GAS_AMOUNT} ETH`);
+    console.log(`   Sending: ${GAS_AMOUNT} ETH from ${SERVER_WALLET_ADDRESS}`);
 
-    // Send ETH from server wallet to user
+    // Prepare transaction to send ETH
     const transaction = prepareTransaction({
       to: userAddress,
       value: toWei(GAS_AMOUNT),
@@ -73,31 +78,40 @@ export async function POST(req: NextRequest) {
       client,
     });
 
-    const result = await sendTransaction({
+    // Use Engine queue (same pattern as Stripe webhook)
+    console.log('🔧 Enqueueing transaction...');
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
-      account: serverWallet,
     });
 
-    // Wait for transaction to be mined
-    const receipt = await result.wait();
+    console.log(`   Transaction ID: ${transactionId}`);
+
+    // Wait for transaction hash
+    console.log('⏳ Waiting for transaction hash...');
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
 
     // Mark as funded
     fundedAddresses.set(userAddress.toLowerCase(), Date.now());
 
     console.log(`✅ Wallet funded successfully`);
-    console.log(`   Transaction: ${receipt.transactionHash}`);
+    console.log(`   Transaction: ${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
       success: true,
-      transactionHash: receipt.transactionHash,
+      transactionHash,
       amount: GAS_AMOUNT,
-      explorerUrl: `https://basescan.org/tx/${receipt.transactionHash}`,
+      explorerUrl: `https://basescan.org/tx/${transactionHash}`,
     });
 
   } catch (error: any) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('❌ Error funding wallet:', error);
+    console.error('   Message:', error.message);
+    console.error('   Stack:', error.stack);
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     return NextResponse.json(
