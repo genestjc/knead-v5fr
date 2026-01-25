@@ -5,8 +5,8 @@ import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-w
 
 export const dynamic = "force-dynamic";
 
-// Amount to send for gas (0.001 ETH ≈ $3, enough for ~1000 transactions on Base)
-const GAS_AMOUNT_WEI = BigInt("1000000000000000"); // 0.001 ETH
+// Amount to send for gas (0.0001 ETH ≈ $0.30, enough for 10-20 transactions on Base)
+const GAS_AMOUNT_WEI = BigInt("100000000000000"); // 0.0001 ETH
 
 // Track funded addresses to prevent abuse (one funding per address per day)
 const fundedAddresses = new Map<string, number>();
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log(`   Sending: 0.001 ETH`);
+    console.log(`   Sending: 0.0001 ETH (~$0.30)`);
 
     // Prepare ETH transfer transaction
     console.log('🔧 Preparing transaction...');
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       transactionHash,
-      amount: "0.001",
+      amount: "0.0001",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
     });
 
