@@ -8,9 +8,8 @@ export const dynamic = "force-dynamic";
 // Amount to send for gas (0.0001 ETH ≈ $0.30, enough for 10-20 transactions on Base)
 const GAS_AMOUNT_WEI = BigInt("100000000000000"); // 0.0001 ETH
 
-// Track funded addresses to prevent abuse (one funding per address per day)
-const fundedAddresses = new Map<string, number>();
-const ONE_DAY = 24 * 60 * 60 * 1000;
+// Track funded addresses permanently (one-time funding per address, FOREVER)
+const fundedAddresses = new Set<string>(); // Changed from Map to Set
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,16 +26,14 @@ export async function POST(req: NextRequest) {
     console.log(`   User: ${userAddress}`);
     console.log(`   Server: ${SERVER_WALLET_ADDRESS}`);
 
-    // 🔒 Rate limiting: one funding per address per day
-    const lastFunded = fundedAddresses.get(userAddress.toLowerCase());
-    if (lastFunded && (Date.now() - lastFunded) < ONE_DAY) {
-      const hoursAgo = Math.floor((Date.now() - lastFunded) / (1000 * 60 * 60));
-      console.log(`✅ Wallet was funded ${hoursAgo} hours ago`);
+    // 🔒 ONE-TIME funding check (permanent)
+    if (fundedAddresses.has(userAddress.toLowerCase())) {
+      console.log(`✅ Wallet already funded (one-time funding complete)`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({
         success: true,
         alreadyFunded: true,
-        message: `Wallet already funded ${hoursAgo} hours ago`,
+        message: 'Wallet was already funded',
       });
     }
 
@@ -66,10 +63,10 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
 
-    // Mark as funded (prevent duplicate funding for 24 hours)
-    fundedAddresses.set(userAddress.toLowerCase(), Date.now());
+    // Mark as funded permanently (one-time funding complete)
+    fundedAddresses.add(userAddress.toLowerCase());
 
-    console.log(`✅ Wallet funded successfully`);
+    console.log(`✅ Wallet funded successfully (one-time funding)`);
     console.log(`   Transaction: ${transactionHash}`);
     console.log(`   Explorer: https://basescan.org/tx/${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
