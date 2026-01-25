@@ -26,15 +26,13 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
    * Fully implements Ethers v5 Signer interface
    */
   class ThirdWebEthersSigner extends ethers.Signer {
-    private account: Account;
-    private wallet: any;
+    private wallet: any;  // Store wallet instead of account
     private client: any;
     private chain: any;
 
-    constructor(account: Account, wallet: any, provider: ethers.providers.Provider, client: any, chain: any) {
+    constructor(wallet: any, provider: ethers.providers.Provider, client: any, chain: any) {
       super();
-      this.account = account;
-      this.wallet = wallet;
+      this.wallet = wallet;  // Store wallet, not account
       this.client = client;
       this.chain = chain;
       
@@ -42,8 +40,17 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
       ethers.utils.defineReadOnly(this, "provider", provider);
     }
 
+    // Always get fresh account
+    private getAccount(): Account {
+      const account = this.wallet.getAccount();
+      if (!account) throw new Error("No account connected");
+      return account;
+    }
+
     async getAddress(): Promise<string> {
-      return this.account.address;
+      const account = this.getAccount();  // Fresh account every time
+      console.log('🔍 getAddress() called:', account.address);
+      return account.address;
     }
 
     async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
@@ -57,13 +64,16 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
         messageString = ethers.utils.toUtf8String(message);
       }
       
-      console.log('🔐 Signing message with account.signMessage()');
+      const account = this.getAccount();  // Fresh account every time
+      console.log('🔐 Signing message with account:', account.address);
+      console.log('🔐 Message to sign:', messageString);
       
       try {
         // Use the account's signMessage method directly (ThirdWeb v5)
-        if (typeof this.account.signMessage === 'function') {
-          const signature = await this.account.signMessage({ message: messageString });
-          console.log('✅ Signature received from account');
+        if (typeof account.signMessage === 'function') {
+          const signature = await account.signMessage({ message: messageString });
+          console.log('✅ Signature received from account:', account.address);
+          console.log('✅ Signature:', signature.substring(0, 20) + '...');
           return signature.startsWith('0x') ? signature : `0x${signature}`;
         }
         
@@ -79,13 +89,16 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
     }
 
     connect(provider: ethers.providers.Provider): ethers.Signer {
-      return new ThirdWebEthersSigner(this.account, this.wallet, provider, this.client, this.chain);
+      return new ThirdWebEthersSigner(this.wallet, provider, this.client, this.chain);
     }
 
     // ✅ Implement sendTransaction for Towns SDK
     async sendTransaction(transaction: ethers.providers.TransactionRequest): Promise<ethers.providers.TransactionResponse> {
       console.log('📤 sendTransaction called');
       console.log('   Transaction:', transaction);
+      
+      const account = this.getAccount();  // Fresh account every time
+      console.log('📤 Sending from account:', account.address);
       
       try {
         // Import ThirdWeb SDK functions
@@ -106,7 +119,7 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
         // Send using ThirdWeb
         const result = await thirdwebSendTransaction({
           transaction: preparedTx,
-          account: this.account,
+          account: account,
         });
 
         console.log('✅ Transaction sent:', result.transactionHash);
@@ -116,7 +129,7 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
           hash: result.transactionHash,
           from: await this.getAddress(),
           to: transaction.to as string,
-          nonce: 0, // Will be filled by provider
+          nonce: 0,
           gasLimit: ethers.BigNumber.from(0),
           data: transaction.data?.toString() || '0x',
           value: ethers.BigNumber.from(transaction.value || 0),
@@ -125,10 +138,9 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
           wait: async (confirmations?: number) => {
             console.log(`⏳ Waiting for ${confirmations || 1} confirmations...`);
             
-            // Wait for transaction receipt
             let receipt;
             let attempts = 0;
-            const maxAttempts = 60; // 60 seconds timeout
+            const maxAttempts = 60;
             
             while (!receipt && attempts < maxAttempts) {
               try {
@@ -159,7 +171,7 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
     }
   }
 
-  const signer = new ThirdWebEthersSigner(account, wallet, provider, client, chain);
+  const signer = new ThirdWebEthersSigner(wallet, provider, client, chain);
   
   console.log('✅ Created ThirdWeb ethers v5 signer');
   console.log('   Address:', account.address);
