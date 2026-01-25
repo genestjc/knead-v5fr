@@ -13,7 +13,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
       <ThirdwebProvider>
-        <TownsSyncProvider>
+        <TownsSyncProvider
+          config={{
+            onTokenExpired: () => {
+              console.log('⚠️ Towns session expired, please reconnect');
+            }
+          }}
+        >
           <ThemeProvider
             attribute="class"
             defaultTheme="light"
