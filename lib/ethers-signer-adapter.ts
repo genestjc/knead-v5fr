@@ -1,9 +1,11 @@
 // lib/ethers-signer-adapter.ts
 "use client";
 
+import type { Account } from "thirdweb/wallets";
+
 /**
  * Converts ThirdWeb wallet to Ethers v5 Signer
- * Uses account.signMessage() directly (ThirdWeb v5 recommended approach)
+ * Implements sendTransaction for Towns SDK compatibility
  */
 export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const { ethers } = await import("ethers-v5");
@@ -21,14 +23,20 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
 
   /**
    * Custom Signer class for ThirdWeb wallets
-   * Uses account.signMessage() directly (no imports needed)
+   * Fully implements Ethers v5 Signer interface
    */
   class ThirdWebEthersSigner extends ethers.Signer {
-    private account: any;
+    private account: Account;
+    private wallet: any;
+    private client: any;
+    private chain: any;
 
-    constructor(account: any, provider: ethers.providers.Provider) {
+    constructor(account: Account, wallet: any, provider: ethers.providers.Provider, client: any, chain: any) {
       super();
       this.account = account;
+      this.wallet = wallet;
+      this.client = client;
+      this.chain = chain;
       
       // Use defineReadOnly to set provider (required by ethers)
       ethers.utils.defineReadOnly(this, "provider", provider);
@@ -67,28 +75,97 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
     }
 
     async signTransaction(transaction: ethers.providers.TransactionRequest): Promise<string> {
-      throw new Error("signTransaction not supported - use sendTransaction");
+      throw new Error("signTransaction not supported - use sendTransaction instead");
     }
 
     connect(provider: ethers.providers.Provider): ethers.Signer {
-      return new ThirdWebEthersSigner(this.account, provider);
+      return new ThirdWebEthersSigner(this.account, this.wallet, provider, this.client, this.chain);
     }
 
-    // Optional: implement sendTransaction if needed
+    // ✅ Implement sendTransaction for Towns SDK
     async sendTransaction(transaction: ethers.providers.TransactionRequest): Promise<ethers.providers.TransactionResponse> {
-      throw new Error("sendTransaction not implemented");
+      console.log('📤 sendTransaction called');
+      console.log('   Transaction:', transaction);
+      
+      try {
+        // Import ThirdWeb SDK functions
+        const { sendTransaction: thirdwebSendTransaction, prepareTransaction } = await import('thirdweb');
+        
+        // Prepare transaction for ThirdWeb
+        const preparedTx = prepareTransaction({
+          to: transaction.to as string,
+          value: transaction.value ? BigInt(transaction.value.toString()) : undefined,
+          data: transaction.data ? transaction.data.toString() : undefined,
+          gas: transaction.gasLimit ? BigInt(transaction.gasLimit.toString()) : undefined,
+          chain: this.chain,
+          client: this.client,
+        });
+
+        console.log('🔧 Sending via ThirdWeb account...');
+        
+        // Send using ThirdWeb
+        const result = await thirdwebSendTransaction({
+          transaction: preparedTx,
+          account: this.account,
+        });
+
+        console.log('✅ Transaction sent:', result.transactionHash);
+
+        // Convert to ethers TransactionResponse format
+        const txResponse: ethers.providers.TransactionResponse = {
+          hash: result.transactionHash,
+          from: await this.getAddress(),
+          to: transaction.to as string,
+          nonce: 0, // Will be filled by provider
+          gasLimit: ethers.BigNumber.from(0),
+          data: transaction.data?.toString() || '0x',
+          value: ethers.BigNumber.from(transaction.value || 0),
+          chainId: this.chain.id,
+          confirmations: 0,
+          wait: async (confirmations?: number) => {
+            console.log(`⏳ Waiting for ${confirmations || 1} confirmations...`);
+            
+            // Wait for transaction receipt
+            let receipt;
+            let attempts = 0;
+            const maxAttempts = 60; // 60 seconds timeout
+            
+            while (!receipt && attempts < maxAttempts) {
+              try {
+                receipt = await this.provider!.getTransactionReceipt(result.transactionHash);
+                if (receipt) break;
+              } catch (e) {
+                // Transaction not yet mined
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              attempts++;
+            }
+            
+            if (!receipt) {
+              throw new Error('Transaction receipt not found after 60 seconds');
+            }
+            
+            console.log('✅ Transaction confirmed');
+            return receipt;
+          },
+        };
+
+        return txResponse;
+
+      } catch (error: any) {
+        console.error('❌ sendTransaction failed:', error);
+        throw new Error(`Failed to send transaction: ${error.message || 'Unknown error'}`);
+      }
     }
   }
 
-  const signer = new ThirdWebEthersSigner(account, provider);
+  const signer = new ThirdWebEthersSigner(account, wallet, provider, client, chain);
   
   console.log('✅ Created ThirdWeb ethers v5 signer');
   console.log('   Address:', account.address);
-  console.log('   Type:', signer.constructor.name);
   console.log('   Has provider:', !!signer.provider);
   console.log('   Has signMessage:', typeof signer.signMessage === 'function');
-  console.log('   Has getAddress:', typeof signer.getAddress === 'function');
-  console.log('   Account has signMessage:', typeof account.signMessage === 'function');
+  console.log('   Has sendTransaction:', typeof signer.sendTransaction === 'function');
   
   // Test it
   const testAddress = await signer.getAddress();
