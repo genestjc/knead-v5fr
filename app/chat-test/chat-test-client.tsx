@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
-import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, signAndConnect } from '@towns-protocol/react-sdk';
+import { useCreateSpace, useJoinSpace, useSpace, signAndConnect } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
@@ -301,9 +301,10 @@ function TownsConnectedContent() {
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
+    const [isConnectedToTowns, setIsConnectedToTowns] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     
     const wallet = useActiveWallet();
-    const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
     useEffect(() => {
         setIsMounted(true);
@@ -311,6 +312,8 @@ export default function ChatTestClient() {
 
     const handleConnectToTowns = async () => {
         if (!wallet) return;
+        setIsConnecting(true);
+        
         try {
           console.log(`🔐 Connecting to Towns Protocol (omega) with delegate signing...`);
           
@@ -320,13 +323,19 @@ export default function ChatTestClient() {
           await signAndConnect(signer, { townsConfig: TOWNS_CONFIG });
           
           console.log('✅ Connected to Towns Protocol with delegate signing');
+          
+          // ✅ Manually update state
+          setIsConnectedToTowns(true);
+          
         } catch (e: any) {
           console.error("Failed to connect to Towns:", e);
           alert(`Failed to connect to Towns: ${e.message}`);
+        } finally {
+          setIsConnecting(false);
         }
     };
 
-    if (!isMounted || isAgentConnecting) {
+    if (!isMounted || isConnecting) {
         return <LoadingSpinner />;
     }
     
@@ -344,7 +353,7 @@ export default function ChatTestClient() {
                         wallets={wallets}
                     />
                 </div>
-            ) : !isAgentConnected ? (
+            ) : !isConnectedToTowns ? (
                 <div className="text-center max-w-md">
                     <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
                     <p className="font-georgia-pro text-lg mb-6 text-gray-600">
@@ -352,10 +361,10 @@ export default function ChatTestClient() {
                     </p>
                     <Button 
                         onClick={handleConnectToTowns} 
-                        disabled={isAgentConnecting} 
+                        disabled={isConnecting} 
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                        {isConnecting ? 'Connecting...' : 'Connect to Towns'}
                     </Button>
                 </div>
             ) : (
