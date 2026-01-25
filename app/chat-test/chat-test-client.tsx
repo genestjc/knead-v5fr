@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
-import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, signAndConnect } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
@@ -303,7 +303,7 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     
     const wallet = useActiveWallet();
-    const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
+    const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
     useEffect(() => {
         setIsMounted(true);
@@ -312,13 +312,14 @@ export default function ChatTestClient() {
     const handleConnectToTowns = async () => {
         if (!wallet) return;
         try {
-          console.log(`🔐 Connecting to Towns Protocol (omega)...`);
+          console.log(`🔐 Connecting to Towns Protocol (omega) with delegate signing...`);
           
           const signer = await getEthersV5Signer(wallet, activeChain, client);
           
-          await connect(signer, { townsConfig: TOWNS_CONFIG });
+          // ✅ Use signAndConnect to properly set up delegate signing
+          await signAndConnect(signer, { townsConfig: TOWNS_CONFIG });
           
-          console.log('✅ Connected to Towns Protocol');
+          console.log('✅ Connected to Towns Protocol with delegate signing');
         } catch (e: any) {
           console.error("Failed to connect to Towns:", e);
           alert(`Failed to connect to Towns: ${e.message}`);
