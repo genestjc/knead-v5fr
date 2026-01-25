@@ -2,10 +2,10 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
-import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, TownsSyncProvider, connectTowns } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
-import { townsEnv, makeSignerContext, type SignerContext, type SyncAgent } from '@towns-protocol/sdk';
+import { townsEnv, makeSignerContext } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
@@ -56,24 +56,21 @@ async function getOrCreateDelegateWallet() {
     const savedKey = localStorage.getItem(DELEGATE_KEY);
     
     if (savedKey) {
-        console.log('🔄 Restoring delegate wallet from storage');
+        console.log('🔄 Restoring delegate wallet');
         return new ethers.Wallet(savedKey);
     }
     
     console.log('🆕 Creating new delegate wallet');
     const newWallet = ethers.Wallet.createRandom();
     localStorage.setItem(DELEGATE_KEY, newWallet.privateKey);
-    console.log('💾 Saved delegate wallet to storage');
-    console.log('🔑 Delegate address:', newWallet.address);
+    console.log('💾 Saved delegate key');
     
     return newWallet;
 }
 
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
-    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(
-        SAVED_CHANNEL_ID || null
-    );
+    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(SAVED_CHANNEL_ID || null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
@@ -84,11 +81,9 @@ function TownsConnectedContent() {
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
-    const currentUser = mockUser;
 
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
-            console.log('📡 Setting channel ID from space:', space.channelIds[0]);
             setDefaultChannelId(space.channelIds[0]);
         }
     }, [space, defaultChannelId]);
@@ -108,72 +103,35 @@ function TownsConnectedContent() {
             const userAddress = wallet.getAccount()?.address;
             if (!userAddress) throw new Error('No wallet address');
 
-            console.log('🚪 Joining space:', spaceIdToJoin);
-            console.log('👤 User address:', userAddress);
-
-            console.log('🔍 Validating with server...');
             const validateResponse = await fetch('/api/towns/mint-membership', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userAddress, 
-                    spaceId: spaceIdToJoin 
-                }),
+                body: JSON.stringify({ userAddress, spaceId: spaceIdToJoin }),
             });
+            if (!validateResponse.ok) throw new Error('Validation failed');
 
-            if (!validateResponse.ok) {
-                const errorData = await validateResponse.json();
-                throw new Error(errorData.error || 'Validation failed');
-            }
-            
-            console.log('✅ User validated');
-
-            console.log('💰 Funding wallet with gas...');
             const fundResponse = await fetch('/api/towns/fund-wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userAddress }),
             });
-
-            if (!fundResponse.ok) {
-                const errorData = await fundResponse.json();
-                throw new Error(errorData.error || 'Failed to fund wallet');
-            }
+            if (!fundResponse.ok) throw new Error('Failed to fund wallet');
             
             const fundData = await fundResponse.json();
-            if (fundData.alreadyFunded) {
-                console.log('✅ Wallet already has gas');
-            } else {
-                console.log('✅ Wallet funded:', fundData.transactionHash);
-                console.log('⏳ Waiting for gas to arrive...');
+            if (!fundData.alreadyFunded) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
 
-            console.log('🔐 Converting wallet to ethers v5 signer...');
             const ethersSigner = await getEthersV5Signer(wallet, activeChain, client);
-            console.log('✅ Got ethers v5 signer');
             
-            const signerAddress = await ethersSigner.getAddress();
-            console.log('✅ Signer address:', signerAddress);
+            await joinSpace(spaceIdToJoin, ethersSigner, { skipMintMembership: false });
             
-            if (signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
-                throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
-            }
-
-            console.log('🏃 Calling joinSpace (Towns will mint NFT)...');
-            await joinSpace(spaceIdToJoin, ethersSigner, { 
-                skipMintMembership: false
-            });
-            
-            console.log('✅ Joined space successfully');
             setSpaceId(spaceIdToJoin);
             setHasJoined(true);
             
         } catch (error: any) {
             console.error('❌ Failed to join space:', error);
-            
             if (error.message?.includes('already a member')) {
-                console.log('ℹ️ Already a member, continuing...');
                 setSpaceId(spaceIdToJoin);
                 setHasJoined(true);
             } else {
@@ -190,34 +148,16 @@ function TownsConnectedContent() {
         setIsCreatingSpace(true);
         
         try {
-            console.log(`🚀 Creating space on ${NETWORK_NAME}...`);
-            
             const signer = await getEthersV5Signer(wallet, activeChain, client);
-            
-            const result = await createSpace(
-                { spaceName: 'Knead Chat Space' }, 
-                signer
-            );
-
-            console.log('✅ Space created successfully:', result);
-            console.log('   - Space ID:', result.spaceId);
-            console.log('   - Default Channel ID:', result.defaultChannelId);
-            console.log('📋 Add to .env.local:');
-            console.log(`NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}`);
-            console.log(`NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`);
-            console.log(`NEXT_PUBLIC_TOWNS_NETWORK=omega`);
+            const result = await createSpace({ spaceName: 'Knead Chat Space' }, signer);
             
             alert(
                 `✅ Space Created!\n\n` +
-                `Space ID: ${result.spaceId}\n\n` +
-                `Copy these to your .env.local:\n\n` +
                 `NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=${result.spaceId}\n` +
-                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}\n` +
-                `NEXT_PUBLIC_TOWNS_NETWORK=omega`
+                `NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=${result.defaultChannelId}`
             );
 
             await handleJoinSpace(result.spaceId);
-
         } catch (error: any) {
             console.error('❌ Failed to create space:', error);
             alert(`Failed to create space: ${error.message}`);
@@ -226,17 +166,11 @@ function TownsConnectedContent() {
         }
     };
 
-    const handleManualSpaceId = () => {
-        if (manualSpaceId.trim()) {
-            handleJoinSpace(manualSpaceId.trim());
-        }
-    };
-
     if (hasJoined && spaceId && defaultChannelId) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
-                    currentUser={currentUser}
+                    currentUser={mockUser}
                     spaceId={spaceId}
                     defaultChannelId={defaultChannelId}
                 />
@@ -260,54 +194,20 @@ function TownsConnectedContent() {
             </h1>
             
             {SAVED_SPACE_ID ? (
-                <>
-                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Space ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{SAVED_SPACE_ID}</code>
-                    </p>
-                    <Button 
-                        onClick={() => handleJoinSpace(SAVED_SPACE_ID)}
-                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
-                    >
-                        Join Space
-                    </Button>
-                </>
+                <Button 
+                    onClick={() => handleJoinSpace(SAVED_SPACE_ID)}
+                    className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
+                >
+                    Join Space
+                </Button>
             ) : (
-                <>
-                    <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                        Create a Towns space to start chatting.
-                    </p>
-                    
-                    <Button 
-                        onClick={handleCreateSpace} 
-                        disabled={isCreatingSpace}
-                        className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
-                    >
-                        {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
-                    </Button>
-
-                    <div className="border-t pt-6 mt-6">
-                        <p className="font-georgia-pro text-sm text-gray-600 mb-3">
-                            Already have a space? Enter Space ID:
-                        </p>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={manualSpaceId}
-                                onChange={(e) => setManualSpaceId(e.target.value)}
-                                placeholder="Enter Space ID"
-                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                            />
-                            <Button
-                                onClick={handleManualSpaceId}
-                                disabled={!manualSpaceId.trim()}
-                                variant="outline"
-                                className="px-6"
-                            >
-                                Join
-                            </Button>
-                        </div>
-                    </div>
-                </>
+                <Button 
+                    onClick={handleCreateSpace} 
+                    disabled={isCreatingSpace}
+                    className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition w-full"
+                >
+                    {isCreatingSpace ? 'Creating Space...' : 'Create Space'}
+                </Button>
             )}
         </div>
     );
@@ -315,133 +215,57 @@ function TownsConnectedContent() {
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
-    const [syncAgent, setSyncAgent] = useState<SyncAgent | undefined>();
-    
     const wallet = useActiveWallet();
+    const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // ✅ Auto-reconnect on mount by recreating SignerContext
-    useEffect(() => {
-        if (!isMounted || !wallet || syncAgent) return;
-
-        const autoConnect = async () => {
-            try {
-                const savedDelegateKey = localStorage.getItem(DELEGATE_KEY);
-                
-                if (savedDelegateKey) {
-                    console.log('🔄 Found saved delegate key, auto-reconnecting...');
-                    
-                    // ✅ Recreate signer
-                    const signer = await getEthersV5Signer(wallet, activeChain, client);
-                    
-                    // ✅ Restore delegate wallet from saved key
-                    const { ethers } = await import('ethers-v5');
-                    const delegateWallet = new ethers.Wallet(savedDelegateKey);
-                    
-                    // ✅ Recreate signer context
-                    const signerContext = await makeSignerContext(signer, delegateWallet);
-                    
-                    // ✅ Connect using the recreated context
-                    const agent = await connectTowns(signerContext, { 
-                        townsConfig: TOWNS_CONFIG,
-                        onTokenExpired: () => {
-                            console.log('⚠️ Token expired, clearing delegate');
-                            localStorage.removeItem(DELEGATE_KEY);
-                            setSyncAgent(undefined);
-                        }
-                    });
-                    
-                    setSyncAgent(agent);
-                    console.log('✅ Auto-reconnected successfully');
-                    return;
-                }
-            } catch (error) {
-                console.error('❌ Auto-reconnect failed:', error);
-                localStorage.removeItem(DELEGATE_KEY);
-            }
-        };
-
-        autoConnect();
-    }, [isMounted, wallet, syncAgent]);
-
+    // ✅ Simple manual connect - no auto-reconnect for now
     const handleConnectToTowns = async () => {
-        if (!wallet || syncAgent) return;
+        if (!wallet) return;
         
         try {
-            console.log(`🔐 Connecting to Towns Protocol (omega)...`);
-            
             const signer = await getEthersV5Signer(wallet, activeChain, client);
-            
-            // ✅ Get or create persistent delegate wallet
             const delegateWallet = await getOrCreateDelegateWallet();
-            console.log('🔑 Delegate wallet address:', delegateWallet.address);
-            
-            // ✅ Create signer context with BOTH parameters
             const signerContext = await makeSignerContext(signer, delegateWallet);
             
-            // ✅ DON'T save SignerContext (has BigInt) - only save delegate key (already done)
-            console.log('💾 Delegate key already saved to localStorage');
+            await connectTowns(signerContext, { townsConfig: TOWNS_CONFIG });
             
-            // ✅ Connect using the context
-            const agent = await connectTowns(signerContext, { 
-                townsConfig: TOWNS_CONFIG,
-                onTokenExpired: () => {
-                    console.log('⚠️ Token expired, clearing delegate');
-                    localStorage.removeItem(DELEGATE_KEY);
-                    setSyncAgent(undefined);
-                }
-            });
-            
-            setSyncAgent(agent);
-            console.log('✅ Connected to Towns Protocol');
-            
+            console.log('✅ Connected to Towns');
         } catch (e: any) {
-            console.error("Failed to connect to Towns:", e);
+            console.error("Failed to connect:", e);
             localStorage.removeItem(DELEGATE_KEY);
-            alert(`Failed to connect to Towns: ${e.message}`);
+            alert(`Failed to connect: ${e.message}`);
         }
     };
 
-    if (!isMounted) {
+    if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
     }
     
-    // ✅ Pass syncAgent to TownsSyncProvider
     return (
-        <TownsSyncProvider syncAgent={syncAgent}>
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                {!wallet ? (
-                    <div className="text-center max-w-md">
-                        <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                        <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                            Connect your wallet to access Knead Chat.
-                        </p>
-                        <ConnectButton 
-                            client={client} 
-                            chain={activeChain}
-                            wallets={wallets}
-                        />
-                    </div>
-                ) : !syncAgent ? (
-                    <div className="text-center max-w-md">
-                        <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
-                        <p className="font-georgia-pro text-lg mb-6 text-gray-600">
-                            Sign a message to enter the chat.
-                        </p>
-                        <Button 
-                            onClick={handleConnectToTowns} 
-                            className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
-                        >
-                            Connect to Towns
-                        </Button>
-                    </div>
-                ) : (
-                    <TownsConnectedContent />
-                )}
-            </div>
-        </TownsSyncProvider>
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            {!wallet ? (
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
+                    <ConnectButton client={client} chain={activeChain} wallets={wallets} />
+                </div>
+            ) : !isAgentConnected ? (
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
+                    <Button 
+                        onClick={handleConnectToTowns} 
+                        disabled={isAgentConnecting}
+                        className="px-8 py-4 bg-black text-white rounded-full"
+                    >
+                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                    </Button>
+                </div>
+            ) : (
+                <TownsConnectedContent />
+            )}
+        </div>
     );
 }
