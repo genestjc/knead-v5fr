@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { 
-  prepareTransaction, 
-  toWei, 
-  Engine 
-} from "thirdweb";
+import { Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-wallet";
 
 export const dynamic = "force-dynamic";
 
 // Amount to send for gas (0.005 ETH ≈ $0.01-0.02 on Base)
-const GAS_AMOUNT = "0.005";
+const GAS_AMOUNT_WEI = "5000000000000000"; // 0.005 ETH in wei
 
 // Track funded addresses to prevent abuse (one funding per address per day)
 const fundedAddresses = new Map<string, number>();
@@ -44,18 +40,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log(`   Sending: ${GAS_AMOUNT} ETH`);
+    console.log(`   Sending: 0.005 ETH`);
 
-    // Prepare transaction to send ETH
-    const transaction = prepareTransaction({
-      to: userAddress,
-      value: toWei(GAS_AMOUNT),
+    // Prepare ETH transfer transaction for Engine queue
+    const transaction = {
       chain: base,
       client,
-    });
+      to: userAddress,
+      value: BigInt(GAS_AMOUNT_WEI),
+    };
 
-    // Use Engine queue (same pattern as Stripe webhook)
-    console.log('🔧 Enqueueing transaction...');
+    // Enqueue transaction with Engine (same pattern as NFT minting)
+    console.log('🔧 Enqueueing transfer...');
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
@@ -80,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       transactionHash,
-      amount: GAS_AMOUNT,
+      amount: "0.005",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
     });
 
