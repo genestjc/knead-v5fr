@@ -90,9 +90,9 @@ function TownsConnectedContent() {
             console.log('🚪 Joining space:', spaceIdToJoin);
             console.log('👤 User address:', userAddress);
 
-            // Step 1: Server mints membership NFT (server pays gas)
-            console.log('🎫 Requesting membership NFT from server...');
-            const mintResponse = await fetch('/api/towns/mint-membership', {
+            // Step 1: Validate user (server just validates, doesn't mint)
+            console.log('🔍 Validating with server...');
+            const validateResponse = await fetch('/api/towns/mint-membership', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -101,19 +101,12 @@ function TownsConnectedContent() {
                 }),
             });
 
-            if (!mintResponse.ok) {
-                const errorData = await mintResponse.json();
-                throw new Error(errorData.error || 'Failed to mint NFT');
+            if (!validateResponse.ok) {
+                const errorData = await validateResponse.json();
+                throw new Error(errorData.error || 'Validation failed');
             }
             
-            const mintData = await mintResponse.json();
-            if (mintData.alreadyMinted) {
-                console.log('✅ Already has membership NFT');
-            } else {
-                console.log('✅ Membership NFT minted:', mintData.transactionHash);
-                console.log('🔗 View on Basescan:', mintData.explorerUrl);
-                await new Promise(resolve => setTimeout(resolve, 5000));
-            }
+            console.log('✅ User validated');
 
             // Step 2: Fund user's wallet with gas
             console.log('💰 Funding wallet with gas...');
@@ -133,6 +126,7 @@ function TownsConnectedContent() {
                 console.log('✅ Wallet already has gas');
             } else {
                 console.log('✅ Wallet funded:', fundData.transactionHash);
+                console.log('⏳ Waiting for gas to arrive...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
 
@@ -151,10 +145,10 @@ function TownsConnectedContent() {
                 throw new Error(`Address mismatch: ${signerAddress} !== ${userAddress}`);
             }
 
-            // Step 4: Join space with skipMintMembership
-            console.log('🏃 Calling joinSpace...');
+            // Step 4: Join space (Towns SDK will mint the NFT automatically)
+            console.log('🏃 Calling joinSpace (Towns will mint NFT)...');
             await joinSpace(spaceIdToJoin, ethersSigner, { 
-                skipMintMembership: true 
+                skipMintMembership: false // ✅ Let Towns SDK handle minting!
             });
             
             console.log('✅ Joined space successfully');
