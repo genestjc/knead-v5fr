@@ -15,7 +15,9 @@ import type { ChatUser } from '@/types/chat';
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
+  rpcUrl: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+});
 const NETWORK_NAME = 'Base Mainnet';
 const DELEGATE_KEY = 'knead_delegate_private_key';
 
