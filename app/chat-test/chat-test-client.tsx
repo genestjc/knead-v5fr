@@ -89,17 +89,11 @@ function TownsConnectedContent() {
         }
     }, [space, defaultChannelId]);
 
-    // ✅ FIXED: Auto-join with delay to prevent race conditions
+    // ✅ FIXED: Auto-join immediately without delay
     useEffect(() => {
         if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
             setJoinAttempted(true);
-            
-            // Add small delay to let auto-reconnect finish first
-            const timer = setTimeout(() => {
-                handleJoinSpace(SAVED_SPACE_ID);
-            }, 500);
-            
-            return () => clearTimeout(timer);
+            handleJoinSpace(SAVED_SPACE_ID);
         }
     }, [hasJoined, isJoiningSpace, joinAttempted]);
 
@@ -155,14 +149,14 @@ function TownsConnectedContent() {
         } catch (error: any) {
             console.error('❌ Failed to join space:', error);
             
-            // Don't retry on "already a member" errors
-            if (!error.message?.includes('already a member')) {
-                alert(`Failed to join space: ${error.message}`);
-                setJoinAttempted(false);
-            } else {
-                // If we got "already a member", treat it as success
+            // ✅ FIXED: Always treat "already a member" as success
+            if (error.message?.includes('already a member')) {
+                console.log('ℹ️ Treating "already a member" as success');
                 setSpaceId(spaceIdToJoin);
                 setHasJoined(true);
+            } else {
+                alert(`Failed to join space: ${error.message}`);
+                setJoinAttempted(false);
             }
         } finally {
             setIsJoiningSpace(false);
