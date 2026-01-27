@@ -2,6 +2,9 @@ import { Header } from "@/components/header"
 import { getPosts } from "@/lib/cms"
 import { ArchiveGrid } from "@/components/archive-grid"
 
+// Add this to revalidate every 60 seconds (or use 0 for on-demand)
+export const revalidate = 60 // seconds
+
 export default async function ArchivePage() {
   const posts = await getPosts()
 
