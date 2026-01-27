@@ -21,7 +21,11 @@ export const client = createThirdwebClient({
   })()
 });
 
-export const activeChain = base;
+// ✅ NEW: Use Alchemy RPC instead of public endpoint
+export const activeChain = {
+  ...base,
+  rpc: process.env.NEXT_PUBLIC_BASE_RPC_URL || base.rpc,
+};
 
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
