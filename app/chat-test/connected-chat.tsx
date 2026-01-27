@@ -2,13 +2,12 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useTimeline, useSyncAgent } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import type { ChatUser } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
-import { useTownsContext } from '@/app/providers'; // ✅ NEW: Import context
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -30,7 +29,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   
   const { disconnect } = useAgentConnection();
   const activeAccount = useActiveAccount();
-  const { syncAgent } = useTownsContext(); // ✅ NEW: Get syncAgent from context
+  const syncAgent = useSyncAgent(); // ✅ Use Towns SDK hook
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -41,18 +40,18 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ✅ NEW: Prioritize main channel for instant loading (100ms instead of 20+ seconds)
+  // ✅ Prioritize main channel for instant loading (100ms instead of 20+ seconds)
   useEffect(() => {
-    if (syncAgent && channelId && spaceId) {
-      console.log('🚀 Setting high priority streams for fast loading...');
-      
-      syncAgent.setHighPriorityStreams([
-        channelId,  // Main channel loads in ~100ms
-        spaceId,    // Space metadata loads fast
-      ]);
-      
-      console.log('✅ High priority streams configured:', { channelId, spaceId });
-    }
+    if (!syncAgent || !channelId || !spaceId) return; // ✅ Add null check guard
+    
+    console.log('🚀 Setting high priority streams for fast loading...');
+    
+    syncAgent.setHighPriorityStreams([
+      channelId,  // Main channel loads in ~100ms
+      spaceId,    // Space metadata loads fast
+    ]);
+    
+    console.log('✅ High priority streams configured:', { channelId, spaceId });
   }, [syncAgent, channelId, spaceId]);
 
   // Auto-retry on miniblock hash errors
