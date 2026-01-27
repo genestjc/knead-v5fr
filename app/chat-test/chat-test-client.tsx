@@ -81,7 +81,8 @@ function TownsConnectedContent() {
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
-    const { isAgentConnected } = useAgentConnection(); // ✅ Add this
+    const { isAgentConnected } = useAgentConnection();
+    const { syncAgent } = useTownsContext(); // ✅ Get syncAgent to check existing spaces
 
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
@@ -96,15 +97,29 @@ function TownsConnectedContent() {
         }
     }, [hasJoined, isJoiningSpace, joinAttempted]);
 
+    // ✅ OPTIMIZED: Skip blockchain transaction for returning users
     const handleJoinSpace = async (spaceIdToJoin: string) => {
         if (!wallet || isJoiningSpace) return;
+        
+        // ✅ NEW: Check if already synced to this space
+        if (syncAgent) {
+            const existingSpace = (syncAgent as any).spaces?.get(spaceIdToJoin);
+            if (existingSpace) {
+                console.log('✅ Already synced to space, skipping blockchain transaction');
+                setSpaceId(spaceIdToJoin);
+                setHasJoined(true);
+                setIsJoiningSpace(false);
+                return;
+            }
+        }
+        
         setIsJoiningSpace(true);
         
         try {
             const userAddress = wallet.getAccount()?.address;
             if (!userAddress) throw new Error('No wallet address');
 
-            console.log('🚪 Joining space:', spaceIdToJoin);
+            console.log('🚪 Joining space (new user):', spaceIdToJoin);
 
             const validateResponse = await fetch('/api/towns/mint-membership', {
                 method: 'POST',
@@ -180,7 +195,6 @@ function TownsConnectedContent() {
         }
     };
 
-    // ✅ Only render chat when agent is connected
     if (hasJoined && spaceId && defaultChannelId && isAgentConnected) {
         return (
             <div className="w-full h-screen">
