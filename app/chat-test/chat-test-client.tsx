@@ -50,7 +50,6 @@ const wallets = [
   }),
 ];
 
-// ✅ Helper: Get or create persistent delegate wallet
 async function getOrCreateDelegateWallet() {
     const { ethers } = await import('ethers-v5');
     
@@ -82,6 +81,7 @@ function TownsConnectedContent() {
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
+    const { isAgentConnected } = useAgentConnection(); // ✅ Add this
 
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
@@ -89,7 +89,6 @@ function TownsConnectedContent() {
         }
     }, [space, defaultChannelId]);
 
-    // ✅ FIXED: Auto-join immediately without delay
     useEffect(() => {
         if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
             setJoinAttempted(true);
@@ -97,7 +96,6 @@ function TownsConnectedContent() {
         }
     }, [hasJoined, isJoiningSpace, joinAttempted]);
 
-    // ✅ FIXED: Better error handling for "already a member"
     const handleJoinSpace = async (spaceIdToJoin: string) => {
         if (!wallet || isJoiningSpace) return;
         setIsJoiningSpace(true);
@@ -129,16 +127,13 @@ function TownsConnectedContent() {
 
             const ethersSigner = await getEthersV5Signer(wallet, activeChain, client);
             
-            // ✅ FIX: Wrap joinSpace in try-catch to handle "already a member" gracefully
             try {
                 await joinSpace(spaceIdToJoin, ethersSigner, { skipMintMembership: false });
                 console.log('✅ Joined space successfully');
             } catch (joinError: any) {
-                // ✅ Silently handle "already a member" - this is not an error
                 if (joinError.message?.includes('already a member')) {
                     console.log('ℹ️ Already a member of space, continuing...');
                 } else {
-                    // Re-throw other errors
                     throw joinError;
                 }
             }
@@ -149,7 +144,6 @@ function TownsConnectedContent() {
         } catch (error: any) {
             console.error('❌ Failed to join space:', error);
             
-            // ✅ FIXED: Always treat "already a member" as success
             if (error.message?.includes('already a member')) {
                 console.log('ℹ️ Treating "already a member" as success');
                 setSpaceId(spaceIdToJoin);
@@ -186,7 +180,8 @@ function TownsConnectedContent() {
         }
     };
 
-    if (hasJoined && spaceId && defaultChannelId) {
+    // ✅ Only render chat when agent is connected
+    if (hasJoined && spaceId && defaultChannelId && isAgentConnected) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
@@ -198,10 +193,12 @@ function TownsConnectedContent() {
         );
     }
 
-    if (isJoiningSpace) {
+    if (isJoiningSpace || !isAgentConnected) {
         return (
             <div className="text-center max-w-md space-y-6">
-                <h1 className="font-adonis text-4xl mb-4">Joining Space...</h1>
+                <h1 className="font-adonis text-4xl mb-4">
+                    {isJoiningSpace ? 'Joining Space...' : 'Connecting...'}
+                </h1>
                 <LoadingSpinner />
             </div>
         );
@@ -243,7 +240,6 @@ export default function ChatTestClient() {
         setIsMounted(true);
     }, []);
 
-    // ✅ Auto-reconnect on mount
     useEffect(() => {
         if (!isMounted || !wallet || isAgentConnected || isAgentConnecting) return;
 
