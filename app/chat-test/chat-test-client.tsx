@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, connectTowns } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace, useJoinChannel, useSpace, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv, makeSignerContext } from '@towns-protocol/sdk';
@@ -70,12 +70,14 @@ function TownsConnectedContent() {
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
+    const [hasJoinedChannel, setHasJoinedChannel] = useState(false); // ✅ NEW
     const [manualSpaceId, setManualSpaceId] = useState('');
     const [joinAttempted, setJoinAttempted] = useState(false);
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
+    const { joinChannel } = useJoinChannel(spaceId || ''); // ✅ NEW
     const { data: space } = useSpace(spaceId || '');
     const { isAgentConnected } = useAgentConnection();
     const { syncAgent } = useTownsContext();
@@ -89,8 +91,8 @@ function TownsConnectedContent() {
             id: address,
             address: address,
             displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
-            role: 'viewer', // TODO: Will be fetched from smart contract
-            membershipTier: 'freemium', // TODO: Will be fetched from smart contract
+            role: 'viewer',
+            membershipTier: 'freemium',
             isBanned: false,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -102,6 +104,29 @@ function TownsConnectedContent() {
             setDefaultChannelId(space.channelIds[0]);
         }
     }, [space, defaultChannelId]);
+
+    // ✅ NEW: Auto-join channel after joining space
+    useEffect(() => {
+        const autoJoinChannel = async () => {
+            if (hasJoined && defaultChannelId && !hasJoinedChannel && spaceId) {
+                console.log('📡 Joining channel:', defaultChannelId);
+                try {
+                    await joinChannel(defaultChannelId);
+                    setHasJoinedChannel(true);
+                    console.log('✅ Joined channel successfully');
+                } catch (error: any) {
+                    console.error('❌ Failed to join channel:', error);
+                    if (!error.message?.includes('already a member')) {
+                        console.error('Channel join error (non-member):', error);
+                    } else {
+                        setHasJoinedChannel(true);
+                    }
+                }
+            }
+        };
+        
+        autoJoinChannel();
+    }, [hasJoined, defaultChannelId, hasJoinedChannel, spaceId, joinChannel]);
 
     useEffect(() => {
         if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
@@ -165,12 +190,10 @@ function TownsConnectedContent() {
                 await joinSpace(spaceIdToJoin, ethersSigner, { skipMintMembership: false });
                 console.log('✅ Joined space successfully');
                 
-                // Save to localStorage after successful join
                 localStorage.setItem(`joined_${spaceIdToJoin}`, 'true');
             } catch (joinError: any) {
                 if (joinError.message?.includes('already a member')) {
                     console.log('ℹ️ Already a member of space, continuing...');
-                    // Also save to localStorage if already a member
                     localStorage.setItem(`joined_${spaceIdToJoin}`, 'true');
                 } else {
                     throw joinError;
@@ -220,8 +243,8 @@ function TownsConnectedContent() {
         }
     };
 
-    // ✅ Only render chat when we have all required data
-    if (hasJoined && spaceId && defaultChannelId && isAgentConnected && currentUser) {
+    // ✅ Updated: Only render when channel is joined too
+    if (hasJoined && hasJoinedChannel && spaceId && defaultChannelId && isAgentConnected && currentUser) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
@@ -233,11 +256,11 @@ function TownsConnectedContent() {
         );
     }
 
-    if (isJoiningSpace || !isAgentConnected) {
+    if (isJoiningSpace || !isAgentConnected || (hasJoined && !hasJoinedChannel)) {
         return (
             <div className="text-center max-w-md space-y-6">
                 <h1 className="font-adonis text-4xl mb-4">
-                    {isJoiningSpace ? 'Joining Space...' : 'Connecting...'}
+                    {isJoiningSpace ? 'Joining Space...' : !hasJoinedChannel ? 'Joining Channel...' : 'Connecting...'}
                 </h1>
                 <LoadingSpinner />
             </div>
