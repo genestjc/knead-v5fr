@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useCreateSpace, useJoinSpace, useJoinChannel, useSpace, connectTowns } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv, makeSignerContext } from '@towns-protocol/sdk';
@@ -66,18 +66,15 @@ async function getOrCreateDelegateWallet() {
 
 function TownsConnectedContent() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
-    const [defaultChannelId, setDefaultChannelId] = useState<string | null>(SAVED_CHANNEL_ID || null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
-    const [hasJoinedChannel, setHasJoinedChannel] = useState(false); // ✅ NEW
     const [manualSpaceId, setManualSpaceId] = useState('');
     const [joinAttempted, setJoinAttempted] = useState(false);
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
     const { joinSpace } = useJoinSpace();
-    const { joinChannel } = useJoinChannel(spaceId || ''); // ✅ NEW
     const { data: space } = useSpace(spaceId || '');
     const { isAgentConnected } = useAgentConnection();
     const { syncAgent } = useTownsContext();
@@ -98,35 +95,6 @@ function TownsConnectedContent() {
             updatedAt: new Date(),
         };
     }, [wallet]);
-
-    useEffect(() => {
-        if (space?.channelIds?.[0] && !defaultChannelId) {
-            setDefaultChannelId(space.channelIds[0]);
-        }
-    }, [space, defaultChannelId]);
-
-    // ✅ NEW: Auto-join channel after joining space
-    useEffect(() => {
-        const autoJoinChannel = async () => {
-            if (hasJoined && defaultChannelId && !hasJoinedChannel && spaceId) {
-                console.log('📡 Joining channel:', defaultChannelId);
-                try {
-                    await joinChannel(defaultChannelId);
-                    setHasJoinedChannel(true);
-                    console.log('✅ Joined channel successfully');
-                } catch (error: any) {
-                    console.error('❌ Failed to join channel:', error);
-                    if (!error.message?.includes('already a member')) {
-                        console.error('Channel join error (non-member):', error);
-                    } else {
-                        setHasJoinedChannel(true);
-                    }
-                }
-            }
-        };
-        
-        autoJoinChannel();
-    }, [hasJoined, defaultChannelId, hasJoinedChannel, spaceId, joinChannel]);
 
     useEffect(() => {
         if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
@@ -243,24 +211,26 @@ function TownsConnectedContent() {
         }
     };
 
-    // ✅ Updated: Only render when channel is joined too
-    if (hasJoined && hasJoinedChannel && spaceId && defaultChannelId && isAgentConnected && currentUser) {
+    // ✅ Simplified: Use space.channelIds[0] directly from loaded space
+    const channelId = space?.channelIds?.[0];
+
+    if (hasJoined && spaceId && channelId && isAgentConnected && currentUser) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
                     currentUser={currentUser}
                     spaceId={spaceId}
-                    defaultChannelId={defaultChannelId}
+                    defaultChannelId={channelId}
                 />
             </div>
         );
     }
 
-    if (isJoiningSpace || !isAgentConnected || (hasJoined && !hasJoinedChannel)) {
+    if (isJoiningSpace || !isAgentConnected) {
         return (
             <div className="text-center max-w-md space-y-6">
                 <h1 className="font-adonis text-4xl mb-4">
-                    {isJoiningSpace ? 'Joining Space...' : !hasJoinedChannel ? 'Joining Channel...' : 'Connecting...'}
+                    {isJoiningSpace ? 'Joining Space...' : 'Connecting...'}
                 </h1>
                 <LoadingSpinner />
             </div>
