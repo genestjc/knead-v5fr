@@ -1,7 +1,7 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useCreateSpace, useJoinSpace, useSpace, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import { useTownsContext } from '@/app/providers';
+import type { ChatUser } from '@/types/chat';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -31,13 +32,6 @@ const LoadingSpinner = () => (
         </div>
     </div>
 );
-
-const mockUser = {
-    id: 'user-123',
-    alias: 'KneadUser',
-    displayName: 'Knead User',
-    membershipTier: 'Baker',
-};
 
 const wallets = [
   createWallet("io.metamask"),
@@ -82,7 +76,24 @@ function TownsConnectedContent() {
     const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
     const { isAgentConnected } = useAgentConnection();
-    const { syncAgent } = useTownsContext(); // ✅ Get syncAgent to check existing spaces
+    const { syncAgent } = useTownsContext();
+
+    // ✅ Create ChatUser from wallet address
+    const currentUser: ChatUser | null = useMemo(() => {
+        const address = wallet?.getAccount()?.address;
+        if (!address) return null;
+        
+        return {
+            id: address,
+            address: address,
+            displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+            role: 'viewer', // TODO: Will be fetched from smart contract
+            membershipTier: 'freemium', // TODO: Will be fetched from smart contract
+            isBanned: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+    }, [wallet]);
 
     useEffect(() => {
         if (space?.channelIds?.[0] && !defaultChannelId) {
@@ -97,20 +108,26 @@ function TownsConnectedContent() {
         }
     }, [hasJoined, isJoiningSpace, joinAttempted]);
 
-    // ✅ OPTIMIZED: Skip blockchain transaction for returning users
     const handleJoinSpace = async (spaceIdToJoin: string) => {
         if (!wallet || isJoiningSpace) return;
         
-        // ✅ NEW: Check if already synced to this space
-        if (syncAgent) {
-            const existingSpace = (syncAgent as any).spaces?.get(spaceIdToJoin);
-            if (existingSpace) {
-                console.log('✅ Already synced to space, skipping blockchain transaction');
-                setSpaceId(spaceIdToJoin);
-                setHasJoined(true);
-                setIsJoiningSpace(false);
-                return;
-            }
+        // Check if space data is already loaded (means we're synced)
+        if (space?.id === spaceIdToJoin) {
+            console.log('✅ Space already loaded, skipping blockchain transaction');
+            setSpaceId(spaceIdToJoin);
+            setHasJoined(true);
+            setIsJoiningSpace(false);
+            return;
+        }
+        
+        // Check localStorage for returning users
+        const hasJoinedBefore = localStorage.getItem(`joined_${spaceIdToJoin}`);
+        if (hasJoinedBefore) {
+            console.log('✅ Previously joined space (localStorage), skipping blockchain transaction');
+            setSpaceId(spaceIdToJoin);
+            setHasJoined(true);
+            setIsJoiningSpace(false);
+            return;
         }
         
         setIsJoiningSpace(true);
@@ -119,7 +136,7 @@ function TownsConnectedContent() {
             const userAddress = wallet.getAccount()?.address;
             if (!userAddress) throw new Error('No wallet address');
 
-            console.log('🚪 Joining space (new user):', spaceIdToJoin);
+            console.log('🚪 Joining space (first time user):', spaceIdToJoin);
 
             const validateResponse = await fetch('/api/towns/mint-membership', {
                 method: 'POST',
@@ -145,9 +162,14 @@ function TownsConnectedContent() {
             try {
                 await joinSpace(spaceIdToJoin, ethersSigner, { skipMintMembership: false });
                 console.log('✅ Joined space successfully');
+                
+                // Save to localStorage after successful join
+                localStorage.setItem(`joined_${spaceIdToJoin}`, 'true');
             } catch (joinError: any) {
                 if (joinError.message?.includes('already a member')) {
                     console.log('ℹ️ Already a member of space, continuing...');
+                    // Also save to localStorage if already a member
+                    localStorage.setItem(`joined_${spaceIdToJoin}`, 'true');
                 } else {
                     throw joinError;
                 }
@@ -161,6 +183,7 @@ function TownsConnectedContent() {
             
             if (error.message?.includes('already a member')) {
                 console.log('ℹ️ Treating "already a member" as success');
+                localStorage.setItem(`joined_${spaceIdToJoin}`, 'true');
                 setSpaceId(spaceIdToJoin);
                 setHasJoined(true);
             } else {
@@ -195,11 +218,12 @@ function TownsConnectedContent() {
         }
     };
 
-    if (hasJoined && spaceId && defaultChannelId && isAgentConnected) {
+    // ✅ Only render chat when we have all required data
+    if (hasJoined && spaceId && defaultChannelId && isAgentConnected && currentUser) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
-                    currentUser={mockUser}
+                    currentUser={currentUser}
                     spaceId={spaceId}
                     defaultChannelId={defaultChannelId}
                 />
