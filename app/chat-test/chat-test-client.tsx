@@ -212,7 +212,19 @@ function TownsConnectedContent() {
     };
 
     // ✅ Simplified: Use space.channelIds[0] directly from loaded space
-    const channelId = space?.channelIds?.[0];
+    const channelId = space?.channelIds?.[0] || SAVED_CHANNEL_ID;
+
+    useEffect(() => {
+    console.log('🔍 Render Check:', {
+        hasJoined,
+        spaceId: !!spaceId,
+        channelId,
+        isAgentConnected,
+        currentUser: !!currentUser,
+        spaceChannelIds: space?.channelIds,
+        spaceName: space?.metadata?.name,
+    });
+}, [hasJoined, spaceId, channelId, isAgentConnected, currentUser, space]);
 
     if (hasJoined && spaceId && channelId && isAgentConnected && currentUser) {
         return (
