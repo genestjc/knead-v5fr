@@ -29,7 +29,7 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   
   const { disconnect } = useAgentConnection();
   const activeAccount = useActiveAccount();
-  const syncAgent = useSyncAgent(); // ✅ Use Towns SDK hook
+  const syncAgent = useSyncAgent();
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -39,20 +39,6 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // ✅ Prioritize main channel for instant loading (100ms instead of 20+ seconds)
-  useEffect(() => {
-    if (!syncAgent || !channelId || !spaceId) return; // ✅ Add null check guard
-    
-    console.log('🚀 Setting high priority streams for fast loading...');
-    
-    syncAgent.setHighPriorityStreams([
-      channelId,  // Main channel loads in ~100ms
-      spaceId,    // Space metadata loads fast
-    ]);
-    
-    console.log('✅ High priority streams configured:', { channelId, spaceId });
-  }, [syncAgent, channelId, spaceId]);
 
   // Auto-retry on miniblock hash errors
   useEffect(() => {
@@ -120,8 +106,6 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
-      console.log('📨 Processing event:', event);
-      
       return {
         id: event.eventId || event.id,
         content: event.content?.body || '',
@@ -134,8 +118,6 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
         isOwn: event.creatorUserId === activeAccount?.address,
       };
     }) || [];
-
-  console.log('💬 Processed messages:', messages);
 
   // Loading state
   if (isSpaceLoading || isTimelineLoading) {
