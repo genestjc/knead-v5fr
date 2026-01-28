@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+const BOT_WALLET_ADDRESS = process.env.KEY_SHARER_BOT_ADDRESS; // ← ADD THIS
 
 // Simple in-memory rate limiting (use Redis/KV in production)
 const validationAttempts = new Map<string, number>();
@@ -32,7 +33,22 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 🔒 Validation 3: IP rate limiting (basic)
+    // ✅ Skip rate limiting for bot (ADD THIS BLOCK)
+    const isBot = BOT_WALLET_ADDRESS && 
+                  userAddress.toLowerCase() === BOT_WALLET_ADDRESS.toLowerCase();
+    
+    if (isBot) {
+      console.log('🤖 Bot wallet detected - skipping rate limit');
+      console.log('✅ Validation passed (bot)');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return NextResponse.json({
+        success: true,
+        message: "Bot validated - Towns SDK will handle NFT minting",
+        validated: true,
+      });
+    }
+
+    // 🔒 Validation 3: IP rate limiting (for regular users only)
     const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? 'unknown';
     const ipKey = `ip:${ip}`;
     const ipCount = validationAttempts.get(ipKey) || 0;
