@@ -5,6 +5,7 @@ import { getContract } from "thirdweb";
 import { logger } from "./lib/logger";
 
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
 
 if (process.env.NODE_ENV !== 'production') {
   if (!clientId) {
@@ -12,6 +13,14 @@ if (process.env.NODE_ENV !== 'production') {
     logger.warn("ThirdWeb functionality may be limited. Check your .env file.");
   } else {
     logger.log("✅ ThirdWeb client ID configured correctly");
+  }
+  
+  // ✅ Also check RPC URL
+  if (!baseRpcUrl) {
+    logger.warn("⚠️ WARNING: NEXT_PUBLIC_BASE_RPC_URL is not set!");
+    logger.warn("Will fall back to public RPC which may have CORS issues.");
+  } else {
+    logger.log("✅ Base RPC URL configured:", baseRpcUrl.substring(0, 50) + "...");
   }
 }
 
@@ -21,10 +30,14 @@ export const client = createThirdwebClient({
   })()
 });
 
-// ✅ NEW: Use Alchemy RPC instead of public endpoint
+// ✅ Throw error if RPC URL is missing (better than silent fallback)
+if (!baseRpcUrl) {
+  throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required to avoid CORS issues');
+}
+
 export const activeChain = {
   ...base,
-  rpc: process.env.NEXT_PUBLIC_BASE_RPC_URL || base.rpc,
+  rpc: baseRpcUrl,
 };
 
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
