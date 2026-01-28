@@ -5,13 +5,7 @@ import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-w
 
 export const dynamic = "force-dynamic";
 
-// Amount to send for gas (0.0001 ETH ≈ $0.30, enough for 10-20 transactions on Base)
 const GAS_AMOUNT_WEI = BigInt("100000000000000"); // 0.0001 ETH
-
-const BOT_WALLET_ADDRESS = process.env.KEY_SHARER_BOT_ADDRESS; // ← ADD THIS
-
-// Track funded addresses (serverless, so resets on cold start)
-const fundedAddresses = new Set<string>();
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,15 +22,7 @@ export async function POST(req: NextRequest) {
     console.log(`   User: ${userAddress}`);
     console.log(`   Server: ${SERVER_WALLET_ADDRESS}`);
 
-    // ✅ Check if this is the bot
-    const isBot = BOT_WALLET_ADDRESS && 
-                  userAddress.toLowerCase() === BOT_WALLET_ADDRESS.toLowerCase();
-    
-    if (isBot) {
-      console.log('🤖 Bot wallet detected');
-    }
-
-    // ✅ Check on-chain balance (persistent check across restarts)
+    // ✅ Check on-chain balance (persistent check)
     const { ethers } = await import('ethers-v5');
     const provider = new ethers.providers.JsonRpcProvider(
       process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
@@ -50,23 +36,12 @@ export async function POST(req: NextRequest) {
     // If user already has enough ETH, skip funding
     if (userBalance.gte(GAS_AMOUNT_WEI)) {
       console.log(`✅ Wallet already has sufficient balance`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━\n');
       return NextResponse.json({
         success: true,
         alreadyFunded: true,
         message: 'Wallet already has sufficient balance',
         currentBalance: userBalanceEth,
-      });
-    }
-
-    // 🔒 In-memory check (skip for bot since it might retry)
-    if (!isBot && fundedAddresses.has(userAddress.toLowerCase())) {
-      console.log(`✅ Wallet already funded in this session`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      return NextResponse.json({
-        success: true,
-        alreadyFunded: true,
-        message: 'Wallet was already funded',
       });
     }
 
@@ -110,9 +85,6 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
 
-    // Mark as funded in memory
-    fundedAddresses.add(userAddress.toLowerCase());
-
     console.log(`✅ Wallet funded successfully`);
     console.log(`   Transaction: ${transactionHash}`);
     console.log(`   Explorer: https://basescan.org/tx/${transactionHash}`);
@@ -123,7 +95,7 @@ export async function POST(req: NextRequest) {
       transactionHash,
       amount: "0.0001",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
-      alreadyFunded: false, // ← Important for client-side wait logic
+      alreadyFunded: false,
     });
 
   } catch (error: any) {
