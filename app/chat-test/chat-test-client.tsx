@@ -186,7 +186,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // KEY SHARER BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
@@ -194,6 +194,16 @@ function KeySharerBot() {
 
     useEffect(() => {
         if (hasJoined || !SAVED_SPACE_ID) return;
+
+        // ✅ CRITICAL FIX: Check if bot already connected via auto-login
+        if ((window as any).KEY_SHARER_CONNECTED) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('✅ BOT ALREADY CONNECTED VIA AUTO-LOGIN');
+            console.log('✅ Skipping join flow - treating as success');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            setHasJoined(true);
+            return;
+        }
 
         const joinAsBot = async () => {
             try {
@@ -203,7 +213,7 @@ function KeySharerBot() {
                 const botWallet = new ethers.Wallet(privateKey);
                 const botAddress = botWallet.address;
                 
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━');
                 console.log('🤖 Bot Wallet Info:');
                 console.log('   Address:', botAddress);
                 console.log('   Space ID:', SAVED_SPACE_ID);
@@ -240,7 +250,7 @@ function KeySharerBot() {
                 const botMembershipBalance = await balanceOf({
                     contract: membershipContract,
                     owner: botAddress,
-                    tokenId: 0n, // Freemium tier
+                    tokenId: 0n,
                 });
                 
                 console.log('🎫 Bot membership NFT balance:', botMembershipBalance.toString());
@@ -317,14 +327,13 @@ function KeySharerBot() {
                     error.message?.includes('429') ||
                     error.message?.includes('rate limit') ||
                     error.message?.includes('Too Many Requests')) {
-                    console.log('✅ Treating as already joined (likely already a member or rate limited)');
+                    console.log('✅ Treating as already joined');
                     setHasJoined(true);
                     return;
                 }
                 
                 // Don't retry - just fail gracefully
                 console.error('❌ Join failed - NOT retrying automatically');
-                console.error('💡 Bot may need manual intervention or already be joined');
             }
         };
 
@@ -356,7 +365,7 @@ function KeySharerBot() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
