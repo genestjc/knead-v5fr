@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     // ✅ Check on-chain balance (persistent check)
     const { ethers } = await import('ethers-v5');
     const provider = new ethers.providers.JsonRpcProvider(
-      process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
-    );
+    process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
+);
     
     const userBalance = await provider.getBalance(userAddress);
     const userBalanceEth = ethers.utils.formatEther(userBalance);
