@@ -186,7 +186,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // KEY SHARER BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
@@ -292,19 +292,19 @@ function KeySharerBot() {
                 }
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // ✅ Handle specific error cases
+                // ✅ Handle specific error cases - INSUFFICIENT_FUNDS likely means already a member
                 if (error.message?.includes('already a member') || 
-                    error.message?.includes('already in space')) {
-                    console.log('✅ Bot is already a member - proceeding');
+                    error.message?.includes('already in space') ||
+                    error.code === 'INSUFFICIENT_FUNDS' ||
+                    error.message?.includes('insufficient funds')) {
+                    console.log('✅ Bot is likely already a member - treating as success');
                     setHasJoined(true);
                     return;
                 }
                 
-                // ✅ Don't retry on permanent errors
-                if (error.message?.includes('insufficient funds') ||
-                    error.message?.includes('nonce') ||
-                    error.code === 'INSUFFICIENT_FUNDS') {
-                    console.error('❌ Permanent error - NOT retrying');
+                // ✅ Don't retry on nonce errors
+                if (error.message?.includes('nonce')) {
+                    console.error('❌ Nonce error - NOT retrying');
                     return;
                 }
                 
