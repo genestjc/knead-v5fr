@@ -70,9 +70,9 @@ function TownsConnectedContentInner() {
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
-    const { joinSpace } = useJoinSpace();
+    const { joinSpace } = useJoinSpace(); // ✅ Now called AFTER agent is connected
     const { data: space } = useSpace(spaceId || '');
-    const { isAgentConnected } = useAgentConnection();
+    const { isAgentConnected, connect } = useAgentConnection();
 
     const currentUser: ChatUser | null = useMemo(() => {
         const address = wallet?.getAccount()?.address;
@@ -90,7 +90,28 @@ function TownsConnectedContentInner() {
         };
     }, [wallet]);
 
+    // 🔑 Auto-login for headless key sharer (now inside connected component)
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+        
+        const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+        const isAutoMode = (window as any).KEY_SHARER_AUTO_MODE;
+        const alreadyAttempted = (window as any).KEY_SHARER_ATTEMPTED;
+        
+        if (!privateKey || !isAutoMode || alreadyAttempted) return;
+        
+        (window as any).KEY_SHARER_ATTEMPTED = true;
+        console.log('🔑 KEY SHARER: Auto-login mode detected');
+        
+        autoConnectKeySharer(privateKey, connect, joinSpace);
+    }, [connect, joinSpace]);
+
+    useEffect(() => {
+        // Skip auto-join if in key sharer mode
+        if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE) {
+            return;
+        }
+        
         if (SAVED_SPACE_ID && !hasJoined && !isJoiningSpace && !joinAttempted) {
             setJoinAttempted(true);
             handleJoinSpace(SAVED_SPACE_ID);
@@ -244,29 +265,8 @@ function TownsConnectedContentInner() {
 }
 
 // ============================================
-// 🔑 HEADLESS KEY SHARER AUTO-LOGIN
+// 🔑 HEADLESS KEY SHARER AUTO-LOGIN FUNCTION
 // ============================================
-function useKeySharerAutoLogin(connect: any, joinSpace: any) {
-    const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
-
-    useEffect(() => {
-        if (autoLoginAttempted) return;
-        
-        if (typeof window === 'undefined') return;
-        
-        const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
-        const isAutoMode = (window as any).KEY_SHARER_AUTO_MODE;
-        
-        if (!privateKey || !isAutoMode || !connect || !joinSpace) return;
-        
-        console.log('🔑 KEY SHARER: Auto-login mode detected');
-        setAutoLoginAttempted(true);
-        
-        autoConnectKeySharer(privateKey, connect, joinSpace);
-        
-    }, [autoLoginAttempted, connect, joinSpace]);
-}
-
 async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace: any) {
     try {
         console.log('🔑 KEY SHARER: Starting auto-connection...');
@@ -346,9 +346,7 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected, isAgentConnecting, connect } = useAgentConnection();
-    const { joinSpace } = useJoinSpace();
-
-    useKeySharerAutoLogin(connect, joinSpace);
+    // ✅ Removed: const { joinSpace } = useJoinSpace(); - moved to inner component
 
     useEffect(() => {
         setIsMounted(true);
@@ -377,6 +375,7 @@ export default function ChatTestClient() {
         }
     };
 
+    // 🔑 Show key sharer UI if in auto mode and connected
     if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE && isAgentConnected) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
