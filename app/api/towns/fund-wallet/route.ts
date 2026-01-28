@@ -8,8 +8,10 @@ export const dynamic = "force-dynamic";
 // Amount to send for gas (0.0001 ETH ≈ $0.30, enough for 10-20 transactions on Base)
 const GAS_AMOUNT_WEI = BigInt("100000000000000"); // 0.0001 ETH
 
-// Track funded addresses permanently (one-time funding per address, FOREVER)
-const fundedAddresses = new Set<string>(); // Changed from Map to Set
+const BOT_WALLET_ADDRESS = process.env.KEY_SHARER_BOT_ADDRESS; // ← ADD THIS
+
+// Track funded addresses (serverless, so resets on cold start)
+const fundedAddresses = new Set<string>();
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,9 +28,40 @@ export async function POST(req: NextRequest) {
     console.log(`   User: ${userAddress}`);
     console.log(`   Server: ${SERVER_WALLET_ADDRESS}`);
 
-    // 🔒 ONE-TIME funding check (permanent)
-    if (fundedAddresses.has(userAddress.toLowerCase())) {
-      console.log(`✅ Wallet already funded (one-time funding complete)`);
+    // ✅ Check if this is the bot
+    const isBot = BOT_WALLET_ADDRESS && 
+                  userAddress.toLowerCase() === BOT_WALLET_ADDRESS.toLowerCase();
+    
+    if (isBot) {
+      console.log('🤖 Bot wallet detected');
+    }
+
+    // ✅ Check on-chain balance (persistent check across restarts)
+    const { ethers } = await import('ethers-v5');
+    const provider = new ethers.providers.JsonRpcProvider(
+      process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
+    );
+    
+    const userBalance = await provider.getBalance(userAddress);
+    const userBalanceEth = ethers.utils.formatEther(userBalance);
+    
+    console.log(`   Current balance: ${userBalanceEth} ETH`);
+    
+    // If user already has enough ETH, skip funding
+    if (userBalance.gte(GAS_AMOUNT_WEI)) {
+      console.log(`✅ Wallet already has sufficient balance`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return NextResponse.json({
+        success: true,
+        alreadyFunded: true,
+        message: 'Wallet already has sufficient balance',
+        currentBalance: userBalanceEth,
+      });
+    }
+
+    // 🔒 In-memory check (skip for bot since it might retry)
+    if (!isBot && fundedAddresses.has(userAddress.toLowerCase())) {
+      console.log(`✅ Wallet already funded in this session`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({
         success: true,
@@ -38,6 +71,20 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`   Sending: 0.0001 ETH (~$0.30)`);
+
+    // Check server wallet balance
+    const serverBalance = await provider.getBalance(SERVER_WALLET_ADDRESS);
+    const serverBalanceEth = ethers.utils.formatEther(serverBalance);
+    console.log(`   Server balance: ${serverBalanceEth} ETH`);
+    
+    if (serverBalance.lt(GAS_AMOUNT_WEI)) {
+      console.error(`❌ Server wallet balance too low: ${serverBalanceEth} ETH`);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return NextResponse.json({
+        error: `Server wallet balance too low (${serverBalanceEth} ETH). Please fund: ${SERVER_WALLET_ADDRESS}`,
+        success: false,
+      }, { status: 500 });
+    }
 
     // Prepare ETH transfer transaction
     console.log('🔧 Preparing transaction...');
@@ -63,10 +110,10 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
 
-    // Mark as funded permanently (one-time funding complete)
+    // Mark as funded in memory
     fundedAddresses.add(userAddress.toLowerCase());
 
-    console.log(`✅ Wallet funded successfully (one-time funding)`);
+    console.log(`✅ Wallet funded successfully`);
     console.log(`   Transaction: ${transactionHash}`);
     console.log(`   Explorer: https://basescan.org/tx/${transactionHash}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -76,6 +123,7 @@ export async function POST(req: NextRequest) {
       transactionHash,
       amount: "0.0001",
       explorerUrl: `https://basescan.org/tx/${transactionHash}`,
+      alreadyFunded: false, // ← Important for client-side wait logic
     });
 
   } catch (error: any) {
