@@ -7,7 +7,7 @@ import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { Button } from '@/components/ui/button';
-import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
 
@@ -225,10 +225,122 @@ function TownsConnectedContent() {
     );
 }
 
+// ============================================
+// 🔑 HEADLESS KEY SHARER AUTO-LOGIN
+// ============================================
+function useKeySharerAutoLogin() {
+    const { connect } = useAgentConnection();
+    const { joinSpace } = useJoinSpace();
+    const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+
+    useEffect(() => {
+        if (autoLoginAttempted) return;
+        
+        // Check if running in headless key sharer mode
+        if (typeof window === 'undefined') return;
+        
+        const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+        const isAutoMode = (window as any).KEY_SHARER_AUTO_MODE;
+        
+        if (!privateKey || !isAutoMode) return;
+        
+        console.log('🔑 KEY SHARER: Auto-login mode detected');
+        setAutoLoginAttempted(true);
+        
+        autoConnectKeySharer(privateKey);
+        
+    }, [autoLoginAttempted, connect, joinSpace]);
+
+    const autoConnectKeySharer = async (privateKey: string) => {
+        try {
+            console.log('🔑 KEY SHARER: Starting auto-connection...');
+            
+            // Step 1: Create account from private key
+            console.log('🔑 KEY SHARER: Creating account from private key...');
+            const account = privateKeyToAccount({ 
+                client, 
+                privateKey 
+            });
+            console.log('✅ Account created:', account.address);
+            
+            // Step 2: Create ethers signer for Towns
+            console.log('🔑 KEY SHARER: Creating ethers signer...');
+            const { ethers } = await import('ethers-v5');
+            const provider = new ethers.providers.JsonRpcProvider(
+                process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
+            );
+            const wallet = new ethers.Wallet(privateKey, provider);
+            console.log('✅ Ethers wallet created');
+            
+            // Step 3: Connect to Towns Protocol
+            console.log('🔑 KEY SHARER: Connecting to Towns Protocol...');
+            await connect(wallet, { 
+                townsConfig: TOWNS_CONFIG,
+                onTokenExpired: () => {
+                    console.log('⚠️ KEY SHARER: Token expired');
+                }
+            });
+            console.log('✅ Connected to Towns Protocol');
+            
+            // Step 4: Join the space
+            if (!SAVED_SPACE_ID) {
+                throw new Error('Missing NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID');
+            }
+            
+            console.log('🔑 KEY SHARER: Joining space:', SAVED_SPACE_ID);
+            
+            // Fund wallet if needed
+            const fundResponse = await fetch('/api/towns/fund-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userAddress: account.address }),
+            });
+            
+            if (fundResponse.ok) {
+                const fundData = await fundResponse.json();
+                if (!fundData.alreadyFunded) {
+                    console.log('⏳ Waiting for funding...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            }
+            
+            // Join space
+            try {
+                await joinSpace(SAVED_SPACE_ID, wallet, { skipMintMembership: false });
+                console.log('✅ Joined space successfully');
+            } catch (joinError: any) {
+                if (joinError.message?.includes('already a member')) {
+                    console.log('✅ Already a member of space');
+                } else {
+                    throw joinError;
+                }
+            }
+            
+            // Step 5: Mark as connected
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🟢 KEY SHARER: FULLY CONNECTED');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('📡 Now sharing encryption keys with new members');
+            console.log('⏰ Connected at:', new Date().toISOString());
+            
+            // Signal to headless browser that we're ready
+            (window as any).KEY_SHARER_CONNECTED = true;
+            
+        } catch (error: any) {
+            console.error('❌ KEY SHARER: Auto-login failed:', error);
+            console.error(error);
+            (window as any).KEY_SHARER_ERROR = error.message;
+        }
+    };
+}
+
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected, isAgentConnecting, connect } = useAgentConnection();
+
+    // 🔑 Enable auto-login for headless key sharer
+    useKeySharerAutoLogin();
 
     useEffect(() => {
         setIsMounted(true);
@@ -257,6 +369,24 @@ export default function ChatTestClient() {
             alert(`Failed to connect: ${e.message}`);
         }
     };
+
+    // 🔑 If running in headless mode and connected, show minimal UI
+    if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE && isAgentConnected) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md">
+                    <div className="text-6xl mb-4">🟢</div>
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Online</h1>
+                    <p className="font-georgia-pro text-gray-600">
+                        Sharing encryption keys with new members...
+                    </p>
+                    <p className="font-georgia-pro text-sm text-gray-400 mt-4">
+                        Connected: {new Date().toLocaleTimeString()}
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (!isMounted || isAgentConnecting) {
         return <LoadingSpinner />;
