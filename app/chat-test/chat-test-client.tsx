@@ -314,19 +314,19 @@ function TownsConnectedContentKeySharer() {
                 const fundData = await fundResponse.json();
                 console.log('✅ KEY SHARER: Wallet funded:', fundData);
                 
-                // ✅ Step 3: Wait for funding to actually arrive and confirm
+                // ✅ Step 3: Wait for funding to actually arrive and confirm (LONGER WAIT)
                 if (!fundData.alreadyFunded) {
                     console.log('🔑 KEY SHARER: Waiting for funding to settle...');
                     
-                    // Poll for balance every 2 seconds, max 30 seconds (15 attempts)
+                    // Poll for balance every 3 seconds, max 20 attempts (60 seconds total)
                     let balanceConfirmed = false;
-                    for (let i = 0; i < 15; i++) {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // ← 3 seconds
                         
                         try {
                             const balance = await botWallet.getBalance();
                             const balanceInEth = ethers.utils.formatEther(balance);
-                            console.log(`🔑 KEY SHARER: Balance check ${i + 1}/15: ${balanceInEth} ETH`);
+                            console.log(`🔑 KEY SHARER: Balance check ${i + 1}/20: ${balanceInEth} ETH`);
                             
                             if (balance.gt(0)) {
                                 console.log('✅ KEY SHARER: Funding confirmed! Balance:', balanceInEth, 'ETH');
@@ -339,7 +339,7 @@ function TownsConnectedContentKeySharer() {
                     }
                     
                     if (!balanceConfirmed) {
-                        throw new Error('Funding transaction did not confirm within 30 seconds');
+                        throw new Error('Funding transaction did not confirm within 60 seconds');
                     }
                 } else {
                     // Still check balance to confirm
@@ -361,8 +361,8 @@ function TownsConnectedContentKeySharer() {
                 } else {
                     console.error('❌ KEY SHARER: Failed to join space:', error);
                     console.error('❌ KEY SHARER: Error details:', error.message);
-                    // Retry after 15 seconds (longer delay to avoid rate limits and allow funding)
-                    setTimeout(() => setIsJoining(false), 15000);
+                    // Retry after 20 seconds
+                    setTimeout(() => setIsJoining(false), 20000);
                 }
             }
         };
