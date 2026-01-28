@@ -282,6 +282,7 @@ export default function ChatTestClient() {
         if (!privateKey || !isAutoMode) return;
         
         setBotAutoLoginAttempted(true);
+        (window as any).KEY_SHARER_ATTEMPTED = true; // ✅ Debug flag
         console.log('🔑 KEY SHARER: Auto-login mode detected');
         
         (async () => {
