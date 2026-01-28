@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -29,7 +29,6 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
   
   const { disconnect } = useAgentConnection();
   const activeAccount = useActiveAccount();
-  const syncAgent = useSyncAgent();
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -58,12 +57,11 @@ export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }
     console.log('   - space:', space);
     console.log('   - channelId:', channelId);
     console.log('   - timeline length:', timeline?.length);
-    console.log('   - syncAgent available:', !!syncAgent);
     
     if (spaceError) console.error('❌ Space error:', spaceError);
     if (timelineError) console.error('❌ Timeline error:', timelineError);
     if (sendError) console.error('❌ Send error:', sendError);
-  }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError, syncAgent]);
+  }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
