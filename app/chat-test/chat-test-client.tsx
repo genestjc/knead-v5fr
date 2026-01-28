@@ -43,7 +43,25 @@ const wallets = [
   }),
 ];
 
+// ✅ Wrapper component that checks agent connection
 function TownsConnectedContent() {
+    const { isAgentConnected } = useAgentConnection();
+    
+    // Don't render inner component until agent is connected
+    if (!isAgentConnected) {
+        return (
+            <div className="text-center max-w-md space-y-6">
+                <h1 className="font-adonis text-4xl mb-4">Connecting...</h1>
+                <LoadingSpinner />
+            </div>
+        );
+    }
+    
+    return <TownsConnectedContentInner />;
+}
+
+// ✅ Inner component that uses Towns hooks
+function TownsConnectedContentInner() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
     const [isJoiningSpace, setIsJoiningSpace] = useState(false);
@@ -234,7 +252,6 @@ function useKeySharerAutoLogin(connect: any, joinSpace: any) {
     useEffect(() => {
         if (autoLoginAttempted) return;
         
-        // Check if running in headless key sharer mode
         if (typeof window === 'undefined') return;
         
         const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
@@ -254,16 +271,9 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
     try {
         console.log('🔑 KEY SHARER: Starting auto-connection...');
         
-        // Step 1: Create account from private key
-        console.log('🔑 KEY SHARER: Creating account from private key...');
-        const account = privateKeyToAccount({ 
-            client, 
-            privateKey 
-        });
+        const account = privateKeyToAccount({ client, privateKey });
         console.log('✅ Account created:', account.address);
         
-        // Step 2: Create ethers signer for Towns
-        console.log('🔑 KEY SHARER: Creating ethers signer...');
         const { ethers } = await import('ethers-v5');
         const provider = new ethers.providers.JsonRpcProvider(
             process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
@@ -271,7 +281,6 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
         const wallet = new ethers.Wallet(privateKey, provider);
         console.log('✅ Ethers wallet created');
         
-        // Step 3: Connect to Towns Protocol
         console.log('🔑 KEY SHARER: Connecting to Towns Protocol...');
         await connect(wallet, { 
             townsConfig: TOWNS_CONFIG,
@@ -281,17 +290,14 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
         });
         console.log('✅ Connected to Towns Protocol');
         
-        // Wait a bit for connection to stabilize
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Step 4: Join the space
         if (!SAVED_SPACE_ID) {
             throw new Error('Missing NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID');
         }
         
         console.log('🔑 KEY SHARER: Joining space:', SAVED_SPACE_ID);
         
-        // Fund wallet if needed
         try {
             const fundResponse = await fetch('/api/towns/fund-wallet', {
                 method: 'POST',
@@ -310,7 +316,6 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
             console.log('⚠️ Fund wallet failed, continuing anyway');
         }
         
-        // Join space
         try {
             await joinSpace(SAVED_SPACE_ID, wallet, { skipMintMembership: false });
             console.log('✅ Joined space successfully');
@@ -322,14 +327,12 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
             }
         }
         
-        // Step 5: Mark as connected
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('🟢 KEY SHARER: FULLY CONNECTED');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('📡 Now sharing encryption keys with new members');
         console.log('⏰ Connected at:', new Date().toISOString());
         
-        // Signal to headless browser that we're ready
         (window as any).KEY_SHARER_CONNECTED = true;
         
     } catch (error: any) {
@@ -345,7 +348,6 @@ export default function ChatTestClient() {
     const { isAgentConnected, isAgentConnecting, connect } = useAgentConnection();
     const { joinSpace } = useJoinSpace();
 
-    // 🔑 Enable auto-login for headless key sharer (pass hooks as params)
     useKeySharerAutoLogin(connect, joinSpace);
 
     useEffect(() => {
@@ -360,7 +362,6 @@ export default function ChatTestClient() {
             
             const signer = await getEthersV5Signer(wallet, activeChain, client);
             
-            // ✅ SDK handles delegate wallet + encryption automatically
             await connect(signer, { 
                 townsConfig: TOWNS_CONFIG,
                 onTokenExpired: () => {
@@ -376,7 +377,6 @@ export default function ChatTestClient() {
         }
     };
 
-    // 🔑 If running in headless mode and connected, show minimal UI
     if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE && isAgentConnected) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
