@@ -22,7 +22,24 @@ const LoadingSpinner = () => (
     </div>
 );
 
-export default function ConnectedChat({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
+// ✅ Wrapper component that checks if agent is connected
+export default function ConnectedChat(props: ConnectedChatProps) {
+  const { isAgentConnected } = useAgentConnection();
+  
+  // Don't render the inner component until agent is connected
+  if (!isAgentConnected) {
+    return (
+      <ChatLayout>
+        <LoadingSpinner />
+      </ChatLayout>
+    );
+  }
+  
+  return <ConnectedChatInner {...props} />;
+}
+
+// ✅ Inner component that uses Towns hooks (only renders when agent is connected)
+function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?: string} | null>(null);
   const [retryCount, setRetryCount] = useState(0);
