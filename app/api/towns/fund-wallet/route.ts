@@ -7,6 +7,26 @@ export const dynamic = "force-dynamic";
 
 const GAS_AMOUNT_WEI = BigInt("100000000000000"); // 0.0001 ETH
 
+// ✅ Retry wrapper for RPC connection
+async function getProviderWithRetry(rpcUrl: string, retries = 3) {
+  const { ethers } = await import('ethers-v5');
+  
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`   Attempt ${i + 1}/${retries} - Creating provider...`);
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      await provider.getNetwork(); // Test connection
+      console.log(`   ✅ Provider connected successfully`);
+      return provider;
+    } catch (error: any) {
+      console.error(`   ❌ Attempt ${i + 1} failed: ${error.message}`);
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+    }
+  }
+  throw new Error('Failed to create provider after retries');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userAddress } = await req.json();
@@ -22,13 +42,18 @@ export async function POST(req: NextRequest) {
     console.log(`   User: ${userAddress}`);
     console.log(`   Server: ${SERVER_WALLET_ADDRESS}`);
 
-    // ✅ Check on-chain balance (persistent check)
-    const { ethers } = await import('ethers-v5');
-    const provider = new ethers.providers.JsonRpcProvider(
-    process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
-);
+    // ✅ Get RPC URL
+    const rpcUrl = process.env.BASE_RPC_URL || 
+                   process.env.NEXT_PUBLIC_BASE_RPC_URL || 
+                   'https://mainnet.base.org';
+
+    console.log(`   Using RPC: ${rpcUrl.substring(0, 60)}...`);
+
+    // ✅ Create provider with retry
+    const provider = await getProviderWithRetry(rpcUrl);
     
     const userBalance = await provider.getBalance(userAddress);
+    const { ethers } = await import('ethers-v5');
     const userBalanceEth = ethers.utils.formatEther(userBalance);
     
     console.log(`   Current balance: ${userBalanceEth} ETH`);
@@ -36,7 +61,7 @@ export async function POST(req: NextRequest) {
     // If user already has enough ETH, skip funding
     if (userBalance.gte(GAS_AMOUNT_WEI)) {
       console.log(`✅ Wallet already has sufficient balance`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━\n');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({
         success: true,
         alreadyFunded: true,
