@@ -314,13 +314,41 @@ function TownsConnectedContentKeySharer() {
                 const fundData = await fundResponse.json();
                 console.log('✅ KEY SHARER: Wallet funded:', fundData);
                 
-                // ✅ Wait for funding to settle if it was just funded
+                // ✅ Step 3: Wait for funding to actually arrive and confirm
                 if (!fundData.alreadyFunded) {
                     console.log('🔑 KEY SHARER: Waiting for funding to settle...');
-                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    
+                    // Poll for balance every 2 seconds, max 30 seconds (15 attempts)
+                    let balanceConfirmed = false;
+                    for (let i = 0; i < 15; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        
+                        try {
+                            const balance = await botWallet.getBalance();
+                            const balanceInEth = ethers.utils.formatEther(balance);
+                            console.log(`🔑 KEY SHARER: Balance check ${i + 1}/15: ${balanceInEth} ETH`);
+                            
+                            if (balance.gt(0)) {
+                                console.log('✅ KEY SHARER: Funding confirmed! Balance:', balanceInEth, 'ETH');
+                                balanceConfirmed = true;
+                                break;
+                            }
+                        } catch (balanceError) {
+                            console.error('⚠️ KEY SHARER: Balance check failed:', balanceError);
+                        }
+                    }
+                    
+                    if (!balanceConfirmed) {
+                        throw new Error('Funding transaction did not confirm within 30 seconds');
+                    }
+                } else {
+                    // Still check balance to confirm
+                    const balance = await botWallet.getBalance();
+                    const balanceInEth = ethers.utils.formatEther(balance);
+                    console.log('✅ KEY SHARER: Already funded. Current balance:', balanceInEth, 'ETH');
                 }
                 
-                // ✅ Step 3: Join space
+                // ✅ Step 4: Join space
                 console.log('🔑 KEY SHARER: Joining space...');
                 await joinSpace(SAVED_SPACE_ID, botWallet, { skipMintMembership: false });
                 console.log('✅ KEY SHARER: Joined space successfully');
@@ -333,8 +361,8 @@ function TownsConnectedContentKeySharer() {
                 } else {
                     console.error('❌ KEY SHARER: Failed to join space:', error);
                     console.error('❌ KEY SHARER: Error details:', error.message);
-                    // Retry after 10 seconds (longer delay to avoid rate limits)
-                    setTimeout(() => setIsJoining(false), 10000);
+                    // Retry after 15 seconds (longer delay to avoid rate limits and allow funding)
+                    setTimeout(() => setIsJoining(false), 15000);
                 }
             }
         };
