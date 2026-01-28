@@ -72,7 +72,7 @@ function TownsConnectedContent() {
     return <TownsConnectedContentInner />;
 }
 
-// ✅ Inner component that uses Towns hooks
+// ✅ Inner component that uses Towns hooks (for regular users)
 function TownsConnectedContentInner() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [isCreatingSpace, setIsCreatingSpace] = useState(false);
@@ -260,6 +260,78 @@ function TownsConnectedContentInner() {
     );
 }
 
+// ✅ Key sharer version that auto-joins space
+function TownsConnectedContentKeySharer() {
+    const [hasJoined, setHasJoined] = useState(false);
+    const [isJoining, setIsJoining] = useState(false);
+    const { joinSpace } = useJoinSpace();
+    const { isAgentConnected } = useAgentConnection();
+
+    useEffect(() => {
+        if (!SAVED_SPACE_ID || hasJoined || isJoining || !isAgentConnected) return;
+        
+        const joinAsBot = async () => {
+            setIsJoining(true);
+            console.log('🔑 KEY SHARER: Joining space as bot...');
+            
+            try {
+                // Bot uses its own wallet (already connected in useEffect above)
+                const { ethers } = await import('ethers-v5');
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
+                );
+                const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+                const botWallet = new ethers.Wallet(privateKey, provider);
+                
+                await joinSpace(SAVED_SPACE_ID, botWallet, { skipMintMembership: false });
+                console.log('✅ KEY SHARER: Joined space successfully');
+                setHasJoined(true);
+            } catch (error: any) {
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ KEY SHARER: Already a member');
+                    setHasJoined(true);
+                } else {
+                    console.error('❌ KEY SHARER: Failed to join space:', error);
+                    // Retry after 5 seconds
+                    setTimeout(() => setIsJoining(false), 5000);
+                }
+            }
+        };
+        
+        joinAsBot();
+    }, [isAgentConnected, hasJoined, isJoining, joinSpace]);
+
+    if (!hasJoined) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md">
+                    <div className="text-6xl mb-4">🔄</div>
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Joining Space...</h1>
+                    <LoadingSpinner />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md">
+                <div className="text-6xl mb-4">🟢</div>
+                <h1 className="font-adonis text-4xl mb-4">Key Sharer Online</h1>
+                <p className="font-georgia-pro text-gray-600">
+                    Sharing encryption keys with new members...
+                </p>
+                <p className="font-georgia-pro text-sm text-gray-400 mt-4">
+                    Connected: {new Date().toLocaleTimeString()}
+                </p>
+                <p className="font-georgia-pro text-sm text-gray-400 mt-2">
+                    Space: {SAVED_SPACE_ID?.substring(0, 20)}...
+                </p>
+            </div>
+        </div>
+    );
+}
+
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
@@ -282,7 +354,7 @@ export default function ChatTestClient() {
         if (!privateKey || !isAutoMode) return;
         
         setBotAutoLoginAttempted(true);
-        (window as any).KEY_SHARER_ATTEMPTED = true; // ✅ Debug flag
+        (window as any).KEY_SHARER_ATTEMPTED = true;
         console.log('🔑 KEY SHARER: Auto-login mode detected');
         
         (async () => {
@@ -374,20 +446,8 @@ export default function ChatTestClient() {
             );
         }
         
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center max-w-md">
-                    <div className="text-6xl mb-4">🟢</div>
-                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Online</h1>
-                    <p className="font-georgia-pro text-gray-600">
-                        Sharing encryption keys with new members...
-                    </p>
-                    <p className="font-georgia-pro text-sm text-gray-400 mt-4">
-                        Connected: {new Date().toLocaleTimeString()}
-                    </p>
-                </div>
-            </div>
-        );
+        // ✅ Bot is connected, now let it join the space
+        return <TownsConnectedContentKeySharer />;
     }
 
     if (!isMounted || isAgentConnecting) {
