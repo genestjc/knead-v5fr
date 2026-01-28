@@ -155,8 +155,41 @@ function TownsConnectedContentInner() {
             if (!fundResponse.ok) throw new Error('Failed to fund wallet');
             
             const fundData = await fundResponse.json();
+            
+            // ✅ WAIT FOR FUNDING TO ACTUALLY CONFIRM
             if (!fundData.alreadyFunded) {
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                console.log('⏳ Waiting for funding transaction to confirm...');
+                
+                const { ethers } = await import('ethers-v5');
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
+                );
+                
+                // Poll for balance every 3 seconds, max 20 attempts (60 seconds)
+                let balanceConfirmed = false;
+                for (let i = 0; i < 20; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    try {
+                        const balance = await provider.getBalance(userAddress);
+                        const balanceInEth = ethers.utils.formatEther(balance);
+                        console.log(`💰 Balance check ${i + 1}/20: ${balanceInEth} ETH`);
+                        
+                        if (balance.gt(0)) {
+                            console.log('✅ Funding confirmed! Balance:', balanceInEth, 'ETH');
+                            balanceConfirmed = true;
+                            break;
+                        }
+                    } catch (balanceError) {
+                        console.error('⚠️ Balance check failed:', balanceError);
+                    }
+                }
+                
+                if (!balanceConfirmed) {
+                    throw new Error('Funding transaction did not confirm within 60 seconds. Please try again.');
+                }
+            } else {
+                console.log('✅ Wallet already funded');
             }
 
             const ethersSigner = await getEthersV5Signer(wallet, activeChain, client);
@@ -314,14 +347,14 @@ function TownsConnectedContentKeySharer() {
                 const fundData = await fundResponse.json();
                 console.log('✅ KEY SHARER: Wallet funded:', fundData);
                 
-                // ✅ Step 3: Wait for funding to actually arrive and confirm (LONGER WAIT)
+                // ✅ Step 3: Wait for funding to actually arrive and confirm
                 if (!fundData.alreadyFunded) {
                     console.log('🔑 KEY SHARER: Waiting for funding to settle...');
                     
                     // Poll for balance every 3 seconds, max 20 attempts (60 seconds total)
                     let balanceConfirmed = false;
                     for (let i = 0; i < 20; i++) {
-                        await new Promise(resolve => setTimeout(resolve, 3000)); // ← 3 seconds
+                        await new Promise(resolve => setTimeout(resolve, 3000));
                         
                         try {
                             const balance = await botWallet.getBalance();
