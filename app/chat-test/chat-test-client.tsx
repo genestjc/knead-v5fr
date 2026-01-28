@@ -358,12 +358,44 @@ async function autoConnectKeySharer(privateKey: string, connect: any, joinSpace:
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
+    const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected, isAgentConnecting, connect } = useAgentConnection();
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // ✅ Auto-connect to Towns when wallet is ready
+    useEffect(() => {
+        if (!isMounted || !wallet || isAgentConnected || isAgentConnecting || autoConnectAttempted) {
+            return;
+        }
+        
+        // Skip auto-connect if in key sharer mode (bot handles its own connection)
+        if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE) {
+            return;
+        }
+        
+        setAutoConnectAttempted(true);
+        
+        const autoConnect = async () => {
+            try {
+                console.log('🔐 Auto-connecting to Towns Protocol...');
+                const signer = await getEthersV5Signer(wallet, activeChain, client);
+                await connect(signer, { 
+                    townsConfig: TOWNS_CONFIG,
+                    onTokenExpired: () => console.log('⚠️ Token expired')
+                });
+                console.log('✅ Auto-connected to Towns');
+            } catch (e: any) {
+                console.error("❌ Auto-connect failed:", e);
+                setAutoConnectAttempted(false); // Allow retry on failure
+            }
+        };
+        
+        autoConnect();
+    }, [isMounted, wallet, isAgentConnected, isAgentConnecting, autoConnectAttempted, connect]);
 
     const handleConnectToTowns = async () => {
         if (!wallet) return;
@@ -418,14 +450,19 @@ export default function ChatTestClient() {
                     <ConnectButton client={client} chain={activeChain} wallets={wallets} />
                 </div>
             ) : !isAgentConnected ? (
-                <div className="text-center max-w-md">
-                    <h1 className="font-adonis text-4xl mb-4">Connect to Towns</h1>
+                <div className="text-center max-w-md space-y-6">
+                    <h1 className="font-adonis text-4xl mb-4">Connecting to Towns...</h1>
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500">
+                        This should only take a moment
+                    </p>
+                    {/* Fallback button if auto-connect fails */}
                     <Button 
                         onClick={handleConnectToTowns} 
                         disabled={isAgentConnecting}
                         className="px-8 py-4 bg-black text-white rounded-full font-georgia-pro text-lg hover:bg-gray-800 transition"
                     >
-                        {isAgentConnecting ? 'Connecting...' : 'Connect to Towns'}
+                        Retry Connection
                     </Button>
                 </div>
             ) : (
