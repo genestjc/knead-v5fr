@@ -260,7 +260,7 @@ function TownsConnectedContentInner() {
     );
 }
 
-// ✅ Key sharer version that auto-joins space
+// ✅ Key sharer version that auto-joins space with funding
 function TownsConnectedContentKeySharer() {
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
@@ -275,25 +275,66 @@ function TownsConnectedContentKeySharer() {
             console.log('🔑 KEY SHARER: Joining space as bot...');
             
             try {
-                // Bot uses its own wallet (already connected in useEffect above)
+                // Get bot wallet address
                 const { ethers } = await import('ethers-v5');
                 const provider = new ethers.providers.JsonRpcProvider(
                     process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'
                 );
                 const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
                 const botWallet = new ethers.Wallet(privateKey, provider);
+                const botAddress = botWallet.address;
                 
+                console.log('🔑 KEY SHARER: Bot wallet address:', botAddress);
+                
+                // ✅ Step 1: Validate and mint membership NFT
+                console.log('🔑 KEY SHARER: Minting membership...');
+                const mintResponse = await fetch('/api/towns/mint-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: botAddress, spaceId: SAVED_SPACE_ID }),
+                });
+                
+                if (!mintResponse.ok) {
+                    throw new Error('Membership minting failed');
+                }
+                console.log('✅ KEY SHARER: Membership validated');
+                
+                // ✅ Step 2: Fund wallet with ETH for gas
+                console.log('🔑 KEY SHARER: Funding wallet...');
+                const fundResponse = await fetch('/api/towns/fund-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: botAddress }),
+                });
+                
+                if (!fundResponse.ok) {
+                    throw new Error('Wallet funding failed');
+                }
+                
+                const fundData = await fundResponse.json();
+                console.log('✅ KEY SHARER: Wallet funded:', fundData);
+                
+                // ✅ Wait for funding to settle if it was just funded
+                if (!fundData.alreadyFunded) {
+                    console.log('🔑 KEY SHARER: Waiting for funding to settle...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                
+                // ✅ Step 3: Join space
+                console.log('🔑 KEY SHARER: Joining space...');
                 await joinSpace(SAVED_SPACE_ID, botWallet, { skipMintMembership: false });
                 console.log('✅ KEY SHARER: Joined space successfully');
                 setHasJoined(true);
+                
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
                     console.log('✅ KEY SHARER: Already a member');
                     setHasJoined(true);
                 } else {
                     console.error('❌ KEY SHARER: Failed to join space:', error);
-                    // Retry after 5 seconds
-                    setTimeout(() => setIsJoining(false), 5000);
+                    console.error('❌ KEY SHARER: Error details:', error.message);
+                    // Retry after 10 seconds (longer delay to avoid rate limits)
+                    setTimeout(() => setIsJoining(false), 10000);
                 }
             }
         };
@@ -308,6 +349,9 @@ function TownsConnectedContentKeySharer() {
                     <div className="text-6xl mb-4">🔄</div>
                     <h1 className="font-adonis text-4xl mb-4">Key Sharer Joining Space...</h1>
                     <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-400 mt-4">
+                        Funding wallet and minting membership...
+                    </p>
                 </div>
             </div>
         );
@@ -446,7 +490,7 @@ export default function ChatTestClient() {
             );
         }
         
-        // ✅ Bot is connected, now let it join the space
+        // ✅ Bot is connected, now let it join the space with funding
         return <TownsConnectedContentKeySharer />;
     }
 
