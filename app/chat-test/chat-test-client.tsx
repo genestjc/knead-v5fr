@@ -42,98 +42,9 @@ const wallets = [
   }),
 ];
 
-// ✅ Bot Auto-Login Component
-function KeySharerBot() {
-    const { connect, isAgentConnected } = useAgentConnection();
-    const [attempted, setAttempted] = useState(false);
-
-    useEffect(() => {
-        // Check if we're in bot mode
-        const isBot = typeof window !== 'undefined' && 
-                     window.KEY_SHARER_AUTO_MODE === true;
-        
-        if (!isBot || attempted || isAgentConnected) return;
-
-        const autoConnect = async () => {
-            try {
-                console.log('🔑 KEY SHARER: Starting auto-connect...');
-                setAttempted(true);
-                
-                const privateKey = window.KEY_SHARER_PRIVATE_KEY;
-                if (!privateKey) {
-                    throw new Error('Missing KEY_SHARER_PRIVATE_KEY');
-                }
-
-                console.log('🔑 KEY SHARER: Creating wallet from private key...');
-                const { ethers } = await import('ethers-v5');
-                const botWallet = new ethers.Wallet(privateKey);
-                const botAddress = botWallet.address;
-                
-                console.log(`🔑 KEY SHARER: Bot address: ${botAddress}`);
-
-                // Fund wallet via API
-                console.log('💰 KEY SHARER: Checking/funding wallet...');
-                const fundResponse = await fetch('/api/towns/fund-wallet', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: botAddress }),
-                });
-
-                if (!fundResponse.ok) {
-                    const error = await fundResponse.json();
-                    console.error('❌ KEY SHARER: Fund wallet failed:', error);
-                    throw new Error(`Fund wallet failed: ${error.error}`);
-                }
-
-                const fundData = await fundResponse.json();
-                console.log('✅ KEY SHARER: Wallet funded:', fundData);
-
-                // Wait for balance if just funded
-                if (!fundData.alreadyFunded) {
-                    console.log('⏳ KEY SHARER: Waiting for gas to arrive...');
-                    const provider = new ethers.providers.JsonRpcProvider(
-                        process.env.NEXT_PUBLIC_BASE_RPC_URL
-                    );
-                    
-                    for (let i = 0; i < 20; i++) {
-                        await new Promise(resolve => setTimeout(resolve, 3000));
-                        const balance = await provider.getBalance(botAddress);
-                        if (balance.gt(0)) {
-                            console.log(`✅ KEY SHARER: Balance confirmed: ${ethers.utils.formatEther(balance)} ETH`);
-                            await new Promise(resolve => setTimeout(resolve, 5000));
-                            break;
-                        }
-                    }
-                }
-
-                // Connect to Towns
-                console.log('🔌 KEY SHARER: Connecting to Towns...');
-                const signer = botWallet.connect(
-                    new ethers.providers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_RPC_URL)
-                );
-
-                await connect(signer, { 
-                    townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('🔑 KEY SHARER: Token expired')
-                });
-
-                console.log('✅ KEY SHARER: Connected to Towns!');
-                window.KEY_SHARER_CONNECTED = true;
-
-            } catch (error: any) {
-                console.error('❌ KEY SHARER: Auto-connect failed:', error);
-                window.KEY_SHARER_ERROR = error.message;
-                window.KEY_SHARER_CONNECTED = false;
-            } finally {
-                window.KEY_SHARER_ATTEMPTED = true;
-            }
-        };
-
-        autoConnect();
-    }, [connect, isAgentConnected, attempted]);
-
-    return null;
-}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETUP FLOW
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
@@ -164,20 +75,10 @@ function SetupFlow() {
                     });
                     const fundData = await fundResponse.json();
 
-                    if (!fundData.alreadyFunded) {
-                        const { ethers } = await import('ethers-v5');
-                        const provider = new ethers.providers.JsonRpcProvider(
-                            process.env.NEXT_PUBLIC_BASE_RPC_URL
-                        );
-                        
-                        for (let i = 0; i < 20; i++) {
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            const balance = await provider.getBalance(userAddress);
-                            if (balance.gt(0)) {
-                                await new Promise(resolve => setTimeout(resolve, 5000));
-                                break;
-                            }
-                        }
+                    // ✅ Only wait for balance if actually funded (API now handles this check)
+                    if (!fundData.alreadyFunded && fundData.success) {
+                        console.log('Waiting for gas to arrive...');
+                        await new Promise(resolve => setTimeout(resolve, 10000)); // Simple 10s wait
                     }
                 }
 
@@ -197,8 +98,18 @@ function SetupFlow() {
         runSetup();
     }, [wallet, isAgentConnected, setupComplete, connect]);
 
-    return <LoadingSpinner />;
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md">
+                <LoadingSpinner />
+            </div>
+        </div>
+    );
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOWNS CHAT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
@@ -274,31 +185,168 @@ function TownsChat() {
     return <LoadingSpinner />;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KEY SHARER BOT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function KeySharerBot() {
+    const [hasJoined, setHasJoined] = useState(false);
+    const { joinSpace } = useJoinSpace();
+
+    useEffect(() => {
+        if (hasJoined || !SAVED_SPACE_ID) return;
+
+        const joinAsBot = async () => {
+            try {
+                const { ethers } = await import('ethers-v5');
+                const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+                
+                // ✅ Create wallet WITHOUT provider (just for address/signing)
+                const botWallet = new ethers.Wallet(privateKey);
+                const botAddress = botWallet.address;
+                
+                console.log('🤖 Bot address:', botAddress);
+                console.log('🤖 Bot joining space...');
+                
+                // Mint and fund via API
+                await fetch('/api/towns/mint-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: botAddress, spaceId: SAVED_SPACE_ID }),
+                });
+                
+                const fundResponse = await fetch('/api/towns/fund-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: botAddress }),
+                });
+                const fundData = await fundResponse.json();
+                console.log('💰 Fund result:', fundData);
+                
+                // ✅ Simple wait if funded (API now checks balance for us)
+                if (!fundData.alreadyFunded && fundData.success) {
+                    console.log('⏳ Waiting for gas...');
+                    await new Promise(resolve => setTimeout(resolve, 15000));
+                }
+                
+                // ✅ Connect wallet to provider only when needed for signing
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL
+                );
+                const connectedWallet = botWallet.connect(provider);
+                
+                // Join space
+                console.log('🔗 Joining space...');
+                await joinSpace(SAVED_SPACE_ID, connectedWallet, { skipMintMembership: false });
+                console.log('✅ Bot joined successfully');
+                setHasJoined(true);
+
+            } catch (error: any) {
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ Bot already a member');
+                    setHasJoined(true);
+                } else {
+                    console.error('❌ Bot join failed:', error);
+                    // Retry after 20s
+                    setTimeout(() => window.location.reload(), 20000);
+                }
+            }
+        };
+
+        joinAsBot();
+    }, [hasJoined, joinSpace]);
+
+    if (!hasJoined) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Starting...</h1>
+                    <LoadingSpinner />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center">
+                <h1 className="font-adonis text-4xl mb-4 text-green-600">✅ Key Sharer Online</h1>
+                <p className="font-georgia-pro text-sm text-gray-400">
+                    Connected at {new Date().toLocaleTimeString()}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN COMPONENT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
-    const { isAgentConnected } = useAgentConnection();
+    const { isAgentConnected, connect } = useAgentConnection();
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // ✅ Check if bot mode BEFORE rendering
-    const isBot = typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE === true;
+    // Bot auto-login
+    useEffect(() => {
+        if (!isMounted || typeof window === 'undefined') return;
+        
+        const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+        const isAutoMode = (window as any).KEY_SHARER_AUTO_MODE;
+        
+        if (!privateKey || !isAutoMode || isAgentConnected) return;
+
+        (async () => {
+            try {
+                console.log('🔐 Bot auto-login starting...');
+                const { ethers } = await import('ethers-v5');
+                
+                // ✅ Create wallet without provider first
+                const botWallet = new ethers.Wallet(privateKey);
+                
+                // ✅ Connect to provider only for Towns connection
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL
+                );
+                const connectedWallet = botWallet.connect(provider);
+                
+                await connect(connectedWallet, { 
+                    townsConfig: TOWNS_CONFIG,
+                    onTokenExpired: () => console.log('🔄 Token expired')
+                });
+                
+                console.log('✅ Bot connected to Towns');
+                (window as any).KEY_SHARER_CONNECTED = true;
+            } catch (error) {
+                console.error('❌ Bot login failed:', error);
+                (window as any).KEY_SHARER_ERROR = error;
+            }
+        })();
+    }, [isMounted, isAgentConnected, connect]);
 
     if (!isMounted) return <LoadingSpinner />;
 
-    // ✅ Bot mode - no wallet needed
-    if (isBot) {
-        return (
-            <>
-                <KeySharerBot />
-                {isAgentConnected ? <TownsChat /> : <LoadingSpinner />}
-            </>
-        );
+    // Bot mode
+    if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE) {
+        if (!isAgentConnected) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-white">
+                    <div className="text-center">
+                        <h1 className="font-adonis text-4xl mb-4">🔐 Key Sharer Connecting...</h1>
+                        <LoadingSpinner />
+                    </div>
+                </div>
+            );
+        }
+        return <KeySharerBot />;
     }
 
-    // ✅ Regular user mode
+    // User mode
     if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
