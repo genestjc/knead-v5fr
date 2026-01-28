@@ -1,9 +1,9 @@
+// app/api/space-owner/transfer/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { Engine, prepareContractCall } from "thirdweb";
+import { Engine, prepareContractCall, getContract } from "thirdweb";
 import { base } from "thirdweb/chains";
-import { client, serverWallet } from "@/thirdweb-server-wallet";
-import { getContract } from "thirdweb";
+import { client, serverWallet, SERVER_WALLET_ADDRESS } from "@/thirdweb-server-wallet";
 
 const SPACE_OWNER_CONTRACT_ADDRESS = '0x2824D1235d1CbcA6d61C00C3ceeCB9155cd33a42';
 
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔄 Transferring Space Owner NFT');
     console.log(`   Token ID: ${tokenId}`);
+    console.log(`   From: ${SERVER_WALLET_ADDRESS}`);
     console.log(`   To: ${toAddress}`);
 
     const contract = getContract({
@@ -28,15 +29,12 @@ export async function POST(req: NextRequest) {
       address: SPACE_OWNER_CONTRACT_ADDRESS,
     });
 
-    // Get current owner (should be server wallet)
-    const currentOwnerAddress = await serverWallet.getAccount().address;
-
     // Prepare transfer transaction
     console.log('🔧 Preparing transfer...');
     const transaction = prepareContractCall({
       contract,
       method: "function safeTransferFrom(address from, address to, uint256 tokenId)",
-      params: [currentOwnerAddress, toAddress, BigInt(tokenId)],
+      params: [SERVER_WALLET_ADDRESS, toAddress, BigInt(tokenId)],
     });
 
     // Enqueue transaction with Engine
@@ -67,7 +65,11 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('❌ Error transferring ownership:', error);
+    console.error('   Message:', error.message);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
     return NextResponse.json(
       { error: error.message || 'Failed to transfer ownership' },
       { status: 500 }
