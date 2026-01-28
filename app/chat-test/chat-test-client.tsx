@@ -75,10 +75,9 @@ function SetupFlow() {
                     });
                     const fundData = await fundResponse.json();
 
-                    // ✅ Only wait for balance if actually funded (API now handles this check)
                     if (!fundData.alreadyFunded && fundData.success) {
                         console.log('Waiting for gas to arrive...');
-                        await new Promise(resolve => setTimeout(resolve, 10000)); // Simple 10s wait
+                        await new Promise(resolve => setTimeout(resolve, 10000));
                     }
                 }
 
@@ -187,7 +186,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // KEY SHARER BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━
 
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
@@ -201,55 +200,117 @@ function KeySharerBot() {
                 const { ethers } = await import('ethers-v5');
                 const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
                 
-                // ✅ Create wallet WITHOUT provider (just for address/signing)
                 const botWallet = new ethers.Wallet(privateKey);
                 const botAddress = botWallet.address;
                 
-                console.log('🤖 Bot address:', botAddress);
-                console.log('🤖 Bot joining space...');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('🤖 Bot Wallet Info:');
+                console.log('   Address:', botAddress);
+                console.log('   Space ID:', SAVED_SPACE_ID);
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // Mint and fund via API
-                await fetch('/api/towns/mint-membership', {
+                // ✅ Check balance FIRST
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL
+                );
+                const balance = await provider.getBalance(botAddress);
+                const balanceEth = ethers.utils.formatEther(balance);
+                
+                console.log('💰 Current balance:', balanceEth, 'ETH');
+                
+                if (balance.eq(0)) {
+                    console.error('❌ Bot wallet has ZERO ETH! Cannot proceed.');
+                    console.error('   Please fund:', botAddress);
+                    console.error('   BaseScan:', `https://basescan.org/address/${botAddress}`);
+                    throw new Error('Bot wallet has no ETH');
+                }
+                
+                // ✅ Mint membership
+                console.log('🎫 Minting membership...');
+                const mintResponse = await fetch('/api/towns/mint-membership', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userAddress: botAddress, spaceId: SAVED_SPACE_ID }),
                 });
                 
+                const mintData = await mintResponse.json();
+                console.log('🎫 Mint status:', mintResponse.status);
+                console.log('🎫 Mint response:', JSON.stringify(mintData, null, 2));
+                
+                if (!mintResponse.ok && !mintData.alreadyMinted) {
+                    console.warn('⚠️ Mint failed, but continuing:', mintData.error || 'Unknown error');
+                }
+                
+                // ✅ Fund wallet (in case needed)
+                console.log('💵 Checking/funding wallet...');
                 const fundResponse = await fetch('/api/towns/fund-wallet', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userAddress: botAddress }),
                 });
-                const fundData = await fundResponse.json();
-                console.log('💰 Fund result:', fundData);
                 
-                // ✅ Simple wait if funded (API now checks balance for us)
+                const fundData = await fundResponse.json();
+                console.log('💵 Fund status:', fundResponse.status);
+                console.log('💵 Fund response:', JSON.stringify(fundData, null, 2));
+                
                 if (!fundData.alreadyFunded && fundData.success) {
-                    console.log('⏳ Waiting for gas...');
+                    console.log('⏳ Waiting 15s for gas to arrive...');
                     await new Promise(resolve => setTimeout(resolve, 15000));
                 }
                 
-                // ✅ Connect wallet to provider only when needed for signing
-                const provider = new ethers.providers.JsonRpcProvider(
-                    process.env.NEXT_PUBLIC_BASE_RPC_URL
-                );
+                // ✅ Connect wallet to provider for signing
+                console.log('🔗 Connecting wallet to provider...');
                 const connectedWallet = botWallet.connect(provider);
                 
-                // Join space
-                console.log('🔗 Joining space...');
+                // ✅ Join space
+                console.log('🚀 Joining space...');
                 await joinSpace(SAVED_SPACE_ID, connectedWallet, { skipMintMembership: false });
-                console.log('✅ Bot joined successfully');
+                
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('✅ BOT JOINED SUCCESSFULLY!');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 setHasJoined(true);
 
             } catch (error: any) {
-                if (error.message?.includes('already a member')) {
-                    console.log('✅ Bot already a member');
-                    setHasJoined(true);
-                } else {
-                    console.error('❌ Bot join failed:', error);
-                    // Retry after 20s
-                    setTimeout(() => window.location.reload(), 20000);
+                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.error('❌ Bot Join Failed:');
+                console.error('   Message:', error.message || 'Unknown error');
+                console.error('   Code:', error.code || 'N/A');
+                console.error('   Reason:', error.reason || 'N/A');
+                
+                // ✅ Serialize the full error properly
+                try {
+                    console.error('   Full error:', JSON.stringify({
+                        message: error.message,
+                        code: error.code,
+                        reason: error.reason,
+                        data: error.data,
+                        stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+                    }, null, 2));
+                } catch {
+                    console.error('   Error object:', error);
                 }
+                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                
+                // ✅ Handle specific error cases
+                if (error.message?.includes('already a member') || 
+                    error.message?.includes('already in space')) {
+                    console.log('✅ Bot is already a member - proceeding');
+                    setHasJoined(true);
+                    return;
+                }
+                
+                // ✅ Don't retry on permanent errors
+                if (error.message?.includes('insufficient funds') ||
+                    error.message?.includes('nonce') ||
+                    error.code === 'INSUFFICIENT_FUNDS') {
+                    console.error('❌ Permanent error - NOT retrying');
+                    return;
+                }
+                
+                // ✅ Retry on temporary errors
+                console.log('🔄 Retrying in 20 seconds...');
+                setTimeout(() => window.location.reload(), 20000);
             }
         };
 
@@ -306,10 +367,8 @@ export default function ChatTestClient() {
                 console.log('🔐 Bot auto-login starting...');
                 const { ethers } = await import('ethers-v5');
                 
-                // ✅ Create wallet without provider first
                 const botWallet = new ethers.Wallet(privateKey);
                 
-                // ✅ Connect to provider only for Towns connection
                 const provider = new ethers.providers.JsonRpcProvider(
                     process.env.NEXT_PUBLIC_BASE_RPC_URL
                 );
