@@ -44,7 +44,7 @@ const wallets = [
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STEP 1: SETUP FLOW (Fund wallet, connect to Towns)
+// SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
@@ -60,36 +60,26 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                console.log('🚀 Starting setup for:', userAddress);
-
-                // Check if already set up before
                 const hasJoinedBefore = localStorage.getItem(`joined_${SAVED_SPACE_ID}`);
                 
                 if (!hasJoinedBefore) {
-                    // ✅ STEP 1: Mint membership
-                    console.log('📝 Minting membership...');
-                    const mintResponse = await fetch('/api/towns/mint-membership', {
+                    // Mint membership
+                    await fetch('/api/towns/mint-membership', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
                     });
-                    if (!mintResponse.ok) throw new Error('Membership minting failed');
 
-                    // ✅ STEP 2: Fund wallet
-                    console.log('💰 Funding wallet...');
+                    // Fund wallet
                     const fundResponse = await fetch('/api/towns/fund-wallet', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userAddress }),
                     });
-                    if (!fundResponse.ok) throw new Error('Wallet funding failed');
-                    
                     const fundData = await fundResponse.json();
 
-                    // ✅ STEP 3: Wait for funding to confirm
+                    // Wait for funding if needed
                     if (!fundData.alreadyFunded) {
-                        console.log('⏳ Waiting for funding...');
-                        
                         const { ethers } = await import('ethers-v5');
                         const provider = new ethers.providers.JsonRpcProvider(
                             process.env.NEXT_PUBLIC_BASE_RPC_URL
@@ -98,29 +88,25 @@ function SetupFlow() {
                         for (let i = 0; i < 20; i++) {
                             await new Promise(resolve => setTimeout(resolve, 3000));
                             const balance = await provider.getBalance(userAddress);
-                            console.log(`💰 Balance: ${ethers.utils.formatEther(balance)} ETH`);
                             
                             if (balance.gt(0)) {
-                                console.log('✅ Funded!');
-                                await new Promise(resolve => setTimeout(resolve, 5000)); // Buffer
+                                await new Promise(resolve => setTimeout(resolve, 5000));
                                 break;
                             }
                         }
                     }
                 }
 
-                // ✅ STEP 4: Connect to Towns
-                console.log('🔐 Connecting to Towns...');
+                // Connect to Towns
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('⚠️ Token expired')
+                    onTokenExpired: () => console.log('Token expired')
                 });
-                console.log('✅ Connected to Towns!');
                 setSetupComplete(true);
 
             } catch (error: any) {
-                console.error('❌ Setup failed:', error);
+                console.error('Setup failed:', error);
                 alert(`Setup failed: ${error.message}`);
             }
         };
@@ -128,23 +114,17 @@ function SetupFlow() {
         runSetup();
     }, [wallet, isAgentConnected, setupComplete, connect]);
 
-    // Show loading while setting up
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md">
-                <div className="text-6xl mb-4">🔄</div>
-                <h1 className="font-adonis text-4xl mb-4">Setting up your chat...</h1>
                 <LoadingSpinner />
-                <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                    This may take up to a minute...
-                </p>
             </div>
         </div>
     );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STEP 2: TOWNS COMPONENTS (Only rendered AFTER connected)
+// TOWNS CHAT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -171,7 +151,6 @@ function TownsChat() {
         };
     }, [wallet]);
 
-    // ✅ Auto-join space once
     useEffect(() => {
         if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
 
@@ -184,11 +163,8 @@ function TownsChat() {
                     return;
                 }
 
-                console.log('🚪 Joining space...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
                 await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: false });
-                console.log('✅ Joined space!');
                 
                 localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
                 setSpaceId(SAVED_SPACE_ID);
@@ -200,7 +176,7 @@ function TownsChat() {
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                 } else {
-                    console.error('❌ Join failed:', error);
+                    console.error('Join failed:', error);
                 }
             }
         };
@@ -222,15 +198,7 @@ function TownsChat() {
         );
     }
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="text-center max-w-md">
-                <div className="text-6xl mb-4">🚪</div>
-                <h1 className="font-adonis text-4xl mb-4">Joining space...</h1>
-                <LoadingSpinner />
-            </div>
-        </div>
-    );
+    return <LoadingSpinner />;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -253,9 +221,9 @@ function KeySharerBot() {
                 const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
                 const botWallet = new ethers.Wallet(privateKey, provider);
                 
-                console.log('🔑 Bot joining space...');
+                console.log('Bot joining space...');
                 
-                // Fund + mint
+                // Mint and fund
                 await fetch('/api/towns/mint-membership', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -276,16 +244,16 @@ function KeySharerBot() {
                 }
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 
-                // Join
+                // Join space
                 await joinSpace(SAVED_SPACE_ID, botWallet, { skipMintMembership: false });
-                console.log('✅ Bot joined!');
+                console.log('Bot joined successfully');
                 setHasJoined(true);
 
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
                     setHasJoined(true);
                 } else {
-                    console.error('❌ Bot failed:', error);
+                    console.error('Bot join failed:', error);
                     setTimeout(() => window.location.reload(), 20000);
                 }
             }
@@ -298,8 +266,7 @@ function KeySharerBot() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <div className="text-6xl mb-4">🔄</div>
-                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Joining...</h1>
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Starting...</h1>
                     <LoadingSpinner />
                 </div>
             </div>
@@ -309,8 +276,10 @@ function KeySharerBot() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center">
-                <div className="text-6xl mb-4">🟢</div>
-                <h1 className="font-adonis text-4xl mb-4">Key Sharer Online</h1>
+                <h1 className="font-adonis text-4xl mb-4 text-green-600">Key Sharer Online</h1>
+                <p className="font-georgia-pro text-sm text-gray-400">
+                    Connected at {new Date().toLocaleTimeString()}
+                </p>
             </div>
         </div>
     );
@@ -348,18 +317,18 @@ export default function ChatTestClient() {
                 
                 await connect(botWallet, { 
                     townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('⚠️ Token expired')
+                    onTokenExpired: () => console.log('Token expired')
                 });
-                console.log('✅ Bot connected to Towns');
+                console.log('Bot connected to Towns');
             } catch (error) {
-                console.error('❌ Bot login failed:', error);
+                console.error('Bot login failed:', error);
             }
         })();
     }, [isMounted, isAgentConnected, connect]);
 
     if (!isMounted) return <LoadingSpinner />;
 
-    // BOT MODE
+    // Bot mode
     if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE) {
         if (!isAgentConnected) {
             return (
@@ -374,7 +343,7 @@ export default function ChatTestClient() {
         return <KeySharerBot />;
     }
 
-    // USER MODE
+    // User mode
     if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -386,7 +355,6 @@ export default function ChatTestClient() {
         );
     }
 
-    // After wallet connected: fund + connect, THEN render Towns components
     if (!isAgentConnected) {
         return <SetupFlow />;
     }
