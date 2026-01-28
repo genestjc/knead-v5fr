@@ -43,12 +43,26 @@ const wallets = [
   }),
 ];
 
-// ✅ Wrapper component that checks agent connection
+// ✅ Wrapper component that checks agent connection with timing guard
 function TownsConnectedContent() {
     const { isAgentConnected } = useAgentConnection();
+    const [isReady, setIsReady] = useState(false);
     
-    // Don't render inner component until agent is connected
-    if (!isAgentConnected) {
+    useEffect(() => {
+        // Small delay to ensure sync agent is fully propagated through context
+        if (isAgentConnected) {
+            const timer = setTimeout(() => {
+                console.log('✅ Agent connected and ready, rendering Towns components');
+                setIsReady(true);
+            }, 100);
+            return () => clearTimeout(timer);
+        } else {
+            setIsReady(false);
+        }
+    }, [isAgentConnected]);
+    
+    // Don't render inner component until agent is connected AND ready
+    if (!isAgentConnected || !isReady) {
         return (
             <div className="text-center max-w-md space-y-6">
                 <h1 className="font-adonis text-4xl mb-4">Connecting...</h1>
@@ -70,7 +84,7 @@ function TownsConnectedContentInner() {
 
     const wallet = useActiveWallet();
     const { createSpace } = useCreateSpace();
-    const { joinSpace } = useJoinSpace(); // ✅ Now called AFTER agent is connected
+    const { joinSpace } = useJoinSpace();
     const { data: space } = useSpace(spaceId || '');
     const { isAgentConnected, connect } = useAgentConnection();
 
@@ -346,7 +360,6 @@ export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected, isAgentConnecting, connect } = useAgentConnection();
-    // ✅ Removed: const { joinSpace } = useJoinSpace(); - moved to inner component
 
     useEffect(() => {
         setIsMounted(true);
