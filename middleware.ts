@@ -117,7 +117,7 @@ export function middleware(request: NextRequest) {
       https://api.thirdweb.com
       https://*.thirdweb.com
       https://mainnet.base.org
-      https://base-mainnet.g.alchemy.com
+      https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s
       https://*.alchemy.com
       https://base.llamarpc.com
       https://*.supabase.co
