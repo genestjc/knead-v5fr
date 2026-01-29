@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ethers } from 'ethers-v5';
-import { useAgentConnection, useJoinSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
 
 const SPACE_ID = '10616843f796b43e6ef972e7c345d2b06d855135430000000000000000000000';
@@ -12,6 +12,74 @@ const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
   rpcUrl: RPC_URL,
 });
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMPONENT THAT USES useJoinSpace (only renders when agent is connected)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function JoinSpaceFlow({ 
+  botWallet, 
+  botAddress, 
+  onResult, 
+  log 
+}: { 
+  botWallet: ethers.Wallet; 
+  botAddress: string;
+  onResult: (result: any) => void;
+  log: (msg: string, color?: string) => void;
+}) {
+  const { useJoinSpace } = require('@towns-protocol/react-sdk');
+  const { joinSpace, isPending } = useJoinSpace();
+  const [hasJoined, setHasJoined] = useState(false);
+
+  // Auto-join when this component mounts
+  useState(() => {
+    if (hasJoined) return;
+
+    const performJoin = async () => {
+      try {
+        log('🚀 Calling joinSpace...');
+        log(`   Space ID: ${SPACE_ID.substring(0, 16)}...`);
+        log('   This will mint the membership NFT...');
+        log('   Please wait (30-90 seconds)...');
+
+        await joinSpace(SPACE_ID, botWallet, {
+          skipMintMembership: false,
+        });
+
+        log('✅ JOIN SUCCESSFUL!', '#10b981');
+        onResult({ success: true, address: botAddress });
+        setHasJoined(true);
+
+      } catch (err: any) {
+        log(`❌ Join Error: ${err.message}`, '#ef4444');
+        console.error('Full error:', err);
+
+        // Handle "already a member" as success
+        if (err.message?.includes('already a member') || 
+            err.message?.includes('already in space')) {
+          log('ℹ️ Bot is already a member - treating as success', '#10b981');
+          onResult({ success: true, address: botAddress, alreadyMember: true });
+          setHasJoined(true);
+        } else {
+          onResult({ success: false, error: err.message, stack: err.stack });
+        }
+      }
+    };
+
+    performJoin();
+  }, [hasJoined, joinSpace, botWallet, botAddress, log, onResult]);
+
+  return (
+    <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #3b82f6' }}>
+      <strong>Status:</strong> {isPending ? 'Minting membership NFT...' : 'Joining space...'}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN COMPONENT (doesn't use useJoinSpace directly)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 export default function BotJoinClient() {
   const [privateKey, setPrivateKey] = useState('');
   const [logs, setLogs] = useState<{ msg: string; color: string }[]>([]);
@@ -20,11 +88,8 @@ export default function BotJoinClient() {
   const [botAddress, setBotAddress] = useState('');
   const [botWallet, setBotWallet] = useState<ethers.Wallet | null>(null);
 
-  // Agent connection
+  // Agent connection hook (safe to use at top level)
   const { connect, isAgentConnected, isAgentConnecting } = useAgentConnection();
-  
-  // Join space hook (only works after agent is connected)
-  const { joinSpace, isPending, isError, error } = useJoinSpace();
 
   const log = (msg: string, color = '#666') => {
     const timestamp = new Date().toLocaleTimeString();
@@ -71,6 +136,7 @@ export default function BotJoinClient() {
       });
 
       log('✅ Connected to Towns!', '#10b981');
+      setIsProcessing(false);
 
     } catch (err: any) {
       log(`❌ Error: ${err.message}`, '#ef4444');
@@ -80,45 +146,7 @@ export default function BotJoinClient() {
     }
   };
 
-  // Auto-join after agent connection
-  useEffect(() => {
-    if (!isAgentConnected || !botWallet || result) return;
-
-    const performJoin = async () => {
-      try {
-        log('🚀 Calling joinSpace...');
-        log(`   Space ID: ${SPACE_ID.substring(0, 16)}...`);
-        log('   This will mint the membership NFT...');
-        log('   Please wait (30-90 seconds)...');
-
-        await joinSpace(SPACE_ID, botWallet, {
-          skipMintMembership: false,
-        });
-
-        log('✅ JOIN SUCCESSFUL!', '#10b981');
-        setResult({ success: true, address: botAddress });
-
-      } catch (err: any) {
-        log(`❌ Join Error: ${err.message}`, '#ef4444');
-        console.error('Full error:', err);
-        
-        // Handle "already a member" as success
-        if (err.message?.includes('already a member') || 
-            err.message?.includes('already in space')) {
-          log('ℹ️ Bot is already a member - treating as success', '#10b981');
-          setResult({ success: true, address: botAddress, alreadyMember: true });
-        } else {
-          setResult({ success: false, error: err.message, stack: err.stack });
-        }
-      } finally {
-        setIsProcessing(false);
-      }
-    };
-
-    performJoin();
-  }, [isAgentConnected, botWallet, joinSpace, result, botAddress]);
-
-  const isLoading = isProcessing || isAgentConnecting || isPending;
+  const isLoading = isProcessing || isAgentConnecting;
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', maxWidth: '600px', margin: '50px auto', padding: '20px', background: '#f9f9f9' }}>
@@ -166,12 +194,18 @@ export default function BotJoinClient() {
 
       {isLoading && (
         <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #3b82f6' }}>
-          <strong>Status:</strong> {
-            isAgentConnecting ? 'Connecting to Towns...' :
-            isPending ? 'Minting membership NFT...' :
-            'Processing...'
-          }
+          <strong>Status:</strong> {isAgentConnecting ? 'Connecting to Towns...' : 'Processing...'}
         </div>
+      )}
+
+      {/* Only render JoinSpaceFlow AFTER agent is connected */}
+      {isAgentConnected && botWallet && !result && (
+        <JoinSpaceFlow
+          botWallet={botWallet}
+          botAddress={botAddress}
+          onResult={setResult}
+          log={log}
+        />
       )}
 
       {result?.success && (
@@ -194,7 +228,7 @@ export default function BotJoinClient() {
       {result?.success === false && (
         <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #ef4444' }}>
           <h3>❌ Join Failed</h3>
-          <p><strong>Error:</strong> {result.error || error?.message}</p>
+          <p><strong>Error:</strong> {result.error}</p>
           {result?.stack && (
             <details>
               <summary>Show error details</summary>
@@ -206,7 +240,6 @@ export default function BotJoinClient() {
           <button
             onClick={() => {
               setResult(null);
-              setIsProcessing(false);
               setBotWallet(null);
               setBotAddress('');
             }}
@@ -226,9 +259,9 @@ export default function BotJoinClient() {
       )}
 
       <div style={{ marginTop: '20px' }}>
-        {logs.map((log, i) => (
-          <p key={i} style={{ margin: '5px 0', fontSize: '14px', color: log.color }}>
-            {log.msg}
+        {logs.map((logEntry, i) => (
+          <p key={i} style={{ margin: '5px 0', fontSize: '14px', color: logEntry.color }}>
+            {logEntry.msg}
           </p>
         ))}
       </div>
