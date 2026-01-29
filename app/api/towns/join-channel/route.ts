@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers-v5';
+import { townsEnv, makeStreamRpcClient } from '@towns-protocol/sdk';
 
 const RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL!;
 
@@ -21,21 +22,13 @@ export async function POST(req: NextRequest) {
     
     console.log('   Bot address:', botWallet.address);
     
-    // Use Towns SDK to join channel
-    const { townsEnv } = await import('@towns-protocol/sdk');
     const townsConfig = townsEnv().makeTownsConfig('omega', { rpcUrl: RPC_URL });
     
-    // Join the channel through the River protocol
-    const { makeStreamRpcClient } = await import('@river-build/sdk');
+    // Create stream RPC client
+    const streamClient = makeStreamRpcClient(townsConfig.riverConfig);
     
-    const streamClient = makeStreamRpcClient({
-      rpcUrls: [townsConfig.riverConfig.rpcUrl],
-    });
-    
-    await streamClient.joinStream({
-      streamId: channelId,
-      wallet: botWallet,
-    });
+    // Join the channel stream
+    await streamClient.joinStream(channelId, botWallet);
     
     console.log('✅ Bot successfully joined channel!');
     
