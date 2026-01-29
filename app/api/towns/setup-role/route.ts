@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Bot } from '@towns-protocol/sdk';
+import { makeTownsBot } from '@towns-protocol/bot';
 import { Permission } from '@towns-protocol/web3';
 import { ethers } from 'ethers-v5';
 
@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
     
     console.log(`   Owner wallet: ${ownerWallet.address}`);
 
-    // Initialize bot
+    // Initialize bot using makeTownsBot
     console.log('\n🔧 Initializing bot...');
-    const bot = await Bot.init(ownerWallet);
+    const bot = await makeTownsBot(ownerWallet, 'omega'); // 'omega' = mainnet
     
     console.log('🔧 Creating role...');
     
