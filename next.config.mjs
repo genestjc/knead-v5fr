@@ -16,14 +16,16 @@ const nextConfig = {
     '@towns-protocol/generated'
   ],
   
-  // ✅ ADD THIS WEBPACK CONFIG
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      crypto: require.resolve('crypto-browserify'),
-      stream: require.resolve('stream-browserify'),
-      buffer: require.resolve('buffer'),
-    };
+  // ✅ WEBPACK CONFIG FOR .mjs FILES
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        stream: false,
+        buffer: false,
+      };
+    }
     return config;
   },
   
