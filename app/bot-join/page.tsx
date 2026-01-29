@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import nextDynamic from 'next/dynamic';
+import { TownsSyncProvider } from '@towns-protocol/react-sdk';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -34,5 +35,9 @@ const BotJoinClient = nextDynamic(() => import('./bot-join-client'), {
 });
 
 export default function BotJoinPage() {
-  return <BotJoinClient />;
+  return (
+    <TownsSyncProvider>
+      <BotJoinClient />
+    </TownsSyncProvider>
+  );
 }
