@@ -2,17 +2,20 @@
 
 import { useState } from 'react';
 import { ethers } from 'ethers-v5';
-import { JoinSpace, townsEnv } from '@towns-protocol/sdk';
+import { useJoinSpace } from '@towns-protocol/react-sdk';
 
-const SPACE_ID = '23';
+const SPACE_ID = '10616843f796b43e6ef972e7c345d2b06d855135430000000000000000000000';
 const RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s';
 
 export default function BotJoinPage() {
   const [privateKey, setPrivateKey] = useState('');
-  const [status, setStatus] = useState('');
   const [logs, setLogs] = useState<{ msg: string; color: string }[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [botAddress, setBotAddress] = useState('');
+
+  // Use the Towns React SDK hook
+  const { joinSpace, isPending, isError, error } = useJoinSpace();
 
   const log = (msg: string, color = '#666') => {
     const timestamp = new Date().toLocaleTimeString();
@@ -26,15 +29,13 @@ export default function BotJoinPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsProcessing(true);
     setLogs([]);
     setResult(null);
-    setStatus('Starting join process...');
 
     try {
-      log('✅ Using installed Towns SDK', '#10b981');
+      log('✅ Using Towns React SDK hook', '#10b981');
       log('🔐 Creating bot wallet...');
-      setStatus('Creating wallet...');
 
       const provider = new ethers.providers.StaticJsonRpcProvider(RPC_URL, {
         chainId: 8453,
@@ -42,9 +43,10 @@ export default function BotJoinPage() {
       });
 
       const wallet = new ethers.Wallet(privateKey, provider);
+      setBotAddress(wallet.address);
       log(`✅ Bot wallet: ${wallet.address}`, '#10b981');
 
-      setStatus('Checking balance...');
+      log('💰 Checking balance...');
       const balance = await provider.getBalance(wallet.address);
       const balanceEth = ethers.utils.formatEther(balance);
       log(`💰 Balance: ${balanceEth} ETH`);
@@ -53,48 +55,34 @@ export default function BotJoinPage() {
         throw new Error('Bot has no ETH for gas fees');
       }
 
-      setStatus('Configuring Towns...');
-      log('📝 Creating Towns config...');
-
-      const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-        rpcUrl: RPC_URL,
-      });
-
-      log('✅ Towns config created', '#10b981');
-
-      setStatus('Joining space (30-90 seconds)...');
-      log('🚀 Calling JoinSpace...');
+      log('🚀 Calling joinSpace...');
       log(`   Space ID: ${SPACE_ID}`);
       log('   This will mint the membership NFT...');
-      log('   Please wait...');
+      log('   Please wait (30-90 seconds)...');
 
-      const joinResult = await JoinSpace({
-        spaceId: SPACE_ID,
-        signer: wallet,
-        townsConfig: TOWNS_CONFIG,
+      // Call the hook function with spaceId, signer, and options
+      await joinSpace(SPACE_ID, wallet, {
         skipMintMembership: false,
       });
 
       log('✅ JOIN SUCCESSFUL!', '#10b981');
-      log(`Result: ${JSON.stringify(joinResult, null, 2)}`);
+      setResult({ success: true, address: wallet.address });
 
-      setStatus('success');
-      setResult({ address: wallet.address, data: joinResult });
-
-    } catch (error: any) {
-      log(`❌ Error: ${error.message}`, '#ef4444');
-      console.error('Full error:', error);
-      setStatus('error');
-      setResult({ error: error.message, stack: error.stack });
+    } catch (err: any) {
+      log(`❌ Error: ${err.message}`, '#ef4444');
+      console.error('Full error:', err);
+      setResult({ success: false, error: err.message, stack: err.stack });
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
+
+  const isLoading = isProcessing || isPending;
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', maxWidth: '600px', margin: '50px auto', padding: '20px', background: '#f9f9f9' }}>
       <h1>🤖 Bot Join Space</h1>
-      <p>Join bot to Towns Space #23 using installed SDK</p>
+      <p>Join bot to Knead Chat space using React SDK</p>
 
       <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white' }}>
         <label><strong>Bot Private Key:</strong></label>
@@ -131,41 +119,40 @@ export default function BotJoinPage() {
         {isLoading ? 'Joining...' : 'Join Space Now'}
       </button>
 
-      {status && status !== 'success' && status !== 'error' && (
+      {isLoading && (
         <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #3b82f6' }}>
-          <strong>Status:</strong> {status}
+          <strong>Status:</strong> {isPending ? 'Minting membership NFT...' : 'Processing...'}
         </div>
       )}
 
-      {status === 'success' && result && (
+      {result?.success && (
         <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #10b981' }}>
           <h3>✅ Bot Joined Successfully!</h3>
           <p><strong>Bot Address:</strong> <code>{result.address}</code></p>
-          <p><strong>Space ID:</strong> {SPACE_ID}</p>
-          <details>
-            <summary>Show result details</summary>
-            <pre style={{ background: '#f1f1f1', padding: '10px', overflow: 'auto', fontSize: '11px' }}>
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          </details>
+          <p><strong>Space ID:</strong> <code style={{ fontSize: '10px', wordBreak: 'break-all' }}>{SPACE_ID}</code></p>
           <p style={{ marginTop: '20px' }}>
             <a href={`https://basescan.org/address/${result.address}`} target="_blank" style={{ color: '#000' }}>
               View on BaseScan →
             </a>
           </p>
+          <p style={{ marginTop: '10px', color: '#666' }}>
+            <strong>Next:</strong> Check if bot appears in Towns space member list!
+          </p>
         </div>
       )}
 
-      {status === 'error' && result && (
+      {(result?.success === false || isError) && (
         <div style={{ padding: '20px', margin: '20px 0', borderRadius: '8px', background: 'white', borderLeft: '4px solid #ef4444' }}>
           <h3>❌ Join Failed</h3>
-          <p><strong>Error:</strong> {result.error}</p>
-          <details>
-            <summary>Show error details</summary>
-            <pre style={{ background: '#f1f1f1', padding: '10px', overflow: 'auto', fontSize: '11px' }}>
-              {result.stack}
-            </pre>
-          </details>
+          <p><strong>Error:</strong> {result?.error || error?.message}</p>
+          {result?.stack && (
+            <details>
+              <summary>Show error details</summary>
+              <pre style={{ background: '#f1f1f1', padding: '10px', overflow: 'auto', fontSize: '11px' }}>
+                {result.stack}
+              </pre>
+            </details>
+          )}
         </div>
       )}
 
