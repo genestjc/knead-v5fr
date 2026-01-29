@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     console.log('🤖 MANUAL BOT JOIN - SERVER SIDE');
     console.log(`   Space ID: ${SPACE_ID}`);
 
-    // Import ethers and Towns SDK server-side
-    const { ethers } = await import('ethers');
+    // ✅ FIXED: Import ethers-v5 instead of ethers
+    const { ethers } = await import('ethers-v5');
     const { JoinSpace, townsEnv } = await import('@towns-protocol/sdk');
     
     const botWallet = new ethers.Wallet(BOT_PRIVATE_KEY);
