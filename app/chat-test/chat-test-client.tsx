@@ -13,9 +13,24 @@ import type { ChatUser } from '@/types/chat';
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
+// ✅ Debug RPC URL
+const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🔍 RPC Configuration Check:');
+console.log('   BASE_RPC_URL:', BASE_RPC_URL?.substring(0, 50) + '...');
+console.log('   Is Alchemy?:', BASE_RPC_URL?.includes('alchemy'));
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+if (!BASE_RPC_URL || !BASE_RPC_URL.includes('alchemy')) {
+  console.error('❌ CRITICAL: Not using Alchemy RPC! This will cause rate limits.');
+  console.error('   Set NEXT_PUBLIC_BASE_RPC_URL in your .env.local file');
+}
+
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+  rpcUrl: BASE_RPC_URL,
 });
+
+console.log('🏙️ Towns Config:', TOWNS_CONFIG);
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -86,6 +101,7 @@ function SetupFlow() {
                 // Step 2: Connect to Towns agent
                 setSetupStep("Connecting to Towns...");
                 console.log('🔌 Connecting to Towns agent');
+                console.log('   Using RPC:', BASE_RPC_URL?.substring(0, 50) + '...');
                 
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 await connect(signer, { 
@@ -184,6 +200,8 @@ function TownsChat() {
         setIsJoining(true);
         try {
             console.log('🚀 Joining space for the first time...');
+            console.log('   Using RPC:', BASE_RPC_URL?.substring(0, 50) + '...');
+            
             const signer = await getEthersV5Signer(wallet, activeChain, client);
             
             await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
@@ -340,12 +358,10 @@ function KeySharerBot() {
                 console.log('🤖 Bot Join Attempt Starting');
                 console.log('   Bot Address:', botAddress);
                 console.log('   Space ID:', SAVED_SPACE_ID);
-                console.log('   Auto-login already connected:', !!(window as any).KEY_SHARER_CONNECTED);
+                console.log('   Using RPC:', BASE_RPC_URL?.substring(0, 50) + '...');
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                const provider = new ethers.providers.JsonRpcProvider(
-                    process.env.NEXT_PUBLIC_BASE_RPC_URL
-                );
+                const provider = new ethers.providers.JsonRpcProvider(BASE_RPC_URL);
                 const balance = await provider.getBalance(botAddress);
                 const balanceEth = ethers.utils.formatEther(balance);
                 
@@ -363,7 +379,6 @@ function KeySharerBot() {
                 
                 if (!hasJoinedBefore) {
                     console.log('🚀 Attempting to join space...');
-                    console.log('   Towns SDK will handle channel access automatically');
                     
                     await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
                         skipMintMembership: true
@@ -377,99 +392,55 @@ function KeySharerBot() {
                 
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.log('✅ BOT JOINED SUCCESSFULLY!');
-                console.log('   Channels will be available after space syncs');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 setHasJoined(true);
 
             } catch (error: any) {
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.error('❌ Bot Join Failed:');
                 console.error('   Message:', error.message || 'Unknown error');
-                console.error('   Code:', error.code || 'N/A');
-                console.error('   Reason:', error.reason || 'N/A');
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // Handle common error cases
                 if (error.message?.includes('already a member') || 
                     error.message?.includes('already in space') ||
                     error.message?.includes('already joined')) {
-                    console.log('✅ Bot appears to already be a member - treating as success');
+                    console.log('✅ Bot appears to already be a member');
                     localStorage.setItem(`bot_joined_${SAVED_SPACE_ID}`, 'true');
                     setHasJoined(true);
-                    return;
                 }
-                
-                // Don't treat permission/funding errors as success
-                if (error.message?.includes('PERMISSION_DENIED') ||
-                    error.message?.includes('INSUFFICIENT_FUNDS') ||
-                    error.code === 'INSUFFICIENT_FUNDS') {
-                    console.error('❌ Join failed with permission/funding error');
-                    console.error('💡 Bot needs manual intervention');
-                    return;
-                }
-                
-                console.error('❌ Join failed - manual intervention needed');
             }
         };
 
         joinAsBot();
     }, [hasJoined, joinSpace]);
 
-    // Debug logging for space sync status
     useEffect(() => {
         if (space) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('🤖 Bot Space Sync Status:');
             console.log('   Initialized:', space.initialized);
             console.log('   Channels:', space.channelIds?.length || 0);
-            console.log('   Channel IDs:', space.channelIds);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
-    // Wait for space to load
-    if (isSpaceLoading) {
+    if (isSpaceLoading || !space?.initialized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <h1 className="font-adonis text-4xl mb-4">Key Sharer Starting...</h1>
                     <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Loading space data...
-                    </p>
                 </div>
             </div>
         );
     }
 
-    // Wait for space to sync (same pattern as TownsChat)
-    if (!space?.initialized) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Syncing...</h1>
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Syncing with stream nodes...
-                    </p>
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This may take a few seconds
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    // Bot is ready when space is synced
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center">
                 <h1 className="font-adonis text-4xl mb-4 text-green-600">✅ Key Sharer Online</h1>
                 <p className="font-georgia-pro text-sm text-gray-600 mb-2">
                     Channels: {space.channelIds?.length || 0}
-                </p>
-                <p className="font-georgia-pro text-xs text-gray-400">
-                    Connected at {new Date().toLocaleTimeString()}
                 </p>
             </div>
         </div>
@@ -504,10 +475,7 @@ export default function ChatTestClient() {
                 const { ethers } = await import('ethers-v5');
                 
                 const botWallet = new ethers.Wallet(privateKey);
-                
-                const provider = new ethers.providers.JsonRpcProvider(
-                    process.env.NEXT_PUBLIC_BASE_RPC_URL
-                );
+                const provider = new ethers.providers.JsonRpcProvider(BASE_RPC_URL);
                 const connectedWallet = botWallet.connect(provider);
                 
                 await connect(connectedWallet, { 
