@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRpcClient } from 'thirdweb/rpc';
+import { client } from "@/thirdweb-client";
+import { base } from "thirdweb/chains";
 
 export const dynamic = "force-dynamic";
 
@@ -24,49 +27,41 @@ export async function POST(req: NextRequest) {
     console.log('🤖 MANUAL BOT JOIN - SERVER SIDE');
     console.log(`   Space ID: ${SPACE_ID}`);
 
-    // ✅ FIXED: Import ethers-v5 instead of ethers
+    // ✅ Import ethers-v5 for wallet only
     const { ethers } = await import('ethers-v5');
     const { JoinSpace, townsEnv } = await import('@towns-protocol/sdk');
     
     const botWallet = new ethers.Wallet(BOT_PRIVATE_KEY);
     const botAddress = botWallet.address;
-
+    
     console.log(`   Bot Address: ${botAddress}`);
 
-    // ✅ Connect wallet to Base with explicit chain config
-    const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
-    console.log(`   RPC URL configured: ${!!rpcUrl}`);
-
-    if (!rpcUrl) {
-      return NextResponse.json({ 
-        error: 'NEXT_PUBLIC_BASE_RPC_URL not configured' 
-      }, { status: 500 });
-    }
-
-    // ✅ Define Base network explicitly to avoid auto-detection
-    const baseNetwork = {
-      name: 'base',
-      chainId: 8453,
-    };
-
-    const provider = new ethers.providers.StaticJsonRpcProvider(
-      rpcUrl,
-      baseNetwork
-    );
-
-    const connectedWallet = botWallet.connect(provider);
-
-    // Check balance
-    const balance = await provider.getBalance(botAddress);
-    const balanceEth = ethers.utils.formatEther(balance);
+    // ✅ Use ThirdWeb RPC (works in serverless)
+    const rpcClient = getRpcClient({ client, chain: base });
+    
+    // Check balance using ThirdWeb
+    const balanceHex = await rpcClient({
+      method: 'eth_getBalance',
+      params: [botAddress, 'latest'],
+    });
+    const balance = BigInt(balanceHex);
+    const balanceEth = (Number(balance) / 1e18).toFixed(6);
     console.log(`   Balance: ${balanceEth} ETH`);
     
-    if (balance.eq(0)) {
+    if (balance === BigInt(0)) {
       return NextResponse.json({ 
         error: 'Bot wallet has no ETH for gas',
         botAddress,
       }, { status: 400 });
     }
+
+    // ✅ Create provider for Towns SDK
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      process.env.NEXT_PUBLIC_BASE_RPC_URL,
+      { name: 'base', chainId: 8453 }
+    );
+    
+    const connectedWallet = botWallet.connect(provider);
 
     // Configure Towns
     const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
