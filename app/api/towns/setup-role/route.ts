@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Bot, Permission } from '@towns-protocol/core';
+import { Bot } from '@towns-protocol/sdk';
+import { Permission } from '@towns-protocol/web3';
 import { ethers } from 'ethers-v5';
 
 export const dynamic = "force-dynamic";
