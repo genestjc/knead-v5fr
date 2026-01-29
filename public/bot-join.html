@@ -34,7 +34,7 @@
 
   <script type="module">
     import { ethers } from 'https://esm.sh/ethers@5.7.2';
-    import { JoinSpace, townsEnv } from 'https://esm.sh/@towns-protocol/sdk@0.10.1';
+    import { JoinSpace, townsEnv } from 'https://esm.sh/@towns-protocol/sdk';
 
     const SPACE_ID = '23';
     const RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s';
@@ -46,6 +46,8 @@
       document.getElementById('logs').appendChild(p);
       console.log(msg);
     }
+
+    console.log('✅ Module loaded - button should work');
 
     document.getElementById('joinBtn').onclick = async function() {
       const output = document.getElementById('output');
