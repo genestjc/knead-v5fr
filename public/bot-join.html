@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Bot Join Space</title>
-  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
     body { font-family: Georgia, serif; max-width: 600px; margin: 50px auto; padding: 20px; background: #f9f9f9; }
     .box { padding: 20px; margin: 20px 0; border-radius: 8px; background: white; }
@@ -28,12 +27,18 @@
     <small style="color: #666;">Stays in your browser, never sent anywhere</small>
   </div>
   
-  <button id="joinBtn" onclick="join()">Join Space Now</button>
+  <button id="joinBtn">Join Space Now</button>
   
   <div id="output"></div>
   <div id="logs" class="logs"></div>
 
-  <script>
+  <script type="module">
+    import { ethers } from 'https://esm.sh/ethers@5.7.2';
+    import { JoinSpace, townsEnv } from 'https://esm.sh/@towns-protocol/sdk@0.10.1';
+
+    const SPACE_ID = '23';
+    const RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s';
+
     function log(msg, color = '#666') {
       const p = document.createElement('p');
       p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -42,7 +47,7 @@
       console.log(msg);
     }
 
-    async function join() {
+    document.getElementById('joinBtn').onclick = async function() {
       const output = document.getElementById('output');
       const logsDiv = document.getElementById('logs');
       const btn = document.getElementById('joinBtn');
@@ -58,20 +63,16 @@
       output.innerHTML = '<div class="box loading"><strong>Status:</strong> Starting join process...</div>';
       
       try {
-        // Check ethers loaded
-        if (!window.ethers) {
-          throw new Error('ethers.js not loaded from CDN');
-        }
-        
-        log('✅ ethers.js loaded', '#10b981');
+        log('✅ ethers.js loaded (ESM)', '#10b981');
+        log('✅ Towns SDK loaded (ESM)', '#10b981');
         
         output.innerHTML = '<div class="box loading"><strong>Status:</strong> Creating wallet...</div>';
         log('🔐 Creating bot wallet...');
         
-        const provider = new ethers.providers.StaticJsonRpcProvider(
-          'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s',
-          { chainId: 8453, name: 'base' }
-        );
+        const provider = new ethers.providers.StaticJsonRpcProvider(RPC_URL, {
+          chainId: 8453,
+          name: 'base'
+        });
         
         const wallet = new ethers.Wallet(key, provider);
         log(`✅ Bot wallet: ${wallet.address}`, '#10b981');
@@ -85,99 +86,69 @@
           throw new Error('Bot has no ETH for gas fees');
         }
         
-        output.innerHTML = '<div class="box loading"><strong>Status:</strong> Loading Towns SDK (this may take a moment)...</div>';
-        log('📦 Loading Towns SDK from esm.sh...');
+        output.innerHTML = '<div class="box loading"><strong>Status:</strong> Configuring Towns...</div>';
+        log('📝 Creating Towns config...');
         
-        // Dynamically create module script
-        const moduleScript = document.createElement('script');
-        moduleScript.type = 'module';
-        moduleScript.textContent = `
-          import { JoinSpace, townsEnv } from 'https://esm.sh/@towns-protocol/sdk@0.10.1';
-          
-          const output = document.getElementById('output');
-          const wallet = new ethers.Wallet('${key}', new ethers.providers.StaticJsonRpcProvider(
-            'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s',
-            { chainId: 8453, name: 'base' }
-          ));
-          
-          window.log('✅ Towns SDK loaded', '#10b981');
-          
-          const config = townsEnv().makeTownsConfig('omega', {
-            rpcUrl: 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s'
-          });
-          
-          window.log('📝 Towns config created');
-          output.innerHTML = '<div class="box loading"><strong>Status:</strong> Joining space (30-90 seconds)...</div>';
-          window.log('🚀 Calling JoinSpace for Space #23...');
-          window.log('   This will mint the membership NFT...');
-          
-          try {
-            const result = await JoinSpace({
-              spaceId: '23',
-              signer: wallet,
-              townsConfig: config,
-              skipMintMembership: false,
-            });
-            
-            window.log('✅ JOIN SUCCESSFUL!', '#10b981');
-            window.log('Result: ' + JSON.stringify(result, null, 2));
-            
-            output.innerHTML = \`
-              <div class="box success">
-                <h3>✅ Bot Joined Successfully!</h3>
-                <p><strong>Bot Address:</strong> <code>${wallet.address}</code></p>
-                <p><strong>Space ID:</strong> 23</p>
-                <details>
-                  <summary>Show result details</summary>
-                  <pre>\${JSON.stringify(result, null, 2)}</pre>
-                </details>
-                <p style="margin-top: 20px;">
-                  <a href="https://basescan.org/address/${wallet.address}" target="_blank" style="color: #000;">View on BaseScan →</a>
-                </p>
-                <p style="margin-top: 10px; color: #666;">
-                  <strong>Next:</strong> Check if bot appears in Towns space member list!
-                </p>
-              </div>
-            \`;
-            
-            document.getElementById('joinBtn').disabled = false;
-            
-          } catch (error) {
-            window.log('❌ Error: ' + error.message, '#ef4444');
-            console.error('Full error:', error);
-            
-            output.innerHTML = \`
-              <div class="box error">
-                <h3>❌ Join Failed</h3>
-                <p><strong>Error:</strong> \${error.message}</p>
-                <details>
-                  <summary>Show error details</summary>
-                  <pre>\${error.stack || JSON.stringify(error, null, 2)}</pre>
-                </details>
-              </div>
-            \`;
-            
-            document.getElementById('joinBtn').disabled = false;
-          }
+        const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
+          rpcUrl: RPC_URL,
+        });
+        
+        log('✅ Towns config created', '#10b981');
+        
+        output.innerHTML = '<div class="box loading"><strong>Status:</strong> Joining space (30-90 seconds)...</div>';
+        log('🚀 Calling JoinSpace...');
+        log(`   Space ID: ${SPACE_ID}`);
+        log('   This will mint the membership NFT...');
+        log('   Please wait...');
+        
+        const result = await JoinSpace({
+          spaceId: SPACE_ID,
+          signer: wallet,
+          townsConfig: TOWNS_CONFIG,
+          skipMintMembership: false,
+        });
+        
+        log('✅ JOIN SUCCESSFUL!', '#10b981');
+        log(`Result: ${JSON.stringify(result, null, 2)}`);
+        
+        output.innerHTML = `
+          <div class="box success">
+            <h3>✅ Bot Joined Successfully!</h3>
+            <p><strong>Bot Address:</strong> <code>${wallet.address}</code></p>
+            <p><strong>Space ID:</strong> ${SPACE_ID}</p>
+            <details>
+              <summary>Show result details</summary>
+              <pre>${JSON.stringify(result, null, 2)}</pre>
+            </details>
+            <p style="margin-top: 20px;">
+              <a href="https://basescan.org/address/${wallet.address}" target="_blank" style="color: #000;">View on BaseScan →</a>
+            </p>
+            <p style="margin-top: 10px; color: #666;">
+              <strong>Next:</strong> Check if bot appears in Towns space member list!
+            </p>
+          </div>
         `;
         
-        document.body.appendChild(moduleScript);
+        btn.disabled = false;
         
       } catch (error) {
-        log('❌ Error: ' + error.message, '#ef4444');
+        log(`❌ Error: ${error.message}`, '#ef4444');
         console.error('Full error:', error);
         
         output.innerHTML = `
           <div class="box error">
-            <h3>❌ Error</h3>
-            <p>${error.message}</p>
-            <pre>${error.stack || ''}</pre>
+            <h3>❌ Join Failed</h3>
+            <p><strong>Error:</strong> ${error.message}</p>
+            <details>
+              <summary>Show error details</summary>
+              <pre>${error.stack || JSON.stringify(error, null, 2)}</pre>
+            </details>
           </div>
         `;
         
         btn.disabled = false;
       }
-    }
+    };
   </script>
 </body>
 </html>
