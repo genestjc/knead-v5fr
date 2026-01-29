@@ -3,17 +3,16 @@
 import { useEffect, useState } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
-import { ethers5Adapter } from "thirdweb/adapters/ethers5"
-import { client, activeChain } from "@/thirdweb-client"
+import { client } from "@/thirdweb-client"
+import { usePersistentWallet } from "@/hooks/use-persistent-wallet"
 import { useToast } from "@/hooks/use-toast"
-import { joinSpace } from "@towns-protocol/web3"
 
 const wallets = [
   inAppWallet({
     auth: {
       options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
     },
-    hidePrivateKeyExport: false,
+    hidePrivateKeyExport: false, // ✅ CRITICAL: Enable private key export for non-custodial compliance
   }),
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -21,8 +20,6 @@ const wallets = [
   createWallet("io.rabby"),
   createWallet("io.zerion.wallet"),
 ]
-
-const KNEAD_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!
 
 interface ThirdWebConnectButtonProps {
   className?: string
@@ -35,96 +32,74 @@ export function ThirdWebConnectButton({
   theme = "light",
   size = "compact",
 }: ThirdWebConnectButtonProps) {
+  // Get the active account to detect connection
   const activeAccount = useActiveAccount()
   const { toast } = useToast()
   const [isOnboarding, setIsOnboarding] = useState(false)
-  const [onboardingStep, setOnboardingStep] = useState<string>("")
+  const [onboardingError, setOnboardingError] = useState<string | null>(null)
 
+  // Call the onboarding API when a wallet connects
   useEffect(() => {
+    // Only proceed if we have a connected wallet and we're not already onboarding
     if (activeAccount?.address && !isOnboarding) {
-      console.log("🎯 Starting onboarding for:", activeAccount.address);
+      console.log("Wallet connected, onboarding user:", activeAccount.address);
       setIsOnboarding(true);
+      setOnboardingError(null);
       
-      (async () => {
-        try {
-          // Step 1: Fund wallet with gas
-          setOnboardingStep("Funding wallet...");
-          console.log("💰 Step 1: Funding wallet with gas");
-          
-          const fundResponse = await fetch("/api/towns/fund-wallet", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userAddress: activeAccount.address }),
-          });
-          const fundData = await fundResponse.json();
-          
-          if (!fundData.success) {
-            throw new Error(fundData.error || "Failed to fund wallet");
-          }
-          
-          console.log("✅ Wallet funded:", fundData.alreadyFunded ? "already had funds" : "funded successfully");
-
-          // Step 2: Mint Knead article NFT
-          setOnboardingStep("Minting membership...");
-          console.log("🎫 Step 2: Minting Knead article membership");
-          
-          const onboardResponse = await fetch("/api/onboard-user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ walletAddress: activeAccount.address }),
-          });
-          const onboardData = await onboardResponse.json();
-          
-          if (!onboardData.success) {
-            throw new Error(onboardData.error || "Failed to mint membership");
-          }
-          
-          console.log("✅ Knead membership:", onboardData.alreadyMinted ? "already owned" : "minted");
-
-          // Step 3: Convert thirdweb account to ethers signer
-          setOnboardingStep("Joining community...");
-          console.log("🔄 Step 3: Converting account to ethers signer");
-          
-          const signer = await ethers5Adapter.signer.toEthers({
-            client,
-            chain: activeChain,
-            account: activeAccount,
-          });
-          
-          console.log("✅ Signer created");
-
-          // Step 4: Join Towns space
-          console.log("💬 Step 4: Joining Towns space");
-          
-          await joinSpace({
-            signer,
-            spaceId: KNEAD_SPACE_ID,
-          });
-          
-          console.log("✅ Towns space joined");
-
-          // Success!
+      // Call the onboarding API to mint the freemium NFT
+      fetch("/api/onboard-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletAddress: activeAccount.address,
+        }),
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log("Onboarding response:", data);
+        if (data.success) {
+          // Show a welcome message
           toast({
-            title: onboardData.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
-            description: onboardData.alreadyMinted 
-              ? "You're all set - enjoy the community!" 
-              : "You now have access to 3 free articles/month and community chat.",
+            title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
+            description: data.alreadyMinted 
+              ? "You're already a member." 
+              : "You've been given free access to 3 articles per month.",
           });
           
-          console.log("🎉 Onboarding complete!");
-
-        } catch (error: any) {
-          console.error("❌ Onboarding error:", error);
+          // If the transaction was successful, add transaction hash to console for debugging
+          if (data.transactionHash) {
+            console.log(`Transaction hash: ${data.transactionHash}`);
+            console.log(`View on Basescan: https://basescan.org/tx/${data.transactionHash}`);
+          }
+        } else {
+          console.error("Onboarding error:", data);
+          setOnboardingError(data.error || "Failed to onboard");
           toast({
-            title: "Setup Error",
-            description: error.message || "Failed to complete setup. Please refresh and try again.",
+            title: "Onboarding Error",
+            description: data.error || "Failed to complete onboarding. Please refresh and try again.",
             variant: "destructive",
           });
-        } finally {
-          setIsOnboarding(false);
-          setOnboardingStep("");
         }
-      })();
+      })
+      .catch(err => {
+        console.error("Error onboarding user:", err);
+        setOnboardingError(err.message || "Network error");
+        toast({
+          title: "Connection Error",
+          description: "Failed to complete onboarding. Please refresh and try again.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+        setIsOnboarding(false);
+      });
     }
   }, [activeAccount?.address, toast, isOnboarding]);
 
@@ -136,7 +111,7 @@ export function ThirdWebConnectButton({
         theme={theme}
         wallets={wallets}
         connectButton={{
-          label: isOnboarding ? onboardingStep || "Processing..." : "Sign In",
+          label: isOnboarding ? "Processing..." : "Sign In",
           style: {
             backgroundColor: "#000",
             color: "#fff",
@@ -148,7 +123,7 @@ export function ThirdWebConnectButton({
             fontSize: "13px",
             cursor: isOnboarding ? "default" : "pointer",
             opacity: isOnboarding ? 0.7 : 1,
-            minWidth: "120px",
+            minWidth: "90px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -176,6 +151,11 @@ export function ThirdWebConnectButton({
           },
         }}
       />
+      {onboardingError && (
+        <div className="text-red-500 text-xs mt-1">
+          {onboardingError}
+        </div>
+      )}
     </div>
   )
 }
