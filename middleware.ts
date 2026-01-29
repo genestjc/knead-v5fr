@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
   
   // HSTS - only in production
   if (process.env.NODE_ENV === 'production') {
-    response.headers. set(
+    response.headers.set(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains; preload"
     );
@@ -37,7 +37,10 @@ export function middleware(request: NextRequest) {
       https://cdn.sanity.io
       https://*.sanity.io
       https://*.thirdweb.com
-      *.towns. com;
+      https://esm.sh
+      https://unpkg.com
+      https://cdn.jsdelivr.net
+      *.towns.com;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
@@ -89,6 +92,9 @@ export function middleware(request: NextRequest) {
       https://*.towns-u4.com
       https://*.river.lgns.net
       https://*.nansen.ai
+      https://esm.sh
+      https://unpkg.com
+      https://cdn.jsdelivr.net
       wss://*.figment.io
       wss://*.towns.com
       wss://*.towns-u4.com
@@ -98,7 +104,7 @@ export function middleware(request: NextRequest) {
       https://checkout.stripe.com
       https://c.thirdweb.com
       https://embedded-wallet.thirdweb.com
-      https://social. thirdweb.com
+      https://social.thirdweb.com
       https://1.rpc.thirdweb.com
       https://8453.rpc.thirdweb.com
       https://*.ipfscdn.io
@@ -112,13 +118,14 @@ export function middleware(request: NextRequest) {
       https://*.thirdweb.com
       https://mainnet.base.org
       https://base-mainnet.g.alchemy.com
-      https://base. llamarpc.com
+      https://*.alchemy.com
+      https://base.llamarpc.com
       https://*.supabase.co
       ws://localhost:*
       wss://*.sanity.io;
     upgrade-insecure-requests;
   `
-    . replace(/\s{2,}/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
   
   response.headers.set(
