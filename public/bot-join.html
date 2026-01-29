@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bot Join Space - One Time</title>
+  <style>
+    body { 
+      font-family: Georgia, serif; 
+      max-width: 600px; 
+      margin: 50px auto; 
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    .status { 
+      padding: 20px; 
+      margin: 20px 0; 
+      border-radius: 8px;
+      background: white;
+    }
+    .success { border-left: 4px solid #10b981; }
+    .error { border-left: 4px solid #ef4444; }
+    .loading { border-left: 4px solid #3b82f6; }
+    button {
+      background: #000;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    button:hover { background: #333; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    pre { 
+      background: #f1f1f1; 
+      padding: 10px; 
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🤖 Bot Join Space</h1>
+  <p>This page will join the bot to your Towns space using ethers-v5 directly in the browser.</p>
+  
+  <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <label><strong>Bot Private Key:</strong></label>
+    <input type="password" id="privateKey" placeholder="0x..." />
+    <small style="color: #666;">This stays in your browser, never sent to a server</small>
+  </div>
+  
+  <div id="status" class="status loading">
+    <p><strong>Status:</strong> Enter bot private key above, then click Join</p>
+  </div>
+  
+  <button id="joinBtn" onclick="joinSpace()">Join Space Now</button>
+  
+  <div id="logs" style="margin-top: 20px;"></div>
+
+  <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js" type="application/javascript"></script>
+  
+  <script type="module">
+    const SPACE_ID = '23';
+    const RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s';
+    
+    window.joinSpace = async function() {
+      const statusDiv = document.getElementById('status');
+      const logsDiv = document.getElementById('logs');
+      const btn = document.getElementById('joinBtn');
+      const privateKeyInput = document.getElementById('privateKey');
+      
+      const BOT_PRIVATE_KEY = privateKeyInput.value.trim();
+      
+      if (!BOT_PRIVATE_KEY || !BOT_PRIVATE_KEY.startsWith('0x')) {
+        alert('Please enter a valid private key starting with 0x');
+        return;
+      }
+      
+      btn.disabled = true;
+      logsDiv.innerHTML = '';
+      
+      function log(msg, type = 'info') {
+        const p = document.createElement('p');
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        p.style.color = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#666';
+        logsDiv.appendChild(p);
+        console.log(msg);
+      }
+      
+      try {
+        statusDiv.className = 'status loading';
+        statusDiv.innerHTML = '<p><strong>Status:</strong> Connecting to Base...</p>';
+        log('🔐 Creating bot wallet...');
+        
+        const provider = new ethers.providers.StaticJsonRpcProvider(RPC_URL, {
+          name: 'base',
+          chainId: 8453,
+        });
+        
+        const botWallet = new ethers.Wallet(BOT_PRIVATE_KEY, provider);
+        const botAddress = botWallet.address;
+        
+        log(`✅ Bot wallet: ${botAddress}`);
+        
+        statusDiv.innerHTML = '<p><strong>Status:</strong> Checking balance...</p>';
+        const balance = await provider.getBalance(botAddress);
+        log(`💰 Balance: ${ethers.utils.formatEther(balance)} ETH`);
+        
+        if (balance.eq(0)) {
+          throw new Error('Bot has no ETH!');
+        }
+        
+        statusDiv.innerHTML = '<p><strong>Status:</strong> Loading Towns SDK...</p>';
+        log('📦 Loading Towns SDK from CDN...');
+        
+        // Import Towns SDK
+        const townsSdk = await import('https://esm.sh/@towns-protocol/sdk@0.10.1');
+        const { JoinSpace, townsEnv } = townsSdk;
+        
+        log('✅ Towns SDK loaded');
+        
+        const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
+          rpcUrl: RPC_URL,
+        });
+        
+        log('📝 Towns config created');
+        
+        statusDiv.innerHTML = '<p><strong>Status:</strong> Joining space (this may take 30-90 seconds)...</p>';
+        log('🚀 Calling JoinSpace...');
+        log(`   Space ID: ${SPACE_ID}`);
+        log('   Bot will mint membership NFT...');
+        log('   Please wait...');
+        
+        const result = await JoinSpace({
+          spaceId: SPACE_ID,
+          signer: botWallet,
+          townsConfig: TOWNS_CONFIG,
+          skipMintMembership: false,
+        });
+        
+        log('✅ JOIN SUCCESSFUL!', 'success');
+        log(`Result: ${JSON.stringify(result, null, 2)}`);
+        
+        statusDiv.className = 'status success';
+        statusDiv.innerHTML = `
+          <p><strong>Status:</strong> ✅ Bot joined successfully!</p>
+          <p>Bot address: <code>${botAddress}</code></p>
+          <p><a href="https://basescan.org/address/${botAddress}" target="_blank">View on BaseScan →</a></p>
+          <p style="margin-top: 20px;"><strong>Next step:</strong> Check if bot appears in Towns space member list!</p>
+        `;
+        
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        console.error('Full error:', error);
+        
+        statusDiv.className = 'status error';
+        statusDiv.innerHTML = `
+          <p><strong>Status:</strong> ❌ Join failed</p>
+          <p>${error.message}</p>
+          <details>
+            <summary>Show error details</summary>
+            <pre>${JSON.stringify(error, null, 2)}</pre>
+          </details>
+        `;
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
