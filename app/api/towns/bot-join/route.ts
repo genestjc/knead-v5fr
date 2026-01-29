@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRpcClient } from 'thirdweb/rpc';
-import { client } from "@/thirdweb-client";
-import { base } from "thirdweb/chains";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +24,7 @@ export async function POST(req: NextRequest) {
     console.log('🤖 MANUAL BOT JOIN - SERVER SIDE');
     console.log(`   Space ID: ${SPACE_ID}`);
 
-    // ✅ Import ethers-v5 for wallet only
+    // Import ethers-v5 and Towns SDK
     const { ethers } = await import('ethers-v5');
     const { JoinSpace, townsEnv } = await import('@towns-protocol/sdk');
     
@@ -36,26 +33,7 @@ export async function POST(req: NextRequest) {
     
     console.log(`   Bot Address: ${botAddress}`);
 
-    // ✅ Use ThirdWeb RPC (works in serverless)
-    const rpcClient = getRpcClient({ client, chain: base });
-    
-    // Check balance using ThirdWeb
-    const balanceHex = await rpcClient({
-      method: 'eth_getBalance',
-      params: [botAddress, 'latest'],
-    });
-    const balance = BigInt(balanceHex);
-    const balanceEth = (Number(balance) / 1e18).toFixed(6);
-    console.log(`   Balance: ${balanceEth} ETH`);
-    
-    if (balance === BigInt(0)) {
-      return NextResponse.json({ 
-        error: 'Bot wallet has no ETH for gas',
-        botAddress,
-      }, { status: 400 });
-    }
-
-    // ✅ Create provider for Towns SDK
+    // Create provider for Towns SDK (don't call any methods on it to avoid fetch issues)
     const provider = new ethers.providers.StaticJsonRpcProvider(
       process.env.NEXT_PUBLIC_BASE_RPC_URL,
       { name: 'base', chainId: 8453 }
@@ -69,7 +47,8 @@ export async function POST(req: NextRequest) {
     });
 
     console.log('🚀 Attempting to join space...');
-    console.log('   Using server-side SDK (bypasses browser rate limits)');
+    console.log('   Skipping balance check to avoid serverless fetch issues');
+    console.log('   Bot has ~0.002 ETH based on BaseScan');
 
     // Join the space - Towns SDK will handle membership minting
     const result = await JoinSpace({
@@ -80,7 +59,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log('✅ BOT JOINED SUCCESSFULLY!');
-    console.log('   Result:', result);
+    console.log('   Result:', JSON.stringify(result, null, 2));
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
@@ -97,6 +76,19 @@ export async function POST(req: NextRequest) {
     console.error('   Message:', error.message);
     console.error('   Code:', error.code);
     console.error('   Reason:', error.reason);
+    
+    // Log full error for debugging
+    try {
+      console.error('   Full error:', JSON.stringify({
+        message: error.message,
+        code: error.code,
+        reason: error.reason,
+        stack: error.stack?.split('\n').slice(0, 5),
+      }, null, 2));
+    } catch {
+      console.error('   Error object:', error);
+    }
+    
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     return NextResponse.json({
