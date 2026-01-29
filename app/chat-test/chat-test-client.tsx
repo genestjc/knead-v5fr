@@ -50,6 +50,7 @@ function SetupFlow() {
     const wallet = useActiveWallet();
     const { connect, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
+    const [setupStep, setSetupStep] = useState("Preparing...");
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -59,37 +60,45 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                const hasJoinedBefore = localStorage.getItem(`joined_${SAVED_SPACE_ID}`);
+                // Step 1: Fund wallet with gas
+                setSetupStep("Funding wallet with gas...");
+                console.log('💰 Funding wallet with gas');
                 
-                if (!hasJoinedBefore) {
-                    await fetch('/api/towns/mint-membership', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
-                    });
+                const fundResponse = await fetch('/api/towns/fund-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress }),
+                });
+                const fundData = await fundResponse.json();
 
-                    const fundResponse = await fetch('/api/towns/fund-wallet', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userAddress }),
-                    });
-                    const fundData = await fundResponse.json();
-
-                    if (!fundData.alreadyFunded && fundData.success) {
-                        console.log('Waiting for gas to arrive...');
-                        await new Promise(resolve => setTimeout(resolve, 10000));
-                    }
+                if (!fundData.success) {
+                    throw new Error(fundData.error || 'Failed to fund wallet');
                 }
 
+                console.log('✅ Wallet funded:', fundData.alreadyFunded ? 'already had funds' : 'funded successfully');
+
+                // Wait a bit if we just funded
+                if (!fundData.alreadyFunded && fundData.success) {
+                    console.log('⏳ Waiting for gas to arrive...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+
+                // Step 2: Connect to Towns agent
+                setSetupStep("Connecting to Towns...");
+                console.log('🔌 Connecting to Towns agent');
+                
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
                     onTokenExpired: () => console.log('Token expired')
                 });
+                
+                console.log('✅ Towns agent connected');
                 setSetupComplete(true);
 
             } catch (error: any) {
                 console.error('Setup failed:', error);
+                setSetupStep("Setup failed - please refresh");
                 alert(`Setup failed: ${error.message}`);
             }
         };
@@ -99,8 +108,12 @@ function SetupFlow() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="text-center max-w-md">
+            <div className="text-center max-w-md px-4">
+                <h2 className="font-adonis text-3xl mb-4">Setting Up Chat</h2>
                 <LoadingSpinner />
+                <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                    {setupStep}
+                </p>
             </div>
         </div>
     );
@@ -113,6 +126,8 @@ function SetupFlow() {
 function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
+    const [showJoinPrompt, setShowJoinPrompt] = useState(false);
+    const [isJoining, setIsJoining] = useState(false);
 
     const wallet = useActiveWallet();
     const { joinSpace } = useJoinSpace();
@@ -146,45 +161,81 @@ function TownsChat() {
         }
     }, [space]);
 
+    // Check if user needs to join (run once on mount)
     useEffect(() => {
-        if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
+        if (!wallet || !SAVED_SPACE_ID) return;
 
-        const joinSpaceNow = async () => {
-            try {
-                const hasJoinedBefore = localStorage.getItem(`joined_${SAVED_SPACE_ID}`);
-                
-                if (hasJoinedBefore) {
-                    console.log('✅ User already joined before (from localStorage)');
-                    setSpaceId(SAVED_SPACE_ID);
-                    setHasJoined(true);
-                    return;
-                }
+        const hasJoinedBefore = localStorage.getItem(`joined_${SAVED_SPACE_ID}`);
+        
+        if (hasJoinedBefore) {
+            console.log('✅ User already joined before (from localStorage)');
+            setSpaceId(SAVED_SPACE_ID);
+            setHasJoined(true);
+        } else {
+            console.log('⏳ User needs to join space - showing prompt');
+            setShowJoinPrompt(true);
+        }
+    }, [wallet]);
 
-                console.log('🚀 Joining space for the first time...');
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
-                await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
-                
-                console.log('✅ Join space successful!');
+    // Handle join button click
+    const handleJoinClick = async () => {
+        if (!wallet || !SAVED_SPACE_ID) return;
+        
+        setIsJoining(true);
+        try {
+            console.log('🚀 Joining space for the first time...');
+            const signer = await getEthersV5Signer(wallet, activeChain, client);
+            
+            await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
+            
+            console.log('✅ Join space successful!');
+            localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
+            setSpaceId(SAVED_SPACE_ID);
+            setHasJoined(true);
+            setShowJoinPrompt(false);
+
+        } catch (error: any) {
+            if (error.message?.includes('already a member')) {
+                console.log('✅ Already a member - treating as success');
                 localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
                 setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
-
-            } catch (error: any) {
-                if (error.message?.includes('already a member')) {
-                    console.log('✅ Already a member - treating as success');
-                    localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
-                    setSpaceId(SAVED_SPACE_ID);
-                    setHasJoined(true);
-                } else {
-                    console.error('❌ Join failed:', error);
-                    alert(`Failed to join space: ${error.message}`);
-                }
+                setShowJoinPrompt(false);
+            } else {
+                console.error('❌ Join failed:', error);
+                alert(`Failed to join space: ${error.message}`);
             }
-        };
+        } finally {
+            setIsJoining(false);
+        }
+    };
 
-        joinSpaceNow();
-    }, [wallet, hasJoined, joinSpace]);
+    // Show join prompt BEFORE loading space
+    if (showJoinPrompt) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md px-4">
+                    <h1 className="font-adonis text-4xl mb-4">Join Knead Community</h1>
+                    <p className="font-georgia-pro text-gray-600 mb-2">
+                        Connect with other readers and writers in our community chat.
+                    </p>
+                    <p className="font-georgia-pro text-sm text-gray-500 mb-6">
+                        One-time setup — you'll be asked to sign a transaction.
+                    </p>
+                    <button
+                        onClick={handleJoinClick}
+                        disabled={isJoining}
+                        className="px-8 py-3 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                        {isJoining ? "Joining..." : "Join Community Chat"}
+                    </button>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-4">
+                        Gas fees covered by Knead
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     // ✅ CRITICAL: Wait for space to be fully initialized
     if (isSpaceLoading) {
