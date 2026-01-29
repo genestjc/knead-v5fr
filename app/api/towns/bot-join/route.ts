@@ -43,13 +43,17 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    // ✅ Define Base network explicitly to avoid auto-detection
+    const baseNetwork = {
+      name: 'base',
+      chainId: 8453,
+    };
+
+    const provider = new ethers.providers.StaticJsonRpcProvider(
       rpcUrl,
-      {
-        chainId: 8453,
-        name: 'base',
-      }
+      baseNetwork
     );
+
     const connectedWallet = botWallet.connect(provider);
 
     // Check balance
