@@ -3,28 +3,32 @@
 
 import type { Account } from "thirdweb/wallets";
 
-/**
- * Converts ThirdWeb wallet to Ethers v5 Signer
- * Implements sendTransaction for Towns SDK compatibility
- */
 export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const { ethers } = await import("ethers-v5");
   
   const account = wallet.getAccount();
   if (!account) throw new Error("No account connected");
 
-  const rpcUrl = chain.rpc;
+  // ✅ CRITICAL FIX: Use YOUR Alchemy RPC, not the default chain.rpc
+  const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
   
-  // Create provider
+  if (!rpcUrl) {
+    throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required! Set it in .env.local');
+  }
+  
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🔗 Creating Ethers Signer:');
+  console.log('   Using RPC:', rpcUrl.substring(0, 50) + '...');
+  console.log('   Is Alchemy?:', rpcUrl.includes('alchemy'));
+  console.log('   Chain ID:', chain.id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  // Create provider with YOUR Alchemy RPC
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl, {
     chainId: chain.id,
     name: chain.name || 'Base',
   });
-
-  /**
-   * Custom Signer class for ThirdWeb wallets
-   * Fully implements Ethers v5 Signer interface
-   */
+  
   class ThirdWebEthersSigner extends ethers.Signer {
     private wallet: any;
     private client: any;
