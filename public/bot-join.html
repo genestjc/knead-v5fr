@@ -67,6 +67,9 @@
   
   <div id="logs" style="margin-top: 20px;"></div>
 
+  <!-- Load ethers.js via script tag first -->
+  <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
   <script>
     const SPACE_ID = '23';
     const RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s';
@@ -96,16 +99,14 @@
       }
       
       try {
+        // Check if ethers loaded
+        if (typeof ethers === 'undefined') {
+          throw new Error('ethers.js failed to load from CDN. Check your internet connection.');
+        }
+        
+        log('✅ ethers.js loaded successfully');
+        
         statusDiv.className = 'status loading';
-        statusDiv.innerHTML = '<p><strong>Status:</strong> Loading ethers.js...</p>';
-        log('📦 Loading ethers.js from CDN...');
-        
-        // Dynamically import ethers as ESM
-        const ethersModule = await import('https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.esm.min.js');
-        const ethers = ethersModule.ethers || ethersModule.default || ethersModule;
-        
-        log('✅ ethers.js loaded');
-        
         statusDiv.innerHTML = '<p><strong>Status:</strong> Creating bot wallet...</p>';
         log('🔐 Creating bot wallet...');
         
