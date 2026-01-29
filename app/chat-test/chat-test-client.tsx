@@ -184,10 +184,6 @@ function TownsChat() {
     return <LoadingSpinner />;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// KEY SHARER BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
     const { joinSpace } = useJoinSpace();
@@ -207,6 +203,7 @@ function KeySharerBot() {
                 console.log('🤖 Bot Join Attempt Starting');
                 console.log('   Bot Address:', botAddress);
                 console.log('   Space ID:', SAVED_SPACE_ID);
+                console.log('   Channel ID:', SAVED_CHANNEL_ID);
                 console.log('   Auto-login already connected:', !!(window as any).KEY_SHARER_CONNECTED);
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
@@ -225,13 +222,62 @@ function KeySharerBot() {
                 
                 const connectedWallet = botWallet.connect(provider);
                 
-                // Try to join - let Towns SDK handle the membership minting
-                console.log('🚀 Attempting to join space...');
-                console.log('   Towns SDK will mint membership NFT automatically');
+                // Check if already joined before
+                const hasJoinedBefore = localStorage.getItem(`bot_joined_${SAVED_SPACE_ID}`);
                 
-                await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
-                    skipMintMembership: false // Let Towns SDK mint the membership
-                });
+                if (!hasJoinedBefore) {
+                    // Join space - let Towns SDK handle the membership minting
+                    console.log('🚀 Attempting to join space...');
+                    console.log('   Towns SDK will mint membership NFT automatically');
+                    
+                    await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
+                        skipMintMembership: false
+                    });
+                    
+                    console.log('✅ Successfully joined space!');
+                    localStorage.setItem(`bot_joined_${SAVED_SPACE_ID}`, 'true');
+                } else {
+                    console.log('✅ Bot already joined space before (from localStorage)');
+                }
+                
+                // 🆕 NOW JOIN THE CHANNEL
+                console.log('📡 Attempting to join channel...');
+                
+                try {
+                    const channelId = SAVED_CHANNEL_ID;
+                    
+                    if (channelId) {
+                        console.log(`   Channel ID: ${channelId.substring(0, 16)}...`);
+                        
+                        const joinChannelResponse = await fetch('/api/towns/join-channel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                channelId,
+                                botPrivateKey: privateKey
+                            })
+                        });
+                        
+                        const joinChannelData = await joinChannelResponse.json();
+                        
+                        if (joinChannelData.success) {
+                            console.log('✅ Bot joined channel successfully!');
+                        } else if (joinChannelData.alreadyMember) {
+                            console.log('✅ Bot already in channel');
+                        } else {
+                            console.warn('⚠️ Channel join response:', joinChannelData);
+                        }
+                    } else {
+                        console.warn('⚠️ No channel ID available');
+                    }
+                } catch (channelError: any) {
+                    console.error('❌ Channel join error:', channelError.message);
+                    
+                    // Don't fail the whole process if already in channel
+                    if (!channelError.message?.includes('already')) {
+                        console.error('💡 Channel join failed but continuing...');
+                    }
+                }
                 
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.log('✅ BOT JOINED SUCCESSFULLY!');
@@ -263,6 +309,7 @@ function KeySharerBot() {
                     error.message?.includes('already in space') ||
                     error.message?.includes('already joined')) {
                     console.log('✅ Bot appears to already be a member - treating as success');
+                    localStorage.setItem(`bot_joined_${SAVED_SPACE_ID}`, 'true');
                     setHasJoined(true);
                     return;
                 }
