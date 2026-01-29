@@ -163,7 +163,7 @@ function TownsChat() {
                 console.log('🚀 Joining space for the first time...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: false });
+                await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
                 
                 console.log('✅ Join space successful!');
                 localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
@@ -315,7 +315,7 @@ function KeySharerBot() {
                     console.log('   Towns SDK will handle channel access automatically');
                     
                     await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
-                        skipMintMembership: false
+                        skipMintMembership: true
                     });
                     
                     console.log('✅ Successfully joined space!');
