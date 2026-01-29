@@ -30,15 +30,28 @@ export async function POST(req: NextRequest) {
     
     const botWallet = new ethers.Wallet(BOT_PRIVATE_KEY);
     const botAddress = botWallet.address;
-    
+
     console.log(`   Bot Address: ${botAddress}`);
 
-    // Connect wallet to Base via Alchemy
+    // ✅ Connect wallet to Base with explicit chain config
+    const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+    console.log(`   RPC URL configured: ${!!rpcUrl}`);
+
+    if (!rpcUrl) {
+      return NextResponse.json({ 
+        error: 'NEXT_PUBLIC_BASE_RPC_URL not configured' 
+      }, { status: 500 });
+    }
+
     const provider = new ethers.providers.JsonRpcProvider(
-      process.env.NEXT_PUBLIC_BASE_RPC_URL
+      rpcUrl,
+      {
+        chainId: 8453,
+        name: 'base',
+      }
     );
     const connectedWallet = botWallet.connect(provider);
-    
+
     // Check balance
     const balance = await provider.getBalance(botAddress);
     const balanceEth = ethers.utils.formatEther(balance);
