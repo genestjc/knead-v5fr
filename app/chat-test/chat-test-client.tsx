@@ -116,7 +116,7 @@ function TownsChat() {
 
     const wallet = useActiveWallet();
     const { joinSpace } = useJoinSpace();
-    const { data: space } = useSpace(spaceId || '');
+    const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
     const currentUser: ChatUser | null = useMemo(() => {
         const address = wallet?.getAccount()?.address;
@@ -134,32 +134,51 @@ function TownsChat() {
         };
     }, [wallet]);
 
+    // Debug logging for space sync status
+    useEffect(() => {
+        if (space) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('📊 Space Sync Status:');
+            console.log('   Initialized:', space.initialized);
+            console.log('   Channel IDs:', space.channelIds);
+            console.log('   Metadata:', space.metadata);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+    }, [space]);
+
     useEffect(() => {
         if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             try {
                 const hasJoinedBefore = localStorage.getItem(`joined_${SAVED_SPACE_ID}`);
+                
                 if (hasJoinedBefore) {
+                    console.log('✅ User already joined before (from localStorage)');
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                     return;
                 }
 
+                console.log('🚀 Joining space for the first time...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
+                
                 await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: false });
                 
+                console.log('✅ Join space successful!');
                 localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
                 setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
 
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
+                    console.log('✅ Already a member - treating as success');
                     localStorage.setItem(`joined_${SAVED_SPACE_ID}`, 'true');
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                 } else {
-                    console.error('Join failed:', error);
+                    console.error('❌ Join failed:', error);
+                    alert(`Failed to join space: ${error.message}`);
                 }
             }
         };
@@ -167,14 +186,76 @@ function TownsChat() {
         joinSpaceNow();
     }, [wallet, hasJoined, joinSpace]);
 
-    const channelId = space?.channelIds?.[0] || SAVED_CHANNEL_ID;
+    // ✅ CRITICAL: Wait for space to be fully initialized
+    if (isSpaceLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading space data...
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
-    if (hasJoined && spaceId && channelId && currentUser) {
+    if (!space) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="font-georgia-pro text-red-500">❌ Space not found</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ CRITICAL: Don't render until space is initialized
+    if (!space.initialized) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Syncing with stream nodes...
+                    </p>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        This may take a few seconds
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ CRITICAL: Get channel ID from synced space data
+    const channelId = space.channelIds?.[0];
+
+    if (!channelId) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-2">
+                        Space ID: {spaceId?.substring(0, 16)}...
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ Only render chat when everything is ready
+    if (hasJoined && currentUser) {
         return (
             <div className="w-full h-screen">
                 <ConnectedChat
                     currentUser={currentUser}
-                    spaceId={spaceId}
+                    spaceId={spaceId!}
                     defaultChannelId={channelId}
                 />
             </div>
@@ -184,9 +265,14 @@ function TownsChat() {
     return <LoadingSpinner />;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KEY SHARER BOT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
     const { joinSpace } = useJoinSpace();
+    const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
 
     useEffect(() => {
         if (hasJoined || !SAVED_SPACE_ID) return;
@@ -203,7 +289,6 @@ function KeySharerBot() {
                 console.log('🤖 Bot Join Attempt Starting');
                 console.log('   Bot Address:', botAddress);
                 console.log('   Space ID:', SAVED_SPACE_ID);
-                console.log('   Channel ID:', SAVED_CHANNEL_ID);
                 console.log('   Auto-login already connected:', !!(window as any).KEY_SHARER_CONNECTED);
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
@@ -226,9 +311,8 @@ function KeySharerBot() {
                 const hasJoinedBefore = localStorage.getItem(`bot_joined_${SAVED_SPACE_ID}`);
                 
                 if (!hasJoinedBefore) {
-                    // Join space - let Towns SDK handle the membership minting
                     console.log('🚀 Attempting to join space...');
-                    console.log('   Towns SDK will mint membership NFT automatically');
+                    console.log('   Towns SDK will handle channel access automatically');
                     
                     await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
                         skipMintMembership: false
@@ -240,47 +324,9 @@ function KeySharerBot() {
                     console.log('✅ Bot already joined space before (from localStorage)');
                 }
                 
-                // 🆕 NOW JOIN THE CHANNEL
-                console.log('📡 Attempting to join channel...');
-                
-                try {
-                    const channelId = SAVED_CHANNEL_ID;
-                    
-                    if (channelId) {
-                        console.log(`   Channel ID: ${channelId.substring(0, 16)}...`);
-                        
-                        const joinChannelResponse = await fetch('/api/towns/join-channel', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                channelId,
-                                botPrivateKey: privateKey
-                            })
-                        });
-                        
-                        const joinChannelData = await joinChannelResponse.json();
-                        
-                        if (joinChannelData.success) {
-                            console.log('✅ Bot joined channel successfully!');
-                        } else if (joinChannelData.alreadyMember) {
-                            console.log('✅ Bot already in channel');
-                        } else {
-                            console.warn('⚠️ Channel join response:', joinChannelData);
-                        }
-                    } else {
-                        console.warn('⚠️ No channel ID available');
-                    }
-                } catch (channelError: any) {
-                    console.error('❌ Channel join error:', channelError.message);
-                    
-                    // Don't fail the whole process if already in channel
-                    if (!channelError.message?.includes('already')) {
-                        console.error('💡 Channel join failed but continuing...');
-                    }
-                }
-                
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.log('✅ BOT JOINED SUCCESSFULLY!');
+                console.log('   Channels will be available after space syncs');
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 setHasJoined(true);
 
@@ -290,21 +336,9 @@ function KeySharerBot() {
                 console.error('   Message:', error.message || 'Unknown error');
                 console.error('   Code:', error.code || 'N/A');
                 console.error('   Reason:', error.reason || 'N/A');
-                
-                try {
-                    console.error('   Full error:', JSON.stringify({
-                        message: error.message,
-                        code: error.code,
-                        reason: error.reason,
-                        data: error.data,
-                        stack: error.stack?.split('\n').slice(0, 3).join('\n'),
-                    }, null, 2));
-                } catch {
-                    console.error('   Error object:', error);
-                }
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // ✅ Handle common error cases
+                // Handle common error cases
                 if (error.message?.includes('already a member') || 
                     error.message?.includes('already in space') ||
                     error.message?.includes('already joined')) {
@@ -323,7 +357,6 @@ function KeySharerBot() {
                     return;
                 }
                 
-                // Log and fail for other errors
                 console.error('❌ Join failed - manual intervention needed');
             }
         };
@@ -331,22 +364,60 @@ function KeySharerBot() {
         joinAsBot();
     }, [hasJoined, joinSpace]);
 
-    if (!hasJoined) {
+    // Debug logging for space sync status
+    useEffect(() => {
+        if (space) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🤖 Bot Space Sync Status:');
+            console.log('   Initialized:', space.initialized);
+            console.log('   Channels:', space.channelIds?.length || 0);
+            console.log('   Channel IDs:', space.channelIds);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+    }, [space]);
+
+    // Wait for space to load
+    if (isSpaceLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <h1 className="font-adonis text-4xl mb-4">Key Sharer Starting...</h1>
                     <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading space data...
+                    </p>
                 </div>
             </div>
         );
     }
 
+    // Wait for space to sync (same pattern as TownsChat)
+    if (!space?.initialized) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Syncing...</h1>
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Syncing with stream nodes...
+                    </p>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        This may take a few seconds
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Bot is ready when space is synced
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center">
                 <h1 className="font-adonis text-4xl mb-4 text-green-600">✅ Key Sharer Online</h1>
-                <p className="font-georgia-pro text-sm text-gray-400">
+                <p className="font-georgia-pro text-sm text-gray-600 mb-2">
+                    Channels: {space.channelIds?.length || 0}
+                </p>
+                <p className="font-georgia-pro text-xs text-gray-400">
                     Connected at {new Date().toLocaleTimeString()}
                 </p>
             </div>
