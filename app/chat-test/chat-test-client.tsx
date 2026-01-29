@@ -195,16 +195,6 @@ function KeySharerBot() {
     useEffect(() => {
         if (hasJoined || !SAVED_SPACE_ID) return;
 
-        // ✅ CRITICAL FIX: Check if bot already connected via auto-login
-        if ((window as any).KEY_SHARER_CONNECTED) {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('✅ BOT ALREADY CONNECTED VIA AUTO-LOGIN');
-            console.log('✅ Skipping join flow - treating as success');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            setHasJoined(true);
-            return;
-        }
-
         const joinAsBot = async () => {
             try {
                 const { ethers } = await import('ethers-v5');
@@ -213,10 +203,11 @@ function KeySharerBot() {
                 const botWallet = new ethers.Wallet(privateKey);
                 const botAddress = botWallet.address;
                 
-                console.log('━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━');
-                console.log('🤖 Bot Wallet Info:');
-                console.log('   Address:', botAddress);
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('🤖 Bot Join Attempt Starting');
+                console.log('   Bot Address:', botAddress);
                 console.log('   Space ID:', SAVED_SPACE_ID);
+                console.log('   Auto-login already connected:', !!(window as any).KEY_SHARER_CONNECTED);
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
                 const provider = new ethers.providers.JsonRpcProvider(
@@ -229,69 +220,17 @@ function KeySharerBot() {
                 
                 if (balance.eq(0)) {
                     console.error('❌ Bot wallet has ZERO ETH! Cannot proceed.');
-                    console.error('   Please fund:', botAddress);
-                    console.error('   BaseScan:', `https://basescan.org/address/${botAddress}`);
                     throw new Error('Bot wallet has no ETH');
-                }
-                
-                // ✅ Check if bot already has membership NFT
-                console.log('🎫 Checking if bot already has membership...');
-                const { getContract } = await import('thirdweb');
-                const { balanceOf } = await import('thirdweb/extensions/erc1155');
-                const { base } = await import('thirdweb/chains');
-                const { client } = await import('@/thirdweb-client');
-                
-                const membershipContract = getContract({
-                    client,
-                    address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!,
-                    chain: base,
-                });
-                
-                const botMembershipBalance = await balanceOf({
-                    contract: membershipContract,
-                    owner: botAddress,
-                    tokenId: 0n,
-                });
-                
-                console.log('🎫 Bot membership NFT balance:', botMembershipBalance.toString());
-                
-                if (botMembershipBalance > 0n) {
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('✅ BOT ALREADY HAS MEMBERSHIP NFT!');
-                    console.log('✅ Skipping join - treating as success');
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    setHasJoined(true);
-                    return;
-                }
-                
-                // No membership yet - mint it
-                console.log('🎫 Minting membership...');
-                const mintResponse = await fetch('/api/towns/mint-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: botAddress, spaceId: SAVED_SPACE_ID }),
-                });
-                
-                const mintData = await mintResponse.json();
-                console.log('🎫 Mint status:', mintResponse.status);
-                console.log('🎫 Mint response:', JSON.stringify(mintData, null, 2));
-                
-                if (!mintResponse.ok && !mintData.alreadyMinted) {
-                    console.warn('⚠️ Mint failed:', mintData.error || 'Unknown error');
-                }
-                
-                // Wait for mint to complete
-                if (mintResponse.ok && !mintData.alreadyMinted) {
-                    console.log('⏳ Waiting 20s for mint to complete...');
-                    await new Promise(resolve => setTimeout(resolve, 20000));
                 }
                 
                 const connectedWallet = botWallet.connect(provider);
                 
-                // Join space with skipMintMembership since we already minted
-                console.log('🚀 Joining space (skipMintMembership: true)...');
+                // Try to join - let Towns SDK handle the membership minting
+                console.log('🚀 Attempting to join space...');
+                console.log('   Towns SDK will mint membership NFT automatically');
+                
                 await joinSpace(SAVED_SPACE_ID, connectedWallet, { 
-                    skipMintMembership: true 
+                    skipMintMembership: false // Let Towns SDK mint the membership
                 });
                 
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -319,21 +258,26 @@ function KeySharerBot() {
                 }
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // ✅ Treat common errors as "already joined"
+                // ✅ Handle common error cases
                 if (error.message?.includes('already a member') || 
                     error.message?.includes('already in space') ||
-                    error.code === 'INSUFFICIENT_FUNDS' ||
-                    error.message?.includes('insufficient funds') ||
-                    error.message?.includes('429') ||
-                    error.message?.includes('rate limit') ||
-                    error.message?.includes('Too Many Requests')) {
-                    console.log('✅ Treating as already joined');
+                    error.message?.includes('already joined')) {
+                    console.log('✅ Bot appears to already be a member - treating as success');
                     setHasJoined(true);
                     return;
                 }
                 
-                // Don't retry - just fail gracefully
-                console.error('❌ Join failed - NOT retrying automatically');
+                // Don't treat permission/funding errors as success
+                if (error.message?.includes('PERMISSION_DENIED') ||
+                    error.message?.includes('INSUFFICIENT_FUNDS') ||
+                    error.code === 'INSUFFICIENT_FUNDS') {
+                    console.error('❌ Join failed with permission/funding error');
+                    console.error('💡 Bot needs manual intervention');
+                    return;
+                }
+                
+                // Log and fail for other errors
+                console.error('❌ Join failed - manual intervention needed');
             }
         };
 
