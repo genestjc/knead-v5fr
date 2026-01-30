@@ -13,7 +13,7 @@ import type { ChatUser } from '@/types/chat';
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-// ✅ NEW: Version localStorage keys to invalidate old "joins" without NFT minting
+// ✅ Version localStorage keys to invalidate old "joins" without NFT minting
 const JOIN_VERSION = 'v2';
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
@@ -45,7 +45,7 @@ const wallets = [
   }),
 ];
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -62,8 +62,8 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ UPDATED: Use versioned localStorage key
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`);
+                // ✅ WALLET-SPECIFIC: Include wallet address in localStorage key
+                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (!hasJoinedBefore) {
                     await fetch('/api/towns/mint-membership', {
@@ -80,7 +80,7 @@ function SetupFlow() {
                     const fundData = await fundResponse.json();
 
                     if (!fundData.alreadyFunded && fundData.success) {
-                        console.log('Waiting for gas to arrive...');
+                        console.log('⏳ Waiting for gas to arrive...');
                         await new Promise(resolve => setTimeout(resolve, 10000));
                     }
                 }
@@ -88,12 +88,14 @@ function SetupFlow() {
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('Token expired')
+                    onTokenExpired: () => console.log('🔄 Token expired')
                 });
+                
+                console.log('✅ Towns agent connected');
                 setSetupComplete(true);
 
             } catch (error: any) {
-                console.error('Setup failed:', error);
+                console.error('❌ Setup failed:', error);
                 alert(`Setup failed: ${error.message}`);
             }
         };
@@ -104,6 +106,7 @@ function SetupFlow() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md">
+                <h2 className="font-adonis text-3xl mb-4">Setting Up Chat</h2>
                 <LoadingSpinner />
             </div>
         </div>
@@ -146,17 +149,21 @@ function TownsChat() {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━');
         }
     }, [space]);
 
+    // Check if user needs to join (run once on mount)
     useEffect(() => {
         if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             try {
-                // ✅ UPDATED: Use versioned localStorage key
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`);
+                const userAddress = wallet.getAccount()?.address;
+                if (!userAddress) return;
+
+                // ✅ WALLET-SPECIFIC: Include wallet address in localStorage key
+                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (hasJoinedBefore) {
                     console.log('✅ User already joined before (from localStorage v2)');
@@ -168,20 +175,24 @@ function TownsChat() {
                 console.log('🚀 Joining space for the first time...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                // ✅ UPDATED: Remove skipMintMembership - let it mint the NFT!
+                // ✅ Mint the NFT (don't skip)
                 await joinSpace(SAVED_SPACE_ID, signer);
                 
                 console.log('✅ Join space successful!');
-                // ✅ UPDATED: Save with versioned key
-                localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`, 'true');
+                // ✅ WALLET-SPECIFIC: Save with wallet address in key
+                localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                 setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
 
             } catch (error: any) {
+                const userAddress = wallet.getAccount()?.address;
+                
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member - treating as success');
-                    // ✅ UPDATED: Save with versioned key
-                    localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`, 'true');
+                    // ✅ WALLET-SPECIFIC: Save with wallet address in key
+                    if (userAddress) {
+                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                    }
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                 } else {
@@ -275,7 +286,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // KEY SHARER BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
@@ -314,26 +325,26 @@ function KeySharerBot() {
                 
                 const connectedWallet = botWallet.connect(provider);
                 
-                // ✅ UPDATED: Use versioned localStorage key
-                const hasJoinedBefore = localStorage.getItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`);
+                // ✅ WALLET-SPECIFIC: Include bot address in localStorage key
+                const hasJoinedBefore = localStorage.getItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`);
                 
                 if (!hasJoinedBefore) {
                     console.log('🚀 Attempting to join space...');
                     console.log('   Towns SDK will mint membership NFT');
                     
-                    // ✅ UPDATED: Remove skipMintMembership
+                    // ✅ Mint the NFT (don't skip)
                     await joinSpace(SAVED_SPACE_ID, connectedWallet);
                     
                     console.log('✅ Successfully joined space!');
-                    // ✅ UPDATED: Save with versioned key
-                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`, 'true');
+                    // ✅ WALLET-SPECIFIC: Save with bot address in key
+                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
                 } else {
                     console.log('✅ Bot already joined space before (from localStorage v2)');
                 }
                 
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.log('✅ BOT JOINED SUCCESSFULLY!');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━');
                 setHasJoined(true);
 
             } catch (error: any) {
@@ -347,8 +358,14 @@ function KeySharerBot() {
                     error.message?.includes('already in space') ||
                     error.message?.includes('already joined')) {
                     console.log('✅ Bot appears to already be a member');
-                    // ✅ UPDATED: Save with versioned key
-                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}`, 'true');
+                    
+                    const { ethers } = await import('ethers-v5');
+                    const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+                    const botWallet = new ethers.Wallet(privateKey);
+                    const botAddress = botWallet.address;
+                    
+                    // ✅ WALLET-SPECIFIC: Save with bot address in key
+                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
                     setHasJoined(true);
                     return;
                 }
