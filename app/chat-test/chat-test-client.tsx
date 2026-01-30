@@ -45,7 +45,7 @@ const wallets = [
   }),
 ];
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -54,6 +54,7 @@ function SetupFlow() {
     const { connect, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Preparing your account...");
+    const [isReturningUser, setIsReturningUser] = useState(false);
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -65,7 +66,11 @@ function SetupFlow() {
 
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
+                // ✅ Check if returning user
+                setIsReturningUser(!!hasJoinedBefore);
+                
                 if (!hasJoinedBefore) {
+                    // New user - show all the steps
                     setSetupStep("Creating your membership...");
                     await fetch('/api/towns/mint-membership', {
                         method: 'POST',
@@ -73,7 +78,6 @@ function SetupFlow() {
                         body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
                     });
 
-                    // Fund wallet (happens silently, no UI update)
                     const fundResponse = await fetch('/api/towns/fund-wallet', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -85,9 +89,13 @@ function SetupFlow() {
                         console.log('⏳ Waiting for gas to arrive...');
                         await new Promise(resolve => setTimeout(resolve, 10000));
                     }
+                    
+                    setSetupStep("Connecting to network...");
+                } else {
+                    // Returning user - skip straight to connection
+                    console.log('✅ Returning user - fast path');
                 }
 
-                setSetupStep("Connecting to network...");
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
                 await connect(signer, { 
@@ -95,7 +103,7 @@ function SetupFlow() {
                     onTokenExpired: () => console.log('🔄 Token expired')
                 });
                 
-                console.log('✅ Towns agent connected');
+                console.log('�� Towns agent connected');
                 setSetupComplete(true);
 
             } catch (error: any) {
@@ -108,6 +116,21 @@ function SetupFlow() {
         runSetup();
     }, [wallet, isAgentConnected, setupComplete, connect]);
 
+    // ✅ Returning users see minimal loading
+    if (isReturningUser) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md px-4">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading chat...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ New users see full onboarding
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md px-4">
@@ -134,6 +157,7 @@ function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [messagesReady, setMessagesReady] = useState(false);
+    const [isReturningUser, setIsReturningUser] = useState(false);
 
     const wallet = useActiveWallet();
     const { joinSpace } = useJoinSpace();
@@ -178,6 +202,9 @@ function TownsChat() {
 
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
+                // ✅ Track if returning user
+                setIsReturningUser(!!hasJoinedBefore);
+                
                 if (hasJoinedBefore) {
                     console.log('✅ User already joined before (from localStorage v2)');
                     setSpaceId(SAVED_SPACE_ID);
@@ -205,6 +232,7 @@ function TownsChat() {
                     }
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
+                    setIsReturningUser(true);
                 } else {
                     console.error('❌ Join failed:', error);
                     alert(`Failed to join space: ${error.message}`);
@@ -215,19 +243,23 @@ function TownsChat() {
         joinSpaceNow();
     }, [wallet, hasJoined, joinSpace]);
 
-    // ✅ NEW: Wait for messages to load after space initializes
+    // ✅ UPDATED: Shorter delay for returning users, longer for new users
     useEffect(() => {
         if (space?.initialized && !messagesReady) {
             console.log('⏳ Space initialized, waiting for messages to load...');
-            // Give messages 2-3 seconds to decrypt and load
+            
+            // Returning users: 1 second delay
+            // New users: 2.5 second delay (more decryption needed)
+            const delayTime = isReturningUser ? 1000 : 2500;
+            
             const timer = setTimeout(() => {
                 console.log('✅ Messages should be ready now');
                 setMessagesReady(true);
-            }, 2500);
+            }, delayTime);
             
             return () => clearTimeout(timer);
         }
-    }, [space?.initialized, messagesReady]);
+    }, [space?.initialized, messagesReady, isReturningUser]);
 
     // ✅ CRITICAL: Wait for space to be fully initialized
     if (isSpaceLoading) {
@@ -253,7 +285,7 @@ function TownsChat() {
         );
     }
 
-    // ✅ CRITICAL: Don't render until space is initialized
+    // ✅ Don't render until space is initialized
     if (!space.initialized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -270,8 +302,20 @@ function TownsChat() {
         );
     }
 
-    // ✅ NEW: Wait for messages to decrypt
+    // ✅ Wait for messages to decrypt (only show for new users)
     if (!messagesReady) {
+        // Returning users see simple loading
+        if (isReturningUser) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-white">
+                    <div className="text-center">
+                        <LoadingSpinner />
+                    </div>
+                </div>
+            );
+        }
+        
+        // New users see detailed message
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
@@ -287,7 +331,7 @@ function TownsChat() {
         );
     }
 
-    // ✅ CRITICAL: Get channel ID from synced space data
+    // ✅ Get channel ID from synced space data
     const channelId = space.channelIds?.[0];
 
     if (!channelId) {
