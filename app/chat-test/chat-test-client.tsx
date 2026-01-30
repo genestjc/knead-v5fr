@@ -45,7 +45,7 @@ const wallets = [
   }),
 ];
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -53,6 +53,7 @@ function SetupFlow() {
     const wallet = useActiveWallet();
     const { connect, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
+    const [setupStep, setSetupStep] = useState("Preparing your account...");
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -62,16 +63,17 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ WALLET-SPECIFIC: Include wallet address in localStorage key
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (!hasJoinedBefore) {
+                    setSetupStep("Creating your membership...");
                     await fetch('/api/towns/mint-membership', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
                     });
 
+                    // Fund wallet (happens silently, no UI update)
                     const fundResponse = await fetch('/api/towns/fund-wallet', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +87,9 @@ function SetupFlow() {
                     }
                 }
 
+                setSetupStep("Connecting to network...");
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
+                
                 await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
                     onTokenExpired: () => console.log('🔄 Token expired')
@@ -96,6 +100,7 @@ function SetupFlow() {
 
             } catch (error: any) {
                 console.error('❌ Setup failed:', error);
+                setSetupStep("Setup failed - please refresh");
                 alert(`Setup failed: ${error.message}`);
             }
         };
@@ -105,9 +110,17 @@ function SetupFlow() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="text-center max-w-md">
-                <h2 className="font-adonis text-3xl mb-4">Setting Up Chat</h2>
+            <div className="text-center max-w-md px-4">
+                <h2 className="font-adonis text-3xl mb-4">Setting Up Your Membership</h2>
                 <LoadingSpinner />
+                <p className="font-georgia-pro text-sm text-gray-600 mt-4">
+                    {setupStep}
+                </p>
+                {!setupStep.includes("failed") && (
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        This usually takes 5-10 seconds
+                    </p>
+                )}
             </div>
         </div>
     );
