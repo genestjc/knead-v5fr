@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useTimeline, useSendMessage } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
