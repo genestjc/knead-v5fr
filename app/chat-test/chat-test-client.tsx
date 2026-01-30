@@ -1,245 +1,637 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
-import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import { ChatLayout } from '@/components/chat/ChatLayout';
-import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
+import nextDynamic from 'next/dynamic';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAgentConnection, useJoinSpace, useSpace, useTimeline, useSendMessage } from '@towns-protocol/react-sdk';
+import { useActiveWallet, ConnectButton } from 'thirdweb/react';
+import { client, activeChain } from '@/thirdweb-client';
+import { townsEnv } from '@towns-protocol/sdk';
+import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
-import { useActiveAccount } from 'thirdweb/react';
 
-interface ConnectedChatProps {
-  currentUser: ChatUser;
-  spaceId: string;
-  defaultChannelId: string;
-}
+const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+
+// ✅ Version localStorage keys to invalidate old "joins" without NFT minting
+const JOIN_VERSION = 'v2';
+
+const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
+  rpcUrl: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+});
+
+const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
+  ssr: false,
+  loading: () => <LoadingSpinner />,
+});
 
 const LoadingSpinner = () => (
-    <div className="text-center py-10">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-        <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
+    <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+            <p className="font-georgia-pro text-gray-600">Loading...</p>
+        </div>
     </div>
 );
 
-// ✅ Wrapper component that checks if agent is connected
-export default function ConnectedChat(props: ConnectedChatProps) {
-  const { isAgentConnected } = useAgentConnection();
-  
-  // Don't render the inner component until agent is connected
-  if (!isAgentConnected) {
+// ✅ UPDATED: Enable Smart Accounts with Gas Sponsorship
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "phone"],
+    },
+    // ✅ CRITICAL: Enable Smart Account with gas sponsorship
+    smartAccount: {
+      chain: activeChain,
+      sponsorGas: true, // ThirdWeb will sponsor all gas fees
+    },
+  }),
+];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETUP FLOW
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function SetupFlow() {
+    const wallet = useActiveWallet();
+    const { connect, isAgentConnected } = useAgentConnection();
+    const [setupComplete, setSetupComplete] = useState(false);
+    const [setupStep, setSetupStep] = useState("Preparing your account...");
+
+    useEffect(() => {
+        if (!wallet || isAgentConnected || setupComplete) return;
+
+        const runSetup = async () => {
+            try {
+                const userAddress = wallet.getAccount()?.address;
+                if (!userAddress) return;
+
+                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
+                
+                if (!hasJoinedBefore) {
+                    setSetupStep("Creating your membership...");
+                    await fetch('/api/towns/mint-membership', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
+                    });
+
+                    // ✅ REMOVED: No longer need to fund wallet manually
+                    // Gas is sponsored by ThirdWeb Smart Account
+                    // If you want to keep it as a fallback, you can leave it commented:
+                    /*
+                    const fundResponse = await fetch('/api/towns/fund-wallet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userAddress }),
+                    });
+                    const fundData = await fundResponse.json();
+
+                    if (!fundData.alreadyFunded && fundData.success) {
+                        console.log('⏳ Waiting for gas to arrive...');
+                        await new Promise(resolve => setTimeout(resolve, 10000));
+                    }
+                    */
+                }
+
+                setSetupStep("Connecting to network...");
+                const signer = await getEthersV5Signer(wallet, activeChain, client);
+                
+                await connect(signer, { 
+                    townsConfig: TOWNS_CONFIG,
+                    onTokenExpired: () => console.log('🔄 Token expired')
+                });
+                
+                console.log('✅ Towns agent connected');
+                console.log('⛽ Gas sponsorship enabled via Smart Account');
+                setSetupComplete(true);
+
+            } catch (error: any) {
+                console.error('❌ Setup failed:', error);
+                setSetupStep("Setup failed - please refresh");
+                alert(`Setup failed: ${error.message}`);
+            }
+        };
+
+        runSetup();
+    }, [wallet, isAgentConnected, setupComplete, connect]);
+
     return (
-      <ChatLayout>
-        <LoadingSpinner />
-      </ChatLayout>
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md px-4">
+                <h2 className="font-adonis text-3xl mb-4">Setting Up Your Membership</h2>
+                <LoadingSpinner />
+                <p className="font-georgia-pro text-sm text-gray-600 mt-4">
+                    {setupStep}
+                </p>
+                {!setupStep.includes("failed") && (
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        Gas fees sponsored by Knead ⚡
+                    </p>
+                )}
+            </div>
+        </div>
     );
-  }
-  
-  return <ConnectedChatInner {...props} />;
 }
 
-// ✅ Inner component that uses Towns hooks (only renders when agent is connected)
-function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
-  const [messageInput, setMessageInput] = useState('');
-  const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?: string} | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  
-  const { disconnect } = useAgentConnection();
-  const activeAccount = useActiveAccount();
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOWNS CHAT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
-  
-  const channelId = space?.channelIds?.[0] || defaultChannelId;
-  
-  const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
-  const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
+function TownsChat() {
+    const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
+    const [hasJoined, setHasJoined] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    const wallet = useActiveWallet();
+    const { joinSpace } = useJoinSpace();
+    const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
-  // Auto-retry on miniblock hash errors
-  useEffect(() => {
-    if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
-      console.log(`⚠️ Miniblock hash error, will retry in 2 seconds (attempt ${retryCount + 1}/3)`);
-      const timer = setTimeout(() => {
-        setRetryCount(retryCount + 1);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [sendError, retryCount]);
+    const currentUser: ChatUser | null = useMemo(() => {
+        const address = wallet?.getAccount()?.address;
+        if (!address) return null;
+        
+        return {
+            id: address,
+            address: address,
+            displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+            role: 'viewer',
+            membershipTier: 'freemium',
+            isBanned: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+    }, [wallet]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('🔍 ConnectedChat Debug:');
-    console.log('   - spaceId:', spaceId);
-    console.log('   - space:', space);
-    console.log('   - channelId:', channelId);
-    console.log('   - timeline length:', timeline?.length);
-    
-    if (spaceError) console.error('❌ Space error:', spaceError);
-    if (timelineError) console.error('❌ Timeline error:', timelineError);
-    if (sendError) console.error('❌ Send error:', sendError);
-  }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError]);
+    // Debug logging for space sync status
+    useEffect(() => {
+        if (space) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('📊 Space Sync Status:');
+            console.log('   Initialized:', space.initialized);
+            console.log('   Channel IDs:', space.channelIds);
+            console.log('   Metadata:', space.metadata);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+    }, [space]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [timeline]);
+    // Check if user needs to join (run once on mount)
+    useEffect(() => {
+        if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim() || isSending || !channelId) {
-      console.warn('Cannot send message:', { 
-        hasInput: !!messageInput.trim(), 
-        isSending, 
-        hasChannelId: !!channelId 
-      });
-      return;
-    }
+        const joinSpaceNow = async () => {
+            try {
+                const userAddress = wallet.getAccount()?.address;
+                if (!userAddress) return;
 
-    try {
-      console.log('📤 Sending message:', messageInput);
-      setRetryCount(0);
-      
-      await sendMessage(messageInput);
-      
-      console.log('✅ Message sent successfully');
-      setMessageInput('');
-    } catch (error: any) {
-      console.error('❌ Failed to send message:', error);
-      
-      if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
-        alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
-      } else if (error.message?.includes('already a member')) {
-        console.log('ℹ️ Already a member, ignoring error');
-      } else if (error.message?.includes('insufficient funds')) {
-        alert('⛽ Out of gas! Gas sponsorship may not be configured correctly.');
-      } else {
-        alert(`Failed to send message: ${error.message}`);
-      }
-    }
-  };
+                // ✅ WALLET-SPECIFIC: Include wallet address in localStorage key
+                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
+                
+                if (hasJoinedBefore) {
+                    console.log('✅ User already joined before (from localStorage v2)');
+                    setSpaceId(SAVED_SPACE_ID);
+                    setHasJoined(true);
+                    return;
+                }
 
-  // Filter and transform timeline events properly
-  const messages = timeline
-    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .map((event: any) => {
-      return {
-        id: event.eventId || event.id,
-        content: event.content?.body || '',
-        sender: {
-          id: event.creatorUserId || '',
-          name: event.creatorDisplayName || 'Anonymous',
-          avatar: undefined,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: event.creatorUserId === activeAccount?.address,
-      };
-    }) || [];
+                console.log('🚀 Joining space for the first time...');
+                console.log('⛽ Gas will be sponsored by Smart Account');
+                const signer = await getEthersV5Signer(wallet, activeChain, client);
+                
+                // ✅ Mint the NFT (don't skip)
+                await joinSpace(SAVED_SPACE_ID, signer);
+                
+                console.log('✅ Join space successful!');
+                // ✅ WALLET-SPECIFIC: Save with wallet address in key
+                localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                setSpaceId(SAVED_SPACE_ID);
+                setHasJoined(true);
 
-  // Loading state
-  if (isSpaceLoading || isTimelineLoading) {
-    return (
-      <ChatLayout>
-        <LoadingSpinner />
-      </ChatLayout>
-    );
-  }
+            } catch (error: any) {
+                const userAddress = wallet.getAccount()?.address;
+                
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ Already a member - treating as success');
+                    // ✅ WALLET-SPECIFIC: Save with wallet address in key
+                    if (userAddress) {
+                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                    }
+                    setSpaceId(SAVED_SPACE_ID);
+                    setHasJoined(true);
+                } else {
+                    console.error('❌ Join failed:', error);
+                    alert(`Failed to join space: ${error.message}`);
+                }
+            }
+        };
 
-  // Error state
-  if (spaceError || timelineError) {
-    return (
-      <ChatLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center text-red-500 py-8">
-            <p className="font-georgia-pro text-lg">❌ Error loading chat</p>
-            <p className="font-georgia-pro text-sm mt-2">
-              {spaceError?.message || timelineError?.message || 'Unknown error'}
-            </p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="mt-4 px-4 py-2 bg-black text-white rounded-full"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </ChatLayout>
-    );
-  }
+        joinSpaceNow();
+    }, [wallet, hasJoined, joinSpace]);
 
-  return (
-    <ChatLayout>
-      <div className="h-full flex flex-col bg-white">
-        {/* Space & Channel Info */}
-        <div className="bg-gray-50 px-4 py-2 border-b">
-          <p className="font-georgia-pro text-sm text-gray-600">
-            <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-            {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
-          </p>
-        </div>
-
-        {/* Event Indicator Banner */}
-        {activeEvent && (
-          <EventBanner
-            eventTitle={activeEvent.title}
-            timeRemaining={activeEvent.timeRemaining}
-            isLive={true}
-          />
-        )}
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto">
-          {isTimelineLoading ? (
-            <LoadingSpinner />
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500 py-8">
-                <p className="font-georgia-pro text-lg">No messages yet.</p>
-                <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
-              </div>
+    // ✅ CRITICAL: Wait for space to be fully initialized
+    if (isSpaceLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading space data...
+                    </p>
+                </div>
             </div>
-          ) : (
-            <div className="py-4">
-              {messages.map((message: any) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  isOwn={message.isOwn || false}
+        );
+    }
+
+    if (!space) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="font-georgia-pro text-red-500">❌ Space not found</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ CRITICAL: Don't render until space is initialized
+    if (!space.initialized) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Syncing with stream nodes...
+                    </p>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        This may take a few seconds
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ CRITICAL: Get channel ID from synced space data
+    const channelId = space.channelIds?.[0];
+
+    if (!channelId) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-2">
+                        Space ID: {spaceId?.substring(0, 16)}...
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ Only render chat when everything is ready
+    if (hasJoined && currentUser) {
+        return (
+            <div className="w-full h-screen">
+                <ConnectedChat
+                    currentUser={currentUser}
+                    spaceId={spaceId!}
+                    defaultChannelId={channelId}
                 />
-              ))}
-              <div ref={messagesEndRef} />
             </div>
-          )}
-        </div>
+        );
+    }
 
-        {/* Input Area - iMessage Style */}
-        <div className="border-t border-gray-200 p-4 bg-white">
-          <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-            <input
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              placeholder={channelId ? "iMessage" : "Loading..."}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
-              disabled={isSending || !channelId}
-            />
-            <button 
-              type="submit" 
-              disabled={isSending || !messageInput.trim() || !channelId} 
-              className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                fill="currentColor" 
-                className="w-5 h-5"
-              >
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-              </svg>
-            </button>
-          </form>
+    return <LoadingSpinner />;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KEY SHARER BOT (unchanged)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function KeySharerBot() {
+    const [hasJoined, setHasJoined] = useState(false);
+    const [hasSentWelcome, setHasSentWelcome] = useState(false);
+    const { joinSpace } = useJoinSpace();
+    const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
+    
+    const channelId = space?.channelIds?.[0];
+    const { data: timeline } = useTimeline(channelId || '');
+    const { sendMessage, isPending: isSending } = useSendMessage(channelId || '');
+
+    useEffect(() => {
+        if (hasJoined || !SAVED_SPACE_ID) return;
+
+        const joinAsBot = async () => {
+            try {
+                const { ethers } = await import('ethers-v5');
+                const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+                
+                const botWallet = new ethers.Wallet(privateKey);
+                const botAddress = botWallet.address;
+                
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('🤖 Bot Join Attempt Starting');
+                console.log('   Bot Address:', botAddress);
+                console.log('   Space ID:', SAVED_SPACE_ID);
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL
+                );
+                const balance = await provider.getBalance(botAddress);
+                const balanceEth = ethers.utils.formatEther(balance);
+                
+                console.log('💰 Current balance:', balanceEth, 'ETH');
+                
+                if (balance.eq(0)) {
+                    console.error('❌ Bot wallet has ZERO ETH! Cannot proceed.');
+                    throw new Error('Bot wallet has no ETH');
+                }
+                
+                const connectedWallet = botWallet.connect(provider);
+                
+                const hasJoinedBefore = localStorage.getItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`);
+                
+                if (!hasJoinedBefore) {
+                    console.log('🚀 Attempting to join space...');
+                    console.log('   Towns SDK will mint membership NFT');
+                    
+                    await joinSpace(SAVED_SPACE_ID, connectedWallet);
+                    
+                    console.log('✅ Successfully joined space!');
+                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
+                } else {
+                    console.log('✅ Bot already joined space before (from localStorage v2)');
+                }
+                
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('✅ BOT JOINED SUCCESSFULLY!');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                setHasJoined(true);
+
+            } catch (error: any) {
+                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.error('❌ Bot Join Failed:');
+                console.error('   Message:', error.message || 'Unknown error');
+                console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                
+                if (error.message?.includes('already a member') || 
+                    error.message?.includes('already in space') ||
+                    error.message?.includes('already joined')) {
+                    console.log('✅ Bot appears to already be a member');
+                    
+                    const { ethers } = await import('ethers-v5');
+                    const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+                    const botWallet = new ethers.Wallet(privateKey);
+                    const botAddress = botWallet.address;
+                    
+                    localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
+                    setHasJoined(true);
+                    return;
+                }
+                
+                if (error.message?.includes('PERMISSION_DENIED') ||
+                    error.message?.includes('INSUFFICIENT_FUNDS') ||
+                    error.code === 'INSUFFICIENT_FUNDS') {
+                    console.error('❌ Join failed with permission/funding error');
+                    console.error('💡 Bot needs manual intervention');
+                    return;
+                }
+                
+                console.error('❌ Join failed - manual intervention needed');
+            }
+        };
+
+        joinAsBot();
+    }, [hasJoined, joinSpace]);
+
+    useEffect(() => {
+        if (space) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🤖 Bot Space Sync Status:');
+            console.log('   Initialized:', space.initialized);
+            console.log('   Channels:', space.channelIds?.length || 0);
+            console.log('   Channel IDs:', space.channelIds);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+    }, [space]);
+
+    useEffect(() => {
+        if (!timeline || timeline.length === 0) return;
+
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📨 Bot received timeline update:');
+        console.log('   Total messages:', timeline.length);
+        console.log('   Latest message:', timeline[timeline.length - 1]);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }, [timeline]);
+
+    useEffect(() => {
+        if (!hasJoined || !channelId || hasSentWelcome || isSending) return;
+
+        const sendWelcomeMessage = async () => {
+            try {
+                const lastWelcome = localStorage.getItem('bot_last_welcome');
+                const now = Date.now();
+                
+                if (lastWelcome && (now - parseInt(lastWelcome)) < 3600000) {
+                    console.log('⏭️ Skipping welcome - sent recently');
+                    setHasSentWelcome(true);
+                    return;
+                }
+
+                console.log('🤖 Sending welcome message...');
+                await sendMessage('🤖 Key Sharer Bot is online and monitoring the chat. I help ensure all members can access encrypted messages.');
+                
+                localStorage.setItem('bot_last_welcome', now.toString());
+                setHasSentWelcome(true);
+                console.log('✅ Welcome message sent!');
+            } catch (error) {
+                console.error('❌ Failed to send welcome message:', error);
+            }
+        };
+
+        const timer = setTimeout(sendWelcomeMessage, 3000);
+        return () => clearTimeout(timer);
+    }, [hasJoined, channelId, hasSentWelcome, isSending, sendMessage]);
+
+    useEffect(() => {
+        if (!timeline || timeline.length === 0 || !channelId || isSending) return;
+
+        const latestMessage = timeline[timeline.length - 1];
+        const messageBody = latestMessage?.content?.body?.toLowerCase() || '';
+        const messageId = latestMessage?.eventId;
+        
+        if (localStorage.getItem(`bot_responded_${messageId}`)) return;
+
+        const shouldRespond = 
+            messageBody.includes('!bot') || 
+            messageBody.includes('!status') ||
+            messageBody.includes('!help');
+
+        if (shouldRespond) {
+            const respond = async () => {
+                try {
+                    console.log('🤖 Detected command, responding...');
+                    
+                    let response = '';
+                    if (messageBody.includes('!status')) {
+                        response = `✅ Bot Status: Online | Messages in timeline: ${timeline.length} | Channel: ${channelId.substring(0, 8)}...`;
+                    } else if (messageBody.includes('!help')) {
+                        response = '🤖 Commands: !status (check bot status) | !help (this message)';
+                    } else {
+                        response = '👋 Key Sharer Bot here! Use !status or !help for more info.';
+                    }
+
+                    await sendMessage(response);
+                    localStorage.setItem(`bot_responded_${messageId}`, 'true');
+                    console.log('✅ Response sent!');
+                } catch (error) {
+                    console.error('❌ Failed to respond:', error);
+                }
+            };
+
+            setTimeout(respond, 1000);
+        }
+    }, [timeline, channelId, isSending, sendMessage]);
+
+    if (isSpaceLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Starting...</h1>
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading space data...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!space?.initialized) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <h1 className="font-adonis text-4xl mb-4">Key Sharer Syncing...</h1>
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Syncing with stream nodes...
+                    </p>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        This may take a few seconds
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center">
+                <h1 className="font-adonis text-4xl mb-4 text-green-600">✅ Key Sharer Online</h1>
+                <p className="font-georgia-pro text-sm text-gray-600 mb-2">
+                    Channels: {space.channelIds?.length || 0}
+                </p>
+                <p className="font-georgia-pro text-sm text-gray-600 mb-2">
+                    Messages in timeline: {timeline?.length || 0}
+                </p>
+                <p className="font-georgia-pro text-xs text-gray-400">
+                    Connected at {new Date().toLocaleTimeString()}
+                </p>
+                <p className="font-georgia-pro text-xs text-gray-500 mt-4">
+                    💬 Monitoring chat for new messages...
+                </p>
+            </div>
         </div>
-      </div>
-    </ChatLayout>
-  );
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN COMPONENT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export default function ChatTestClient() {
+    const [isMounted, setIsMounted] = useState(false);
+    const wallet = useActiveWallet();
+    const { isAgentConnected, connect } = useAgentConnection();
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Bot auto-login
+    useEffect(() => {
+        if (!isMounted || typeof window === 'undefined') return;
+        
+        const privateKey = (window as any).KEY_SHARER_PRIVATE_KEY;
+        const isAutoMode = (window as any).KEY_SHARER_AUTO_MODE;
+        
+        if (!privateKey || !isAutoMode || isAgentConnected) return;
+
+        (async () => {
+            try {
+                console.log('🔐 Bot auto-login starting...');
+                const { ethers } = await import('ethers-v5');
+                
+                const botWallet = new ethers.Wallet(privateKey);
+                
+                const provider = new ethers.providers.JsonRpcProvider(
+                    process.env.NEXT_PUBLIC_BASE_RPC_URL
+                );
+                const connectedWallet = botWallet.connect(provider);
+                
+                await connect(connectedWallet, { 
+                    townsConfig: TOWNS_CONFIG,
+                    onTokenExpired: () => console.log('🔄 Token expired')
+                });
+                
+                console.log('✅ Bot connected to Towns');
+                (window as any).KEY_SHARER_CONNECTED = true;
+            } catch (error) {
+                console.error('❌ Bot login failed:', error);
+                (window as any).KEY_SHARER_ERROR = error;
+            }
+        })();
+    }, [isMounted, isAgentConnected, connect]);
+
+    if (!isMounted) return <LoadingSpinner />;
+
+    // Bot mode
+    if (typeof window !== 'undefined' && (window as any).KEY_SHARER_AUTO_MODE) {
+        if (!isAgentConnected) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-white">
+                    <div className="text-center">
+                        <h1 className="font-adonis text-4xl mb-4">🔐 Key Sharer Connecting...</h1>
+                        <LoadingSpinner />
+                    </div>
+                </div>
+            );
+        }
+        return <KeySharerBot />;
+    }
+
+    // User mode
+    if (!wallet) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md">
+                    <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
+                    <ConnectButton client={client} chain={activeChain} wallets={wallets} />
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAgentConnected) {
+        return <SetupFlow />;
+    }
+
+    return <TownsChat />;
 }
