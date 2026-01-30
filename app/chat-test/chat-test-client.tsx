@@ -290,9 +290,16 @@ function TownsChat() {
 
 function KeySharerBot() {
     const [hasJoined, setHasJoined] = useState(false);
+    const [hasSentWelcome, setHasSentWelcome] = useState(false);
     const { joinSpace } = useJoinSpace();
     const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
+    
+    // ✅ Get channel and setup message hooks
+    const channelId = space?.channelIds?.[0];
+    const { data: timeline } = useTimeline(channelId || '');
+    const { sendMessage, isPending: isSending } = useSendMessage(channelId || '');
 
+    // Join space logic (existing)
     useEffect(() => {
         if (hasJoined || !SAVED_SPACE_ID) return;
 
@@ -325,18 +332,15 @@ function KeySharerBot() {
                 
                 const connectedWallet = botWallet.connect(provider);
                 
-                // ✅ WALLET-SPECIFIC: Include bot address in localStorage key
                 const hasJoinedBefore = localStorage.getItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`);
                 
                 if (!hasJoinedBefore) {
                     console.log('🚀 Attempting to join space...');
                     console.log('   Towns SDK will mint membership NFT');
                     
-                    // ✅ Mint the NFT (don't skip)
                     await joinSpace(SAVED_SPACE_ID, connectedWallet);
                     
                     console.log('✅ Successfully joined space!');
-                    // ✅ WALLET-SPECIFIC: Save with bot address in key
                     localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
                 } else {
                     console.log('✅ Bot already joined space before (from localStorage v2)');
@@ -344,7 +348,7 @@ function KeySharerBot() {
                 
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 console.log('✅ BOT JOINED SUCCESSFULLY!');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 setHasJoined(true);
 
             } catch (error: any) {
@@ -353,7 +357,6 @@ function KeySharerBot() {
                 console.error('   Message:', error.message || 'Unknown error');
                 console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 
-                // Handle common error cases
                 if (error.message?.includes('already a member') || 
                     error.message?.includes('already in space') ||
                     error.message?.includes('already joined')) {
@@ -364,13 +367,11 @@ function KeySharerBot() {
                     const botWallet = new ethers.Wallet(privateKey);
                     const botAddress = botWallet.address;
                     
-                    // ✅ WALLET-SPECIFIC: Save with bot address in key
                     localStorage.setItem(`bot_joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${botAddress}`, 'true');
                     setHasJoined(true);
                     return;
                 }
                 
-                // Don't treat permission/funding errors as success
                 if (error.message?.includes('PERMISSION_DENIED') ||
                     error.message?.includes('INSUFFICIENT_FUNDS') ||
                     error.code === 'INSUFFICIENT_FUNDS') {
@@ -386,7 +387,7 @@ function KeySharerBot() {
         joinAsBot();
     }, [hasJoined, joinSpace]);
 
-    // Debug logging for space sync status
+    // ✅ NEW: Log space sync status
     useEffect(() => {
         if (space) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -397,6 +398,94 @@ function KeySharerBot() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
+
+    // ✅ NEW: Monitor incoming messages
+    useEffect(() => {
+        if (!timeline || timeline.length === 0) return;
+
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📨 Bot received timeline update:');
+        console.log('   Total messages:', timeline.length);
+        console.log('   Latest message:', timeline[timeline.length - 1]);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }, [timeline]);
+
+    // ✅ NEW: Send welcome message once when bot is ready
+    useEffect(() => {
+        if (!hasJoined || !channelId || hasSentWelcome || isSending) return;
+
+        const sendWelcomeMessage = async () => {
+            try {
+                // Check if we already sent a welcome recently
+                const lastWelcome = localStorage.getItem('bot_last_welcome');
+                const now = Date.now();
+                
+                // Only send welcome if it's been more than 1 hour since last one
+                if (lastWelcome && (now - parseInt(lastWelcome)) < 3600000) {
+                    console.log('⏭️ Skipping welcome - sent recently');
+                    setHasSentWelcome(true);
+                    return;
+                }
+
+                console.log('🤖 Sending welcome message...');
+                await sendMessage('🤖 Key Sharer Bot is online and monitoring the chat. I help ensure all members can access encrypted messages.');
+                
+                localStorage.setItem('bot_last_welcome', now.toString());
+                setHasSentWelcome(true);
+                console.log('✅ Welcome message sent!');
+            } catch (error) {
+                console.error('❌ Failed to send welcome message:', error);
+            }
+        };
+
+        // Wait 3 seconds after joining before sending welcome
+        const timer = setTimeout(sendWelcomeMessage, 3000);
+        return () => clearTimeout(timer);
+    }, [hasJoined, channelId, hasSentWelcome, isSending, sendMessage]);
+
+    // ✅ NEW: Auto-respond to keywords (optional - for testing)
+    useEffect(() => {
+        if (!timeline || timeline.length === 0 || !channelId || isSending) return;
+
+        const latestMessage = timeline[timeline.length - 1];
+        const messageBody = latestMessage?.content?.body?.toLowerCase() || '';
+        const messageId = latestMessage?.eventId;
+        
+        // Skip if we already responded to this message
+        if (localStorage.getItem(`bot_responded_${messageId}`)) return;
+
+        // Respond to specific keywords
+        const shouldRespond = 
+            messageBody.includes('!bot') || 
+            messageBody.includes('!status') ||
+            messageBody.includes('!help');
+
+        if (shouldRespond) {
+            const respond = async () => {
+                try {
+                    console.log('🤖 Detected command, responding...');
+                    
+                    let response = '';
+                    if (messageBody.includes('!status')) {
+                        response = `✅ Bot Status: Online | Messages in timeline: ${timeline.length} | Channel: ${channelId.substring(0, 8)}...`;
+                    } else if (messageBody.includes('!help')) {
+                        response = '🤖 Commands: !status (check bot status) | !help (this message)';
+                    } else {
+                        response = '👋 Key Sharer Bot here! Use !status or !help for more info.';
+                    }
+
+                    await sendMessage(response);
+                    localStorage.setItem(`bot_responded_${messageId}`, 'true');
+                    console.log('✅ Response sent!');
+                } catch (error) {
+                    console.error('❌ Failed to respond:', error);
+                }
+            };
+
+            // Wait 1 second before responding
+            setTimeout(respond, 1000);
+        }
+    }, [timeline, channelId, isSending, sendMessage]);
 
     // Wait for space to load
     if (isSpaceLoading) {
@@ -413,7 +502,7 @@ function KeySharerBot() {
         );
     }
 
-    // Wait for space to sync (same pattern as TownsChat)
+    // Wait for space to sync
     if (!space?.initialized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -439,8 +528,14 @@ function KeySharerBot() {
                 <p className="font-georgia-pro text-sm text-gray-600 mb-2">
                     Channels: {space.channelIds?.length || 0}
                 </p>
+                <p className="font-georgia-pro text-sm text-gray-600 mb-2">
+                    Messages in timeline: {timeline?.length || 0}
+                </p>
                 <p className="font-georgia-pro text-xs text-gray-400">
                     Connected at {new Date().toLocaleTimeString()}
+                </p>
+                <p className="font-georgia-pro text-xs text-gray-500 mt-4">
+                    💬 Monitoring chat for new messages...
                 </p>
             </div>
         </div>
