@@ -133,6 +133,7 @@ function SetupFlow() {
 function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
+    const [messagesReady, setMessagesReady] = useState(false);
 
     const wallet = useActiveWallet();
     const { joinSpace } = useJoinSpace();
@@ -162,7 +163,7 @@ function TownsChat() {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
@@ -175,7 +176,6 @@ function TownsChat() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ WALLET-SPECIFIC: Include wallet address in localStorage key
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (hasJoinedBefore) {
@@ -188,11 +188,9 @@ function TownsChat() {
                 console.log('🚀 Joining space for the first time...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                // ✅ Mint the NFT (don't skip)
                 await joinSpace(SAVED_SPACE_ID, signer);
                 
                 console.log('✅ Join space successful!');
-                // ✅ WALLET-SPECIFIC: Save with wallet address in key
                 localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                 setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
@@ -202,7 +200,6 @@ function TownsChat() {
                 
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member - treating as success');
-                    // ✅ WALLET-SPECIFIC: Save with wallet address in key
                     if (userAddress) {
                         localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                     }
@@ -217,6 +214,20 @@ function TownsChat() {
 
         joinSpaceNow();
     }, [wallet, hasJoined, joinSpace]);
+
+    // ✅ NEW: Wait for messages to load after space initializes
+    useEffect(() => {
+        if (space?.initialized && !messagesReady) {
+            console.log('⏳ Space initialized, waiting for messages to load...');
+            // Give messages 2-3 seconds to decrypt and load
+            const timer = setTimeout(() => {
+                console.log('✅ Messages should be ready now');
+                setMessagesReady(true);
+            }, 2500);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [space?.initialized, messagesReady]);
 
     // ✅ CRITICAL: Wait for space to be fully initialized
     if (isSpaceLoading) {
@@ -249,10 +260,27 @@ function TownsChat() {
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Syncing with stream nodes...
+                        Connecting to nodes...
                     </p>
                     <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This may take a few seconds
+                        Syncing encrypted chat history
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ NEW: Wait for messages to decrypt
+    if (!messagesReady) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Loading messages...
+                    </p>
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        Decrypting chat history
                     </p>
                 </div>
             </div>
