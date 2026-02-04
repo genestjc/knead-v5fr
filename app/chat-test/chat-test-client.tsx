@@ -42,6 +42,7 @@ const wallets = [
     auth: {
       options: ["email", "google", "apple", "phone"],
     },
+    hidePrivateKeyExport: false, // ✅ Enable private key export for non-custodial compliance
     // ✅ EIP-7702: Gas sponsorship with EOA compatibility
     executionMode: {
       mode: "EIP7702",

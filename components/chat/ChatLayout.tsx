@@ -3,6 +3,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
+import { useActiveWallet } from 'thirdweb/react';
+import { getContract } from 'thirdweb';
+import { transfer } from 'thirdweb/extensions/erc20';
+import { toWei } from 'thirdweb';
+import { client, activeChain } from '@/thirdweb-client';
+import { PrivateKeyModal } from './PrivateKeyModal';
 
 interface MenuItem {
   icon: string;
@@ -26,6 +32,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
+  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+  const [exportedPrivateKey, setExportedPrivateKey] = useState<string | null>(null);
+  const wallet = useActiveWallet();
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -34,14 +43,103 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
+  // Handle private key export
+  const handleExportPrivateKey = async () => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      setLogoExpanded(false);
+      return;
+    }
+
+    const confirmed = confirm(
+      '⚠️ WARNING: Anyone with this private key can access your funds.\n\n' +
+      'Only export your private key if you understand the risks and need to import your wallet elsewhere.\n\n' +
+      'Continue?'
+    );
+    
+    if (!confirmed) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    try {
+      const exported = await wallet.export();
+      setExportedPrivateKey(exported.privateKey);
+      setShowPrivateKeyModal(true);
+      setLogoExpanded(false);
+    } catch (error: any) {
+      alert(`Export failed: ${error.message}`);
+      setLogoExpanded(false);
+    }
+  };
+
+  // Handle token withdrawal
+  const handleWithdraw = async () => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      setLogoExpanded(false);
+      return;
+    }
+
+    const withdrawAmount = prompt('How many $TOWNS tokens do you want to withdraw?');
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    const destinationAddress = prompt(
+      'Enter destination wallet address:\n' +
+      '(e.g., your Coinbase wallet address)'
+    );
+    
+    if (!destinationAddress || !destinationAddress.startsWith('0x')) {
+      alert('Invalid wallet address');
+      setLogoExpanded(false);
+      return;
+    }
+
+    try {
+      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
+      if (!townsContractAddress) {
+        throw new Error('TOWNS contract address not configured');
+      }
+
+      const contract = getContract({
+        client,
+        chain: activeChain,
+        address: townsContractAddress,
+      });
+
+      const tx = transfer({
+        contract,
+        to: destinationAddress,
+        amount: toWei(withdrawAmount),
+      });
+
+      console.log('🔄 Sending withdrawal transaction...');
+      const receipt = await wallet.sendTransaction({ transaction: tx });
+      
+      alert(
+        `✅ Withdrawal successful!\n\n` +
+        `Amount: ${withdrawAmount} $TOWNS\n` +
+        `To: ${destinationAddress}\n\n` +
+        `Transaction: ${receipt.transactionHash}\n` +
+        `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
+      );
+      
+      setLogoExpanded(false);
+    } catch (error: any) {
+      console.error('Withdrawal error:', error);
+      alert(`❌ Withdrawal failed: ${error.message}`);
+      setLogoExpanded(false);
+    }
+  };
+
   const menuItems: MenuItem[] = [
     {
       icon: '💰',
       label: 'Withdraw Earnings',
-      onClick: () => {
-        console.log('Withdraw earnings clicked');
-        setLogoExpanded(false);
-      },
+      onClick: handleWithdraw,
     },
     {
       icon: '🏠',
@@ -51,20 +149,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       },
     },
     {
-      icon: '⚙️',
-      label: 'Wallet Settings',
-      onClick: () => {
-        console.log('Wallet settings clicked');
-        setLogoExpanded(false);
-      },
-    },
-    {
       icon: '🔑',
       label: 'Export Private Key',
-      onClick: () => {
-        console.log('Export private key clicked');
-        setLogoExpanded(false);
-      },
+      onClick: handleExportPrivateKey,
     },
   ];
 
@@ -207,6 +294,17 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           />
         )}
       </AnimatePresence>
+
+      {/* Private Key Modal */}
+      {showPrivateKeyModal && exportedPrivateKey && (
+        <PrivateKeyModal
+          privateKey={exportedPrivateKey}
+          onClose={() => {
+            setShowPrivateKeyModal(false);
+            setExportedPrivateKey(null);
+          }}
+        />
+      )}
     </div>
   );
 }
