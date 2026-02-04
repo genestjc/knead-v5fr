@@ -67,8 +67,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       setExportedPrivateKey(exported.privateKey);
       setShowPrivateKeyModal(true);
       setLogoExpanded(false);
-    } catch (error: any) {
-      alert(`Export failed: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Export failed: ${errorMessage}`);
       setLogoExpanded(false);
     }
   };
@@ -128,7 +129,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       const tx = transfer({
         contract,
         to: destinationAddress,
-        amount: toWei(withdrawAmount),
+        amount: toWei(amount.toString()),
       });
 
       console.log('🔄 Sending withdrawal transaction...');
@@ -136,16 +137,17 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       
       alert(
         `✅ Withdrawal successful!\n\n` +
-        `Amount: ${withdrawAmount} $TOWNS\n` +
+        `Amount: ${amount} $TOWNS\n` +
         `To: ${destinationAddress}\n\n` +
         `Transaction: ${receipt.transactionHash}\n` +
         `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
       );
       
       setLogoExpanded(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Withdrawal error:', error);
-      alert(`❌ Withdrawal failed: ${error.message}`);
+      alert(`❌ Withdrawal failed: ${errorMessage}`);
       setLogoExpanded(false);
     }
   };
