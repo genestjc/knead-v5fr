@@ -17,7 +17,12 @@ export function PrivateKeyModal({ privateKey, onClose }: PrivateKeyModalProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      alert('Failed to copy to clipboard');
+      console.error('Failed to copy to clipboard:', error);
+      alert(
+        'Failed to copy to clipboard.\n\n' +
+        'Please manually select and copy the private key below.\n\n' +
+        (error instanceof Error ? `Error: ${error.message}` : 'Unknown error occurred')
+      );
     }
   };
 

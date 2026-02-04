@@ -82,7 +82,15 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     }
 
     const withdrawAmount = prompt('How many $TOWNS tokens do you want to withdraw?');
-    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+    if (!withdrawAmount) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    // Validate amount is a valid positive number
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Invalid amount. Please enter a valid positive number.');
       setLogoExpanded(false);
       return;
     }
@@ -92,8 +100,15 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       '(e.g., your Coinbase wallet address)'
     );
     
-    if (!destinationAddress || !destinationAddress.startsWith('0x')) {
-      alert('Invalid wallet address');
+    if (!destinationAddress) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    // Validate Ethereum address format (0x followed by 40 hex characters)
+    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!addressRegex.test(destinationAddress)) {
+      alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
       setLogoExpanded(false);
       return;
     }
