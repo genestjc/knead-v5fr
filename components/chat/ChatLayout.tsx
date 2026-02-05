@@ -9,6 +9,7 @@ import { transfer } from 'thirdweb/extensions/erc20';
 import { toWei } from 'thirdweb';
 import { client, activeChain } from '@/thirdweb-client';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { useToast } from '@/hooks/use-toast'; // ✅ Import at top
 
 // ✅ Define wallets array for Connect modal
 const wallets = [
@@ -53,6 +54,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   
   const wallet = useActiveWallet();
   const { connect } = useConnectModal();
+  const { toast } = useToast(); // ✅ Call hook at component level
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -64,15 +66,11 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   // Handle private key export via ThirdWeb Connect modal
   const handleExportPrivateKey = () => {
     if (!wallet) {
-     import { useToast } from '@/hooks/use-toast';
-
-const { toast } = useToast();
-
-toast({
-  title: "Wallet Not Connected",
-  description: "Please connect your wallet first",
-  variant: "destructive"
-});
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive"
+      });
       setLogoExpanded(false);
       return;
     }
@@ -85,15 +83,11 @@ toast({
     
     // Show instructions
     setTimeout(() => {
-      alert(
-        '📱 Connect Modal Opened\n\n' +
-        'To export your private key:\n' +
-        '1. Click "Manage Wallet"\n' +
-        '2. Select "Export Private Key"\n' +
-        '3. Follow the security prompts\n\n' +
-        '🔒 Your key is never sent to our servers.\n' +
-        'This ensures your wallet is truly non-custodial.'
-      );
+      toast({
+        title: "📱 Export Private Key",
+        description: "1. Click 'Manage Wallet'\n2. Select 'Export Private Key'\n3. Follow the prompts\n\n🔒 Your key is never sent to our servers.",
+        duration: 8000, // Show longer for instructions
+      });
     }, 500);
     
     setLogoExpanded(false);
@@ -102,7 +96,11 @@ toast({
   // Handle token withdrawal
   const handleWithdraw = async () => {
     if (!wallet) {
-      alert('Please connect your wallet first');
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive"
+      });
       setLogoExpanded(false);
       return;
     }
@@ -116,7 +114,11 @@ toast({
     // Validate amount is a valid positive number
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert('Invalid amount. Please enter a valid positive number.');
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid positive number",
+        variant: "destructive"
+      });
       setLogoExpanded(false);
       return;
     }
@@ -134,7 +136,11 @@ toast({
     // Validate Ethereum address format (0x followed by 40 hex characters)
     const addressRegex = /^0x[a-fA-F0-9]{40}$/;
     if (!addressRegex.test(destinationAddress)) {
-      alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
+      toast({
+        title: "Invalid Address",
+        description: "Please enter a valid Ethereum address (0x...)",
+        variant: "destructive"
+      });
       setLogoExpanded(false);
       return;
     }
@@ -158,21 +164,32 @@ toast({
       });
 
       console.log('🔄 Sending withdrawal transaction...');
+      
+      toast({
+        title: "Transaction Pending",
+        description: "Please sign the transaction in your wallet...",
+      });
+
       const receipt = await wallet.sendTransaction({ transaction: tx });
       
-      alert(
-        `✅ Withdrawal successful!\n\n` +
-        `Amount: ${amount} $TOWNS\n` +
-        `To: ${destinationAddress}\n\n` +
-        `Transaction: ${receipt.transactionHash}\n` +
-        `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
-      );
+      toast({
+        title: "✅ Withdrawal Successful!",
+        description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
+        action: {
+          label: "View on BaseScan",
+          onClick: () => window.open(`https://basescan.org/tx/${receipt.transactionHash}`, '_blank'),
+        },
+      });
       
       setLogoExpanded(false);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Withdrawal error:', error);
-      alert(`❌ Withdrawal failed: ${errorMessage}`);
+      toast({
+        title: "❌ Withdrawal Failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
       setLogoExpanded(false);
     }
   };
