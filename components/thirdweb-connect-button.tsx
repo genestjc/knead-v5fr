@@ -13,7 +13,8 @@ const wallets = [
       options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
       // ✅ FIX: Use redirect flow instead of popup to avoid COOP conflicts
       mode: "redirect",
-      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
+      // ✅ DYNAMIC: Redirect back to current page (not hardcoded to /chat-test)
+      redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
     },
     hidePrivateKeyExport: false, // ✅ CRITICAL: Enable private key export for non-custodial compliance
   }),
