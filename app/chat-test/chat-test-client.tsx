@@ -42,6 +42,8 @@ const wallets = [
   inAppWallet({
     auth: {
       options: ["email", "google", "apple", "phone"],
+      mode: "redirect",
+      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
     },
     hidePrivateKeyExport: false, // ✅ Enable private key export for non-custodial compliance
     // ✅ EIP-7702: Gas sponsorship with EOA compatibility
@@ -297,6 +299,27 @@ export default function ChatTestClient() {
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // ✅ NEW: Check for export intent after OAuth redirect
+    useEffect(() => {
+      const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
+      
+      if (hasExportIntent && wallet && isAgentConnected) {
+        // Clear the flag
+        localStorage.removeItem("exportKeyIntent");
+        
+        // Show reminder to user
+        setTimeout(() => {
+          alert(
+            "✅ Authentication successful!\n\n" +
+            "To export your private key:\n" +
+            "1. Click the 'K' logo (top left)\n" +
+            "2. Click 'Export Private Key'\n" +
+            "3. Follow the instructions"
+          );
+        }, 1500);
+      }
+    }, [wallet, isAgentConnected]);
 
     if (!isMounted) return <LoadingSpinner />;
 
