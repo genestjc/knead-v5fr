@@ -9,7 +9,6 @@ import { transfer } from 'thirdweb/extensions/erc20';
 import { toWei } from 'thirdweb';
 import { client, activeChain } from '@/thirdweb-client';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
-import { useToast } from '@/hooks/use-toast'; // ✅ Import at top
 
 // ✅ Define wallets array for Connect modal
 const wallets = [
@@ -51,10 +50,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
+  const [showExportInstructions, setShowExportInstructions] = useState(false);
   
   const wallet = useActiveWallet();
   const { connect } = useConnectModal();
-  const { toast } = useToast(); // ✅ Call hook at component level
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -66,41 +65,31 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   // Handle private key export via ThirdWeb Connect modal
   const handleExportPrivateKey = () => {
     if (!wallet) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first",
-        variant: "destructive"
-      });
+      alert('Please connect your wallet first');
       setLogoExpanded(false);
       return;
     }
 
-    // Open ThirdWeb Connect modal
+    // Show branded instructions modal first
+    setShowExportInstructions(true);
+    setLogoExpanded(false);
+  };
+
+  // Open ThirdWeb modal after user reads instructions
+  const openThirdWebModal = () => {
+    setShowExportInstructions(false);
     connect({ 
       client,
       wallets,
+      chain: activeChain,
+      theme: "light",
     });
-    
-    // Show instructions
-    setTimeout(() => {
-      toast({
-        title: "📱 Export Private Key",
-        description: "1. Click 'Manage Wallet'\n2. Select 'Export Private Key'\n3. Follow the prompts\n\n🔒 Your key is never sent to our servers.",
-        duration: 8000, // Show longer for instructions
-      });
-    }, 500);
-    
-    setLogoExpanded(false);
   };
 
   // Handle token withdrawal
   const handleWithdraw = async () => {
     if (!wallet) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first",
-        variant: "destructive"
-      });
+      alert('Please connect your wallet first');
       setLogoExpanded(false);
       return;
     }
@@ -114,11 +103,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     // Validate amount is a valid positive number
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid positive number",
-        variant: "destructive"
-      });
+      alert('Invalid amount. Please enter a valid positive number.');
       setLogoExpanded(false);
       return;
     }
@@ -136,11 +121,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     // Validate Ethereum address format (0x followed by 40 hex characters)
     const addressRegex = /^0x[a-fA-F0-9]{40}$/;
     if (!addressRegex.test(destinationAddress)) {
-      toast({
-        title: "Invalid Address",
-        description: "Please enter a valid Ethereum address (0x...)",
-        variant: "destructive"
-      });
+      alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
       setLogoExpanded(false);
       return;
     }
@@ -164,32 +145,21 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       });
 
       console.log('🔄 Sending withdrawal transaction...');
-      
-      toast({
-        title: "Transaction Pending",
-        description: "Please sign the transaction in your wallet...",
-      });
-
       const receipt = await wallet.sendTransaction({ transaction: tx });
       
-      toast({
-        title: "✅ Withdrawal Successful!",
-        description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
-        action: {
-          label: "View on BaseScan",
-          onClick: () => window.open(`https://basescan.org/tx/${receipt.transactionHash}`, '_blank'),
-        },
-      });
+      alert(
+        `✅ Withdrawal successful!\n\n` +
+        `Amount: ${amount} $TOWNS\n` +
+        `To: ${destinationAddress}\n\n` +
+        `Transaction: ${receipt.transactionHash}\n` +
+        `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
+      );
       
       setLogoExpanded(false);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Withdrawal error:', error);
-      toast({
-        title: "❌ Withdrawal Failed",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      alert(`❌ Withdrawal failed: ${errorMessage}`);
       setLogoExpanded(false);
     }
   };
@@ -351,6 +321,84 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             }}
             className="fixed inset-0 bg-black/20 z-30"
           />
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Branded Export Instructions Modal */}
+      <AnimatePresence>
+        {showExportInstructions && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
+            >
+              {/* Knead Branding */}
+              <div className="text-center mb-6">
+                <h1 className="font-adonis text-4xl mb-2">Knead</h1>
+                <p className="font-georgia-pro text-sm text-gray-600">Non-Custodial Wallet</p>
+              </div>
+
+              {/* Security Warning */}
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <h3 className="font-adonis text-lg text-amber-900 mb-1">Important Security Notice</h3>
+                    <p className="font-georgia-pro text-sm text-amber-800">
+                      Your private key gives complete access to your wallet. Only export it if you need to import your wallet elsewhere.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="mb-6">
+                <h3 className="font-adonis text-lg mb-3">How to Export Your Private Key:</h3>
+                <ol className="font-georgia-pro text-sm text-gray-700 space-y-2">
+                  <li className="flex gap-3">
+                    <span className="font-bold">1.</span>
+                    <span>Click "Manage Wallet" in the modal that opens</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold">2.</span>
+                    <span>Select "Export Private Key"</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold">3.</span>
+                    <span>Follow the security prompts to reveal your key</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* Privacy Notice */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <span className="text-xl">🔒</span>
+                  <p className="font-georgia-pro text-sm text-green-800">
+                    <strong>Your privacy is protected.</strong> Your private key is never sent to Knead's servers. You have full control.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowExportInstructions(false)}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={openThirdWebModal}
+                  className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
+                >
+                  I Understand, Continue
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
