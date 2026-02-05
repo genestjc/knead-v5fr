@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
   // Security headers
-  response.headers.set("X-Frame-Options", "SAMEORIGIN"); // ✅ Changed from DENY
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
@@ -20,8 +20,14 @@ export function middleware(request: NextRequest) {
     );
   }
   
-  // ✅ FIXED: Allow ThirdWeb auth popups
-  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  // ✅ FIX: Use unsafe-none ONLY for /chat-test
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith('/chat-test')) {
+    response.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
+  } else {
+    response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  }
+  
   response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
   
   const cspHeader = `
