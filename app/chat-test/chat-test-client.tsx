@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useTimeline, useSendMessage } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet, ConnectButton } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
@@ -33,7 +33,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ✅ UPDATED: Use EIP-7702 for gas sponsorship (EOA-compatible)
+// ✅ UPDATED: Use EIP-7702 for gas sponsorship (EOA-compatible) + Enable private key export
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
