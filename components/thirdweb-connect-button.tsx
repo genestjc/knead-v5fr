@@ -11,6 +11,9 @@ const wallets = [
   inAppWallet({
     auth: {
       options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
+      // ✅ FIX: Use redirect flow instead of popup to avoid COOP conflicts
+      mode: "redirect",
+      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
     },
     hidePrivateKeyExport: false, // ✅ CRITICAL: Enable private key export for non-custodial compliance
   }),
