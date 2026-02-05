@@ -18,6 +18,8 @@ const wallets = [
   inAppWallet({
     auth: {
       options: ["email", "google", "apple", "phone"],
+      mode: "redirect",
+      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
     },
     hidePrivateKeyExport: false,
     executionMode: {
@@ -69,6 +71,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       setLogoExpanded(false);
       return;
     }
+
+    // ✅ NEW: Set flag BEFORE showing modal (persists across OAuth redirect)
+    localStorage.setItem("exportKeyIntent", "1");
 
     // Show branded instructions modal first
     setShowExportInstructions(true);
