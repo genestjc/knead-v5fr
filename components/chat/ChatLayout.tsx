@@ -3,43 +3,24 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
-import { useActiveWallet } from 'thirdweb/react';
-import { getContract } from 'thirdweb';
-import { transfer } from 'thirdweb/extensions/erc20';
-import { toWei } from 'thirdweb';
-import { client, activeChain } from '@/thirdweb-client';
+import { WalletSummary } from '@/components/wallet-summary';
 
 interface MenuItem {
   icon: string;
   label: string;
   onClick: () => void;
-  showCondition?: boolean;
 }
 
 interface ChatLayoutProps {
   children: React.ReactNode;
 }
 
-/**
- * iMessage-inspired Chat Layout
- * 
- * Features:
- * - Animated expandable logo header
- * - Swipe gestures (right = menu, left = DMs)
- * - Clean, minimal design
- * - Non-custodial wallet features (export key, withdraw tokens)
- */
 export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExportInstructions, setShowExportInstructions] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
-  
-  const wallet = useActiveWallet();
-
-  // ✅ Use walletId for future-proofing (fallback to id for older SDKs)
-  const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -48,108 +29,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
-  // Handle private key export
-  const handleExportPrivateKey = () => {
-    if (!wallet) {
-      alert('Please connect your wallet first');
-      setLogoExpanded(false);
-      return;
-    }
-
-    // ✅ Check if it's an external wallet (MetaMask, Coinbase, etc.)
-    if (!isInAppWallet) {
-      setShowExternalWalletMessage(true);
-      setLogoExpanded(false);
-      return;
-    }
-
-    // ✅ Show instructions modal (user will manually open "Manage Wallet")
-    setShowExportInstructions(true);
-    setLogoExpanded(false);
-  };
-
-  // Handle token withdrawal
-  const handleWithdraw = async () => {
-    if (!wallet) {
-      alert('Please connect your wallet first');
-      setLogoExpanded(false);
-      return;
-    }
-
-    const withdrawAmount = prompt('How many $TOWNS tokens do you want to withdraw?');
-    if (!withdrawAmount) {
-      setLogoExpanded(false);
-      return;
-    }
-
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Invalid amount. Please enter a valid positive number.');
-      setLogoExpanded(false);
-      return;
-    }
-
-    const destinationAddress = prompt(
-      'Enter destination wallet address:\n' +
-      '(e.g., your Coinbase wallet address)'
-    );
-    
-    if (!destinationAddress) {
-      setLogoExpanded(false);
-      return;
-    }
-
-    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (!addressRegex.test(destinationAddress)) {
-      alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
-      setLogoExpanded(false);
-      return;
-    }
-
-    try {
-      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-      if (!townsContractAddress) {
-        throw new Error('TOWNS contract address not configured');
-      }
-
-      const contract = getContract({
-        client,
-        chain: activeChain,
-        address: townsContractAddress,
-      });
-
-      const tx = transfer({
-        contract,
-        to: destinationAddress,
-        amount: toWei(amount.toString()),
-      });
-
-      console.log('🔄 Sending withdrawal transaction...');
-      const receipt = await wallet.sendTransaction({ transaction: tx });
-      
-      alert(
-        `✅ Withdrawal successful!\n\n` +
-        `Amount: ${amount} $TOWNS\n` +
-        `To: ${destinationAddress}\n\n` +
-        `Transaction: ${receipt.transactionHash}\n` +
-        `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
-      );
-      
-      setLogoExpanded(false);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Withdrawal error:', error);
-      alert(`❌ Withdrawal failed: ${errorMessage}`);
-      setLogoExpanded(false);
-    }
-  };
-
+  // ✅ Simplified menu - only app-level navigation
   const menuItems: MenuItem[] = [
-    {
-      icon: '💰',
-      label: 'Withdraw Earnings',
-      onClick: handleWithdraw,
-    },
     {
       icon: '🏠',
       label: 'Return Home',
@@ -157,36 +38,38 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         window.location.href = '/';
       },
     },
-    {
-      icon: '🔑',
-      label: 'Export Private Key',
-      onClick: handleExportPrivateKey,
-      showCondition: true,
-    },
   ];
-
-  const visibleMenuItems = menuItems.filter(item => item.showCondition !== false);
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* Animated Logo Header */}
+      {/* ✅ UPDATED: Header with WalletSummary */}
       <header className="border-b border-gray-200 px-4 py-3 relative z-50">
-        <motion.div
-          className="cursor-pointer relative"
-          onClick={() => setLogoExpanded(!logoExpanded)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <motion.h1
-            className="font-adonis text-2xl tracking-tight"
-            animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
-            transition={{ duration: 0.2 }}
+        <div className="flex items-center justify-between">
+          {/* Logo */}
+          <motion.div
+            className="cursor-pointer relative"
+            onClick={() => setLogoExpanded(!logoExpanded)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {logoExpanded ? 'Knead' : 'K'}
-          </motion.h1>
-        </motion.div>
+            <motion.h1
+              className="font-adonis text-2xl tracking-tight"
+              animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
+              transition={{ duration: 0.2 }}
+            >
+              {logoExpanded ? 'Knead' : 'K'}
+            </motion.h1>
+          </motion.div>
 
-        {/* Menu Dropdown */}
+          {/* ✅ Enhanced Wallet Summary (chat context) */}
+          <WalletSummary 
+            context="chat"
+            onExportClick={() => setShowExportInstructions(true)}
+            onExternalWalletExport={() => setShowExternalWalletMessage(true)}
+          />
+        </div>
+
+        {/* Simplified Menu Dropdown */}
         <AnimatePresence>
           {logoExpanded && (
             <motion.div
@@ -196,7 +79,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               transition={{ duration: 0.15 }}
               className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
             >
-              {visibleMenuItems.map((item, index) => (
+              {menuItems.map((item, index) => (
                 <button
                   key={index}
                   onClick={item.onClick}
@@ -210,7 +93,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           )}
         </AnimatePresence>
 
-        {/* Close dropdown on outside click */}
         {logoExpanded && (
           <div
             className="fixed inset-0 z-40"
@@ -272,7 +154,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </button>
               </div>
               <nav className="space-y-2">
-                {visibleMenuItems.map((item, index) => (
+                {menuItems.map((item, index) => (
                   <button
                     key={index}
                     onClick={() => {
@@ -291,7 +173,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Overlay for side menus */}
       <AnimatePresence>
         {(dmsOpen || menuOpen) && (
           <motion.div
@@ -307,7 +188,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ External Wallet Message Modal */}
+      {/* External Wallet Message Modal */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -352,7 +233,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ UPDATED: Export Instructions Modal (In-App Wallets) */}
+      {/* Export Instructions Modal */}
       <AnimatePresence>
         {showExportInstructions && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -362,13 +243,11 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
             >
-              {/* Knead Branding */}
               <div className="text-center mb-6">
                 <h1 className="font-adonis text-4xl mb-2">Knead</h1>
                 <p className="font-georgia-pro text-sm text-gray-600">Non-Custodial Wallet</p>
               </div>
 
-              {/* Security Warning */}
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">⚠️</span>
@@ -381,26 +260,28 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </div>
               </div>
 
-              {/* Instructions */}
               <div className="mb-6">
                 <h3 className="font-adonis text-lg mb-3">How to Export Your Private Key:</h3>
                 <ol className="font-georgia-pro text-sm text-gray-700 space-y-3">
                   <li className="flex gap-3">
                     <span className="font-bold">1.</span>
-                    <span>Click your <strong>wallet address</strong> in the ThirdWeb widget (shown as "0x1234..." in the chat interface)</span>
+                    <span>Click your <strong>wallet address</strong> (top right corner)</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="font-bold">2.</span>
-                    <span>Select <strong>"Manage Wallet"</strong> from the menu</span>
+                    <span>It will expand to show more options</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="font-bold">3.</span>
-                    <span>Click <strong>"Export Private Key"</strong> and follow the prompts</span>
+                    <span>Click <strong>"Export Private Key"</strong> again in the dropdown</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-bold">4.</span>
+                    <span>Follow the security prompts to reveal your key</span>
                   </li>
                 </ol>
               </div>
 
-              {/* Privacy Notice */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start gap-2">
                   <span className="text-xl">🔒</span>
@@ -410,7 +291,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </div>
               </div>
 
-              {/* Action Button */}
               <button
                 onClick={() => setShowExportInstructions(false)}
                 className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
