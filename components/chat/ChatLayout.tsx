@@ -3,6 +3,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
+import { useActiveWallet } from 'thirdweb/react';
+import { getContract } from 'thirdweb';
+import { transfer } from 'thirdweb/extensions/erc20';
+import { toWei } from 'thirdweb';
+import { client, activeChain } from '@/thirdweb-client';
+import { PrivateKeyModal } from './PrivateKeyModal';
 
 interface MenuItem {
   icon: string;
@@ -26,6 +32,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
+  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+  const [exportedPrivateKey, setExportedPrivateKey] = useState<string | null>(null);
+  const wallet = useActiveWallet();
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -34,14 +43,120 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
+  // Handle private key export
+  const handleExportPrivateKey = async () => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      setLogoExpanded(false);
+      return;
+    }
+
+    const confirmed = confirm(
+      '⚠️ WARNING: Anyone with this private key can access your funds.\n\n' +
+      'Only export your private key if you understand the risks and need to import your wallet elsewhere.\n\n' +
+      'Continue?'
+    );
+    
+    if (!confirmed) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    try {
+      const exported = await wallet.export();
+      setExportedPrivateKey(exported.privateKey);
+      setShowPrivateKeyModal(true);
+      setLogoExpanded(false);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Export failed: ${errorMessage}`);
+      setLogoExpanded(false);
+    }
+  };
+
+  // Handle token withdrawal
+  const handleWithdraw = async () => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      setLogoExpanded(false);
+      return;
+    }
+
+    const withdrawAmount = prompt('How many $TOWNS tokens do you want to withdraw?');
+    if (!withdrawAmount) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    // Validate amount is a valid positive number
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Invalid amount. Please enter a valid positive number.');
+      setLogoExpanded(false);
+      return;
+    }
+
+    const destinationAddress = prompt(
+      'Enter destination wallet address:\n' +
+      '(e.g., your Coinbase wallet address)'
+    );
+    
+    if (!destinationAddress) {
+      setLogoExpanded(false);
+      return;
+    }
+
+    // Validate Ethereum address format (0x followed by 40 hex characters)
+    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!addressRegex.test(destinationAddress)) {
+      alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
+      setLogoExpanded(false);
+      return;
+    }
+
+    try {
+      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
+      if (!townsContractAddress) {
+        throw new Error('TOWNS contract address not configured');
+      }
+
+      const contract = getContract({
+        client,
+        chain: activeChain,
+        address: townsContractAddress,
+      });
+
+      const tx = transfer({
+        contract,
+        to: destinationAddress,
+        amount: toWei(amount.toString()),
+      });
+
+      console.log('🔄 Sending withdrawal transaction...');
+      const receipt = await wallet.sendTransaction({ transaction: tx });
+      
+      alert(
+        `✅ Withdrawal successful!\n\n` +
+        `Amount: ${amount} $TOWNS\n` +
+        `To: ${destinationAddress}\n\n` +
+        `Transaction: ${receipt.transactionHash}\n` +
+        `View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`
+      );
+      
+      setLogoExpanded(false);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Withdrawal error:', error);
+      alert(`❌ Withdrawal failed: ${errorMessage}`);
+      setLogoExpanded(false);
+    }
+  };
+
   const menuItems: MenuItem[] = [
     {
       icon: '💰',
       label: 'Withdraw Earnings',
-      onClick: () => {
-        console.log('Withdraw earnings clicked');
-        setLogoExpanded(false);
-      },
+      onClick: handleWithdraw,
     },
     {
       icon: '🏠',
@@ -51,20 +166,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       },
     },
     {
-      icon: '⚙️',
-      label: 'Wallet Settings',
-      onClick: () => {
-        console.log('Wallet settings clicked');
-        setLogoExpanded(false);
-      },
-    },
-    {
       icon: '🔑',
       label: 'Export Private Key',
-      onClick: () => {
-        console.log('Export private key clicked');
-        setLogoExpanded(false);
-      },
+      onClick: handleExportPrivateKey,
     },
   ];
 
@@ -207,6 +311,17 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           />
         )}
       </AnimatePresence>
+
+      {/* Private Key Modal */}
+      {showPrivateKeyModal && exportedPrivateKey && (
+        <PrivateKeyModal
+          privateKey={exportedPrivateKey}
+          onClose={() => {
+            setShowPrivateKeyModal(false);
+            setExportedPrivateKey(null);
+          }}
+        />
+      )}
     </div>
   );
 }
