@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
   // Security headers
-  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-Frame-Options", "SAMEORIGIN"); // ✅ Changed from DENY
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
@@ -68,7 +68,7 @@ export function middleware(request: NextRequest) {
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'none';
+    frame-ancestors 'self' https://*.thirdweb.com https://embedded-wallet.thirdweb.com;
     frame-src 'self'
       https://js.stripe.com
       https://hooks.stripe.com
