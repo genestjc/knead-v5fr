@@ -3,37 +3,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
-import { useActiveWallet, useConnectModal } from 'thirdweb/react';
+import { useActiveWallet } from 'thirdweb/react';
 import { getContract } from 'thirdweb';
 import { transfer } from 'thirdweb/extensions/erc20';
 import { toWei } from 'thirdweb';
 import { client, activeChain } from '@/thirdweb-client';
-import { createWallet, inAppWallet } from 'thirdweb/wallets';
-
-// ✅ Define wallets array for Connect modal
-const wallets = [
-  createWallet("io.metamask"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-  inAppWallet({
-    auth: {
-      options: ["email", "google", "apple", "phone"],
-      mode: "redirect",
-      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
-    },
-    hidePrivateKeyExport: false,
-    executionMode: {
-      mode: "EIP7702",
-      sponsorGas: true,
-    },
-  }),
-];
 
 interface MenuItem {
   icon: string;
   label: string;
   onClick: () => void;
-  showCondition?: boolean; // ✅ NEW: Optional condition to show menu item
+  showCondition?: boolean;
 }
 
 interface ChatLayoutProps {
@@ -57,19 +37,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   
   const wallet = useActiveWallet();
-  const { connect } = useConnectModal();
 
-// ✅ Use walletId for future-proofing (fallback to id for older SDKs)
+  // ✅ Use walletId for future-proofing (fallback to id for older SDKs)
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
     onSwipedRight: () => setMenuOpen(true),
-    trackMouse: true, // Desktop support
+    trackMouse: true,
     preventScrollOnSwipe: true,
   });
 
-  // Handle private key export via ThirdWeb Connect modal
+  // Handle private key export
   const handleExportPrivateKey = () => {
     if (!wallet) {
       alert('Please connect your wallet first');
@@ -84,23 +63,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
-    // ✅ Set flag BEFORE showing modal (persists across OAuth redirect)
-    localStorage.setItem("exportKeyIntent", "1");
-
-    // Show branded instructions modal first
+    // ✅ Show instructions modal (user will manually open "Manage Wallet")
     setShowExportInstructions(true);
     setLogoExpanded(false);
-  };
-
-  // Open ThirdWeb modal after user reads instructions
-  const openThirdWebModal = () => {
-    setShowExportInstructions(false);
-    connect({ 
-      client,
-      wallets,
-      chain: activeChain,
-      theme: "light",
-    });
   };
 
   // Handle token withdrawal
@@ -117,7 +82,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
-    // Validate amount is a valid positive number
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
       alert('Invalid amount. Please enter a valid positive number.');
@@ -135,7 +99,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
-    // Validate Ethereum address format (0x followed by 40 hex characters)
     const addressRegex = /^0x[a-fA-F0-9]{40}$/;
     if (!addressRegex.test(destinationAddress)) {
       alert('Invalid wallet address. Please enter a valid Ethereum address (0x followed by 40 hex characters).');
@@ -198,11 +161,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       icon: '🔑',
       label: 'Export Private Key',
       onClick: handleExportPrivateKey,
-      showCondition: true, // Always show, but handle differently based on wallet type
+      showCondition: true,
     },
   ];
 
-  // ✅ Filter menu items based on showCondition
   const visibleMenuItems = menuItems.filter(item => item.showCondition !== false);
 
   return (
@@ -262,7 +224,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         {children}
       </main>
 
-      {/* Side Menus - Placeholder for future implementation */}
+      {/* Side Menus */}
       <AnimatePresence>
         {dmsOpen && (
           <motion.div
@@ -345,7 +307,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ NEW: External Wallet Message Modal */}
+      {/* ✅ External Wallet Message Modal */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -355,15 +317,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
             >
-              {/* Icon */}
               <div className="text-center mb-6">
                 <span className="text-6xl">🔐</span>
               </div>
 
-              {/* Title */}
               <h2 className="font-adonis text-2xl text-center mb-4">External Wallet Detected</h2>
 
-              {/* Message */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <p className="font-georgia-pro text-sm text-gray-700">
                   You're using <strong>MetaMask, Coinbase, or another external wallet</strong>.
@@ -373,7 +332,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </p>
               </div>
 
-              {/* Instructions */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <h3 className="font-adonis text-sm font-semibold mb-2">To export your private key:</h3>
                 <ol className="font-georgia-pro text-sm text-gray-700 space-y-1 list-decimal list-inside">
@@ -383,7 +341,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </ol>
               </div>
 
-              {/* Close Button */}
               <button
                 onClick={() => setShowExternalWalletMessage(false)}
                 className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
@@ -395,7 +352,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ Branded Export Instructions Modal (for in-app wallets only) */}
+      {/* ✅ UPDATED: Export Instructions Modal (In-App Wallets) */}
       <AnimatePresence>
         {showExportInstructions && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -427,18 +384,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               {/* Instructions */}
               <div className="mb-6">
                 <h3 className="font-adonis text-lg mb-3">How to Export Your Private Key:</h3>
-                <ol className="font-georgia-pro text-sm text-gray-700 space-y-2">
+                <ol className="font-georgia-pro text-sm text-gray-700 space-y-3">
                   <li className="flex gap-3">
                     <span className="font-bold">1.</span>
-                    <span>Click "Manage Wallet" in the modal that opens</span>
+                    <span>Click your <strong>wallet address</strong> in the ThirdWeb widget (shown as "0x1234..." in the chat interface)</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="font-bold">2.</span>
-                    <span>Select "Export Private Key"</span>
+                    <span>Select <strong>"Manage Wallet"</strong> from the menu</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="font-bold">3.</span>
-                    <span>Follow the security prompts to reveal your key</span>
+                    <span>Click <strong>"Export Private Key"</strong> and follow the prompts</span>
                   </li>
                 </ol>
               </div>
@@ -453,21 +410,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowExportInstructions(false)}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={openThirdWebModal}
-                  className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
-                >
-                  I Understand, Continue
-                </button>
-              </div>
+              {/* Action Button */}
+              <button
+                onClick={() => setShowExportInstructions(false)}
+                className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
+              >
+                Got It
+              </button>
             </motion.div>
           </div>
         )}
