@@ -64,7 +64,15 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   // Handle private key export via ThirdWeb Connect modal
   const handleExportPrivateKey = () => {
     if (!wallet) {
-      alert('Please connect your wallet first');
+     import { useToast } from '@/hooks/use-toast';
+
+const { toast } = useToast();
+
+toast({
+  title: "Wallet Not Connected",
+  description: "Please connect your wallet first",
+  variant: "destructive"
+});
       setLogoExpanded(false);
       return;
     }
