@@ -20,7 +20,8 @@ export function middleware(request: NextRequest) {
     );
   }
   
-  response.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
+  // ✅ FIXED: Allow ThirdWeb auth popups
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   response.headers.set("Cross-Origin-Embedder-Policy", "unsafe-none");
   
   const cspHeader = `
