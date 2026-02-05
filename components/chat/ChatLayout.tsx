@@ -3,12 +3,29 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
-import { useActiveWallet } from 'thirdweb/react';
+import { useActiveWallet, useConnectModal } from 'thirdweb/react';
 import { getContract } from 'thirdweb';
 import { transfer } from 'thirdweb/extensions/erc20';
 import { toWei } from 'thirdweb';
 import { client, activeChain } from '@/thirdweb-client';
-import { PrivateKeyModal } from './PrivateKeyModal';
+import { createWallet, inAppWallet } from 'thirdweb/wallets';
+
+// ✅ Define wallets array for Connect modal
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "phone"],
+    },
+    hidePrivateKeyExport: false,
+    executionMode: {
+      mode: "EIP7702",
+      sponsorGas: true,
+    },
+  }),
+];
 
 interface MenuItem {
   icon: string;
@@ -27,14 +44,15 @@ interface ChatLayoutProps {
  * - Animated expandable logo header
  * - Swipe gestures (right = menu, left = DMs)
  * - Clean, minimal design
+ * - Non-custodial wallet features (export key, withdraw tokens)
  */
 export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
-  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
-  const [exportedPrivateKey, setExportedPrivateKey] = useState<string | null>(null);
+  
   const wallet = useActiveWallet();
+  const { connect } = useConnectModal();
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -43,35 +61,34 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
-  // Handle private key export
-  const handleExportPrivateKey = async () => {
+  // Handle private key export via ThirdWeb Connect modal
+  const handleExportPrivateKey = () => {
     if (!wallet) {
       alert('Please connect your wallet first');
       setLogoExpanded(false);
       return;
     }
 
-    const confirmed = confirm(
-      '⚠️ WARNING: Anyone with this private key can access your funds.\n\n' +
-      'Only export your private key if you understand the risks and need to import your wallet elsewhere.\n\n' +
-      'Continue?'
-    );
+    // Open ThirdWeb Connect modal
+    connect({ 
+      client,
+      wallets,
+    });
     
-    if (!confirmed) {
-      setLogoExpanded(false);
-      return;
-    }
-
-    try {
-      const exported = await wallet.export();
-      setExportedPrivateKey(exported.privateKey);
-      setShowPrivateKeyModal(true);
-      setLogoExpanded(false);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Export failed: ${errorMessage}`);
-      setLogoExpanded(false);
-    }
+    // Show instructions
+    setTimeout(() => {
+      alert(
+        '📱 Connect Modal Opened\n\n' +
+        'To export your private key:\n' +
+        '1. Click "Manage Wallet"\n' +
+        '2. Select "Export Private Key"\n' +
+        '3. Follow the security prompts\n\n' +
+        '🔒 Your key is never sent to our servers.\n' +
+        'This ensures your wallet is truly non-custodial.'
+      );
+    }, 500);
+    
+    setLogoExpanded(false);
   };
 
   // Handle token withdrawal
@@ -311,17 +328,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           />
         )}
       </AnimatePresence>
-
-      {/* Private Key Modal */}
-      {showPrivateKeyModal && exportedPrivateKey && (
-        <PrivateKeyModal
-          privateKey={exportedPrivateKey}
-          onClose={() => {
-            setShowPrivateKeyModal(false);
-            setExportedPrivateKey(null);
-          }}
-        />
-      )}
     </div>
   );
 }
