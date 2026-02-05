@@ -33,6 +33,7 @@ interface MenuItem {
   icon: string;
   label: string;
   onClick: () => void;
+  showCondition?: boolean; // ✅ NEW: Optional condition to show menu item
 }
 
 interface ChatLayoutProps {
@@ -53,10 +54,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExportInstructions, setShowExportInstructions] = useState(false);
+  const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   
   const wallet = useActiveWallet();
   const { connect } = useConnectModal();
 
+// ✅ Use walletId for future-proofing (fallback to id for older SDKs)
+  const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
+  
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
     onSwipedRight: () => setMenuOpen(true),
@@ -72,7 +77,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
-    // ✅ NEW: Set flag BEFORE showing modal (persists across OAuth redirect)
+    // ✅ Check if it's an external wallet (MetaMask, Coinbase, etc.)
+    if (!isInAppWallet) {
+      setShowExternalWalletMessage(true);
+      setLogoExpanded(false);
+      return;
+    }
+
+    // ✅ Set flag BEFORE showing modal (persists across OAuth redirect)
     localStorage.setItem("exportKeyIntent", "1");
 
     // Show branded instructions modal first
@@ -186,8 +198,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       icon: '🔑',
       label: 'Export Private Key',
       onClick: handleExportPrivateKey,
+      showCondition: true, // Always show, but handle differently based on wallet type
     },
   ];
+
+  // ✅ Filter menu items based on showCondition
+  const visibleMenuItems = menuItems.filter(item => item.showCondition !== false);
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
@@ -218,7 +234,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               transition={{ duration: 0.15 }}
               className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
             >
-              {menuItems.map((item, index) => (
+              {visibleMenuItems.map((item, index) => (
                 <button
                   key={index}
                   onClick={item.onClick}
@@ -294,7 +310,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 </button>
               </div>
               <nav className="space-y-2">
-                {menuItems.map((item, index) => (
+                {visibleMenuItems.map((item, index) => (
                   <button
                     key={index}
                     onClick={() => {
@@ -329,7 +345,57 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ Branded Export Instructions Modal */}
+      {/* ✅ NEW: External Wallet Message Modal */}
+      <AnimatePresence>
+        {showExternalWalletMessage && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
+            >
+              {/* Icon */}
+              <div className="text-center mb-6">
+                <span className="text-6xl">🔐</span>
+              </div>
+
+              {/* Title */}
+              <h2 className="font-adonis text-2xl text-center mb-4">External Wallet Detected</h2>
+
+              {/* Message */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="font-georgia-pro text-sm text-gray-700">
+                  You're using <strong>MetaMask, Coinbase, or another external wallet</strong>.
+                </p>
+                <p className="font-georgia-pro text-sm text-gray-700 mt-3">
+                  For security, your private key is managed by your wallet app and is <strong>never accessible to this site</strong>.
+                </p>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 className="font-adonis text-sm font-semibold mb-2">To export your private key:</h3>
+                <ol className="font-georgia-pro text-sm text-gray-700 space-y-1 list-decimal list-inside">
+                  <li>Open your wallet app (MetaMask, Coinbase, etc.)</li>
+                  <li>Go to Settings → Security</li>
+                  <li>Select "Show Private Key" or "Export Private Key"</li>
+                </ol>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowExternalWalletMessage(false)}
+                className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
+              >
+                Got It
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Branded Export Instructions Modal (for in-app wallets only) */}
       <AnimatePresence>
         {showExportInstructions && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
