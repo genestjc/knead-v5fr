@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Footer } from "@/components/footer";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -41,7 +40,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           {children}
-          <Footer />
+          {/* ✅ Footer removed - now handled by template.tsx */}
         </Providers>
       </body>
     </html>
