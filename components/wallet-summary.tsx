@@ -124,87 +124,103 @@ export function WalletSummary({
   };
 
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setWithdrawError(null);
+  e.preventDefault();
+  setWithdrawError(null);
 
-    if (!wallet || !account) {
-      setWithdrawError("No wallet connected");
-      return;
+  if (!wallet || !account) {
+    setWithdrawError("No wallet connected");
+    return;
+  }
+
+  const amountString = withdrawAmount.replace(/,/g, "").trim();
+  
+  const amount = parseFloat(amountString);
+  if (isNaN(amount) || amount <= 0) {
+    setWithdrawError("Please enter a valid amount greater than 0");
+    return;
+  }
+
+  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  if (!addressRegex.test(destinationAddress)) {
+    setWithdrawError("Please enter a valid Ethereum address (0x followed by 40 hex characters)");
+    return;
+  }
+
+  setIsWithdrawing(true);
+
+  try {
+    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
+    if (!townsContractAddress) {
+      throw new Error('TOWNS contract address not configured');
     }
 
-    const amountString = withdrawAmount.replace(/,/g, "").trim();
-    
-    const amount = parseFloat(amountString);
-    if (isNaN(amount) || amount <= 0) {
-      setWithdrawError("Please enter a valid amount greater than 0");
-      return;
-    }
+    const contract = getContract({
+      client,
+      chain: activeChain,
+      address: townsContractAddress,
+    });
 
-    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (!addressRegex.test(destinationAddress)) {
-      setWithdrawError("Please enter a valid Ethereum address (0x followed by 40 hex characters)");
-      return;
-    }
+    console.log('🔍 Amount to send:', amountString);
+    console.log('🔍 Current balance:', townsBalance);
 
-    setIsWithdrawing(true);
-
-    try {
-      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-      if (!townsContractAddress) {
-        throw new Error('TOWNS contract address not configured');
-      }
-
-      const contract = getContract({
-        client,
-        chain: activeChain,
-        address: townsContractAddress,
-      });
-
-      console.log('🔍 Amount to send:', amountString);
-      console.log('🔍 Current balance:', townsBalance);
-
-      // Check if balance is sufficient
-      const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
-      if (balanceNum < amount) {
-        setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
-        setIsWithdrawing(false);
-        return;
-      }
-
-      // Pass human-readable amount directly (ThirdWeb handles Wei conversion)
-      const transaction = transfer({
-        contract,
-        to: destinationAddress,
-        amount: amountString,
-      });
-
-      console.log('🔄 Sending transaction with gas sponsorship...');
-      
-      const result = await sendTransaction({
-        account,
-        transaction,
-      });
-      
-      toast({
-        title: "Transfer successful!",
-        description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
-      });
-
-      console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
-      
-      setShowWithdrawalModal(false);
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Withdrawal error:', error);
-      setWithdrawError(errorMessage);
-    } finally {
+    const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
+    if (balanceNum < amount) {
+      setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
       setIsWithdrawing(false);
+      return;
     }
-  };
+
+    const transaction = transfer({
+      contract,
+      to: destinationAddress,
+      amount: amountString,
+    });
+
+    console.log('🔄 Sending transaction with gas sponsorship...');
+    
+    const result = await sendTransaction({
+      account,
+      transaction,
+    });
+    
+    toast({
+      title: "Transfer successful!",
+      description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
+    });
+
+    console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
+    
+    setShowWithdrawalModal(false);
+    
+    // ✅ Just refresh the balance instead of reloading the page
+    setTimeout(async () => {
+      try {
+        const balance = await getWalletBalance({
+          address: account.address,
+          client,
+          chain: activeChain,
+          tokenAddress: townsContractAddress,
+        });
+        
+        const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        });
+        
+        setTownsBalance(displayBalance);
+        console.log(`✅ Updated balance: ${displayBalance} ${balance.symbol}`);
+      } catch (error) {
+        console.error("Failed to refresh balance:", error);
+      }
+    }, 2000);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Withdrawal error:', error);
+    setWithdrawError(errorMessage);
+  } finally {
+    setIsWithdrawing(false);
+  }
+};
 
   const handleExportKey = () => {
     setIsDropdownOpen(false);
