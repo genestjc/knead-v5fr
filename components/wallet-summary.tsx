@@ -1,12 +1,13 @@
 "use client";
 
-import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react"; // ✅ CORRECT IMPORT
+import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, Send, Key, Wallet, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getContract } from "thirdweb";
-import { transfer, balanceOf } from "thirdweb/extensions/erc20";
-import { toWei, formatUnits } from "thirdweb";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb"; // ✅ Fixed imports
+import { transfer } from "thirdweb/extensions/erc20";
+import { toWei } from "thirdweb/utils"; // ✅ Fixed import path
+import { getWalletBalance } from "thirdweb/wallets"; // ✅ NEW: Use getWalletBalance instead
 import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,7 +22,7 @@ export function WalletSummary({
   const account = useActiveAccount();
   const wallet = useActiveWallet();
   const disconnect = useDisconnect();
-  const detailsModal = useWalletDetailsModal(); // ✅ CORRECT HOOK
+  const detailsModal = useWalletDetailsModal();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -42,6 +43,7 @@ export function WalletSummary({
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   const isChatContext = context === "chat";
 
+  // ✅ FIXED: Fetch balance using getWalletBalance
   useEffect(() => {
     if (!isChatContext || !account?.address) return;
 
@@ -55,26 +57,25 @@ export function WalletSummary({
           return;
         }
 
-        const contract = getContract({
+        console.log('🔍 Fetching TOWNS balance for:', account.address);
+        console.log('🔍 Contract:', townsContractAddress);
+
+        // ✅ Use getWalletBalance instead of balanceOf + formatUnits
+        const balance = await getWalletBalance({
+          address: account.address,
           client,
           chain: activeChain,
-          address: townsContractAddress,
+          tokenAddress: townsContractAddress,
         });
 
-        const balance = await balanceOf({ 
-          contract, 
-          address: account.address 
-        });
-        
-        const formatted = formatUnits(balance, 18);
-        
-        const displayBalance = parseFloat(formatted).toLocaleString('en-US', {
+        // ✅ balance.displayValue is already formatted!
+        const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,
         });
         
         setTownsBalance(displayBalance);
-        console.log(`✅ TOWNS Balance: ${displayBalance}`);
+        console.log(`✅ TOWNS Balance: ${displayBalance} ${balance.symbol}`);
       } catch (error) {
         console.error("Failed to fetch TOWNS balance:", error);
         setTownsBalance("0");
@@ -126,11 +127,12 @@ export function WalletSummary({
     setWithdrawError(null);
   };
 
+  // ✅ FIXED: Use sendTransaction from thirdweb (not wallet.sendTransaction)
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setWithdrawError(null);
 
-    if (!wallet) {
+    if (!wallet || !account) {
       setWithdrawError("No wallet connected");
       return;
     }
@@ -161,21 +163,27 @@ export function WalletSummary({
         address: townsContractAddress,
       });
 
-      const tx = transfer({
+      // ✅ Prepare the transaction
+      const transaction = transfer({
         contract,
         to: destinationAddress,
         amount: toWei(amount.toString()),
       });
 
       console.log('🔄 Sending withdrawal transaction...');
-      const receipt = await wallet.sendTransaction({ transaction: tx });
+      
+      // ✅ Use sendTransaction from thirdweb (not wallet.sendTransaction)
+      const result = await sendTransaction({
+        account,
+        transaction,
+      });
       
       toast({
-        title: "Withdrawal successful!",
+        title: "Transaction successful!",
         description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
       });
 
-      console.log(`Transaction: https://basescan.org/tx/${receipt.transactionHash}`);
+      console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
       
       setShowWithdrawalModal(false);
       
@@ -191,7 +199,6 @@ export function WalletSummary({
     }
   };
 
-  // ✅ FIXED: Directly open ThirdWeb wallet details modal
   const handleExportKey = () => {
     setIsDropdownOpen(false);
     
@@ -200,7 +207,6 @@ export function WalletSummary({
       return;
     }
 
-    // ✅ Open ThirdWeb's wallet details modal
     detailsModal.open({ 
       client,
       theme: "light"
@@ -325,7 +331,6 @@ export function WalletSummary({
                     Send $TOWNS To Wallet
                   </button>
 
-                  {/* ✅ Export Private Key - Opens ThirdWeb modal directly */}
                   <button
                     onClick={handleExportKey}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -364,7 +369,7 @@ export function WalletSummary({
             >
               <div className="text-center mb-6">
                 <h1 className="font-adonis text-4xl mb-2">Knead</h1>
-                <p className="font-georgia-pro text-sm text-gray-600">Withdraw Your Earnings</p>
+                <p className="font-georgia-pro text-sm text-gray-600">Send Your $TOWNS</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -391,7 +396,7 @@ export function WalletSummary({
               <form onSubmit={handleWithdrawSubmit}>
                 <div className="mb-4">
                   <label className="block font-adonis text-sm text-gray-700 mb-2">
-                    Amount to Withdraw
+                    Amount to Send
                   </label>
                   <div className="relative">
                     <input
