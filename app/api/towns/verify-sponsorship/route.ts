@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const ALLOWED_CONTRACTS = [
   process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID?.toLowerCase(),
+  process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS?.toLowerCase(), // ✅ ADD THIS
   // Add other Towns contract addresses
 ];
 
@@ -56,56 +57,26 @@ export async function POST(req: NextRequest) {
     );
 
     if (!isAllowedContract && targets.length > 0) {
+      console.log('❌ Contract not in allowlist');
+      console.log('   Targets:', targets);
+      console.log('   Allowed:', ALLOWED_CONTRACTS);
       return NextResponse.json({
         isAllowed: false,
         reason: 'Contract not in allowlist'
       });
     }
 
-    // Validation 4: Rate limiting (optional)
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      );
-
-      // Check daily transaction count
-      const { count } = await supabase
-        .from('sponsored_transactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_address', userOp.sender.toLowerCase())
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      if (count && count >= MAX_DAILY_TRANSACTIONS_PER_USER) {
-        return NextResponse.json({
-          isAllowed: false,
-          reason: 'Daily transaction limit exceeded'
-        });
-      }
-
-      // Log the sponsored transaction
-      await supabase.from('sponsored_transactions').insert({
-        user_address: userOp.sender.toLowerCase(),
-        chain_id: chainId,
-        gas_price: userOp.gasPrice,
-        targets: targets,
-        approved: true,
-      });
-    }
-
-    console.log('✅ Sponsorship approved');
+    // ✅ All validations passed - sponsor the gas!
+    console.log('✅ Gas sponsorship approved');
     return NextResponse.json({
       isAllowed: true,
-      reason: 'Valid Towns chat transaction'
     });
 
-  } catch (error: any) {
-    console.error('❌ Sponsorship verification error:', error);
-    
-    // Fail open or closed? For production, fail closed:
+  } catch (error) {
+    console.error('❌ Error in verify-sponsorship:', error);
     return NextResponse.json({
       isAllowed: false,
-      reason: `Verification error: ${error.message}`
-    });
+      reason: 'Server error'
+    }, { status: 500 });
   }
 }
