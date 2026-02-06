@@ -2,17 +2,18 @@
 
 import { useActiveAccount, useDisconnect } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
-import { Copy, LogOut, DollarSign, Key, Wallet } from "lucide-react";
+import { Copy, LogOut, DollarSign, Key, Wallet, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getContract } from "thirdweb";
 import { transfer, balanceOf } from "thirdweb/extensions/erc20";
 import { toWei, formatUnits } from "thirdweb";
 import { client, activeChain } from "@/thirdweb-client";
-import { useActiveWallet, useDetailsModal } from "thirdweb/react"; // ✅ Added useDetailsModal
+import { useActiveWallet, useDetailsModal } from "thirdweb/react";
+import { motion, AnimatePresence } from "framer-motion"; // ✅ Added for animation
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
-  onExternalWalletExport?: () => void; // Only for external wallet message
+  onExternalWalletExport?: () => void;
 }
 
 export function WalletSummary({ 
@@ -22,12 +23,20 @@ export function WalletSummary({
   const account = useActiveAccount();
   const wallet = useActiveWallet();
   const disconnect = useDisconnect();
-  const { open: openDetailsModal } = useDetailsModal(); // ✅ NEW: ThirdWeb details modal
+  const { open: openDetailsModal } = useDetailsModal();
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [townsBalance, setTownsBalance] = useState<string>("0");
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  
+  // ✅ NEW: Withdrawal modal state
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [destinationAddress, setDestinationAddress] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -102,7 +111,8 @@ export function WalletSummary({
     }
   };
 
-  const handleWithdraw = async () => {
+  // ✅ UPDATED: Open withdrawal modal instead of prompts
+  const handleWithdrawClick = () => {
     if (!wallet) {
       toast({
         title: "No wallet connected",
@@ -113,36 +123,35 @@ export function WalletSummary({
     }
 
     setIsDropdownOpen(false);
+    setShowWithdrawalModal(true);
+    setWithdrawAmount("");
+    setDestinationAddress("");
+    setWithdrawError(null);
+  };
 
-    const withdrawAmount = prompt('How many $TOWNS tokens do you want to withdraw?');
-    if (!withdrawAmount) return;
+  // ✅ NEW: Handle withdrawal submission
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setWithdrawError(null);
+
+    if (!wallet) {
+      setWithdrawError("No wallet connected");
+      return;
+    }
 
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid positive number",
-        variant: "destructive",
-      });
+      setWithdrawError("Please enter a valid amount greater than 0");
       return;
     }
-
-    const destinationAddress = prompt(
-      'Enter destination wallet address:\n' +
-      '(e.g., your Coinbase wallet address)'
-    );
-    
-    if (!destinationAddress) return;
 
     const addressRegex = /^0x[a-fA-F0-9]{40}$/;
     if (!addressRegex.test(destinationAddress)) {
-      toast({
-        title: "Invalid address",
-        description: "Please enter a valid Ethereum address",
-        variant: "destructive",
-      });
+      setWithdrawError("Please enter a valid Ethereum address (0x followed by 40 hex characters)");
       return;
     }
+
+    setIsWithdrawing(true);
 
     try {
       const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
@@ -172,31 +181,28 @@ export function WalletSummary({
 
       console.log(`Transaction: https://basescan.org/tx/${receipt.transactionHash}`);
       
+      setShowWithdrawalModal(false);
+      
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Withdrawal error:', error);
-      toast({
-        title: "Withdrawal failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setWithdrawError(errorMessage);
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
-  // ✅ NEW: Direct connection to ThirdWeb export modal
   const handleExportKey = () => {
     setIsDropdownOpen(false);
     
-    // Check if external wallet
     if (!isInAppWallet) {
       onExternalWalletExport?.();
       return;
     }
 
-    // ✅ Directly open ThirdWeb wallet details modal (includes export)
     openDetailsModal();
   };
 
@@ -275,77 +281,197 @@ export function WalletSummary({
   if (!account) return null;
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="text-sm font-adonis text-black hover:text-gray-600 transition-colors cursor-pointer"
-      >
-        {shortenAddress(account.address)}
-      </button>
-      {isDropdownOpen && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-          <div className="py-1">
-            {/* Copy Address */}
-            <button
-              onClick={handleCopy}
-              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Copy className="w-4 h-4 mr-2" />
-              {copied ? "Copied!" : "Copy Address"}
-            </button>
+    <>
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="text-sm font-adonis text-black hover:text-gray-600 transition-colors cursor-pointer"
+        >
+          {shortenAddress(account.address)}
+        </button>
+        {isDropdownOpen && (
+          <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+            <div className="py-1">
+              <button
+                onClick={handleCopy}
+                className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {copied ? "Copied!" : "Copy Address"}
+              </button>
 
-            {/* Chat-only features */}
-            {isChatContext && (
-              <>
-                <div className="border-t border-gray-100 my-1"></div>
-                
-                {/* TOWNS Balance */}
-                <div className="px-4 py-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center text-sm font-adonis text-gray-700">
-                      <Wallet className="w-4 h-4 mr-2" />
-                      $TOWNS Balance
+              {isChatContext && (
+                <>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  
+                  <div className="px-4 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center text-sm font-adonis text-gray-700">
+                        <Wallet className="w-4 h-4 mr-2" />
+                        $TOWNS Balance
+                      </div>
+                      <span className="text-sm font-adonis font-semibold text-gray-900">
+                        {isLoadingBalance ? "..." : townsBalance}
+                      </span>
                     </div>
-                    <span className="text-sm font-adonis font-semibold text-gray-900">
-                      {isLoadingBalance ? "..." : townsBalance}
+                  </div>
+
+                  <button
+                    onClick={handleWithdrawClick}
+                    className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <📤 className="w-4 h-4 mr-2" />
+                    Send $TOWNS To Wallet
+                  </button>
+
+                  <button
+                    onClick={handleExportKey}
+                    className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Key className="w-4 h-4 mr-2" />
+                    Export Private Key
+                  </button>
+                </>
+              )}
+
+              <div className="border-t border-gray-100 my-1"></div>
+
+              <button
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                {isSigningOut ? "Signing Out..." : "Sign Out"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ✅ NEW: Branded Sending Modal */}
+      <AnimatePresence>
+        {showWithdrawalModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
+            >
+              {/* Knead Branding */}
+              <div className="text-center mb-6">
+                <h1 className="font-adonis text-4xl mb-2">Knead</h1>
+                <p className="font-georgia-pro text-sm text-gray-600">Withdraw Your Earnings</p>
+              </div>
+
+              {/* Available Balance */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <span className="font-adonis text-sm text-gray-700">Available Balance:</span>
+                  <span className="font-adonis text-xl font-semibold text-gray-900">
+                    {townsBalance} $TOWNS
+                  </span>
+                </div>
+              </div>
+
+              {/* Security Warning */}
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-adonis text-sm text-amber-900 mb-1">Important</h3>
+                    <p className="font-georgia-pro text-xs text-amber-800">
+                      Make sure you're sending to a wallet you control. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Withdrawal Form */}
+              <form onSubmit={handleWithdrawSubmit}>
+                {/* Amount Input */}
+                <div className="mb-4">
+                  <label className="block font-adonis text-sm text-gray-700 mb-2">
+                    Amount to Withdraw
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                      disabled={isWithdrawing}
+                      required
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-adonis text-sm text-gray-500">
+                      $TOWNS
                     </span>
                   </div>
                 </div>
 
-                {/* Withdraw Earnings */}
-                <button
-                  onClick={handleWithdraw}
-                  className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Withdraw Earnings
-                </button>
+                {/* Destination Address Input */}
+                <div className="mb-6">
+                  <label className="block font-adonis text-sm text-gray-700 mb-2">
+                    Destination Address
+                  </label>
+                  <input
+                    type="text"
+                    value={destinationAddress}
+                    onChange={(e) => setDestinationAddress(e.target.value)}
+                    placeholder="0x..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                    disabled={isWithdrawing}
+                    required
+                  />
+                  <p className="font-georgia-pro text-xs text-gray-500 mt-1">
+                    Enter a valid Ethereum wallet address
+                  </p>
+                </div>
 
-                {/* Export Private Key - Directly opens ThirdWeb modal */}
-                <button
-                  onClick={handleExportKey}
-                  className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <Key className="w-4 h-4 mr-2" />
-                  Export Private Key
-                </button>
-              </>
-            )}
+                {/* Error Message */}
+                {withdrawError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="font-georgia-pro text-sm text-red-700">{withdrawError}</p>
+                  </div>
+                )}
 
-            <div className="border-t border-gray-100 my-1"></div>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowWithdrawalModal(false)}
+                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition"
+                    disabled={isWithdrawing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isWithdrawing}
+                  >
+                    {isWithdrawing ? "Processing..." : "Withdraw"}
+                  </button>
+                </div>
+              </form>
 
-            {/* Sign Out */}
-            <button
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              {isSigningOut ? "Signing Out..." : "Sign Out"}
-            </button>
+              {/* Privacy Notice */}
+              <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <span className="text-lg">🔒</span>
+                  <p className="font-georgia-pro text-xs text-green-800">
+                    Your $TOWNS are secured by smart contracts on Base. Transactions are processed on-chain.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
