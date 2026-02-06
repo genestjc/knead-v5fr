@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
+import { base } from "thirdweb/chains" // ✅ ADD THIS IMPORT
 import { usePersistentWallet } from "@/hooks/use-persistent-wallet"
 import { useToast } from "@/hooks/use-toast"
 
@@ -11,12 +12,15 @@ const wallets = [
   inAppWallet({
     auth: {
       options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
-      // ✅ FIX: Use redirect flow instead of popup to avoid COOP conflicts
       mode: "redirect",
-      // ✅ DYNAMIC: Redirect back to current page (not hardcoded to /chat-test)
       redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
     },
-    hidePrivateKeyExport: false, // ✅ CRITICAL: Enable private key export for non-custodial compliance
+    hidePrivateKeyExport: false,
+    // ✅ ADD THIS: Enable gas sponsorship (same as chat-test)
+    executionMode: {
+      mode: "EIP7702", // EOA-compatible smart wallet
+      sponsorGas: true,
+    },
   }),
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -36,21 +40,17 @@ export function ThirdWebConnectButton({
   theme = "light",
   size = "compact",
 }: ThirdWebConnectButtonProps) {
-  // Get the active account to detect connection
   const activeAccount = useActiveAccount()
   const { toast } = useToast()
   const [isOnboarding, setIsOnboarding] = useState(false)
   const [onboardingError, setOnboardingError] = useState<string | null>(null)
 
-  // Call the onboarding API when a wallet connects
   useEffect(() => {
-    // Only proceed if we have a connected wallet and we're not already onboarding
     if (activeAccount?.address && !isOnboarding) {
       console.log("Wallet connected, onboarding user:", activeAccount.address);
       setIsOnboarding(true);
       setOnboardingError(null);
       
-      // Call the onboarding API to mint the freemium NFT
       fetch("/api/onboard-user", {
         method: "POST",
         headers: {
@@ -69,7 +69,6 @@ export function ThirdWebConnectButton({
       .then(data => {
         console.log("Onboarding response:", data);
         if (data.success) {
-          // Show a welcome message
           toast({
             title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
             description: data.alreadyMinted 
@@ -77,7 +76,6 @@ export function ThirdWebConnectButton({
               : "You've been given free access to 3 articles per month.",
           });
           
-          // If the transaction was successful, add transaction hash to console for debugging
           if (data.transactionHash) {
             console.log(`Transaction hash: ${data.transactionHash}`);
             console.log(`View on Basescan: https://basescan.org/tx/${data.transactionHash}`);
