@@ -5,44 +5,48 @@ import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, DollarSign, Key, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getContract } from "thirdweb";
-import { transfer } from "thirdweb/extensions/erc20";
-import { toWei } from "thirdweb";
+import { transfer, balanceOf } from "thirdweb/extensions/erc20";
+import { toWei, formatUnits } from "thirdweb";
 import { client, activeChain } from "@/thirdweb-client";
-import { useActiveWallet } from "thirdweb/react";
+import { useActiveWallet, useDetailsModal } from "thirdweb/react"; // ✅ Added useDetailsModal
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
-  onExportClick?: () => void; // Callback to show export modal
-  onExternalWalletExport?: () => void; // Callback for external wallet message
+  onExternalWalletExport?: () => void; // Only for external wallet message
 }
 
 export function WalletSummary({ 
   context = "default",
-  onExportClick,
   onExternalWalletExport 
 }: WalletSummaryProps) {
   const account = useActiveAccount();
   const wallet = useActiveWallet();
   const disconnect = useDisconnect();
+  const { open: openDetailsModal } = useDetailsModal(); // ✅ NEW: ThirdWeb details modal
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [townsBalance, setTownsBalance] = useState<string>("0");
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Check if wallet is in-app wallet
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   const isChatContext = context === "chat";
 
-  // Fetch $TOWNS balance if in chat context
+  // Fetch real $TOWNS balance
   useEffect(() => {
     if (!isChatContext || !account?.address) return;
 
     const fetchBalance = async () => {
+      setIsLoadingBalance(true);
       try {
         const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-        if (!townsContractAddress) return;
+        if (!townsContractAddress) {
+          console.warn("TOWNS contract address not configured");
+          setTownsBalance("0");
+          return;
+        }
 
         const contract = getContract({
           client,
@@ -50,19 +54,32 @@ export function WalletSummary({
           address: townsContractAddress,
         });
 
-        // You'll need to import and use the balanceOf function from thirdweb
-        // For now, this is a placeholder
-        // const balance = await balanceOf({ contract, address: account.address });
-        // setTownsBalance(formatUnits(balance, 18));
+        const balance = await balanceOf({ 
+          contract, 
+          address: account.address 
+        });
         
-        // Placeholder until you add the balanceOf call
-        setTownsBalance("1,234");
+        const formatted = formatUnits(balance, 18);
+        
+        const displayBalance = parseFloat(formatted).toLocaleString('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        });
+        
+        setTownsBalance(displayBalance);
+        console.log(`✅ TOWNS Balance: ${displayBalance}`);
       } catch (error) {
         console.error("Failed to fetch TOWNS balance:", error);
+        setTownsBalance("0");
+      } finally {
+        setIsLoadingBalance(false);
       }
     };
 
     fetchBalance();
+    
+    const interval = setInterval(fetchBalance, 30000);
+    return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
 
   const handleCopy = async () => {
@@ -154,6 +171,10 @@ export function WalletSummary({
       });
 
       console.log(`Transaction: https://basescan.org/tx/${receipt.transactionHash}`);
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Withdrawal error:', error);
@@ -165,6 +186,7 @@ export function WalletSummary({
     }
   };
 
+  // ✅ NEW: Direct connection to ThirdWeb export modal
   const handleExportKey = () => {
     setIsDropdownOpen(false);
     
@@ -174,8 +196,8 @@ export function WalletSummary({
       return;
     }
 
-    // Show export instructions for in-app wallet
-    onExportClick?.();
+    // ✅ Directly open ThirdWeb wallet details modal (includes export)
+    openDetailsModal();
   };
 
   const handleSignOut = async () => {
@@ -272,7 +294,7 @@ export function WalletSummary({
               {copied ? "Copied!" : "Copy Address"}
             </button>
 
-            {/* ✅ Chat-only features */}
+            {/* Chat-only features */}
             {isChatContext && (
               <>
                 <div className="border-t border-gray-100 my-1"></div>
@@ -285,7 +307,7 @@ export function WalletSummary({
                       $TOWNS Balance
                     </div>
                     <span className="text-sm font-adonis font-semibold text-gray-900">
-                      {townsBalance}
+                      {isLoadingBalance ? "..." : townsBalance}
                     </span>
                   </div>
                 </div>
@@ -299,7 +321,7 @@ export function WalletSummary({
                   Withdraw Earnings
                 </button>
 
-                {/* Export Private Key */}
+                {/* Export Private Key - Directly opens ThirdWeb modal */}
                 <button
                   onClick={handleExportKey}
                   className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
