@@ -1,6 +1,6 @@
 "use client";
 
-import { useActiveAccount, useDisconnect } from "thirdweb/react"; // ✅ Removed DetailsButton
+import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react"; // ✅ CORRECT IMPORT
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, Send, Key, Wallet, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ export function WalletSummary({
   const account = useActiveAccount();
   const wallet = useActiveWallet();
   const disconnect = useDisconnect();
+  const detailsModal = useWalletDetailsModal(); // ✅ CORRECT HOOK
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -33,7 +34,6 @@ export function WalletSummary({
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   
-  const [showExportInstructions, setShowExportInstructions] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -191,7 +191,7 @@ export function WalletSummary({
     }
   };
 
-  // ✅ SIMPLE: Just show instructions
+  // ✅ FIXED: Directly open ThirdWeb wallet details modal
   const handleExportKey = () => {
     setIsDropdownOpen(false);
     
@@ -200,7 +200,11 @@ export function WalletSummary({
       return;
     }
 
-    setShowExportInstructions(true);
+    // ✅ Open ThirdWeb's wallet details modal
+    detailsModal.open({ 
+      client,
+      theme: "light"
+    });
   };
 
   const handleSignOut = async () => {
@@ -321,7 +325,7 @@ export function WalletSummary({
                     Send $TOWNS To Wallet
                   </button>
 
-                  {/* ✅ SIMPLE: One button for all wallets */}
+                  {/* ✅ Export Private Key - Opens ThirdWeb modal directly */}
                   <button
                     onClick={handleExportKey}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -457,61 +461,6 @@ export function WalletSummary({
                   </p>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Export Instructions Modal (In-App Wallets) */}
-      <AnimatePresence>
-        {showExportInstructions && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
-            >
-              <div className="text-center mb-6">
-                <h1 className="font-adonis text-4xl mb-2">Knead</h1>
-                <p className="font-georgia-pro text-sm text-gray-600">Export Your Private Key</p>
-              </div>
-
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-adonis text-sm text-amber-900 mb-1">Security Warning</h3>
-                    <p className="font-georgia-pro text-xs text-amber-800">
-                      Your private key gives complete control of your wallet. Only export if you need to import it elsewhere.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <h3 className="font-adonis text-sm text-gray-900 mb-2">How to Export:</h3>
-                <p className="font-georgia-pro text-sm text-gray-700">
-                  Look for a ThirdWeb wallet button or your wallet address on this page. Click it to open wallet details, then select <strong>"Export Private Key"</strong>.
-                </p>
-              </div>
-
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-2">
-                  <span className="text-lg">🔒</span>
-                  <p className="font-georgia-pro text-xs text-green-800">
-                    Your private key is never sent to Knead's servers. You have full custody.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowExportInstructions(false)}
-                className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
-              >
-                Got It
-              </button>
             </motion.div>
           </div>
         )}
