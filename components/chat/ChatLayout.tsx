@@ -19,8 +19,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
-  const [showExportInstructions, setShowExportInstructions] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
+  // ✅ REMOVED: showExportInstructions state (no longer needed)
   
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -29,7 +29,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
-  // ✅ Simplified menu - only app-level navigation
   const menuItems: MenuItem[] = [
     {
       icon: '🏠',
@@ -42,10 +41,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* ✅ UPDATED: Header with WalletSummary */}
       <header className="border-b border-gray-200 px-4 py-3 relative z-50">
         <div className="flex items-center justify-between">
-          {/* Logo */}
           <motion.div
             className="cursor-pointer relative"
             onClick={() => setLogoExpanded(!logoExpanded)}
@@ -61,15 +58,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             </motion.h1>
           </motion.div>
 
-          {/* ✅ Enhanced Wallet Summary (chat context) */}
+          {/* ✅ UPDATED: Removed onExportClick prop */}
           <WalletSummary 
             context="chat"
-            onExportClick={() => setShowExportInstructions(true)}
             onExternalWalletExport={() => setShowExternalWalletMessage(true)}
           />
         </div>
 
-        {/* Simplified Menu Dropdown */}
         <AnimatePresence>
           {logoExpanded && (
             <motion.div
@@ -101,7 +96,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </header>
 
-      {/* Main Chat Area */}
       <main className="flex-1 overflow-hidden relative">
         {children}
       </main>
@@ -188,7 +182,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* External Wallet Message Modal */}
+      {/* ✅ KEPT: External Wallet Message Modal (for MetaMask, etc.) */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -233,74 +227,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Export Instructions Modal */}
-      <AnimatePresence>
-        {showExportInstructions && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
-            >
-              <div className="text-center mb-6">
-                <h1 className="font-adonis text-4xl mb-2">Knead</h1>
-                <p className="font-georgia-pro text-sm text-gray-600">Non-Custodial Wallet</p>
-              </div>
-
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <div>
-                    <h3 className="font-adonis text-lg text-amber-900 mb-1">Important Security Notice</h3>
-                    <p className="font-georgia-pro text-sm text-amber-800">
-                      Your private key gives complete access to your wallet. Only export it if you need to import your wallet elsewhere.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="font-adonis text-lg mb-3">How to Export Your Private Key:</h3>
-                <ol className="font-georgia-pro text-sm text-gray-700 space-y-3">
-                  <li className="flex gap-3">
-                    <span className="font-bold">1.</span>
-                    <span>Click your <strong>wallet address</strong> (top right corner)</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-bold">2.</span>
-                    <span>It will expand to show more options</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-bold">3.</span>
-                    <span>Click <strong>"Export Private Key"</strong> again in the dropdown</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-bold">4.</span>
-                    <span>Follow the security prompts to reveal your key</span>
-                  </li>
-                </ol>
-              </div>
-
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-2">
-                  <span className="text-xl">🔒</span>
-                  <p className="font-georgia-pro text-sm text-green-800">
-                    <strong>Your privacy is protected.</strong> Your private key is never sent to Knead's servers. You have full control.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowExportInstructions(false)}
-                className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
-              >
-                Got It
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* ✅ REMOVED: Export Instructions Modal (redundant with ThirdWeb's built-in) */}
     </div>
   );
 }
