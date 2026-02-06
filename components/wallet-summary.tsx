@@ -4,9 +4,8 @@ import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, Send, Key, Wallet, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
-import { transfer, balanceOf } from "thirdweb/extensions/erc20"; // ✅ Re-added balanceOf
-import { toWei } from "thirdweb/utils";
+import { getContract, sendTransaction } from "thirdweb";
+import { transfer } from "thirdweb/extensions/erc20";
 import { getWalletBalance } from "thirdweb/wallets";
 import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
@@ -27,7 +26,6 @@ export function WalletSummary({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [townsBalance, setTownsBalance] = useState<string>("0");
-  const [rawTownsBalance, setRawTownsBalance] = useState<bigint>(0n); // ✅ NEW: Store raw balance
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
@@ -54,7 +52,6 @@ export function WalletSummary({
         if (!townsContractAddress) {
           console.warn("TOWNS contract address not configured");
           setTownsBalance("0");
-          setRawTownsBalance(0n);
           return;
         }
 
@@ -67,9 +64,6 @@ export function WalletSummary({
           chain: activeChain,
           tokenAddress: townsContractAddress,
         });
-
-        // ✅ Store BOTH formatted and raw balance
-        setRawTownsBalance(balance.value); // Raw BigInt for transactions
         
         const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
           minimumFractionDigits: 0,
@@ -78,11 +72,9 @@ export function WalletSummary({
         
         setTownsBalance(displayBalance);
         console.log(`✅ TOWNS Balance: ${displayBalance} ${balance.symbol}`);
-        console.log(`✅ Raw Balance: ${balance.value.toString()}`);
       } catch (error) {
         console.error("Failed to fetch TOWNS balance:", error);
         setTownsBalance("0");
-        setRawTownsBalance(0n);
       } finally {
         setIsLoadingBalance(false);
       }
@@ -140,7 +132,6 @@ export function WalletSummary({
       return;
     }
 
-    // ✅ Strip commas and whitespace from input
     const amountString = withdrawAmount.replace(/,/g, "").trim();
     
     const amount = parseFloat(amountString);
@@ -169,27 +160,25 @@ export function WalletSummary({
         address: townsContractAddress,
       });
 
-      // ✅ Convert to Wei (BigInt)
-      const amountWei = toWei(amountString);
-
       console.log('🔍 Amount to send:', amountString);
-      console.log('🔍 Amount in Wei:', amountWei.toString());
-      console.log('🔍 Current balance (Wei):', rawTownsBalance.toString());
+      console.log('🔍 Current balance:', townsBalance);
 
-      // ✅ Check if balance is sufficient BEFORE sending
-      if (rawTownsBalance < amountWei) {
+      // Check if balance is sufficient
+      const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
+      if (balanceNum < amount) {
         setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
         setIsWithdrawing(false);
         return;
       }
 
+      // Pass human-readable amount directly (ThirdWeb handles Wei conversion)
       const transaction = transfer({
         contract,
         to: destinationAddress,
-        amount: amountWei,
+        amount: amountString,
       });
 
-      console.log('🔄 Sending withdrawal transaction...');
+      console.log('🔄 Sending transaction with gas sponsorship...');
       
       const result = await sendTransaction({
         account,
@@ -341,7 +330,6 @@ export function WalletSummary({
                     </div>
                   </div>
 
-                  {/* ✅ UPDATED: "Send $TOWNS" */}
                   <button
                     onClick={handleWithdrawClick}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -375,12 +363,12 @@ export function WalletSummary({
         )}
       </div>
 
-      {/* ✅ UPDATED: Send $TOWNS Modal with click-outside-to-close */}
+      {/* Send $TOWNS Modal */}
       <AnimatePresence>
         {showWithdrawalModal && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
-            onClick={() => setShowWithdrawalModal(false)} // ✅ Click outside to close
+            onClick={() => setShowWithdrawalModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -388,7 +376,7 @@ export function WalletSummary({
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
               className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
-              onClick={(e) => e.stopPropagation()} // ✅ Prevent close when clicking modal content
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center mb-6">
                 <h1 className="font-adonis text-4xl mb-2">Knead</h1>
@@ -471,7 +459,6 @@ export function WalletSummary({
                   >
                     Cancel
                   </button>
-                  {/* ✅ UPDATED: "Send" button */}
                   <button
                     type="submit"
                     className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -500,7 +487,7 @@ export function WalletSummary({
         {showExternalWalletMessage && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
-            onClick={() => setShowExternalWalletMessage(false)} // ✅ Click outside to close
+            onClick={() => setShowExternalWalletMessage(false)}
           >
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -508,7 +495,7 @@ export function WalletSummary({
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
               className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
-              onClick={(e) => e.stopPropagation()} // ✅ Prevent close when clicking modal content
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center mb-6">
                 <span className="text-6xl">🔐</span>
