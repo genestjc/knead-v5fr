@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.DAILY_API_KEY;
-    const domain = process.env.NEXT_PUBLIC_DAILY_DOMAIN || 'knead.daily.co';
 
     if (!apiKey) {
       return NextResponse.json<ApiResponse<null>>(

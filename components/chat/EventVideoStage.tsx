@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useDaily, useParticipantIds, useLocalSessionId, DailyCall } from '@daily-co/daily-react';
-import DailyIframe from '@daily-co/daily-js';
+import { useDaily, useParticipantIds, useLocalSessionId } from '@daily-co/daily-react';
+import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 import { DailyVideoTile } from './DailyVideoTile';
 import type { ChatEvent } from '@/types/chat';
 
@@ -29,7 +29,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   // Create and join Daily call
   useEffect(() => {
-    if (!roomUrl || !token || callObject) return;
+    if (!roomUrl || !token) return;
+    if (callObject) return; // Already have call object
 
     async function joinCall() {
       try {
@@ -47,9 +48,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         });
 
         setJoining(false);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to join Daily call:', err);
-        setError(err.message || 'Failed to join video call');
+        setError((err as Error).message || 'Failed to join video call');
         setJoining(false);
       }
     }
@@ -63,6 +64,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         callObject.destroy().catch(console.error);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomUrl, token]);
 
   const handleLeaveCall = async () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { useDaily, useLocalSessionId, useParticipantIds, useVideoTrack, useAudioTrack } from '@daily-co/daily-react';
+import { useDaily, useVideoTrack, useAudioTrack } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
   sessionId: string;
