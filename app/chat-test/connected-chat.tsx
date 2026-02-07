@@ -49,7 +49,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   
-  const { disconnect } = useAgentConnection();
+  const { isAgentConnected } = useAgentConnection();
   const activeAccount = useActiveAccount();
 
   // Get user role and permissions
