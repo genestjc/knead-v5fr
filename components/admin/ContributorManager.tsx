@@ -44,9 +44,9 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(`Success! NFT minted. Tx: ${data.transactionHash.slice(0,10)}...`);
+        setMessage(`Success! NFT minted (Token ID ${data.tokenId}). Tx: ${data.transactionHash.slice(0,10)}...`);
         setRecipient('');
-        onMintSuccess(); // Refresh the contributor list
+        onMintSuccess();
       } else {
         throw new Error(data.error || 'Failed to mint NFT.');
       }
@@ -63,18 +63,41 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
         <h3 className="font-adonis text-2xl mb-4">Mint New Contributor NFT</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label htmlFor="recipient" className="block text-sm font-medium text-gray-700">Recipient Wallet Address</label>
-                <input type="text" id="recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black" placeholder="0x..." required />
+                <label htmlFor="recipient" className="block text-sm font-medium text-gray-700">
+                  Recipient Wallet Address
+                </label>
+                <input 
+                  type="text" 
+                  id="recipient" 
+                  value={recipient} 
+                  onChange={(e) => setRecipient(e.target.value)} 
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black" 
+                  placeholder="0x..." 
+                  required 
+                />
             </div>
             <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700">Contributor Role</label>
-                <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black">
-                    <option value="invited">Invited (1.0x)</option>
-                    <option value="appointed">Appointed (0.8x)</option>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                  Contributor Role
+                </label>
+                <select 
+                  id="role" 
+                  value={role} 
+                  onChange={(e) => setRole(e.target.value as any)} 
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
+                >
+                    {/* ✅ UPDATED: Added Token IDs in labels for clarity */}
+                    <option value="appointed">Appointed (Token ID 1 - 0.8x multiplier, 3 invites)</option>
+                    <option value="invited">Invited (Token ID 2 - 1.0x multiplier, 2 invites)</option>
+                    <option value="earned">Earned (Token ID 3 - 1.5x multiplier, 3 invites)</option>
                 </select>
             </div>
             <div>
-                <button type="submit" disabled={isLoading} className="w-full py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400">
+                <button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="w-full py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400"
+                >
                     {isLoading ? 'Minting...' : 'Mint Contributor NFT'}
                 </button>
             </div>
@@ -126,7 +149,9 @@ function ContributorList({ contributors, onRevokeSuccess }: { contributors: Cont
                         <div>
                             <p className="font-semibold text-gray-800">{c.displayName}</p>
                             <p className="text-sm text-gray-500 font-mono">{`${c.address.slice(0, 6)}...${c.address.slice(-4)}`}</p>
-                            <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{c.contributorType}</span>
+                            <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                              {c.contributorType}
+                            </span>
                         </div>
                         <button 
                             onClick={() => handleRevoke(c.id)}
@@ -141,7 +166,6 @@ function ContributorList({ contributors, onRevokeSuccess }: { contributors: Cont
         </div>
     );
 }
-
 
 // Main ContributorManager Component
 export function ContributorManager({ adminAddress }: { adminAddress: string }) {
