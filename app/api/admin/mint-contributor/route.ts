@@ -17,7 +17,7 @@ const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 const getRoleMetadata = (role: string) => {
   const baseMetadata = {
     appointed: { 
-      tokenId: 1n, // ✅ FIXED: Was 10n
+      tokenId: 1n,  // Keep as BigInt for minting
       metadata: { 
         name: "Appointed Contributor", 
         image: "ipfs://...", 
@@ -29,7 +29,7 @@ const getRoleMetadata = (role: string) => {
       }
     },
     invited: { 
-      tokenId: 2n, // ✅ FIXED: Was 11n
+      tokenId: 2n,
       metadata: { 
         name: "Invited Contributor", 
         image: "ipfs://...", 
@@ -41,7 +41,7 @@ const getRoleMetadata = (role: string) => {
       }
     },
     earned: { 
-      tokenId: 3n, // ✅ FIXED: Was 12n
+      tokenId: 3n,
       metadata: { 
         name: "Earned Contributor", 
         image: "ipfs://...", 
@@ -107,17 +107,15 @@ export async function POST(req: NextRequest) {
     const transaction = await mintTo({ 
       contract, 
       to: recipientAddress, 
-      tokenId: roleData.tokenId, 
+      tokenId: roleData.tokenId,  // BigInt is fine here
       amount: 1n 
     });
 
-    // ✅ REMOVED: Supabase chat_users update (table doesn't exist anymore)
-    // All role data is now stored on-chain via NFT ownership
-
+    // ✅ FIX: Convert BigInt to Number before JSON serialization
     return NextResponse.json({ 
       success: true, 
       transactionHash: transaction.transactionHash,
-      tokenId: Number(roleData.tokenId),
+      tokenId: Number(roleData.tokenId),  // Convert to Number
       role: role
     });
   } catch (error) {
