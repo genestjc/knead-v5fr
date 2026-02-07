@@ -6,7 +6,12 @@
  * Token Ownership Model:
  * - Freemium: Owns Token ID 0 ONLY (no Token ID 1, no Contributor NFT)
  * - Participant: Owns Token ID 0 + Token ID 1
- * - Contributor: Owns Token ID 0 + Contributor NFT (Token ID 10, 11, or 12)
+ * - Contributor: Owns Token ID 0 + Contributor NFT (Token ID 1, 2, or 3)
+ * 
+ * Contributor Token IDs (KneadContributors contract):
+ * - Token ID 1: Appointed Contributor (0.8x multiplier)
+ * - Token ID 2: Invited Contributor (1.0x multiplier)
+ * - Token ID 3: Earned Contributor (1.5x multiplier)
  */
 
 import { getContract, readContract } from "thirdweb";
@@ -19,6 +24,7 @@ export interface UserRoleInfo {
   role: UserRole;
   hasKneadMonthly: boolean;
   hasContributor: boolean;
+  contributorTokenId?: number; // 1, 2, or 3
 }
 
 /**
@@ -57,18 +63,21 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
 }
 
 /**
- * Check if user is a contributor (owns Token ID 10, 11, or 12)
+ * Check if user is a contributor (owns Token ID 1, 2, or 3)
  * 
  * @param address - User's wallet address
- * @returns True if user owns any contributor NFT
+ * @returns Object with contributor status and token ID
  */
-export async function isContributor(address: string): Promise<boolean> {
+export async function isContributor(address: string): Promise<{ 
+  isContributor: boolean; 
+  tokenId?: number 
+}> {
   try {
     const contributorContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     
     if (!contributorContractAddress) {
       console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS is not set");
-      return false;
+      return { isContributor: false };
     }
 
     const contract = getContract({
@@ -77,8 +86,8 @@ export async function isContributor(address: string): Promise<boolean> {
       address: contributorContractAddress,
     });
 
-    // Check balances for Token IDs 10, 11, and 12
-    const tokenIds = [10, 11, 12];
+    // ✅ FIXED: Changed from [10, 11, 12] to [1, 2, 3]
+    const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
     
     for (const tokenId of tokenIds) {
       const balance = await readContract({
@@ -88,14 +97,14 @@ export async function isContributor(address: string): Promise<boolean> {
       });
       
       if (Number(balance) > 0) {
-        return true;
+        return { isContributor: true, tokenId };
       }
     }
 
-    return false;
+    return { isContributor: false };
   } catch (error) {
     console.error("Error checking contributor NFT:", error);
-    return false;
+    return { isContributor: false };
   }
 }
 
@@ -110,7 +119,7 @@ export async function isContributor(address: string): Promise<boolean> {
 export async function getUserRole(address: string): Promise<UserRoleInfo> {
   try {
     // Check both NFT types in parallel
-    const [hasMonthly, hasContributorNFT] = await Promise.all([
+    const [hasMonthly, contributorCheck] = await Promise.all([
       hasKneadMonthly(address),
       isContributor(address),
     ]);
@@ -118,7 +127,7 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
     // Determine role based on priority
     let role: UserRole = 'freemium';
     
-    if (hasContributorNFT) {
+    if (contributorCheck.isContributor) {
       role = 'contributor';
     } else if (hasMonthly) {
       role = 'participant';
@@ -127,7 +136,8 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
     return {
       role,
       hasKneadMonthly: hasMonthly,
-      hasContributor: hasContributorNFT,
+      hasContributor: contributorCheck.isContributor,
+      contributorTokenId: contributorCheck.tokenId,
     };
   } catch (error) {
     console.error("Error getting user role:", error);
@@ -138,5 +148,24 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
       hasKneadMonthly: false,
       hasContributor: false,
     };
+  }
+}
+
+/**
+ * Get contributor type name from token ID
+ * 
+ * @param tokenId - Token ID (1, 2, or 3)
+ * @returns Contributor type name
+ */
+export function getContributorTypeName(tokenId?: number): string {
+  switch (tokenId) {
+    case 1:
+      return 'Appointed';
+    case 2:
+      return 'Invited';
+    case 3:
+      return 'Earned';
+    default:
+      return 'Unknown';
   }
 }
