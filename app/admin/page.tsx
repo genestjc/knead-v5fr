@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
-import { TreasuryDashboard } from '@/components/admin/TreasuryDashboard';
 
 export default function AdminPage() {
   const account = useActiveAccount();
-  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'treasury'>('events');  // Removed 'moderation'
+  // ✅ Only Events and Contributors tabs
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors'>('events');
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
 
@@ -42,35 +42,56 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="font-adonis text-3xl mb-1">Admin Dashboard</h1>
-                    <p className="font-georgia-pro text-sm text-gray-600">
-                        Logged in as: {account.address.slice(0, 6)}...{account.address.slice(-4)}
-                        {' '}<span className="text-xs">👑 Master Admin</span>
-                    </p>
-                </div>
-                <a href="/chat-test" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">← Back to Chat</a>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-adonis text-3xl mb-1">Admin Dashboard</h1>
+              <p className="font-georgia-pro text-sm text-gray-600">
+                Logged in as: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+                {' '}<span className="text-xs">👑 Master Admin</span>
+              </p>
             </div>
+            <a href="/chat-test" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">
+              ← Back to Chat
+            </a>
+          </div>
         </div>
       </header>
+      
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6">
           <nav className="flex space-x-8" aria-label="Tabs">
-            <button onClick={() => setActiveTab('events')} className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${activeTab === 'events' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>🎙️ Events & Live Interviews</button>
-            <button onClick={() => setActiveTab('contributors')} className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${activeTab === 'contributors' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>✍️ Contributors</button>
-            {/* ✅ REMOVED: Moderation tab (relies on deleted Supabase tables) */}
-            <button onClick={() => setActiveTab('treasury')} className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${activeTab === 'treasury' ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>💰 Treasury</button>
+            <button 
+              onClick={() => setActiveTab('events')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'events' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              🎙️ Events & Live Interviews
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('contributors')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'contributors' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              ✍️ Contributors
+            </button>
+            
+            {/* Removed: Moderation and Treasury tabs */}
           </nav>
         </div>
       </div>
+      
       <main className="max-w-7xl mx-auto px-6 py-8">
         {account.address && (
           <>
             {activeTab === 'events' && <EventsManager adminAddress={account.address} />}
             {activeTab === 'contributors' && <ContributorManager adminAddress={account.address} />}
-            {/* ✅ REMOVED: Moderation panel rendering */}
-            {activeTab === 'treasury' && <TreasuryDashboard adminAddress={account.address} />}
           </>
         )}
       </main>
