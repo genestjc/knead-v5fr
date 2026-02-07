@@ -4,8 +4,7 @@ import { useEffect, useState } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
-import { base } from "thirdweb/chains" // ✅ ADD THIS IMPORT
-import { usePersistentWallet } from "@/hooks/use-persistent-wallet"
+import { base } from "thirdweb/chains"
 import { useToast } from "@/hooks/use-toast"
 
 const wallets = [
@@ -16,9 +15,8 @@ const wallets = [
       redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
     },
     hidePrivateKeyExport: false,
-    // ✅ ADD THIS: Enable gas sponsorship (same as chat-test)
     executionMode: {
-      mode: "EIP7702", // EOA-compatible smart wallet
+      mode: "EIP7702",
       sponsorGas: true,
     },
   }),
@@ -109,6 +107,7 @@ export function ThirdWebConnectButton({
     <div className={className}>
       <ConnectButton
         client={client}
+        chain={base} // ✅ REQUIRED: Specify the chain for EIP-7702 and gas sponsorship
         connectModal={{ size }}
         theme={theme}
         wallets={wallets}
