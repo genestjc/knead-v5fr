@@ -7,12 +7,26 @@ interface EventsManagerProps {
   adminAddress: string;
 }
 
+interface User {
+  id: string;
+  address: string;
+  displayName: string;
+  alias: string | null;
+  role: string;
+}
+
 export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [adminUserId, setAdminUserId] = useState<string>(''); // ✅ Store admin's DB user ID
+  const [adminUserId, setAdminUserId] = useState<string>('');
+
+  // ✅ NEW: Guest management
+  const [guestSearchTerm, setGuestSearchTerm] = useState('');
+  const [guestSearchResults, setGuestSearchResults] = useState<User[]>([]);
+  const [selectedGuests, setSelectedGuests] = useState<User[]>([]);
+  const [searchingGuests, setSearchingGuests] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -23,8 +37,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     scheduledStart: '',
     scheduledEnd: '',
     videoEnabled: true,
-    hostId: '',
-    guestIds: [] as string[],
+    audioOnly: false, // ✅ NEW: Audio-only option
   });
 
   useEffect(() => {
@@ -32,7 +45,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchEvents();
   }, [adminAddress]);
 
-  // ✅ NEW: Fetch admin user's database ID
   const fetchAdminUser = async () => {
     try {
       const response = await fetch(`/api/users/by-address?address=${adminAddress}`);
@@ -40,8 +52,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       
       if (data.success && data.user) {
         setAdminUserId(data.user.id);
-        // Pre-fill hostId in form
-        setFormData(prev => ({ ...prev, hostId: data.user.id }));
       } else {
         setError('Admin user not found in database');
       }
@@ -71,6 +81,51 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
+  // ✅ NEW: Search for users to add as guests
+  const searchUsers = async (searchTerm: string) => {
+    if (searchTerm.length < 2) {
+      setGuestSearchResults([]);
+      return;
+    }
+
+    setSearchingGuests(true);
+    try {
+      const response = await fetch(`/api/admin/users?adminAddress=${adminAddress}`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Filter users by search term
+        const filtered = data.data.filter((user: User) => {
+          const term = searchTerm.toLowerCase();
+          return (
+            user.address.toLowerCase().includes(term) ||
+            user.displayName?.toLowerCase().includes(term) ||
+            user.alias?.toLowerCase().includes(term)
+          );
+        });
+        setGuestSearchResults(filtered.slice(0, 5)); // Limit to 5 results
+      }
+    } catch (err) {
+      console.error('Error searching users:', err);
+    } finally {
+      setSearchingGuests(false);
+    }
+  };
+
+  // ✅ NEW: Add guest
+  const addGuest = (user: User) => {
+    if (!selectedGuests.find(g => g.id === user.id)) {
+      setSelectedGuests([...selectedGuests, user]);
+    }
+    setGuestSearchTerm('');
+    setGuestSearchResults([]);
+  };
+
+  // ✅ NEW: Remove guest
+  const removeGuest = (userId: string) => {
+    setSelectedGuests(selectedGuests.filter(g => g.id !== userId));
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -91,8 +146,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           scheduledStart: new Date(formData.scheduledStart).toISOString(),
           scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
           videoEnabled: formData.videoEnabled,
-          hostId: adminUserId, // ✅ Use the admin's database UUID
-          guestIds: formData.guestIds,
+          hostId: adminUserId,
+          guestIds: selectedGuests.map(g => g.id), // ✅ Include guest IDs
         }),
       });
 
@@ -121,9 +176,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       scheduledStart: '',
       scheduledEnd: '',
       videoEnabled: true,
-      hostId: adminUserId, // Keep admin as host
-      guestIds: [],
+      audioOnly: false,
     });
+    setSelectedGuests([]);
+    setGuestSearchTerm('');
+    setGuestSearchResults([]);
   };
 
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
@@ -232,7 +289,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           events.map((event) => (
             <div key={event.id} className="bg-white border border-gray-200 rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="font-adonis text-xl">{event.title}</h3>
                     {getStatusBadge(event.status)}
@@ -249,11 +306,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                 <div>
                   <span className="font-georgia-pro text-gray-500">Host:</span>
-                  <span className="font-georgia-pro ml-2">{event.host?.displayName || event.host?.address || 'N/A'}</span>
+                  <span className="font-georgia-pro ml-2">{event.host?.alias || event.host?.displayName || event.host?.address || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="font-georgia-pro text-gray-500">Type:</span>
-                  <span className="font-georgia-pro ml-2">{event.eventType}</span>
+                  <span className="font-georgia-pro ml-2 capitalize">{event.eventType}</span>
                 </div>
                 <div>
                   <span className="font-georgia-pro text-gray-500">Start:</span>
@@ -269,13 +326,14 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
+              {/* ✅ Show guests */}
               {event.guests && event.guests.length > 0 && (
                 <div className="mb-4">
                   <span className="font-georgia-pro text-sm text-gray-500">Guests:</span>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {event.guests.map((guest: any) => (
-                      <span key={guest.id} className="px-3 py-1 bg-gray-100 rounded-full text-xs font-georgia-pro">
-                        {guest.displayName}
+                      <span key={guest.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-georgia-pro">
+                        {guest.alias || guest.displayName || guest.address.slice(0, 8)}
                       </span>
                     ))}
                   </div>
@@ -339,6 +397,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
+                  placeholder="e.g., Interview with Jane Doe"
                   required
                 />
               </div>
@@ -349,6 +408,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
+                  placeholder="Optional details about the event..."
                   rows={3}
                 />
               </div>
@@ -361,10 +421,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     onChange={(e) => setFormData({ ...formData, eventType: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
                   >
-                    <option value="interview">Live Interview</option>
-                    <option value="discussion">Discussion</option>
-                    <option value="ama">AMA</option>
-                    <option value="announcement">Announcement</option>
+                    <option value="interview">🎙️ Live Interview</option>
+                    <option value="discussion">💬 Discussion</option>
+                    <option value="ama">❓ AMA</option>
+                    <option value="announcement">📢 Announcement</option>
                   </select>
                 </div>
 
@@ -404,22 +464,98 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              {/* ✅ REMOVED: Host User ID field - auto-filled from logged in admin */}
-
+              {/* ✅ NEW: Guest Management */}
               <div>
-                <label className="flex items-center gap-2">
+                <label className="block font-georgia-pro text-sm mb-2">Guests (Optional)</label>
+                
+                {/* Selected guests */}
+                {selectedGuests.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {selectedGuests.map(guest => (
+                      <div key={guest.id} className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                        <span className="font-georgia-pro">{guest.alias || guest.displayName || guest.address.slice(0, 8)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeGuest(guest.id)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Search input */}
+                <div className="relative">
                   <input
-                    type="checkbox"
-                    checked={formData.videoEnabled}
-                    onChange={(e) => setFormData({ ...formData, videoEnabled: e.target.checked })}
-                    className="rounded"
+                    type="text"
+                    value={guestSearchTerm}
+                    onChange={(e) => {
+                      setGuestSearchTerm(e.target.value);
+                      searchUsers(e.target.value);
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
+                    placeholder="Search by name or address..."
                   />
-                  <span className="font-georgia-pro text-sm">Enable video streaming (Daily.co)</span>
-                </label>
+                  
+                  {/* Search results dropdown */}
+                  {guestSearchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-y-auto">
+                      {guestSearchResults.map(user => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => addGuest(user)}
+                          className="w-full px-4 py-2 text-left hover:bg-gray-100 font-georgia-pro text-sm"
+                        >
+                          <div className="font-medium">{user.alias || user.displayName || 'Anonymous'}</div>
+                          <div className="text-xs text-gray-500">{user.address}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ✅ NEW: Media Settings */}
+              <div className="border-t pt-4">
+                <label className="block font-georgia-pro text-sm font-medium mb-3">Media Settings</label>
+                
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.videoEnabled}
+                      onChange={(e) => setFormData({ ...formData, videoEnabled: e.target.checked, audioOnly: false })}
+                      className="rounded"
+                    />
+                    <span className="font-georgia-pro text-sm">📹 Enable video streaming (Daily.co)</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.audioOnly}
+                      onChange={(e) => setFormData({ ...formData, audioOnly: e.target.checked, videoEnabled: !e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="font-georgia-pro text-sm">🎙️ Audio only (no video)</span>
+                  </label>
+                </div>
+                
                 {formData.videoEnabled && (
-                  <div className="mt-2 p-3 bg-purple-50 rounded-lg">
+                  <div className="mt-3 p-3 bg-purple-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-purple-800">
-                      💡 Daily.co room will be created automatically when you save this event.
+                      💡 Daily.co room will be created automatically for video/audio streaming.
+                    </p>
+                  </div>
+                )}
+                
+                {formData.audioOnly && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="font-georgia-pro text-xs text-blue-800">
+                      🎙️ Audio-only mode: participants can only use microphone, no cameras.
                     </p>
                   </div>
                 )}
