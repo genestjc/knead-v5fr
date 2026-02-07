@@ -6,11 +6,10 @@ export const dynamic = 'force-dynamic';
 
 const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
 const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-const CHAIN_NAME = 'base'; // The chain your contract is on
+const CHAIN_NAME = 'base';
 
 /**
  * Fetches all owners of a specific ERC1155 token ID by calling the Thirdweb API directly.
- * This is the correct, robust backend approach suggested by the AI agent.
  * @param tokenId - The ID of the token to get owners for.
  * @returns An array of wallet addresses.
  */
@@ -45,11 +44,11 @@ export async function GET(req: NextRequest) {
       throw new Error("Missing Thirdweb environment variables for fetching contributors.");
     }
 
-    // Fetch owners for each token ID by calling the API
+    // ✅ FIXED: Changed from 10n/11n/12n to 1n/2n/3n
     const [appointed, invited, earned] = await Promise.all([
-      getOwnersFromApi(10n),
-      getOwnersFromApi(11n),
-      getOwnersFromApi(12n),
+      getOwnersFromApi(1n),
+      getOwnersFromApi(2n),
+      getOwnersFromApi(3n),
     ]);
 
     const uniqueOwnerAddresses = [...new Set([...appointed, ...invited, ...earned].map(owner => owner.toLowerCase()))];
@@ -58,7 +57,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json<ApiResponse<any[]>>({ success: true, data: [] });
     }
 
-    // The rest of your logic remains the same.
     const supabase = createSupabaseAdmin();
     const { data: users, error } = await supabase.from('chat_users').select('*').in('address', uniqueOwnerAddresses);
 
@@ -67,8 +65,12 @@ export async function GET(req: NextRequest) {
     }
 
     const formattedContributors = users.map((c) => ({
-      id: c.id, address: c.address, displayName: c.alias || c.display_name,
-      avatar: c.avatar, role: c.role, contributorType: c.contributor_type, 
+      id: c.id, 
+      address: c.address, 
+      displayName: c.alias || c.display_name,
+      avatar: c.avatar, 
+      role: c.role, 
+      contributorType: c.contributor_type, 
       createdAt: new Date(c.created_at),
     }));
 
