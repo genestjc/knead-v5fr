@@ -5,7 +5,6 @@ import { createThirdwebClient, getContract } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 
-// ✅ Only create client at module level (safe during build)
 const client = createThirdwebClient({ 
   secretKey: process.env.THIRDWEB_SECRET_KEY! 
 });
@@ -65,7 +64,6 @@ const getRoleMetadata = (role: string) => {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Get env vars at RUNTIME
     const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
 
@@ -120,10 +118,11 @@ export async function POST(req: NextRequest) {
       amount: 1n 
     });
 
+    // ✅ FIX: Convert ALL potentially BigInt values to safe types
     return NextResponse.json({ 
       success: true, 
-      transactionHash: transaction.transactionHash,
-      tokenId: Number(roleData.tokenId),
+      transactionHash: transaction.transactionHash ? String(transaction.transactionHash) : undefined,
+      tokenId: Number(roleData.tokenId), // Convert BigInt to Number
       role: role
     });
   } catch (error) {
