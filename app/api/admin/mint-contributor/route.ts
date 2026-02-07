@@ -1,65 +1,19 @@
 // app/api/admin/mint-contributor/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { mintTo } from "thirdweb/extensions/erc1155";
+import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
-
-const client = createThirdwebClient({ 
-  secretKey: process.env.THIRDWEB_SECRET_KEY! 
-});
+import { client, serverWallet } from "@/thirdweb-server-wallet";
 
 const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 
-const getRoleMetadata = (role: string) => {
-  const baseMetadata = {
-    appointed: { 
-      tokenId: 1n,
-      metadata: { 
-        name: "Appointed Contributor", 
-        image: "ipfs://...", 
-        attributes: [
-          { trait_type: "Level", value: "Appointed" }, 
-          { trait_type: "Multiplier", value: "0.8" }, 
-          { trait_type: "Invitation Tokens", value: "3" }
-        ]
-      }
-    },
-    invited: { 
-      tokenId: 2n,
-      metadata: { 
-        name: "Invited Contributor", 
-        image: "ipfs://...", 
-        attributes: [
-          { trait_type: "Level", value: "Invited" }, 
-          { trait_type: "Multiplier", value: "1.0" }, 
-          { trait_type: "Invitation Tokens", value: "2" }
-        ]
-      }
-    },
-    earned: { 
-      tokenId: 3n,
-      metadata: { 
-        name: "Earned Contributor", 
-        image: "ipfs://...", 
-        attributes: [
-          { trait_type: "Level", value: "Earned" }, 
-          { trait_type: "Multiplier", value: "1.5" }, 
-          { trait_type: "Invitation Tokens", value: "3" }
-        ]
-      }
-    },
+const getRoleToTokenId = (role: string): bigint | null => {
+  const roleMap: Record<string, bigint> = {
+    'appointed': 1n,
+    'invited': 2n,
+    'earned': 3n,
   };
-
-  const roleData = baseMetadata[role as keyof typeof baseMetadata];
-  if (!roleData) return null;
-
-  const clonedData = JSON.parse(JSON.stringify(roleData));
-  clonedData.metadata.attributes.push({ 
-    trait_type: "Join Date", 
-    value: new Date().toISOString().split('T')[0] 
-  });
-  return clonedData;
+  return roleMap[role] || null;
 };
 
 export async function POST(req: NextRequest) {
@@ -97,34 +51,45 @@ export async function POST(req: NextRequest) {
       }, { status: 401 });
     }
 
-    const roleData = getRoleMetadata(role);
-    if (!roleData) {
+    const tokenId = getRoleToTokenId(role);
+    if (!tokenId) {
       return NextResponse.json({ 
         success: false, 
         error: "Invalid role specified." 
       }, { status: 400 });
     }
 
-    const contract = getContract({ 
-      client, 
-      address: CONTRIBUTOR_CONTRACT_ADDRESS, 
-      chain: base 
+    const contract = getContract({
+      client,
+      address: CONTRIBUTOR_CONTRACT_ADDRESS,
+      chain: base,
     });
 
-    const transaction = await mintTo({ 
-      contract, 
-      to: recipientAddress, 
-      tokenId: roleData.tokenId,
-      amount: 1n 
+    // ✅ Use your contract's adminMintContributor function
+    const transaction = prepareContractCall({
+      contract,
+      method: "function adminMintContributor(address to, uint256 tokenId)",
+      params: [recipientAddress, tokenId],
+      gasLimit: 300000n,
     });
 
-    // ✅ FIX: Convert ALL potentially BigInt values to safe types
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
+    });
+
     return NextResponse.json({ 
       success: true, 
-      transactionHash: transaction.transactionHash ? String(transaction.transactionHash) : undefined,
-      tokenId: Number(roleData.tokenId), // Convert BigInt to Number
+      transactionHash,
+      transactionId,
+      tokenId: Number(tokenId),
       role: role
     });
+
   } catch (error) {
     console.error("Minting failed:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
