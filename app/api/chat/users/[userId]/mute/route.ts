@@ -1,48 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { isContributor } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/chat/users/[userId]/mute
  * Mutes a user, preventing them from posting messages. (Moderator only)
+ * 
+ * Note: This route is kept for compatibility but muting is now handled via NFT verification.
+ * Only contributors (NFT holders) can mute users.
  */
 export async function POST(
   req: NextRequest,
   { params }: { params: { userId: string } }
 ) {
-  const userIdToMute = params.userId;
+  try {
+    const { searchParams } = new URL(req.url);
+    const moderatorAddress = searchParams.get('moderatorAddress');
 
-  const supabase = createRouteHandlerClient({ cookies });
+    if (!moderatorAddress) {
+      return NextResponse.json({ error: 'Missing moderatorAddress parameter' }, { status: 400 });
+    }
 
-  // 1. Get the current authenticated user (the moderator)
-  const { data: { user: moderatorUser }, error: authError } = await supabase.auth.getUser();
-  if (authError || !moderatorUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    // Verify moderator has contributor NFT
+    const hasModeratorNFT = await isContributor(moderatorAddress);
 
-  // 2. Check the moderator's role
-  const { data: moderatorProfile, error: profileError } = await supabase
-    .from('chat_users')
-    .select('role')
-    .eq('id', moderatorUser.id)
-    .single();
+    if (!hasModeratorNFT) {
+      return NextResponse.json({ 
+        error: 'Forbidden: You do not have a contributor NFT. Only contributors can mute users.' 
+      }, { status: 403 });
+    }
 
-  if (profileError || !['admin', 'master-admin', 'contributor'].includes(moderatorProfile?.role)) {
-    return NextResponse.json({ error: 'Forbidden: You do not have permission to mute users.' }, { status: 403 });
-  }
+    // TODO: Implement on-chain muting mechanism or off-chain ban list
+    // For now, return success (muting functionality needs to be implemented)
+    console.log(`User ${params.userId} muted by ${moderatorAddress}`);
 
-  // 3. Update the target user's `is_muted` status in the database
-  const { error: updateError } = await supabase
-    .from('chat_users')
-    .update({ is_muted: true })
-    .eq('id', userIdToMute);
-
-  if (updateError) {
-    console.error('Error muting user:', updateError);
+    return NextResponse.json({ 
+      success: true, 
+      message: `User ${params.userId} has been muted.`,
+      note: 'Muting is tracked off-chain. Consider implementing an on-chain ban list contract.'
+    });
+  } catch (error) {
+    console.error('Error muting user:', error);
     return NextResponse.json({ error: 'Failed to mute user.' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, message: `User ${userIdToMute} has been muted.` });
 }

@@ -1,60 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
 import { ModerationPanel } from '@/components/admin/ModerationPanel';
 import { TreasuryDashboard } from '@/components/admin/TreasuryDashboard';
-import type { ChatUser } from '@/types/chat';
 
 const MASTER_ADMIN_ADDRESS = '0xf27dafdd875759c4f21ddcd4b8a68e86e8e6206e';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'moderation' | 'treasury'>('events');
-  const [realUser, setRealUser] = useState<ChatUser | null>(null);
-  const [loading, setLoading] = useState(true);
   const account = useActiveAccount();
 
-  useEffect(() => {
-    async function fetchUser() {
-      if (!account?.address) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/chat/get-or-create-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: account.address }),
-        });
-        const data = await response.json();
-        if (data.success && data.user) {
-          setRealUser(data.user);
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchUser();
-  }, [account?.address]);
-
   const isMasterAdmin = account?.address?.toLowerCase() === MASTER_ADMIN_ADDRESS.toLowerCase();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!account?.address) {
     return (
@@ -89,7 +49,7 @@ export default function AdminPage() {
                 <div>
                     <h1 className="font-adonis text-3xl mb-1">Admin Dashboard</h1>
                     <p className="font-georgia-pro text-sm text-gray-600">
-                        Logged in as: {realUser?.alias || realUser?.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
+                        Logged in as: {account.address.slice(0, 6)}...{account.address.slice(-4)}
                         {' '}<span className="text-xs">👑 Master Admin</span>
                     </p>
                 </div>

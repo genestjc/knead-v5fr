@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { isContributor } from '@/lib/blockchain/check-nft-ownership';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -8,57 +8,36 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/admin/moderation
  * Get flagged messages and recent moderation logs (admin only)
+ * Now verifies admin status via contributor NFT ownership
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const adminId = searchParams.get('adminId');
+    const adminAddress = searchParams.get('adminAddress');
 
-    if (!adminId) {
+    if (!adminAddress) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminId parameter' },
+        { success: false, error: 'Missing adminAddress parameter' },
         { status: 400 }
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // Verify admin has contributor NFT
+    const hasAdminNFT = await isContributor(adminAddress);
 
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('id', adminId)
-      .single();
-
-    if (userError || !user) {
+    if (!hasAdminNFT) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions' },
+        { success: false, error: 'Insufficient permissions. Contributor NFT required.' },
         { status: 403 }
       );
     }
 
+    // Note: With Towns Protocol, messages are stored on-chain.
+    // This moderation endpoint is kept for compatibility but may need to be
+    // adapted to query Towns Protocol instead of Supabase.
+    
+    const supabase = createSupabaseAdmin();
+    
     // Get flagged messages (high moderation scores or manually flagged)
     const { data: flaggedMessages, error: flaggedError } = await supabase
       .from('chat_messages')
@@ -155,16 +134,27 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/admin/moderation
  * Hide/unhide messages, ban users, and log moderation actions (admin only)
+ * Now verifies admin status via contributor NFT ownership
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { adminId, messageId, userId, action, reason } = body;
+    const { adminAddress, messageId, userId, action, reason } = body;
 
-    if (!adminId || !action) {
+    if (!adminAddress || !action) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing required fields: adminId, action' },
+        { success: false, error: 'Missing required fields: adminAddress, action' },
         { status: 400 }
+      );
+    }
+
+    // Verify admin has contributor NFT
+    const hasAdminNFT = await isContributor(adminAddress);
+
+    if (!hasAdminNFT) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Insufficient permissions. Contributor NFT required.' },
+        { status: 403 }
       );
     }
 
@@ -192,42 +182,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // Verify admin permissions
-    const { data: user, error: userError } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('id', adminId)
-      .single();
-
-    if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const chatUser = {
-      id: user.id,
-      address: user.address,
-      displayName: user.display_name,
-      avatar: user.avatar,
-      role: user.role,
-      membershipTier: user.membership_tier,
-      contributorType: user.contributor_type,
-      isBanned: user.is_banned,
-      bio: user.bio,
-      alias: user.alias,
-      createdAt: new Date(user.created_at),
-      updatedAt: new Date(user.updated_at),
-    };
-
-    if (!isAdmin(chatUser)) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
-
     let actionMessage = '';
 
     // Handle message hide/unhide
@@ -251,7 +205,7 @@ export async function POST(req: NextRequest) {
         .from('moderation_logs')
         .insert({
           message_id: messageId,
-          admin_id: adminId,
+          admin_id: adminAddress, // Store admin address instead of ID
           action: action,
           reason: reason || null,
         });
@@ -294,7 +248,7 @@ export async function POST(req: NextRequest) {
         .from('moderation_logs')
         .insert({
           message_id: null,
-          admin_id: adminId,
+          admin_id: adminAddress, // Store admin address instead of ID
           action: action,
           reason: reason || null,
         });
