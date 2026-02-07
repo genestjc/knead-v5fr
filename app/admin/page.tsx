@@ -1,284 +1,149 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useActiveAccount, ConnectButton } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
+import { EventsManager } from '@/components/admin/EventsManager';
+import { ContributorManager } from '@/components/admin/ContributorManager';
+import { UserManager } from '@/components/admin/UserManager';
 
-interface User {
-  id: string;
-  address: string;
-  displayName: string;
-  alias: string | null;
-  role: string;
-  membershipTier: string;
-  contributorType: string | null;
-  isBanned: boolean;
-  createdAt: string;
+// ✅ ADD THIS LINE - Prevents static generation
+export const dynamic = 'force-dynamic';
+
+// Create client inside component or use lazy initialization
+let cachedClient: ReturnType<typeof createThirdwebClient> | null = null;
+
+function getClient() {
+  if (!cachedClient) {
+    cachedClient = createThirdwebClient({
+      clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+    });
+  }
+  return cachedClient;
 }
 
-interface UserManagerProps {
-  adminAddress: string;
-}
+export default function AdminPage() {
+  const account = useActiveAccount();
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users'>('events');
 
-export function UserManager({ adminAddress }: UserManagerProps) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<string>('all');
+  const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
+  const client = getClient(); // ✅ Get client inside component
 
-  // Fetch all users
-  const fetchUsers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/admin/users?adminAddress=${adminAddress}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setUsers(data.data);
-      } else {
-        setError(data.error || 'Failed to load users');
-      }
-    } catch (err) {
-      setError('Network error loading users');
-      console.error('Error fetching users:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, [adminAddress]);
-
-  // Ban/Unban user
-  const handleBanUser = async (userAddress: string, shouldBan: boolean) => {
-    if (!confirm(`Are you sure you want to ${shouldBan ? 'ban' : 'unban'} this user?`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/admin/ban-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress,
-          adminAddress,
-          ban: shouldBan,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        alert(data.message);
-        fetchUsers(); // Refresh list
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Ban/unban failed:', error);
-      alert('Failed to update ban status');
-    }
-  };
-
-  // Filter users
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.alias?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    
-    return matchesSearch && matchesRole;
-  });
-
-  if (loading) {
+  if (!account) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <h1 className="font-adonis text-4xl mb-4">Admin Access Required</h1>
+          <p className="font-georgia-pro text-lg text-gray-600 mb-6">
+            Connect your admin wallet to continue
+          </p>
+          <ConnectButton 
+            client={client}
+            theme="light"
+          />
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (account.address.toLowerCase() !== MASTER_ADMIN_ADDRESS.toLowerCase()) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-        ❌ {error}
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-md px-4">
+          <h1 className="font-adonis text-4xl mb-4">🚫 Unauthorized</h1>
+          <p className="font-georgia-pro text-lg text-gray-600 mb-4">
+            Connected wallet does not have admin access.
+          </p>
+          
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm font-mono">
+            <p className="text-gray-500 mb-2">Connected as:</p>
+            <p className="text-red-600 break-all">{account.address}</p>
+          </div>
+          
+          <div className="mt-6">
+            <ConnectButton 
+              client={client}
+              theme="light"
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-adonis text-2xl">User Management</h2>
-        <button
-          onClick={fetchUsers}
-          className="px-4 py-2 bg-gray-100 text-black rounded-lg hover:bg-gray-200 transition font-georgia-pro"
-        >
-          🔄 Refresh
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
-              Search Users
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by address, name, or alias..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black font-georgia-pro"
-            />
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-adonis text-3xl mb-1">Admin Dashboard</h1>
+              <p className="font-georgia-pro text-sm text-gray-600">
+                Logged in as: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+                {' '}<span className="text-xs">👑 Master Admin</span>
+              </p>
+            </div>
+            <div className="flex gap-4 items-center">
+              <ConnectButton 
+                client={client}
+                theme="light"
+              />
+              <a href="/chat-test" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">
+                ← Back to Chat
+              </a>
+            </div>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
-              Filter by Role
-            </label>
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black font-georgia-pro"
+        </div>
+      </header>
+      
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            <button 
+              onClick={() => setActiveTab('events')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'events' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
             >
-              <option value="all">All Roles</option>
-              <option value="viewer">Viewer</option>
-              <option value="participant">Participant</option>
-              <option value="contributor">Contributor</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+              🎙️ Events & Live Interviews
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('contributors')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'contributors' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              ✍️ Contributors
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('users')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'users' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              👥 Users & Moderation
+            </button>
+          </nav>
         </div>
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 font-georgia-pro">Total Users</p>
-          <p className="text-2xl font-bold font-adonis">{users.length}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 font-georgia-pro">Contributors</p>
-          <p className="text-2xl font-bold font-adonis">
-            {users.filter(u => u.contributorType).length}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 font-georgia-pro">Premium Members</p>
-          <p className="text-2xl font-bold font-adonis">
-            {users.filter(u => u.membershipTier === 'premium').length}
-          </p>
-        </div>
-        <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-          <p className="text-sm text-red-600 font-georgia-pro">Banned Users</p>
-          <p className="text-2xl font-bold text-red-600 font-adonis">
-            {users.filter(u => u.isBanned).length}
-          </p>
-        </div>
-      </div>
-
-      {/* Users Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-georgia-pro">
-                  User
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-georgia-pro">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-georgia-pro">
-                  Membership
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-georgia-pro">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-georgia-pro">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 font-georgia-pro">
-                    No users found
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className={user.isBanned ? 'bg-red-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <div className="text-sm font-medium text-gray-900 font-georgia-pro">
-                          {user.alias || user.displayName || 'Anonymous'}
-                        </div>
-                        <div className="text-xs text-gray-500 font-mono">
-                          {user.address.slice(0, 6)}...{user.address.slice(-4)}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full font-georgia-pro ${
-                        user.role === 'admin' || user.role === 'master-admin'
-                          ? 'bg-purple-100 text-purple-800'
-                          : user.contributorType
-                          ? 'bg-blue-100 text-blue-800'
-                          : user.role === 'participant'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.contributorType ? `${user.contributorType} contributor` : user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full font-georgia-pro ${
-                        user.membershipTier === 'premium'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.membershipTier}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user.isBanned ? (
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 font-georgia-pro">
-                          🚫 Banned
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 font-georgia-pro">
-                          ✅ Active
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {user.role !== 'admin' && user.role !== 'master-admin' && (
-                        <button
-                          onClick={() => handleBanUser(user.address, !user.isBanned)}
-                          className={`px-3 py-1 rounded-lg font-georgia-pro transition ${
-                            user.isBanned
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
-                        >
-                          {user.isBanned ? '✅ Unban' : '🚫 Ban'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {account.address && (
+          <>
+            {activeTab === 'events' && <EventsManager adminAddress={account.address} />}
+            {activeTab === 'contributors' && <ContributorManager adminAddress={account.address} />}
+            {activeTab === 'users' && <UserManager adminAddress={account.address} />}
+          </>
+        )}
+      </main>
     </div>
   );
 }
