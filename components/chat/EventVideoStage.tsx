@@ -13,36 +13,29 @@ interface EventVideoStageProps {
   token: string;
 }
 
-/**
- * EventVideoStage - Container for host + guest video tiles
- * Manages Daily.co call and displays video grid
- */
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
   const participantIds = useParticipantIds();
   const localSessionId = useLocalSessionId();
-  const [callObject, setCallObject] = useState<DailyCall | null>(null);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isHost = currentUserAddress.toLowerCase() === event.hostId.toLowerCase();
+  // ✅ FIX: Check against host.id instead of hostId
+  const isHost = event.host?.id 
+    ? currentUserAddress.toLowerCase() === event.host.id.toLowerCase() 
+    : false;
 
-  // Create and join Daily call
+  // Join Daily call using the provider's call object
   useEffect(() => {
-    if (!roomUrl || !token) return;
-    if (callObject) return; // Already have call object
-
+    if (!daily || !roomUrl || !token) return;
+    
     async function joinCall() {
       try {
         setJoining(true);
         setError(null);
 
-        // Create Daily call object
-        const newCallObject = DailyIframe.createCallObject();
-        setCallObject(newCallObject);
-
-        // Join the room with token
-        await newCallObject.join({
+        // ✅ Use the existing daily object from provider
+        await daily.join({
           url: roomUrl,
           token: token,
         });
@@ -55,17 +48,22 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       }
     }
 
+    // Check if already joined
+    const meetingState = daily.meetingState();
+    if (meetingState === 'joined-meeting') {
+      setJoining(false);
+      return;
+    }
+
     joinCall();
 
     // Cleanup on unmount
     return () => {
-      if (callObject) {
-        callObject.leave().catch(console.error);
-        callObject.destroy().catch(console.error);
+      if (daily && daily.meetingState() === 'joined-meeting') {
+        daily.leave().catch(console.error);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomUrl, token]);
+  }, [daily, roomUrl, token]);
 
   const handleLeaveCall = async () => {
     if (daily) {
@@ -133,8 +131,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   // Find host and guest participants
   const remoteParticipants = participantIds.filter(id => id !== localSessionId);
-  const hostParticipant = remoteParticipants[0]; // First remote is usually host
-  const guestParticipant = remoteParticipants[1]; // Second remote is guest
+  const hostParticipant = remoteParticipants[0];
+  const guestParticipant = remoteParticipants[1];
 
   return (
     <div className="h-full flex flex-col bg-gray-100">
@@ -185,7 +183,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
         </div>
 
-        {/* Mobile: Stacked vertically (handled by parent layout) */}
+        {/* Mobile: Stacked vertically */}
         <div className="lg:hidden h-full">
           {localSessionId && (
             <DailyVideoTile
