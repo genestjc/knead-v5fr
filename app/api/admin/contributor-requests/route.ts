@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     const formattedRequests = requests.map((req) => ({
       id: req.id,
       userId: req.user_id,
-      currentRole: req.current_role,
+      currentRole: req.user_role, // ✅ FIXED: Changed from current_role to user_role
       requestedContributorType: req.requested_contributor_type,
       reasoning: req.reasoning,
       status: req.status,
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
       .from('contributor_upgrade_requests')
       .insert({
         user_id: userId,
-        current_role: user.role,
+        user_role: user.role, // ✅ FIXED: Changed from current_role to user_role
         requested_contributor_type: requestedContributorType,
         reasoning: reasoning,
         status: 'pending',
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
       data: {
         id: request.id,
         userId: request.user_id,
-        currentRole: request.current_role,
+        currentRole: request.user_role, // ✅ FIXED: Changed from current_role to user_role
         requestedContributorType: request.requested_contributor_type,
         reasoning: request.reasoning,
         status: request.status,
