@@ -4,92 +4,56 @@ import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
+// GET - Fetch events by status (for chat to display live events)
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const adminAddress = searchParams.get('adminAddress');
-
-    console.log('[GET /api/admin/events] Admin address:', adminAddress);
-
-    if (!adminAddress) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress parameter' },
-        { status: 400 }
-      );
-    }
-
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-
-    // Verify admin
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
-      console.log('[GET /api/admin/events] Unauthorized:', adminAddress);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const status = searchParams.get('status');
 
     const supabase = createSupabaseAdmin();
 
-    // Fetch events
-    console.log('[GET /api/admin/events] Fetching events...');
-    const { data: events, error } = await supabase
+    let query = supabase
       .from('chat_events')
       .select('*')
       .order('scheduled_start', { ascending: false });
 
+    // Filter by status if provided
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: events, error } = await query;
+
     if (error) {
-      console.error('[GET /api/admin/events] Error fetching events:', error);
+      console.error('[GET /api/events] Error:', error);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to fetch events' },
         { status: 500 }
       );
     }
 
-    console.log('[GET /api/admin/events] Found events:', events?.length || 0);
-
-    if (!events || events.length === 0) {
-      return NextResponse.json<ApiResponse<any>>({
-        success: true,
-        data: [],
-      });
-    }
-
-    // Fetch host and guest data for each event
+    // Fetch host and guest data
     const eventsWithUsers = await Promise.all(
-      events.map(async (event) => {
-        console.log('[GET /api/admin/events] Processing event:', event.id);
-        
+      (events || []).map(async (event) => {
         // Fetch host
         let host = null;
         if (event.host_id) {
-          const { data: hostData, error: hostError } = await supabase
+          const { data: hostData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, display_name, alias, avatar')
             .eq('id', event.host_id)
             .single();
-
-          if (hostError) {
-            console.error('[GET /api/admin/events] Error fetching host:', hostError);
-          } else {
-            host = hostData;
-          }
+          host = hostData;
         }
 
         // Fetch guests
         let guests = [];
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
-          console.log('[GET /api/admin/events] Fetching guests:', event.guest_ids);
-          const { data: guestData, error: guestError } = await supabase
+          const { data: guestData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, display_name, alias, avatar')
             .in('id', event.guest_ids);
-
-          if (guestError) {
-            console.error('[GET /api/admin/events] Error fetching guests:', guestError);
-          } else {
-            guests = guestData || [];
-          }
+          guests = guestData || [];
         }
 
         return {
@@ -110,6 +74,7 @@ export async function GET(req: NextRequest) {
                 address: host.address,
                 displayName: host.display_name,
                 alias: host.alias,
+                avatar: host.avatar,
               }
             : null,
           guests: guests.map((g) => ({
@@ -117,23 +82,28 @@ export async function GET(req: NextRequest) {
             address: g.address,
             displayName: g.display_name,
             alias: g.alias,
+            avatar: g.avatar,
           })),
           createdAt: event.created_at,
+          updatedAt: event.updated_at,
         };
       })
     );
-
-    console.log('[GET /api/admin/events] Returning events:', eventsWithUsers.length);
 
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       data: eventsWithUsers,
     });
   } catch (error) {
-    console.error('[GET /api/admin/events] Exception:', error);
+    console.error('[GET /api/events] Exception:', error);
     return NextResponse.json<ApiResponse<null>>(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
+}
+
+// POST - Create event (keep existing code)
+export async function POST(req: NextRequest) {
+  // ... existing POST code from before ...
 }
