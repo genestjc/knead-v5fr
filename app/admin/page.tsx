@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
-import { ConnectButton } from 'thirdweb/react';
-import { client } from '@/lib/thirdweb';
+import { useActiveAccount, ConnectButton } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
+
+// ✅ Define client inline
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+});
 
 export default function AdminPage() {
   const account = useActiveAccount();
@@ -21,7 +25,6 @@ export default function AdminPage() {
           <p className="font-georgia-pro text-lg text-gray-600 mb-6">
             Connect your admin wallet to continue
           </p>
-          {/* ✅ ADD CONNECT BUTTON */}
           <ConnectButton 
             client={client}
             theme="light"
@@ -40,13 +43,11 @@ export default function AdminPage() {
             Connected wallet does not have admin access.
           </p>
           
-          {/* ✅ Show which wallet is connected */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm font-mono">
             <p className="text-gray-500 mb-2">Connected as:</p>
             <p className="text-red-600 break-all">{account.address}</p>
           </div>
           
-          {/* ✅ Allow disconnect/reconnect */}
           <div className="mt-6">
             <ConnectButton 
               client={client}
@@ -71,7 +72,6 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex gap-4 items-center">
-              {/* ✅ Add wallet summary in header */}
               <ConnectButton 
                 client={client}
                 theme="light"
