@@ -14,15 +14,26 @@ export async function DELETE(
     const adminAddress = searchParams.get('adminAddress');
 
     if (!adminAddress) {
-        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing adminAddress parameter' }, { status: 400 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Missing adminAddress parameter' 
+      }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
 
     // Verify admin permissions
-    const { data: admin } = await supabase.from('chat_users').select('*').eq('address', adminAddress.toLowerCase()).single();
+    const { data: admin } = await supabase
+      .from('chat_users')
+      .select('*')
+      .eq('address', adminAddress.toLowerCase())
+      .single();
+      
     if (!admin || !isAdmin({ role: admin.role })) {
-        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Insufficient permissions' 
+      }, { status: 403 });
     }
 
     // Get the user to be revoked
@@ -33,42 +44,55 @@ export async function DELETE(
       .single();
 
     if (userError || !userToRevoke) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Contributor not found' }, { status: 404 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Contributor not found' 
+      }, { status: 404 });
     }
 
-    // --- REFACTORED LOGIC ---
+    // ✅ FIXED: Changed from 10/11/12 to 1/2/3
     const roleToTokenId: Record<string, number> = {
-        'appointed': 10,
-        'invited': 11,
-        'earned': 12,
+      'appointed': 1,
+      'invited': 2,
+      'earned': 3,
     };
+    
     const tokenId = userToRevoke.contributor_type ? roleToTokenId[userToRevoke.contributor_type] : null;
 
     if (!tokenId) {
-        return NextResponse.json<ApiResponse<null>>({ success: false, error: 'User is not a contributor or type is unknown.' }, { status: 400 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'User is not a contributor or type is unknown.' 
+      }, { status: 400 });
     }
     
-    // Call our new burn API
+    // Call burn API
     const burnResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/admin/burn-contributor`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            ownerAddress: userToRevoke.address,
-            tokenId,
-            adminAddress: admin.address // Pass admin address for verification
-        }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ownerAddress: userToRevoke.address,
+        tokenId,
+        adminAddress: admin.address
+      }),
     });
 
     const burnData = await burnResponse.json();
     if (!burnData.success) {
-        throw new Error(`On-chain burn failed: ${burnData.error}`);
+      throw new Error(`On-chain burn failed: ${burnData.error}`);
     }
 
-    return NextResponse.json<ApiResponse<null>>({ success: true, message: 'Contributor status revoked successfully.' });
+    return NextResponse.json<ApiResponse<null>>({ 
+      success: true, 
+      message: 'Contributor status revoked successfully.' 
+    });
 
   } catch (error) {
     console.error('Error in DELETE /api/admin/contributors/[id]:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json<ApiResponse<null>>({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json<ApiResponse<null>>({ 
+      success: false, 
+      error: errorMessage 
+    }, { status: 500 });
   }
 }
