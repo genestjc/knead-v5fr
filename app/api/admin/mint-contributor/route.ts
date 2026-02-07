@@ -1,5 +1,3 @@
-// app/api/admin/mint-contributor/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
@@ -65,7 +63,7 @@ export async function POST(req: NextRequest) {
       chain: base,
     });
 
-    // ✅ Use your contract's adminMintContributor function
+    // Use your contract's adminMintContributor function
     const transaction = prepareContractCall({
       contract,
       method: "function adminMintContributor(address to, uint256 tokenId)",
