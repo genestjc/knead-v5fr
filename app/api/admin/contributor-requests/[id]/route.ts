@@ -14,15 +14,26 @@ export async function PATCH(
     const { adminAddress, action, contributorType, reviewNotes } = body;
 
     if (!adminAddress || !action || (action === 'approve' && !contributorType)) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing required fields.' }, { status: 400 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Missing required fields.' 
+      }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
 
-    // Verify admin permissions (simplified)
-    const { data: admin } = await supabase.from('chat_users').select('*').eq('address', adminAddress.toLowerCase()).single();
+    // Verify admin permissions
+    const { data: admin } = await supabase
+      .from('chat_users')
+      .select('*')
+      .eq('address', adminAddress.toLowerCase())
+      .single();
+      
     if (!admin || !isAdmin({ role: admin.role })) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Insufficient permissions' 
+      }, { status: 403 });
     }
 
     // Get the request and the user's address associated with it
@@ -33,55 +44,70 @@ export async function PATCH(
       .single();
 
     if (requestError || !request) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Request not found' }, { status: 404 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Request not found' 
+      }, { status: 404 });
     }
+    
     if (request.status !== 'pending') {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Request already reviewed' }, { status: 400 });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Request already reviewed' 
+      }, { status: 400 });
     }
 
-    // --- REFACTORED LOGIC ---
     if (action === 'approve') {
-      // 1. Call our new minting API
+      // Call minting API
       const mintResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/admin/mint-contributor`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              recipientAddress: request.user.address,
-              role: contributorType,
-              adminAddress: admin.address // Pass admin address for verification
-          }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientAddress: request.user.address,
+          role: contributorType,
+          adminAddress: admin.address
+        }),
       });
 
       const mintData = await mintResponse.json();
       if (!mintData.success) {
-          throw new Error(`On-chain minting failed: ${mintData.error}`);
+        throw new Error(`On-chain minting failed: ${mintData.error}`);
       }
       
-      // 2. Update the request status to 'approved'
+      // Update request status to 'approved'
       await supabase.from('contributor_upgrade_requests').update({
-          status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: admin.id,
-          review_notes: reviewNotes || null,
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: admin.id,
+        review_notes: reviewNotes || null,
       }).eq('id', params.id);
 
-      return NextResponse.json<ApiResponse<null>>({ success: true, message: `Request approved and NFT minted successfully.` });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: true, 
+        message: 'Request approved and NFT minted successfully.' 
+      });
 
-    } else { // Action is 'deny'
-        // Just update the request status
-        await supabase.from('contributor_upgrade_requests').update({
-            status: 'rejected',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: admin.id,
-            review_notes: reviewNotes || null,
-        }).eq('id', params.id);
+    } else {
+      // Deny the request
+      await supabase.from('contributor_upgrade_requests').update({
+        status: 'rejected',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: admin.id,
+        review_notes: reviewNotes || null,
+      }).eq('id', params.id);
 
-        return NextResponse.json<ApiResponse<null>>({ success: true, message: `Request denied successfully.` });
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: true, 
+        message: 'Request denied successfully.' 
+      });
     }
 
   } catch (error) {
     console.error('Error in PATCH /api/admin/contributor-requests/[id]:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json<ApiResponse<null>>({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json<ApiResponse<null>>({ 
+      success: false, 
+      error: errorMessage 
+    }, { status: 500 });
   }
 }
