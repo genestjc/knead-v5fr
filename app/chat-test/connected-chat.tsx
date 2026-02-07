@@ -88,7 +88,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           setActiveEvent(liveEvent);
           
           if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
-            const isHost = activeAccount.address.toLowerCase() === liveEvent.hostId.toLowerCase();
+            const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
             
             const tokenRes = await fetch('/api/events/generate-token', {
               method: 'POST',
