@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic'; // ✅ ADD THIS
+
 export async function POST(req: NextRequest) {
   try {
     const { roomName, walletAddress, isHost } = await req.json();
@@ -8,6 +10,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    // ✅ ADD THIS: Check if API key is configured
+    if (!process.env.DAILY_API_KEY) {
+      console.error('❌ DAILY_API_KEY not set in environment variables');
+      return NextResponse.json(
+        { success: false, error: 'Daily.co API key not configured' },
+        { status: 500 }
       );
     }
 
