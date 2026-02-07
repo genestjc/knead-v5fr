@@ -7,7 +7,6 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { VideoStage } from '@/components/chat/VideoStage';
 import { useChannel, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import { useSyncTownsToSupabase } from '@/hooks/useSyncTownsToSupabase';
 import { canViewChannel, canPostInChannel } from '@/lib/chat/permissions';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { ChatUser } from '@/types/chat';
