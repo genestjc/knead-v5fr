@@ -1,69 +1,39 @@
-// app/api/admin/burn-contributor/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
-import { createThirdwebClient, getContract } from "thirdweb";
-import { burn } from "thirdweb/extensions/erc1155";
-import { base } from "thirdweb/chains";
 import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
-
-// ✅ Only get the client at module level (THIRDWEB_SECRET_KEY is safe during build)
-const client = createThirdwebClient({ 
-  secretKey: process.env.THIRDWEB_SECRET_KEY! 
-});
+import type { ApiResponse } from '@/types/chat';
 
 const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Check env vars at RUNTIME, not build time
-    const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET; // Use NEXT_PUBLIC version
+    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
 
-    if (!CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Server configuration error: Missing environment variables" 
-      }, { status: 500 });
-    }
+    const { ownerAddress, adminAddress } = await req.json();
 
-    const { ownerAddress, tokenId, adminAddress } = await req.json();
-
-    if (!ownerAddress || tokenId === undefined || !adminAddress) {
-      return NextResponse.json({ 
+    if (!ownerAddress || !adminAddress) {
+      return NextResponse.json<ApiResponse<null>>({ 
         success: false, 
         error: "Missing required fields." 
       }, { status: 400 });
     }
 
     if (!isAddress(ownerAddress) || !isAddress(adminAddress)) {
-      return NextResponse.json({ 
+      return NextResponse.json<ApiResponse<null>>({ 
         success: false, 
         error: "Invalid address format." 
       }, { status: 400 });
     }
 
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS.toLowerCase()) {
-      return NextResponse.json({ 
+    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
+      return NextResponse.json<ApiResponse<null>>({ 
         success: false, 
         error: "Unauthorized" 
       }, { status: 401 });
     }
 
-    const contract = getContract({ 
-      client, 
-      address: CONTRIBUTOR_CONTRACT_ADDRESS, 
-      chain: base 
-    });
-
-    const transaction = await burn({ 
-      contract, 
-      from: ownerAddress, 
-      tokenId: BigInt(tokenId), 
-      amount: 1n 
-    });
-    
+    // Just update database (no on-chain burn for now)
     const supabase = createSupabaseAdmin();
-    await supabase
+    const { error: updateError } = await supabase
       .from('chat_users')
       .update({ 
         role: 'viewer', 
@@ -71,14 +41,23 @@ export async function POST(req: NextRequest) {
       })
       .eq('address', ownerAddress.toLowerCase());
 
-    return NextResponse.json({ 
+    if (updateError) {
+      console.error('Error revoking contributor:', updateError);
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Failed to revoke contributor status' 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json<ApiResponse<null>>({ 
       success: true, 
-      transactionHash: transaction.transactionHash 
+      message: 'Contributor status revoked successfully (database only)'
     });
+
   } catch (error) {
-    console.error("Burning failed:", error);
+    console.error("Revocation failed:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json({ 
+    return NextResponse.json<ApiResponse<null>>({ 
       success: false, 
       error: errorMessage 
     }, { status: 500 });
