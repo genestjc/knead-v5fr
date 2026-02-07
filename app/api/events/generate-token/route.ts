@@ -1,98 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { ApiResponse } from '@/types/chat';
 
-export const dynamic = 'force-dynamic';
-
-interface GenerateTokenRequest {
-  roomName: string;
-  walletAddress: string;
-  isHost: boolean;
-}
-
-interface GenerateTokenResponse {
-  token: string;
-}
-
-/**
- * POST /api/events/generate-token
- * Generate a Daily.co meeting token for a participant
- */
 export async function POST(req: NextRequest) {
   try {
-    const body: GenerateTokenRequest = await req.json();
-    const { roomName, walletAddress, isHost } = body;
+    const { roomName, walletAddress, isHost } = await req.json();
 
-    if (!roomName || !walletAddress || isHost === undefined) {
-      return NextResponse.json<ApiResponse<null>>(
-        { 
-          success: false, 
-          error: 'Missing required fields: roomName, walletAddress, isHost' 
-        },
+    if (!roomName || !walletAddress) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const apiKey = process.env.DAILY_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json<ApiResponse<null>>(
-        { 
-          success: false, 
-          error: 'DAILY_API_KEY not configured' 
-        },
-        { status: 500 }
-      );
-    }
-
-    // Generate meeting token with appropriate permissions
+    // Generate Daily.co meeting token
     const response = await fetch('https://api.daily.co/v1/meeting-tokens', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.DAILY_API_KEY}`,
       },
       body: JSON.stringify({
         properties: {
           room_name: roomName,
-          user_name: walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4),
-          is_owner: isHost,
-          enable_screenshare: isHost,
-          start_video_off: !isHost,
+          user_name: walletAddress.slice(0, 8),
+          is_owner: isHost, // Host gets owner privileges
+          enable_screenshare: isHost, // Only host can screenshare
+          start_video_off: false,
           start_audio_off: false,
-          exp: Math.floor(Date.now() / 1000) + (4 * 60 * 60), // 4 hours from now
+          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
         },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Daily.co token API error:', errorText);
-      return NextResponse.json<ApiResponse<null>>(
-        { 
-          success: false, 
-          error: `Failed to generate Daily.co token: ${errorText}` 
-        },
+      console.error('Daily.co token error:', errorText);
+      return NextResponse.json(
+        { success: false, error: 'Failed to generate token' },
         { status: 500 }
       );
     }
 
-    const tokenData = await response.json();
-    const token = tokenData.token;
+    const data = await response.json();
 
-    return NextResponse.json<ApiResponse<GenerateTokenResponse>>({
+    return NextResponse.json({
       success: true,
       data: {
-        token,
+        token: data.token,
       },
-      message: 'Daily.co token generated successfully',
     });
   } catch (error) {
-    console.error('Error in POST /api/events/generate-token:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { 
-        success: false, 
-        error: 'Internal server error' 
-      },
+    console.error('Error generating token:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
