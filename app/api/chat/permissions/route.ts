@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin, checkFreemiumTimeRemaining } from '@/lib/supabase/chat-client';
 import { canViewChannel, canPostInChannel, isAdmin } from '@/lib/chat/permissions'; // CORRECTED IMPORT
+import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import type { ApiResponse, UserPermissions } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -8,31 +9,31 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
+    const userAddress = searchParams.get('userAddress');
 
-    if (!userId) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing userId parameter' }, { status: 400 });
+    if (!userAddress) {
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing userAddress parameter' }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdmin();
-    const { data: user, error: userError } = await supabase.from('chat_users').select('*').eq('id', userId).single();
-
-    if (userError || !user) {
-      return NextResponse.json<ApiResponse<null>>({ success: false, error: 'User not found' }, { status: 404 });
-    }
+    // Get role from NFT ownership
+    const roleInfo = await getUserRole(userAddress);
     
-    // --- REFACTORED LOGIC ---
-    const [canView, canPost] = await Promise.all([
-      canViewChannel(userId),
-      canPostInChannel(userId)
-    ]);
+    // Determine permissions based on NFT role
+    const canView = true; // All users can view (freemium has timer)
+    const canPost = roleInfo.role === 'participant' || roleInfo.role === 'contributor';
+    const userIsAdmin = roleInfo.role === 'contributor'; // Contributors are moderators
     
-    const userIsAdmin = isAdmin(user);
-
     let freemiumMinutesUsed = 0;
-    if (user.membership_tier === 'freemium') {
-        const timeRemaining = await checkFreemiumTimeRemaining(userId);
-        freemiumMinutesUsed = 60 - timeRemaining;
+    if (roleInfo.role === 'freemium') {
+      // Get freemium time from Supabase
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase.rpc('get_freemium_chat_time_remaining', {
+        p_wallet_address: userAddress.toLowerCase(),
+      });
+      
+      if (!error && data !== null) {
+        freemiumMinutesUsed = Math.floor((3600 - data) / 60);
+      }
     }
     
     const finalPermissions: UserPermissions = {
@@ -40,13 +41,12 @@ export async function GET(req: NextRequest) {
         canPost,
         canDelete: userIsAdmin,
         canEdit: userIsAdmin,
-        isBanned: user.is_banned,
-        membershipTier: user.membership_tier,
-        role: user.role,
-        contributorType: user.contributor_type,
+        isBanned: false, // TODO: Add on-chain ban list if needed
+        membershipTier: roleInfo.role === 'contributor' ? 'contributor' : roleInfo.role === 'participant' ? 'premium' : 'freemium',
+        role: roleInfo.role,
+        contributorType: roleInfo.hasContributor ? 'invited' : null,
         freemiumMinutesUsed,
     };
-    // --- END REFACTOR ---
 
     return NextResponse.json<ApiResponse<UserPermissions>>({
       success: true,

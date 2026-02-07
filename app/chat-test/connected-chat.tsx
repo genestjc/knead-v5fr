@@ -6,8 +6,12 @@ import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@town
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
+import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import type { ChatUser } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
+import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
+import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -43,9 +47,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?: string} | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   
   const { disconnect } = useAgentConnection();
   const activeAccount = useActiveAccount();
+
+  // Get user role and permissions
+  const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
+  const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -55,6 +64,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Detect user role on mount and when address changes
+  useEffect(() => {
+    async function detectRole() {
+      if (activeAccount?.address) {
+        const roleInfo = await getUserRole(activeAccount.address);
+        setUserRole(roleInfo.role);
+      }
+    }
+    detectRole();
+  }, [activeAccount?.address]);
 
   // Auto-retry on miniblock hash errors
   useEffect(() => {
@@ -87,6 +107,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Block freemium users without time left
+    if (isFreemiumUser && !hasTimeLeft) {
+      alert('⏱️ Your free viewing time has expired. Upgrade to Knead Monthly to continue.');
+      return;
+    }
+    
+    // Block freemium users from sending messages
+    if (userRole === 'freemium') {
+      alert('👀 Freemium users can only view messages. Upgrade to Knead Monthly to participate.');
+      return;
+    }
+    
     if (!messageInput.trim() || isSending || !channelId) {
       console.warn('Cannot send message:', { 
         hasInput: !!messageInput.trim(), 
@@ -170,11 +203,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       <div className="h-full flex flex-col bg-white">
         {/* Space & Channel Info */}
         <div className="bg-gray-50 px-4 py-2 border-b">
-          <p className="font-georgia-pro text-sm text-gray-600">
-            <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-            {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="font-georgia-pro text-sm text-gray-600">
+              <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+              {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+            </p>
+            {/* Role Badge */}
+            <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+              userRole === 'contributor' 
+                ? 'bg-purple-100 text-purple-800' 
+                : userRole === 'participant' 
+                  ? 'bg-blue-100 text-blue-800' 
+                  : 'bg-gray-100 text-gray-800'
+            }`}>
+              {userRole === 'contributor' && '⭐ Contributor'}
+              {userRole === 'participant' && '💬 Participant'}
+              {userRole === 'freemium' && '👀 Freemium'}
+            </span>
+          </div>
         </div>
+
+        {/* Freemium Timer Banner */}
+        {isFreemiumUser && remainingMinutes !== null && (
+          <FreemiumBanner remainingMinutes={remainingMinutes} />
+        )}
 
         {/* Event Indicator Banner */}
         {activeEvent && (
@@ -203,6 +255,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   key={message.id}
                   message={message}
                   isOwn={message.isOwn || false}
+                  streamId={channelId}
+                  canAwardTokens={canAwardTokens}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -217,13 +271,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
-              placeholder={channelId ? "iMessage" : "Loading..."}
+              placeholder={
+                userRole === 'freemium' 
+                  ? "Freemium users can only view messages..." 
+                  : channelId 
+                    ? "iMessage" 
+                    : "Loading..."
+              }
               className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
-              disabled={isSending || !channelId}
+              disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
             />
             <button 
               type="submit" 
-              disabled={isSending || !messageInput.trim() || !channelId} 
+              disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
               className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg 
