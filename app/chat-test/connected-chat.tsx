@@ -7,7 +7,10 @@ import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
-import type { ChatUser } from '@/types/chat';
+import { DailyProvider } from '@/components/chat/DailyProvider';
+import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import { DailyVideoTile } from '@/components/chat/DailyVideoTile';
+import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
@@ -45,7 +48,8 @@ export default function ConnectedChat(props: ConnectedChatProps) {
 // ✅ Inner component that uses Towns hooks (only renders when agent is connected)
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
-  const [activeEvent, setActiveEvent] = useState<{title: string; timeRemaining?: string} | null>(null);
+  const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
+  const [dailyToken, setDailyToken] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   
@@ -74,6 +78,50 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
     detectRole();
+  }, [activeAccount?.address]);
+
+  // Poll for live events every 30 seconds
+  useEffect(() => {
+    async function fetchLiveEvent() {
+      try {
+        const res = await fetch('/api/events?status=live');
+        const data = await res.json();
+        
+        if (data.success && data.data.length > 0) {
+          const liveEvent = data.data[0];
+          setActiveEvent(liveEvent);
+          
+          // Generate Daily token for this user if we have an event with video
+          if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
+            const isHost = activeAccount.address.toLowerCase() === liveEvent.hostId.toLowerCase();
+            
+            const tokenRes = await fetch('/api/events/generate-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomName: liveEvent.dailyRoomName,
+                walletAddress: activeAccount.address,
+                isHost: isHost,
+              }),
+            });
+            
+            const tokenData = await tokenRes.json();
+            if (tokenData.success) {
+              setDailyToken(tokenData.data.token);
+            }
+          }
+        } else {
+          setActiveEvent(null);
+          setDailyToken(null);
+        }
+      } catch (error) {
+        console.error('Error fetching live event:', error);
+      }
+    }
+    
+    fetchLiveEvent();
+    const interval = setInterval(fetchLiveEvent, 30000); // Poll every 30s
+    return () => clearInterval(interval);
   }, [activeAccount?.address]);
 
   // Auto-retry on miniblock hash errors
@@ -199,105 +247,302 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   return (
-    <ChatLayout>
-      <div className="h-full flex flex-col bg-white">
-        {/* Space & Channel Info */}
-        <div className="bg-gray-50 px-4 py-2 border-b">
-          <div className="flex items-center justify-between">
-            <p className="font-georgia-pro text-sm text-gray-600">
-              <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-              {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
-            </p>
-            {/* Role Badge */}
-            <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-              userRole === 'contributor' 
-                ? 'bg-purple-100 text-purple-800' 
-                : userRole === 'participant' 
-                  ? 'bg-blue-100 text-blue-800' 
-                  : 'bg-gray-100 text-gray-800'
-            }`}>
-              {userRole === 'contributor' && '⭐ Contributor'}
-              {userRole === 'participant' && '💬 Participant'}
-              {userRole === 'freemium' && '👀 Freemium'}
-            </span>
-          </div>
-        </div>
+    <DailyProvider>
+      <ChatLayout>
+        {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
+          // SPLIT-SCREEN LAYOUT (event is live with video)
+          <>
+            {/* Desktop/Tablet: Horizontal split */}
+            <div className="hidden lg:grid lg:grid-rows-2 h-screen">
+              {/* Top half: Video */}
+              <div className="border-b border-gray-200">
+                <EventVideoStage 
+                  event={activeEvent} 
+                  currentUserAddress={activeAccount?.address || ''}
+                  roomUrl={activeEvent.dailyRoomUrl}
+                  token={dailyToken}
+                />
+              </div>
+              
+              {/* Bottom half: Chat */}
+              <div className="flex flex-col overflow-hidden">
+                {/* Space & Channel Info */}
+                <div className="bg-gray-50 px-4 py-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <p className="font-georgia-pro text-sm text-gray-600">
+                      <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                      {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                    </p>
+                    {/* Role Badge */}
+                    <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                      userRole === 'contributor' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : userRole === 'participant' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {userRole === 'contributor' && '⭐ Contributor'}
+                      {userRole === 'participant' && '💬 Participant'}
+                      {userRole === 'freemium' && '👀 Freemium'}
+                    </span>
+                  </div>
+                </div>
 
-        {/* Freemium Timer Banner */}
-        {isFreemiumUser && remainingMinutes !== null && (
-          <FreemiumBanner remainingMinutes={remainingMinutes} />
-        )}
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto">
+                  {isTimelineLoading ? (
+                    <LoadingSpinner />
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center text-gray-500 py-8">
+                        <p className="font-georgia-pro text-lg">No messages yet.</p>
+                        <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-4">
+                      {messages.map((message: any) => (
+                        <MessageBubble
+                          key={message.id}
+                          message={message}
+                          isOwn={message.isOwn || false}
+                          streamId={channelId}
+                          canAwardTokens={canAwardTokens}
+                        />
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
 
-        {/* Event Indicator Banner */}
-        {activeEvent && (
-          <EventBanner
-            eventTitle={activeEvent.title}
-            timeRemaining={activeEvent.timeRemaining}
-            isLive={true}
-          />
-        )}
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto">
-          {isTimelineLoading ? (
-            <LoadingSpinner />
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500 py-8">
-                <p className="font-georgia-pro text-lg">No messages yet.</p>
-                <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                {/* Input Area */}
+                <div className="border-t border-gray-200 p-4 bg-white">
+                  <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      placeholder={
+                        userRole === 'freemium' 
+                          ? "Freemium users can only view messages..." 
+                          : channelId 
+                            ? "iMessage" 
+                            : "Loading..."
+                      }
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
+                      disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                      className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor" 
+                        className="w-5 h-5"
+                      >
+                        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                      </svg>
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="py-4">
-              {messages.map((message: any) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  isOwn={message.isOwn || false}
-                  streamId={channelId}
-                  canAwardTokens={canAwardTokens}
-                />
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
 
-        {/* Input Area - iMessage Style */}
-        <div className="border-t border-gray-200 p-4 bg-white">
-          <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-            <input
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              placeholder={
-                userRole === 'freemium' 
-                  ? "Freemium users can only view messages..." 
-                  : channelId 
-                    ? "iMessage" 
-                    : "Loading..."
-              }
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
-              disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
-            />
-            <button 
-              type="submit" 
-              disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
-              className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                fill="currentColor" 
-                className="w-5 h-5"
-              >
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
-    </ChatLayout>
+            {/* Mobile: Vertical 3-section split */}
+            <div className="lg:hidden flex flex-col h-screen">
+              {/* Top third: Host video */}
+              <div className="h-1/3 border-b border-gray-200">
+                <EventVideoStage 
+                  event={activeEvent} 
+                  currentUserAddress={activeAccount?.address || ''}
+                  roomUrl={activeEvent.dailyRoomUrl}
+                  token={dailyToken}
+                />
+              </div>
+              
+              {/* Bottom two-thirds: Chat */}
+              <div className="h-2/3 flex flex-col overflow-hidden">
+                {/* Space & Channel Info */}
+                <div className="bg-gray-50 px-4 py-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <p className="font-georgia-pro text-sm text-gray-600">
+                      <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                    </p>
+                    <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                      userRole === 'contributor' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : userRole === 'participant' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {userRole === 'contributor' && '⭐ Contributor'}
+                      {userRole === 'participant' && '💬 Participant'}
+                      {userRole === 'freemium' && '👀 Freemium'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto">
+                  {isTimelineLoading ? (
+                    <LoadingSpinner />
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center text-gray-500 py-8">
+                        <p className="font-georgia-pro text-sm">No messages yet.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-2 px-2">
+                      {messages.map((message: any) => (
+                        <MessageBubble
+                          key={message.id}
+                          message={message}
+                          isOwn={message.isOwn || false}
+                          streamId={channelId}
+                          canAwardTokens={canAwardTokens}
+                        />
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Area */}
+                <div className="border-t border-gray-200 p-2 bg-white">
+                  <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      placeholder={userRole === 'freemium' ? "View only..." : "Message"}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro text-sm"
+                      disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                      className="w-8 h-8 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor" 
+                        className="w-4 h-4"
+                      >
+                        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                      </svg>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          // NORMAL CHAT (no event or no video)
+          <div className="h-full flex flex-col bg-white">
+            {/* Space & Channel Info */}
+            <div className="bg-gray-50 px-4 py-2 border-b">
+              <div className="flex items-center justify-between">
+                <p className="font-georgia-pro text-sm text-gray-600">
+                  <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                  {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                </p>
+                {/* Role Badge */}
+                <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                  userRole === 'contributor' 
+                    ? 'bg-purple-100 text-purple-800' 
+                    : userRole === 'participant' 
+                      ? 'bg-blue-100 text-blue-800' 
+                      : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {userRole === 'contributor' && '⭐ Contributor'}
+                  {userRole === 'participant' && '💬 Participant'}
+                  {userRole === 'freemium' && '👀 Freemium'}
+                </span>
+              </div>
+            </div>
+
+            {/* Freemium Timer Banner */}
+            {isFreemiumUser && remainingMinutes !== null && (
+              <FreemiumBanner remainingMinutes={remainingMinutes} />
+            )}
+
+            {/* Event Indicator Banner */}
+            {activeEvent && (
+              <EventBanner
+                eventTitle={activeEvent.title}
+                timeRemaining={undefined}
+                isLive={true}
+              />
+            )}
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto">
+              {isTimelineLoading ? (
+                <LoadingSpinner />
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-gray-500 py-8">
+                    <p className="font-georgia-pro text-lg">No messages yet.</p>
+                    <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4">
+                  {messages.map((message: any) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isOwn={message.isOwn || false}
+                      streamId={channelId}
+                      canAwardTokens={canAwardTokens}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            {/* Input Area - iMessage Style */}
+            <div className="border-t border-gray-200 p-4 bg-white">
+              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  placeholder={
+                    userRole === 'freemium' 
+                      ? "Freemium users can only view messages..." 
+                      : channelId 
+                        ? "iMessage" 
+                        : "Loading..."
+                  }
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
+                  disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                />
+                <button 
+                  type="submit" 
+                  disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                  className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24" 
+                    fill="currentColor" 
+                    className="w-5 h-5"
+                  >
+                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </ChatLayout>
+    </DailyProvider>
   );
 }
