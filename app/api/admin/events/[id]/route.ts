@@ -217,6 +217,22 @@ export async function PATCH(
       );
     }
 
+    // Delete Daily.co room if event status changed to 'ended'
+    if (updates.status === 'ended' && event.daily_room_name && process.env.DAILY_API_KEY) {
+      try {
+        await fetch(`https://api.daily.co/v1/rooms/${event.daily_room_name}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${process.env.DAILY_API_KEY}`,
+          },
+        });
+        console.log(`✅ Deleted Daily.co room: ${event.daily_room_name}`);
+      } catch (error) {
+        console.error('Error deleting Daily.co room:', error);
+        // Continue even if Daily.co cleanup fails
+      }
+    }
+
     return NextResponse.json<ApiResponse<ChatEvent>>({
       success: true,
       data: {

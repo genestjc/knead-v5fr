@@ -382,6 +382,13 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   />
                   <span className="font-georgia-pro text-sm">Enable video streaming (Daily.co)</span>
                 </label>
+                {formData.videoEnabled && (
+                  <div className="mt-2 p-3 bg-purple-50 rounded-lg">
+                    <p className="font-georgia-pro text-xs text-purple-800">
+                      💡 Daily.co room will be created automatically when you save this event.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 pt-4">
