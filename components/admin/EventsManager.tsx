@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import type { ChatEvent } from '@/types/chat';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -13,14 +12,14 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<any | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string>(''); // ✅ Store admin's DB user ID
 
   // Form state
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     channelId: 'live-interviews',
-    eventType: 'live' as 'live' | 'discussion' | 'essay',
+    eventType: 'interview' as 'interview' | 'discussion' | 'ama' | 'announcement',
     scheduledStart: '',
     scheduledEnd: '',
     videoEnabled: true,
@@ -29,12 +28,33 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   });
 
   useEffect(() => {
+    fetchAdminUser();
     fetchEvents();
-  }, []);
+  }, [adminAddress]);
+
+  // ✅ NEW: Fetch admin user's database ID
+  const fetchAdminUser = async () => {
+    try {
+      const response = await fetch(`/api/users/by-address?address=${adminAddress}`);
+      const data = await response.json();
+      
+      if (data.success && data.user) {
+        setAdminUserId(data.user.id);
+        // Pre-fill hostId in form
+        setFormData(prev => ({ ...prev, hostId: data.user.id }));
+      } else {
+        setError('Admin user not found in database');
+      }
+    } catch (err) {
+      console.error('Error fetching admin user:', err);
+      setError('Failed to load admin user');
+    }
+  };
 
   const fetchEvents = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch(`/api/admin/events?adminAddress=${adminAddress}`);
       const data = await response.json();
 
@@ -54,13 +74,25 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!adminUserId) {
+      setError('Admin user ID not loaded');
+      return;
+    }
+
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          creatorId: formData.hostId, // Use hostId as creatorId for now
+          title: formData.title,
+          description: formData.description,
+          channelId: formData.channelId,
+          eventType: formData.eventType,
+          scheduledStart: new Date(formData.scheduledStart).toISOString(),
+          scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
+          videoEnabled: formData.videoEnabled,
+          hostId: adminUserId, // ✅ Use the admin's database UUID
+          guestIds: formData.guestIds,
         }),
       });
 
@@ -68,18 +100,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
       if (data.success) {
         setShowCreateModal(false);
-        setFormData({
-          title: '',
-          description: '',
-          channelId: 'live-interviews',
-          eventType: 'live',
-          scheduledStart: '',
-          scheduledEnd: '',
-          videoEnabled: true,
-          hostId: '',
-          guestIds: [],
-        });
+        resetForm();
         fetchEvents();
+        alert('Event created successfully!');
       } else {
         setError(data.error || 'Failed to create event');
       }
@@ -87,6 +110,20 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       setError('Error creating event');
       console.error(err);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      channelId: 'live-interviews',
+      eventType: 'interview',
+      scheduledStart: '',
+      scheduledEnd: '',
+      videoEnabled: true,
+      hostId: adminUserId, // Keep admin as host
+      guestIds: [],
+    });
   };
 
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
@@ -176,6 +213,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="font-georgia-pro text-sm text-red-800">{error}</p>
+          <button 
+            onClick={() => setError(null)} 
+            className="text-red-600 text-xs mt-2 hover:underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -206,7 +249,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                 <div>
                   <span className="font-georgia-pro text-gray-500">Host:</span>
-                  <span className="font-georgia-pro ml-2">{event.host?.displayName || 'N/A'}</span>
+                  <span className="font-georgia-pro ml-2">{event.host?.displayName || event.host?.address || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="font-georgia-pro text-gray-500">Type:</span>
@@ -318,9 +361,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     onChange={(e) => setFormData({ ...formData, eventType: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
                   >
-                    <option value="live">Live</option>
+                    <option value="interview">Live Interview</option>
                     <option value="discussion">Discussion</option>
-                    <option value="essay">Essay</option>
+                    <option value="ama">AMA</option>
+                    <option value="announcement">Announcement</option>
                   </select>
                 </div>
 
@@ -360,17 +404,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-georgia-pro text-sm mb-2">Host User ID</label>
-                <input
-                  type="text"
-                  value={formData.hostId}
-                  onChange={(e) => setFormData({ ...formData, hostId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
-                  placeholder="Enter host user ID"
-                  required
-                />
-              </div>
+              {/* ✅ REMOVED: Host User ID field - auto-filled from logged in admin */}
 
               <div>
                 <label className="flex items-center gap-2">
@@ -394,13 +428,17 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               <div className="flex items-center gap-3 pt-4">
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+                  disabled={!adminUserId}
+                  className="px-6 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create Event
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    resetForm();
+                  }}
                   className="px-6 py-2 bg-gray-200 text-black rounded-full font-georgia-pro hover:bg-gray-300 transition"
                 >
                   Cancel
