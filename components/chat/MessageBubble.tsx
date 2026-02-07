@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 
 interface ChatMessage {
   id: string;
@@ -19,6 +20,8 @@ interface ChatMessage {
 interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
+  streamId?: string;
+  canAwardTokens?: boolean;
 }
 
 /**
@@ -30,7 +33,9 @@ interface MessageBubbleProps {
  * - $TOWNS award badge
  * - Metadata below bubble (sender name, timestamp)
  */
-export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, streamId, canAwardTokens }: MessageBubbleProps) {
+  const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
+  
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number' 
       ? new Date(timestamp) 
@@ -83,6 +88,21 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             {formatTime(message.timestamp)}
           </span>
         </div>
+
+        {/* Like button for contributors */}
+        {!isOwn && canAwardTokens && streamId && (
+          <button
+            onClick={() => awardTokensOnLike(message.id, message.sender.id, '8', '❤️')}
+            disabled={isReacting}
+            className="mt-2 px-3 py-1 text-xs rounded-full bg-white border border-gray-300 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          >
+            {isReacting ? (
+              <>⏳ Sending...</>
+            ) : (
+              <>🤍 Like (8 $TOWNS)</>
+            )}
+          </button>
+        )}
       </div>
     </motion.div>
   );
