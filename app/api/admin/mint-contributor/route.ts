@@ -1,23 +1,21 @@
+// app/api/admin/mint-contributor/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { createThirdwebClient, getContract } from "thirdweb";
 import { mintTo } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 
-const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
-const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-const MASTER_ADMIN_ADDRESS = process.env.MASTER_ADMIN_WALLET;
+// ✅ Only create client at module level (safe during build)
+const client = createThirdwebClient({ 
+  secretKey: process.env.THIRDWEB_SECRET_KEY! 
+});
 
-if (!THIRDWEB_SECRET_KEY || !CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
-  throw new Error("Missing required environment variables for minting.");
-}
-
-const client = createThirdwebClient({ secretKey: THIRDWEB_SECRET_KEY });
 const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 
 const getRoleMetadata = (role: string) => {
   const baseMetadata = {
     appointed: { 
-      tokenId: 1n, // ✅ FIXED: Was 10n
+      tokenId: 1n,
       metadata: { 
         name: "Appointed Contributor", 
         image: "ipfs://...", 
@@ -29,7 +27,7 @@ const getRoleMetadata = (role: string) => {
       }
     },
     invited: { 
-      tokenId: 2n, // ✅ FIXED: Was 11n
+      tokenId: 2n,
       metadata: { 
         name: "Invited Contributor", 
         image: "ipfs://...", 
@@ -41,7 +39,7 @@ const getRoleMetadata = (role: string) => {
       }
     },
     earned: { 
-      tokenId: 3n, // ✅ FIXED: Was 12n
+      tokenId: 3n,
       metadata: { 
         name: "Earned Contributor", 
         image: "ipfs://...", 
@@ -67,6 +65,17 @@ const getRoleMetadata = (role: string) => {
 
 export async function POST(req: NextRequest) {
   try {
+    // ✅ Get env vars at RUNTIME
+    const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
+
+    if (!CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Server configuration error: Missing environment variables" 
+      }, { status: 500 });
+    }
+
     const { recipientAddress, role, adminAddress } = await req.json();
 
     if (!recipientAddress || !role || !adminAddress) {
@@ -107,12 +116,9 @@ export async function POST(req: NextRequest) {
     const transaction = await mintTo({ 
       contract, 
       to: recipientAddress, 
-      tokenId: roleData.tokenId, 
+      tokenId: roleData.tokenId,
       amount: 1n 
     });
-
-    // ✅ REMOVED: Supabase chat_users update (table doesn't exist anymore)
-    // All role data is now stored on-chain via NFT ownership
 
     return NextResponse.json({ 
       success: true, 
