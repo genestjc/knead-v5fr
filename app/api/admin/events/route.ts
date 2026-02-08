@@ -32,16 +32,16 @@ export async function GET(req: NextRequest) {
     }
 
     // ✅ DEBUG: Detailed JWT analysis
-    const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+     rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     console.log('[GET /api/admin/events] Raw service key length:', rawServiceKey?.length);
     console.log('[GET /api/admin/events] Raw service key first 100:', rawServiceKey?.substring(0, 100));
     console.log('[GET /api/admin/events] Raw service key last 50:', rawServiceKey?.substring(rawServiceKey!.length - 50));
 
     // Decode the JWT to check the role
     try {
-      const parts = rawServiceKey?.split('.');
+       parts = rawServiceKey?.split('.');
       if (parts && parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+         payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
         console.log('[GET /api/admin/events] 🔑 JWT ROLE:', payload.role);
         console.log('[GET /api/admin/events] JWT issuer:', payload.iss);
         console.log('[GET /api/admin/events] JWT ref:', payload.ref);
@@ -53,6 +53,11 @@ export async function GET(req: NextRequest) {
     console.log('[GET /api/admin/events] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
 
     const supabase = createSupabaseAdmin();
+
+// ✅ TEST: Check what role we're actually using
+    const { data: jwtData, error: jwtError } = await supabase.rpc('test_auth_context');
+    console.log('[GET /api/admin/events] 🔑 JWT Role Check:', jwtData);
+    console.log('[GET /api/admin/events] JWT Error:', jwtError);
 
     // ✅ DEBUG: Try count first
     console.log('[GET /api/admin/events] Counting events...');
