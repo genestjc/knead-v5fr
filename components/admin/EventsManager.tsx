@@ -46,8 +46,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchEvents();
 
     // ✅ REAL-TIME SUBSCRIPTION
-    const supabase = createClient();
     
+    const supabase = createSupabaseClient();    
     console.log('🔄 [EventsManager] Setting up real-time subscription...');
     
     const channel = supabase
