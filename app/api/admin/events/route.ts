@@ -1,3 +1,9 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import type { ApiResponse } from '@/types/chat';
+
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
