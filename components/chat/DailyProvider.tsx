@@ -31,7 +31,7 @@ export function DailyProvider({ children }: DailyProviderProps) {
 
     console.log('✅ [DailyProvider] Call object created');
 
-    // ✅ FIX: Only destroy on unmount, not on re-render
+    // ✅ FIX: Only destroy on component unmount, not on re-render
     return () => {
       console.log('🧹 [DailyProvider] Cleaning up call object');
       if (callObjectRef.current) {
