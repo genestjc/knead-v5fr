@@ -78,47 +78,82 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, [activeAccount?.address]);
 
   // Poll for live events every 30 seconds
-  useEffect(() => {
-    async function fetchLiveEvent() {
-      try {
-        const res = await fetch('/api/events?status=live');
-        const data = await res.json();
+  // ✅ UPDATED: Real-time event subscription + polling fallback
+useEffect(() => {
+  async function fetchLiveEvent() {
+    try {
+      console.log('🔍 [ConnectedChat] Fetching live events...');
+      const res = await fetch('/api/events?status=live');
+      const data = await res.json();
+      
+      console.log('📊 [ConnectedChat] Live events response:', data);
+      
+      if (data.success && data.data.length > 0) {
+        const liveEvent = data.data[0];
+        console.log('🎥 [ConnectedChat] Setting active event:', liveEvent.title);
+        setActiveEvent(liveEvent);
         
-        if (data.success && data.data.length > 0) {
-          const liveEvent = data.data[0];
-          setActiveEvent(liveEvent);
+        if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
+          const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
           
-          if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
-            const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
-            
-            const tokenRes = await fetch('/api/events/generate-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roomName: liveEvent.dailyRoomName,
-                walletAddress: activeAccount.address,
-                isHost: isHost,
-              }),
-            });
-            
-            const tokenData = await tokenRes.json();
-            if (tokenData.success) {
-              setDailyToken(tokenData.data.token);
-            }
+          const tokenRes = await fetch('/api/events/generate-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomName: liveEvent.dailyRoomName,
+              walletAddress: activeAccount.address,
+              isHost: isHost,
+            }),
+          });
+          
+          const tokenData = await tokenRes.json();
+          if (tokenData.success) {
+            console.log('✅ [ConnectedChat] Daily token generated');
+            setDailyToken(tokenData.data.token);
           }
-        } else {
-          setActiveEvent(null);
-          setDailyToken(null);
         }
-      } catch (error) {
-        console.error('Error fetching live event:', error);
+      } else {
+        console.log('📭 [ConnectedChat] No live events - hiding video');
+        setActiveEvent(null);
+        setDailyToken(null);
       }
+    } catch (error) {
+      console.error('❌ [ConnectedChat] Error fetching live event:', error);
     }
-    
-    fetchLiveEvent();
-    const interval = setInterval(fetchLiveEvent, 30000);
-    return () => clearInterval(interval);
-  }, [activeAccount?.address]);
+  }
+  
+  // Initial fetch
+  fetchLiveEvent();
+  
+  // Poll every 30 seconds
+  const interval = setInterval(fetchLiveEvent, 30000);
+  
+  // ✅ NEW: Real-time subscription for instant updates
+  const supabase = createSupabaseClient();
+  const channel = supabase
+    .channel('chat_live_events')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'chat_events',
+      },
+      (payload) => {
+        console.log('🔄 [ConnectedChat] Event changed:', payload);
+        // Refetch when any event changes
+        fetchLiveEvent();
+      }
+    )
+    .subscribe((status) => {
+      console.log('📡 [ConnectedChat] Event subscription:', status);
+    });
+  
+  return () => {
+    clearInterval(interval);
+    supabase.removeChannel(channel);
+  };
+}, [activeAccount?.address]);
 
   useEffect(() => {
     if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
