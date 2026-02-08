@@ -10,28 +10,44 @@ interface DailyProviderProps {
 
 export function DailyProvider({ children }: DailyProviderProps) {
   const [callObject, setCallObject] = useState<DailyCall | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const callObjectRef = useRef<DailyCall | null>(null);
 
   useEffect(() => {
-    // ✅ FIX: Prevent duplicate creation
+    // ✅ Prevent duplicate creation
     if (callObjectRef.current) {
       setCallObject(callObjectRef.current);
       return;
     }
 
     console.log('🎥 [DailyProvider] Creating call object...');
+    console.log('📦 [DailyProvider] Daily.js version:', DailyIframe.version);
     
-    const daily = DailyIframe.createCallObject({
-      audioSource: true,
-      videoSource: true,
-    });
-    
-    callObjectRef.current = daily;
-    setCallObject(daily);
+    try {
+      // ✅ SIMPLIFIED: No strict constraints - let Daily handle device selection
+      const daily = DailyIframe.createCallObject({
+        // Removed audioSource/videoSource - Daily will auto-detect best devices
+      });
+      
+      callObjectRef.current = daily;
+      setCallObject(daily);
 
-    console.log('✅ [DailyProvider] Call object created');
+      console.log('✅ [DailyProvider] Call object created successfully');
 
-    // ✅ FIX: Only destroy on component unmount, not on re-render
+      // ✅ Monitor for errors
+      daily.on('error', (event) => {
+        console.error('❌ [DailyProvider] Daily error:', event);
+        if (event.errorMsg?.includes('Overconstrained')) {
+          setError('Camera/microphone not available. Please check permissions.');
+        }
+      });
+
+    } catch (err) {
+      console.error('❌ [DailyProvider] Failed to create call object:', err);
+      setError((err as Error).message || 'Failed to initialize video');
+    }
+
+    // ✅ Cleanup only on unmount
     return () => {
       console.log('🧹 [DailyProvider] Cleaning up call object');
       if (callObjectRef.current) {
@@ -39,7 +55,23 @@ export function DailyProvider({ children }: DailyProviderProps) {
         callObjectRef.current = null;
       }
     };
-  }, []); // ✅ Empty dependency array - only run once
+  }, []); // Empty dependency - run once
+
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-red-50">
+        <div className="text-center p-6">
+          <p className="font-georgia-pro text-red-600 mb-4">❌ {error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!callObject) {
     return (
