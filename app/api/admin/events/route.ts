@@ -31,11 +31,26 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ DEBUG: Check environment variables
+    // ✅ DEBUG: Detailed JWT analysis
+    const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log('[GET /api/admin/events] Raw service key length:', rawServiceKey?.length);
+    console.log('[GET /api/admin/events] Raw service key first 100:', rawServiceKey?.substring(0, 100));
+    console.log('[GET /api/admin/events] Raw service key last 50:', rawServiceKey?.substring(rawServiceKey!.length - 50));
+
+    // Decode the JWT to check the role
+    try {
+      const parts = rawServiceKey?.split('.');
+      if (parts && parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        console.log('[GET /api/admin/events] 🔑 JWT ROLE:', payload.role);
+        console.log('[GET /api/admin/events] JWT issuer:', payload.iss);
+        console.log('[GET /api/admin/events] JWT ref:', payload.ref);
+      }
+    } catch (e) {
+      console.log('[GET /api/admin/events] ❌ Failed to decode JWT:', e);
+    }
+
     console.log('[GET /api/admin/events] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('[GET /api/admin/events] Service key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-    console.log('[GET /api/admin/events] Service key length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-    console.log('[GET /api/admin/events] Service key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 30) + '...');
 
     const supabase = createSupabaseAdmin();
 
