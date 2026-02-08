@@ -8,15 +8,10 @@ interface DailyProviderProps {
   children: ReactNode;
 }
 
-/**
- * DailyProvider - Wrapper for Daily.co React SDK
- * Creates and manages the Daily call object
- */
 export function DailyProvider({ children }: DailyProviderProps) {
   const [callObject, setCallObject] = useState<DailyCall | null>(null);
 
   useEffect(() => {
-    // Create call object once on mount
     const daily = DailyIframe.createCallObject({
       audioSource: true,
       videoSource: true,
@@ -24,14 +19,21 @@ export function DailyProvider({ children }: DailyProviderProps) {
     
     setCallObject(daily);
 
-    // Cleanup on unmount
     return () => {
       daily.destroy();
     };
   }, []);
 
+  // ✅ FIX: Wait for call object before rendering children with provider
   if (!callObject) {
-    return <>{children}</>;
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro text-gray-600">Initializing video...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
