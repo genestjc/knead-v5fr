@@ -10,7 +10,9 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  
+  // ✅ UPDATED: Allow camera and microphone for Daily.co video calls
+  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
   
   // HSTS - only in production
   if (process.env.NODE_ENV === 'production') {
@@ -49,7 +51,9 @@ export function middleware(request: NextRequest) {
       https://cdn.jsdelivr.net
       https://accounts.google.com
       https://apis.google.com
-      *.towns.com;
+      https://c.daily.co
+      *.towns.com
+      blob:;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
       https://use.typekit.net
@@ -94,6 +98,7 @@ export function middleware(request: NextRequest) {
       https://*.sanity.io
       https://accounts.google.com
       https://accounts.youtube.com
+      https://*.daily.co
       *.towns.com;
     connect-src 'self'
       https://devnet.rpc.river.build
@@ -134,8 +139,14 @@ export function middleware(request: NextRequest) {
       https://*.supabase.co
       https://accounts.google.com
       https://apis.google.com
+      https://c.daily.co
+      https://*.daily.co
+      wss://*.daily.co
+      wss://*.pluot.blue
       ws://localhost:*
       wss://*.sanity.io;
+    worker-src 'self' blob:;
+    media-src 'self' https://*.daily.co blob:;
     upgrade-insecure-requests;
   `
     .replace(/\s{2,}/g, " ")
