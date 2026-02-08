@@ -14,6 +14,7 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
+import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
