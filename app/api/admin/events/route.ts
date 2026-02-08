@@ -1,12 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import type { ApiResponse } from '@/types/chat';
-
-export const dynamic = 'force-dynamic';
-
-// ============================================
-// GET - Fetch all events (for admin panel)
-// ============================================
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -33,9 +24,12 @@ export async function GET(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // ✅ Use RPC to bypass PostgREST filtering issue
-    console.log('[GET /api/admin/events] Fetching events via RPC...');
-    const { data: events, error } = await supabase.rpc('admin_get_chat_events');
+    // ✅ BYPASS RPC - Query table directly to avoid cache
+    console.log('[GET /api/admin/events] Fetching events directly from table...');
+    const { data: events, error } = await supabase
+      .from('chat_events')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('[GET /api/admin/events] Error fetching events:', error);
@@ -48,10 +42,19 @@ export async function GET(req: NextRequest) {
     console.log('[GET /api/admin/events] Found events:', events?.length || 0);
 
     if (!events || events.length === 0) {
-      return NextResponse.json<ApiResponse<any>>({
-        success: true,
-        data: [],
-      });
+      return NextResponse.json<ApiResponse<any>>(
+        {
+          success: true,
+          data: [],
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        }
+      );
     }
 
     // Fetch host and guest data for each event
@@ -61,7 +64,6 @@ export async function GET(req: NextRequest) {
         
         let host = null;
         if (event.host_id) {
-          // ✅ Use RPC for host lookup too (to avoid same PostgREST issue)
           const { data: hostData, error: hostError } = await supabase
             .from('chat_users')
             .select('id, address, display_name, alias')
@@ -122,10 +124,19 @@ export async function GET(req: NextRequest) {
 
     console.log('[GET /api/admin/events] Returning', eventsWithUsers.length, 'events');
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: eventsWithUsers,
-    });
+    return NextResponse.json<ApiResponse<any>>(
+      {
+        success: true,
+        data: eventsWithUsers,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (error) {
     console.error('[GET /api/admin/events] Exception:', error);
     return NextResponse.json<ApiResponse<null>>(
