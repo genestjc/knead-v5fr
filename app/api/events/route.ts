@@ -4,6 +4,121 @@ import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
+// ============================================
+// GET - Fetch events (for chat to check live events)
+// ============================================
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get('status');
+
+    console.log('[GET /api/events] Fetching events with status:', status);
+
+    const supabase = createSupabaseAdmin();
+
+    let query = supabase
+      .from('chat_events')
+      .select('*')
+      .order('scheduled_start', { ascending: false });
+
+    // Filter by status if provided
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: events, error } = await query;
+
+    if (error) {
+      console.error('[GET /api/events] Error:', error);
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Failed to fetch events' },
+        { status: 500 }
+      );
+    }
+
+    console.log('[GET /api/events] Found events:', events?.length || 0);
+
+    if (!events || events.length === 0) {
+      return NextResponse.json<ApiResponse<any>>({
+        success: true,
+        data: [],
+      });
+    }
+
+    // Fetch host and guest data
+    const eventsWithUsers = await Promise.all(
+      events.map(async (event) => {
+        // Fetch host
+        let host = null;
+        if (event.host_id) {
+          const { data: hostData } = await supabase
+            .from('chat_users')
+            .select('id, address, display_name, alias, avatar')
+            .eq('id', event.host_id)
+            .single();
+          host = hostData;
+        }
+
+        // Fetch guests
+        let guests = [];
+        if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
+          const { data: guestData } = await supabase
+            .from('chat_users')
+            .select('id, address, display_name, alias, avatar')
+            .in('id', event.guest_ids);
+          guests = guestData || [];
+        }
+
+        return {
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          channelId: event.channel_id,
+          eventType: event.event_type,
+          scheduledStart: event.scheduled_start,
+          scheduledEnd: event.scheduled_end,
+          status: event.status,
+          videoEnabled: event.video_enabled,
+          dailyRoomUrl: event.daily_room_url,
+          dailyRoomName: event.daily_room_name,
+          host: host
+            ? {
+                id: host.id,
+                address: host.address,
+                displayName: host.display_name,
+                alias: host.alias,
+                avatar: host.avatar,
+              }
+            : null,
+          guests: guests.map((g) => ({
+            id: g.id,
+            address: g.address,
+            displayName: g.display_name,
+            alias: g.alias,
+            avatar: g.avatar,
+          })),
+          createdAt: event.created_at,
+          updatedAt: event.updated_at,
+        };
+      })
+    );
+
+    return NextResponse.json<ApiResponse<any>>({
+      success: true,
+      data: eventsWithUsers,
+    });
+  } catch (error) {
+    console.error('[GET /api/events] Exception:', error);
+    return NextResponse.json<ApiResponse<null>>(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================
+// POST - Create event
+// ============================================
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -18,6 +133,8 @@ export async function POST(req: NextRequest) {
       hostId,
       guestIds = [],
     } = body;
+
+    console.log('[POST /api/events] Creating event:', { title, hostId, videoEnabled });
 
     // Validate required fields
     if (!title || !channelId || !eventType || !hostId || !scheduledStart || !scheduledEnd) {
@@ -54,7 +171,7 @@ export async function POST(req: NextRequest) {
     let dailyRoomUrl = null;
     let dailyRoomName = null;
 
-    if (videoEnabled) {
+    if (videoEnabled && process.env.DAILY_API_KEY) {
       try {
         const dailyResponse = await fetch('https://api.daily.co/v1/rooms', {
           method: 'POST',
@@ -78,12 +195,12 @@ export async function POST(req: NextRequest) {
           const dailyData = await dailyResponse.json();
           dailyRoomUrl = dailyData.url;
           dailyRoomName = dailyData.name;
+          console.log('[POST /api/events] Created Daily.co room:', dailyRoomName);
         } else {
-          console.error('Failed to create Daily.co room:', await dailyResponse.text());
+          console.error('[POST /api/events] Failed to create Daily.co room:', await dailyResponse.text());
         }
       } catch (dailyError) {
-        console.error('Error creating Daily.co room:', dailyError);
-        // Continue without Daily.co room - don't fail the entire event creation
+        console.error('[POST /api/events] Error creating Daily.co room:', dailyError);
       }
     }
 
@@ -108,12 +225,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('Error creating event:', insertError);
+      console.error('[POST /api/events] Error creating event:', insertError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to create event' },
         { status: 500 }
       );
     }
+
+    console.log('[POST /api/events] Event created successfully:', event.id);
 
     return NextResponse.json<ApiResponse<any>>({
       success: true,
@@ -121,7 +240,7 @@ export async function POST(req: NextRequest) {
       message: 'Event created successfully',
     });
   } catch (error) {
-    console.error('Error in POST /api/events:', error);
+    console.error('[POST /api/events] Exception:', error);
     return NextResponse.json<ApiResponse<null>>(
       { success: false, error: 'Internal server error' },
       { status: 500 }
