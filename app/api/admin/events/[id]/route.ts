@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { createClient } from '@supabase/supabase-js'; // ✅ Direct import
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // ============================================
 // PATCH - Update event status
 // ============================================
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }  // ✅ Changed eventId → id
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: eventId } = await context.params;  // ✅ Destructure as id, rename to eventId
+    const { id: eventId } = await context.params;
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[PATCH /api/admin/events] Invalid eventId:', eventId);
@@ -43,7 +44,17 @@ export async function PATCH(
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // ✅ CREATE FRESH CLIENT
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
     const { error } = await supabase
       .from('chat_events')
@@ -81,10 +92,10 @@ export async function PATCH(
 // ============================================
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }  // ✅ Changed eventId → id
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: eventId } = await context.params;  // ✅ Destructure as id, rename to eventId
+    const { id: eventId } = await context.params;
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[DELETE /api/admin/events] Invalid eventId:', eventId);
@@ -115,7 +126,17 @@ export async function DELETE(
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // ✅ CREATE FRESH CLIENT
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
     // Get event to delete Daily.co room if exists
     const { data: event } = await supabase
