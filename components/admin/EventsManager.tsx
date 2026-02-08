@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { createClient } from '@/lib/supabase/client';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -22,7 +23,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
 
-  // ✅ NEW: Guest management
+  // Guest management
   const [guestSearchTerm, setGuestSearchTerm] = useState('');
   const [guestSearchResults, setGuestSearchResults] = useState<User[]>([]);
   const [selectedGuests, setSelectedGuests] = useState<User[]>([]);
@@ -37,12 +38,54 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     scheduledStart: '',
     scheduledEnd: '',
     videoEnabled: true,
-    audioOnly: false, // ✅ NEW: Audio-only option
+    audioOnly: false,
   });
 
   useEffect(() => {
     fetchAdminUser();
     fetchEvents();
+
+    // ✅ REAL-TIME SUBSCRIPTION
+    const supabase = createClient();
+    
+    console.log('🔄 [EventsManager] Setting up real-time subscription...');
+    
+    const channel = supabase
+      .channel('admin_events_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'chat_events',
+        },
+        (payload) => {
+          console.log('🔄 [EventsManager] Real-time event change:', payload.eventType, payload);
+          
+          if (payload.eventType === 'INSERT') {
+            // ✅ New event created - refetch to get full data with relations
+            console.log('➕ New event inserted, refetching...');
+            fetchEvents();
+          } else if (payload.eventType === 'UPDATE') {
+            // ✅ Event updated (e.g., status change: scheduled → live)
+            console.log('🔄 Event updated, refetching...');
+            fetchEvents();
+          } else if (payload.eventType === 'DELETE') {
+            // ✅ Event deleted - remove from list
+            console.log('🗑️ Event deleted:', payload.old.id);
+            setEvents((prev) => prev.filter((event) => event.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [EventsManager] Subscription status:', status);
+      });
+
+    // ✅ Cleanup on unmount
+    return () => {
+      console.log('🧹 [EventsManager] Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
   }, [adminAddress]);
 
   const fetchAdminUser = async () => {
@@ -69,6 +112,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const data = await response.json();
 
       if (data.success) {
+        console.log('✅ [EventsManager] Fetched events:', data.data.length);
         setEvents(data.data);
       } else {
         setError(data.error || 'Failed to fetch events');
@@ -81,7 +125,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  // ✅ NEW: Search for users to add as guests
   const searchUsers = async (searchTerm: string) => {
     if (searchTerm.length < 2) {
       setGuestSearchResults([]);
@@ -94,7 +137,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Filter users by search term
         const filtered = data.data.filter((user: User) => {
           const term = searchTerm.toLowerCase();
           return (
@@ -103,7 +145,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
             user.alias?.toLowerCase().includes(term)
           );
         });
-        setGuestSearchResults(filtered.slice(0, 5)); // Limit to 5 results
+        setGuestSearchResults(filtered.slice(0, 5));
       }
     } catch (err) {
       console.error('Error searching users:', err);
@@ -112,7 +154,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  // ✅ NEW: Add guest
   const addGuest = (user: User) => {
     if (!selectedGuests.find(g => g.id === user.id)) {
       setSelectedGuests([...selectedGuests, user]);
@@ -121,7 +162,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     setGuestSearchResults([]);
   };
 
-  // ✅ NEW: Remove guest
   const removeGuest = (userId: string) => {
     setSelectedGuests(selectedGuests.filter(g => g.id !== userId));
   };
@@ -147,16 +187,18 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
           videoEnabled: formData.videoEnabled,
           hostId: adminUserId,
-          guestIds: selectedGuests.map(g => g.id), // ✅ Include guest IDs
+          guestIds: selectedGuests.map(g => g.id),
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
+        console.log('✅ Event created successfully!');
         setShowCreateModal(false);
         resetForm();
-        fetchEvents();
+        // ✅ Real-time will handle the update, but we can also manually trigger
+        // fetchEvents(); // Optional: real-time should handle this
         alert('Event created successfully!');
       } else {
         setError(data.error || 'Failed to create event');
@@ -197,7 +239,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const data = await response.json();
 
       if (data.success) {
-        fetchEvents();
+        console.log(`✅ Event status updated to: ${newStatus}`);
+        // ✅ Real-time will handle the update
+        // fetchEvents(); // Optional: real-time should handle this
       } else {
         setError(data.error || 'Failed to update event');
       }
@@ -218,7 +262,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const data = await response.json();
 
       if (data.success) {
-        fetchEvents();
+        console.log('✅ Event deleted');
+        // ✅ Real-time will handle the removal
+        // fetchEvents(); // Optional: real-time should handle this
       } else {
         setError(data.error || 'Failed to delete event');
       }
@@ -257,7 +303,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-adonis text-2xl">Events & Live Interviews</h2>
-          <p className="font-georgia-pro text-sm text-gray-600">Manage live events and video streaming</p>
+          <p className="font-georgia-pro text-sm text-gray-600">
+            Manage live events and video streaming • <span className="text-green-600">● Real-time updates enabled</span>
+          </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -326,7 +374,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              {/* ✅ Show guests */}
               {event.guests && event.guests.length > 0 && (
                 <div className="mb-4">
                   <span className="font-georgia-pro text-sm text-gray-500">Guests:</span>
@@ -360,7 +407,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     onClick={() => handleUpdateEventStatus(event.id, 'live')}
                     className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition"
                   >
-                    Start Event
+                    🔴 Start Event
                   </button>
                 )}
                 {event.status === 'live' && (
@@ -383,7 +430,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         )}
       </div>
 
-      {/* Create Event Modal */}
+      {/* Create Event Modal - keeping all the existing modal code */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
@@ -464,11 +511,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              {/* ✅ NEW: Guest Management */}
               <div>
                 <label className="block font-georgia-pro text-sm mb-2">Guests (Optional)</label>
                 
-                {/* Selected guests */}
                 {selectedGuests.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
                     {selectedGuests.map(guest => (
@@ -486,7 +531,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   </div>
                 )}
                 
-                {/* Search input */}
                 <div className="relative">
                   <input
                     type="text"
@@ -499,7 +543,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     placeholder="Search by name or address..."
                   />
                   
-                  {/* Search results dropdown */}
                   {guestSearchResults.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-y-auto">
                       {guestSearchResults.map(user => (
@@ -518,7 +561,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              {/* ✅ NEW: Media Settings */}
               <div className="border-t pt-4">
                 <label className="block font-georgia-pro text-sm font-medium mb-3">Media Settings</label>
                 
