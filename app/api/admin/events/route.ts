@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import type { ApiResponse } from '@/types/chat';
 
+// Force rebuild: 2026-02-08T05:30:00Z
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
     const adminAddress = searchParams.get('adminAddress');
 
     console.log('[GET /api/admin/events] Admin address:', adminAddress);
+    console.log('[GET /api/admin/events] Timestamp: ' + new Date().toISOString()); // ✅ ADD THIS LINE
 
     if (!adminAddress) {
       return NextResponse.json<ApiResponse<null>>(
