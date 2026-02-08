@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { createClient } from '@supabase/supabase-js';  // ✅ CHANGE THIS
 import type { ApiResponse } from '@/types/chat';
 
-// Force rebuild: 2026-02-08T05:30:00Z
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -11,7 +10,6 @@ export async function GET(req: NextRequest) {
     const adminAddress = searchParams.get('adminAddress');
 
     console.log('[GET /api/admin/events] Admin address:', adminAddress);
-    console.log('[GET /api/admin/events] Timestamp: ' + new Date().toISOString()); // ✅ ADD THIS LINE
 
     if (!adminAddress) {
       return NextResponse.json<ApiResponse<null>>(
@@ -30,10 +28,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // ✅ CREATE FRESH CLIENT ON EVERY REQUEST (NO CACHING)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
-    // ✅ BYPASS RPC - Query table directly to avoid cache
-    console.log('[GET /api/admin/events] Fetching events directly from table...');
+    console.log('[GET /api/admin/events] Fetching events with FRESH client...');
     const { data: events, error } = await supabase
       .from('chat_events')
       .select('*')
@@ -47,6 +54,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    console.log('[GET /api/admin/events] Raw events from DB:', events);
     console.log('[GET /api/admin/events] Found events:', events?.length || 0);
 
     if (!events || events.length === 0) {
