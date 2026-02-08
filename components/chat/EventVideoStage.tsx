@@ -23,7 +23,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     ? currentUserAddress.toLowerCase() === event.host.id.toLowerCase() 
     : false;
 
-  // ✅ FIX: Add detailed logging to debug token/room alignment
+  // ✅ FIX: Join call with proper cleanup and duplicate prevention
   useEffect(() => {
     if (!daily) {
       console.log('⏳ [EventVideoStage] Daily not ready yet');
@@ -31,22 +31,32 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
     
     if (!roomUrl || !token) {
-      console.error('❌ [EventVideoStage] Missing roomUrl or token:', { roomUrl, token: token ? 'present' : 'missing' });
+      console.error('❌ [EventVideoStage] Missing roomUrl or token');
+      return;
+    }
+
+    // ✅ FIX: Prevent duplicate joins
+    const meetingState = daily.meetingState();
+    if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
+      console.log('✅ [EventVideoStage] Already joined/joining, skipping');
+      setJoining(false);
       return;
     }
     
+    let isMounted = true; // ✅ Track component mount state
+    
     async function joinCall() {
+      if (!isMounted) return;
+      
       try {
         setJoining(true);
         setError(null);
 
         console.log('🎥 [EventVideoStage] Joining call...');
         console.log('   Room URL:', roomUrl);
-        console.log('   Token:', token.substring(0, 20) + '...');
         console.log('   Is Host:', isHost);
-        console.log('   Meeting State:', daily?.meetingState());
+        console.log('   Meeting State:', daily.meetingState());
 
-        // ✅ FIX: Set userData before joining to identify host/guest
         await daily.join({
           url: roomUrl,
           token: token,
@@ -57,34 +67,73 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           },
         });
 
+        if (!isMounted) {
+          console.log('⚠️ [EventVideoStage] Component unmounted during join, leaving...');
+          await daily.leave();
+          return;
+        }
+
         console.log('✅ [EventVideoStage] Successfully joined call');
-        console.log('   New Meeting State:', daily?.meetingState());
+        console.log('   New Meeting State:', daily.meetingState());
         setJoining(false);
       } catch (err) {
-        console.error('❌ [EventVideoStage] Failed to join Daily call:', err);
-        setError((err as Error).message || 'Failed to join video call');
-        setJoining(false);
+        console.error('❌ [EventVideoStage] Failed to join:', err);
+        if (isMounted) {
+          setError((err as Error).message || 'Failed to join video call');
+          setJoining(false);
+        }
       }
-    }
-
-    const meetingState = daily.meetingState();
-    console.log('🔍 [EventVideoStage] Current meeting state:', meetingState);
-    
-    if (meetingState === 'joined-meeting') {
-      console.log('✅ [EventVideoStage] Already in meeting');
-      setJoining(false);
-      return;
     }
 
     joinCall();
 
+    // ✅ Cleanup: Mark as unmounted and leave call
     return () => {
+      isMounted = false;
+      console.log('🧹 [EventVideoStage] Component unmounting');
       if (daily && daily.meetingState() === 'joined-meeting') {
         console.log('🚪 [EventVideoStage] Leaving call on cleanup');
         daily.leave().catch(console.error);
       }
     };
-  }, [daily, roomUrl, token, currentUserAddress, isHost]);
+  }, [daily, roomUrl, token]); // ✅ Removed currentUserAddress and isHost from dependencies
+
+  // ✅ Monitor connection state and errors
+  useEffect(() => {
+    if (!daily) return;
+
+    const handleNetworkQuality = (event: any) => {
+      console.log('📊 [EventVideoStage] Network quality:', event.threshold);
+    };
+
+    const handleError = (event: any) => {
+      console.error('❌ [EventVideoStage] Daily error:', event);
+      setError(event.errorMsg || 'Connection error');
+    };
+
+    const handleLeftMeeting = () => {
+      console.log('👋 [EventVideoStage] Left meeting');
+      setJoining(false);
+    };
+
+    const handleJoinedMeeting = () => {
+      console.log('✅ [EventVideoStage] Joined meeting event fired');
+      setJoining(false);
+      setError(null);
+    };
+
+    daily.on('network-quality-change', handleNetworkQuality);
+    daily.on('error', handleError);
+    daily.on('left-meeting', handleLeftMeeting);
+    daily.on('joined-meeting', handleJoinedMeeting);
+
+    return () => {
+      daily.off('network-quality-change', handleNetworkQuality);
+      daily.off('error', handleError);
+      daily.off('left-meeting', handleLeftMeeting);
+      daily.off('joined-meeting', handleJoinedMeeting);
+    };
+  }, [daily]);
 
   const handleLeaveCall = async () => {
     if (daily) {
