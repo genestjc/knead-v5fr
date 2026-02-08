@@ -9,10 +9,10 @@ export const dynamic = 'force-dynamic';
 // ============================================
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ eventId: string }> }
+  context: { params: Promise<{ id: string }> }  // ✅ Changed eventId → id
 ) {
   try {
-    const { eventId } = await context.params;
+    const { id: eventId } = await context.params;  // ✅ Destructure as id, rename to eventId
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[PATCH /api/admin/events] Invalid eventId:', eventId);
@@ -81,10 +81,10 @@ export async function PATCH(
 // ============================================
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ eventId: string }> }
+  context: { params: Promise<{ id: string }> }  // ✅ Changed eventId → id
 ) {
   try {
-    const { eventId } = await context.params;
+    const { id: eventId } = await context.params;  // ✅ Destructure as id, rename to eventId
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[DELETE /api/admin/events] Invalid eventId:', eventId);
