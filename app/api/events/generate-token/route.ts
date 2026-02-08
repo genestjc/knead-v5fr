@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic'; // ✅ ADD THIS
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const { roomName, walletAddress, isHost } = await req.json();
+
+    console.log('🎫 [generate-token] Request:', { roomName, walletAddress: walletAddress?.substring(0, 8), isHost });
 
     if (!roomName || !walletAddress) {
       return NextResponse.json(
@@ -13,7 +15,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ ADD THIS: Check if API key is configured
     if (!process.env.DAILY_API_KEY) {
       console.error('❌ DAILY_API_KEY not set in environment variables');
       return NextResponse.json(
@@ -22,29 +23,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate Daily.co meeting token
+    // ✅ FIX: Ensure room_name matches exactly what was stored in database
+    const tokenPayload = {
+      properties: {
+        room_name: roomName, // This MUST match the room name from database
+        user_name: walletAddress.slice(0, 8),
+        is_owner: isHost,
+        enable_screenshare: isHost,
+        start_video_off: false,
+        start_audio_off: false,
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
+      },
+    };
+
+    console.log('🎫 [generate-token] Generating token with payload:', tokenPayload);
+
     const response = await fetch('https://api.daily.co/v1/meeting-tokens', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.DAILY_API_KEY}`,
       },
-      body: JSON.stringify({
-        properties: {
-          room_name: roomName,
-          user_name: walletAddress.slice(0, 8),
-          is_owner: isHost, // Host gets owner privileges
-          enable_screenshare: isHost, // Only host can screenshare
-          start_video_off: false,
-          start_audio_off: false,
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
-        },
-      }),
+      body: JSON.stringify(tokenPayload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Daily.co token error:', errorText);
+      console.error('❌ [generate-token] Daily.co error:', errorText);
       return NextResponse.json(
         { success: false, error: 'Failed to generate token' },
         { status: 500 }
@@ -52,6 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
+    console.log('✅ [generate-token] Token generated successfully');
 
     return NextResponse.json({
       success: true,
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error generating token:', error);
+    console.error('❌ [generate-token] Exception:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
