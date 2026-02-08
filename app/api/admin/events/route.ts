@@ -58,6 +58,12 @@ export async function GET(req: NextRequest) {
     const { data: jwtData, error: jwtError } = await supabase.rpc('test_auth_context');
     console.log('[GET /api/admin/events] 🔑 JWT Role Check:', jwtData);
     console.log('[GET /api/admin/events] JWT Error:', jwtError);
+    
+    // ✅ TEST: Try RPC to bypass PostgREST
+    const { data: rpcEvents, error: rpcError } = await supabase.rpc('admin_get_chat_events');
+    console.log('[GET /api/admin/events] 🔧 RPC Events Count:', rpcEvents?.length);
+    console.log('[GET /api/admin/events] RPC Error:', rpcError);
+    console.log('[GET /api/admin/events] RPC First Event:', rpcEvents?.[0]);
 
     // ✅ DEBUG: Try count first
     console.log('[GET /api/admin/events] Counting events...');
