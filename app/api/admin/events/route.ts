@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';  // ✅ CHANGE THIS
+import { createClient } from '@supabase/supabase-js'; // ✅ Direct import
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ CREATE FRESH CLIENT ON EVERY REQUEST (NO CACHING)
+    // ✅ CREATE FRESH CLIENT - DON'T USE SINGLETON
+    console.log('[GET /api/admin/events] Creating FRESH Supabase client (no cache)...');
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -40,32 +42,29 @@ export async function GET(req: NextRequest) {
       }
     );
 
-    console.log('[GET /api/admin/events] Fetching events with FRESH client...');
+    console.log('[GET /api/admin/events] Fetching events...');
     const { data: events, error } = await supabase
       .from('chat_events')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[GET /api/admin/events] Error fetching events:', error);
+      console.error('[GET /api/admin/events] Error:', error);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: `Failed to fetch events: ${error.message}` },
         { status: 500 }
       );
     }
 
-    console.log('[GET /api/admin/events] Raw events from DB:', events);
-    console.log('[GET /api/admin/events] Found events:', events?.length || 0);
+    console.log('[GET /api/admin/events] Event IDs:', events?.map(e => e.id));
+    console.log('[GET /api/admin/events] Event titles:', events?.map(e => e.title));
 
     if (!events || events.length === 0) {
       return NextResponse.json<ApiResponse<any>>(
-        {
-          success: true,
-          data: [],
-        },
+        { success: true, data: [] },
         {
           headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0',
           },
@@ -76,35 +75,23 @@ export async function GET(req: NextRequest) {
     // Fetch host and guest data for each event
     const eventsWithUsers = await Promise.all(
       events.map(async (event: any) => {
-        console.log('[GET /api/admin/events] Processing event ID:', event.id);
-        
         let host = null;
         if (event.host_id) {
-          const { data: hostData, error: hostError } = await supabase
+          const { data: hostData } = await supabase
             .from('chat_users')
             .select('id, address, display_name, alias')
             .eq('id', event.host_id)
             .single();
-
-          if (hostError) {
-            console.error('[GET /api/admin/events] Error fetching host:', hostError);
-          } else {
-            host = hostData;
-          }
+          host = hostData;
         }
 
         let guests = [];
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
-          const { data: guestData, error: guestError } = await supabase
+          const { data: guestData } = await supabase
             .from('chat_users')
             .select('id, address, display_name, alias')
             .in('id', event.guest_ids);
-
-          if (guestError) {
-            console.error('[GET /api/admin/events] Error fetching guests:', guestError);
-          } else {
-            guests = guestData || [];
-          }
+          guests = guestData || [];
         }
 
         return {
@@ -141,13 +128,10 @@ export async function GET(req: NextRequest) {
     console.log('[GET /api/admin/events] Returning', eventsWithUsers.length, 'events');
 
     return NextResponse.json<ApiResponse<any>>(
-      {
-        success: true,
-        data: eventsWithUsers,
-      },
+      { success: true, data: eventsWithUsers },
       {
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0',
         },
