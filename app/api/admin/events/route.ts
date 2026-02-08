@@ -31,18 +31,41 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // ✅ DEBUG: Check environment variables
+    console.log('[GET /api/admin/events] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('[GET /api/admin/events] Service key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('[GET /api/admin/events] Service key length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+    console.log('[GET /api/admin/events] Service key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 30) + '...');
+
     const supabase = createSupabaseAdmin();
 
+    // ✅ DEBUG: Try count first
+    console.log('[GET /api/admin/events] Counting events...');
+    const { count, error: countError } = await supabase
+      .from('chat_events')
+      .select('*', { count: 'exact', head: true });
+    
+    console.log('[GET /api/admin/events] Count result:', count);
+    console.log('[GET /api/admin/events] Count error:', countError);
+
+    // ✅ DEBUG: Fetch events with detailed logging
     console.log('[GET /api/admin/events] Fetching events...');
     const { data: events, error } = await supabase
       .from('chat_events')
       .select('*')
       .order('scheduled_start', { ascending: false });
 
+    console.log('[GET /api/admin/events] Query completed');
+    console.log('[GET /api/admin/events] Events is null:', events === null);
+    console.log('[GET /api/admin/events] Events is array:', Array.isArray(events));
+    console.log('[GET /api/admin/events] Events length:', events?.length);
+    console.log('[GET /api/admin/events] Error:', error);
+    console.log('[GET /api/admin/events] First event:', events?.[0]);
+
     if (error) {
       console.error('[GET /api/admin/events] Error fetching events:', error);
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Failed to fetch events' },
+        { success: false, error: `Failed to fetch events: ${error.message}` },
         { status: 500 }
       );
     }
@@ -50,6 +73,7 @@ export async function GET(req: NextRequest) {
     console.log('[GET /api/admin/events] Found events:', events?.length || 0);
 
     if (!events || events.length === 0) {
+      console.log('[GET /api/admin/events] ⚠️ WARNING: Returning empty array despite DB having events!');
       return NextResponse.json<ApiResponse<any>>({
         success: true,
         data: [],
