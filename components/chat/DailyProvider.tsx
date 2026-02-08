@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useState, useRef } from 'react';
 import { DailyProvider as DailyReactProvider } from '@daily-co/daily-react';
 import DailyIframe, { DailyCall } from '@daily-co/daily-js';
 
@@ -10,21 +10,37 @@ interface DailyProviderProps {
 
 export function DailyProvider({ children }: DailyProviderProps) {
   const [callObject, setCallObject] = useState<DailyCall | null>(null);
+  const callObjectRef = useRef<DailyCall | null>(null);
 
   useEffect(() => {
+    // ✅ FIX: Prevent duplicate creation
+    if (callObjectRef.current) {
+      setCallObject(callObjectRef.current);
+      return;
+    }
+
+    console.log('🎥 [DailyProvider] Creating call object...');
+    
     const daily = DailyIframe.createCallObject({
       audioSource: true,
       videoSource: true,
     });
     
+    callObjectRef.current = daily;
     setCallObject(daily);
 
-    return () => {
-      daily.destroy();
-    };
-  }, []);
+    console.log('✅ [DailyProvider] Call object created');
 
-  // ✅ FIX: Wait for call object before rendering children with provider
+    // ✅ FIX: Only destroy on unmount, not on re-render
+    return () => {
+      console.log('🧹 [DailyProvider] Cleaning up call object');
+      if (callObjectRef.current) {
+        callObjectRef.current.destroy();
+        callObjectRef.current = null;
+      }
+    };
+  }, []); // ✅ Empty dependency array - only run once
+
   if (!callObject) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
