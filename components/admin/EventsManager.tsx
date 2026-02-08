@@ -105,34 +105,39 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // ✅ USE NEW ROUTE TO BYPASS CACHE
-      const response = await fetch(`/api/admin/events-fresh?adminAddress=${adminAddress}`, {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    // ✅ ADD TIMESTAMP CACHE BUSTER
+    const timestamp = Date.now();
+    const response = await fetch(
+      `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
+      {
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         },
-      });
-      
-      const data = await response.json();
-
-      if (data.success) {
-        console.log('✅ [EventsManager] Fetched events:', data.data.length);
-        console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
-        setEvents(data.data);
-      } else {
-        setError(data.error || 'Failed to fetch events');
       }
-    } catch (err) {
-      setError('Error fetching events');
-      console.error(err);
-    } finally {
-      setLoading(false);
+    );
+    
+    const data = await response.json();
+
+    if (data.success) {
+      console.log('✅ [EventsManager] Fetched events:', data.data.length);
+      console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
+      setEvents(data.data);
+    } else {
+      setError(data.error || 'Failed to fetch events');
     }
-  };
+  } catch (err) {
+    setError('Error fetching events');
+    console.error('[EventsManager] Fetch error:', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const searchUsers = async (searchTerm: string) => {
     if (searchTerm.length < 2) {
