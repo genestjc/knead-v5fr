@@ -26,13 +26,13 @@ export async function POST(req: NextRequest) {
     // ✅ FIX: Ensure room_name matches exactly what was stored in database
     const tokenPayload = {
       properties: {
-        room_name: roomName, // This MUST match the room name from database
+        room_name: roomName,
         user_name: walletAddress.slice(0, 8),
         is_owner: isHost,
         enable_screenshare: isHost,
         start_video_off: false,
         start_audio_off: false,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // ✅ 24 hours (extended from 3)
       },
     };
 
