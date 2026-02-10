@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Verify contributor has NFT permission
-    const hasNFT = await isContributor(contributorAddress);
-    if (!hasNFT) {
+    const contributorCheck = await isContributor(contributorAddress);
+    if (!contributorCheck.isContributor) {
       return NextResponse.json({ 
         error: 'Only contributors with NFT permission can award tokens.' 
       }, { status: 403 });
@@ -83,9 +83,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Check NFT permission
-    const hasNFT = await isContributor(contributorAddress);
+    const contributorCheck = await isContributor(contributorAddress);
     
-    if (!hasNFT) {
+    if (!contributorCheck.isContributor) {
       return NextResponse.json({
         success: true,
         isContributor: false,

@@ -23,9 +23,9 @@ export async function POST(
     }
 
     // Verify moderator has contributor NFT
-    const hasModeratorNFT = await isContributor(moderatorAddress);
+    const moderatorCheck = await isContributor(moderatorAddress);
 
-    if (!hasModeratorNFT) {
+    if (!moderatorCheck.isContributor) {
       return NextResponse.json({ 
         error: 'Forbidden: You do not have a contributor NFT. Only contributors can mute users.' 
       }, { status: 403 });

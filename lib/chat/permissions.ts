@@ -60,8 +60,8 @@ export async function canPostInChannel(userId: string): Promise<boolean> {
   if (isAdmin(user)) return true;
 
   // Check for contributor NFT
-  const isUserContributor = await checkContributorNFT(user.address);
-  if (isUserContributor) return true;
+  const contributorCheck = await checkContributorNFT(user.address);
+  if (contributorCheck.isContributor) return true;
   
   // Check for premium membership during live events
   // TODO: Replace with proper NFT check
@@ -86,6 +86,6 @@ export async function canViewChannel(userId: string): Promise<boolean> {
   if (!user.address) return false;
 
   // Check for contributor NFT
-  const isUserContributor = await checkContributorNFT(user.address);
-  return isUserContributor;
+  const contributorCheck = await checkContributorNFT(user.address);
+  return contributorCheck.isContributor;
 }
