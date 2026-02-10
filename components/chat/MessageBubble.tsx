@@ -188,7 +188,7 @@ export function MessageBubble({
         </div>
       </motion.div>
 
-      {showContextMenu && isAdmin && eventId && channelId && spaceId && (
+      {showContextMenu && isAdmin && channelId && spaceId && (
         <AdminContextMenu
           message={message}
           eventId={eventId}
