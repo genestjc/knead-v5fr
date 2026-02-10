@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm } from '@towns-protocol/react-sdk';
+import { useUserDms, useCreateDm, useDm, useMemberList } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 
 interface DirectMessageListProps {
@@ -235,6 +235,7 @@ export function DirectMessageList({
           <DmListItem
             key={streamId}
             streamId={streamId}
+            currentUserId={userId}
             onSelect={onSelectDm}
             isSelected={selectedDmId === streamId}
           />
@@ -247,19 +248,37 @@ export function DirectMessageList({
   );
 }
 
-// ✅ NEW: Separate component for each DM item
+// ✅ ENHANCED: Component for each DM item with proper user info
 function DmListItem({ 
   streamId, 
+  currentUserId,
   onSelect, 
   isSelected 
 }: { 
-  streamId: string; 
+  streamId: string;
+  currentUserId: string;
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string) => void;
   isSelected: boolean;
 }) {
-  // For now, show streamId as the display name
-  // TODO: Use useDm and useMemberList to get proper user info
-  const displayName = `DM ${streamId.slice(0, 8)}...`;
+  // Get DM metadata
+  const { data: dm } = useDm(streamId);
+  
+  // Get member list
+  const { data: members } = useMemberList(streamId);
+  
+  // Find the other user (not the current user)
+  const otherUserId = members?.userIds?.find(
+    (id) => id.toLowerCase() !== currentUserId.toLowerCase()
+  ) || currentUserId;
+  
+  // Format display name - show wallet address shortened
+  const displayName = otherUserId 
+    ? `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`
+    : 'Unknown User';
+  
+  const avatarInitials = otherUserId 
+    ? otherUserId.slice(2, 4).toUpperCase() 
+    : '??';
   
   return (
     <button
@@ -272,7 +291,7 @@ function DmListItem({
       <div className="flex items-center gap-3">
         {/* Avatar placeholder */}
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-          DM
+          {avatarInitials}
         </div>
 
         {/* User info */}
@@ -287,9 +306,25 @@ function DmListItem({
 
         {/* Timestamp */}
         <div className="text-xs text-gray-400">
-          now
+          {dm?.lastMessageAt ? formatTimestamp(dm.lastMessageAt) : 'now'}
         </div>
       </div>
     </button>
   );
+}
+
+function formatTimestamp(timestamp: string | number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  
+  return date.toLocaleDateString();
 }
