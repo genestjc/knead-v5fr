@@ -8,9 +8,9 @@
  * with a bot private key that has admin permissions in the Towns Space.
  */
 
-import { TownsBot } from '@towns-protocol/bot';
+import { makeTownsBot, type Bot } from '@towns-protocol/bot';
 
-let botInstance: TownsBot | null = null;
+let botInstance: Bot | null = null;
 
 /**
  * Get or create the Towns bot instance
@@ -21,12 +21,13 @@ let botInstance: TownsBot | null = null;
  * @returns Towns bot instance
  * @throws Error if TOWNS_BOT_PRIVATE_KEY is not set
  */
-export function getTownsBot(): TownsBot {
+export async function getTownsBot(): Promise<Bot> {
   if (botInstance) {
     return botInstance;
   }
 
   const privateKey = process.env.TOWNS_BOT_PRIVATE_KEY;
+  const jwtSecret = process.env.TOWNS_BOT_JWT_SECRET;
   
   if (!privateKey) {
     throw new Error(
@@ -35,10 +36,16 @@ export function getTownsBot(): TownsBot {
     );
   }
 
+  if (!jwtSecret) {
+    throw new Error(
+      'TOWNS_BOT_JWT_SECRET environment variable is not set. ' +
+      'Please configure a JWT secret for the bot.'
+    );
+  }
+
   // Initialize the bot with the private key
   // The bot will use this to sign transactions and interact with the Towns Protocol
-  botInstance = new TownsBot({
-    privateKey,
+  botInstance = await makeTownsBot(privateKey, jwtSecret, {
     // Add any additional configuration as needed
   });
 

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { ApiResponse } from '@/types/chat';
 import { getTownsBot } from '@/lib/towns/bot-instance';
 import { getSpaceId, getParticipantRoleId } from '@/lib/towns/roles';
+import { Permission } from '@towns-protocol/web3';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -75,13 +76,14 @@ export async function POST(req: NextRequest) {
 
     // Revoke Write permission from Participants via Towns Protocol
     try {
-      const bot = getTownsBot();
+      const bot = await getTownsBot();
       const spaceId = getSpaceId();
       const participantRoleId = getParticipantRoleId();
 
       // Update the Participant role to only have Read permission
-      await bot.updateRole(spaceId, participantRoleId, {
-        permissions: ['Read'],
+      await bot.updateRole(spaceId, parseInt(participantRoleId), {
+        name: 'Participant',
+        permissions: [Permission.Read],
       });
 
       console.log('[POST /api/admin/events/end] Participant permissions revoked via Towns Protocol');
