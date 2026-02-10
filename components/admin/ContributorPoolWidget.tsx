@@ -106,7 +106,7 @@ export function ContributorPoolWidget() {
 
           <div className="bg-purple-50 border border-purple-100 rounded-md p-3">
             <p className="text-xs text-gray-600 leading-relaxed">
-              💡 <strong>Weighted Distribution:</strong> Earned (3x) &gt; Invited (2x) &gt; Appointed (1x)
+              💡 <strong>Weighted Distribution:</strong> Earned (3x) {'>'} Invited (2x) {'>'} Appointed (1x)
             </p>
           </div>
         </div>

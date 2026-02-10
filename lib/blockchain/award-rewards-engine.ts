@@ -95,13 +95,14 @@ export async function awardTownsViaEngine(
  * @returns Pool balance in $TOWNS tokens
  */
 export async function getContributorPoolBalance(): Promise<number> {
+  const engineWalletAddress = process.env.ENGINE_SERVER_WALLET_ADDRESS;
+  
+  if (!engineWalletAddress) {
+    throw new Error('ENGINE_SERVER_WALLET_ADDRESS not set');
+  }
+
   try {
     const rewardsContract = getRewardsContract();
-    const engineWalletAddress = process.env.ENGINE_SERVER_WALLET_ADDRESS;
-    
-    if (!engineWalletAddress) {
-      throw new Error('ENGINE_SERVER_WALLET_ADDRESS not set');
-    }
     
     // Read the accumulated earnings from the contract
     const stats = await readContract({
@@ -122,9 +123,8 @@ export async function getContributorPoolBalance(): Promise<number> {
     // Fall back to checking $TOWNS token balance of engine wallet
     try {
       const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-      const engineWalletAddress = process.env.ENGINE_SERVER_WALLET_ADDRESS;
       
-      if (!townsContractAddress || !engineWalletAddress) {
+      if (!townsContractAddress) {
         throw new Error('Missing contract addresses');
       }
       

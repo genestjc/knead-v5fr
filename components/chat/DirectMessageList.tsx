@@ -82,6 +82,57 @@ export function DirectMessageList({
     }
   };
 
+  const closeModal = () => {
+    setShowNewDmModal(false);
+    setNewDmAddress('');
+    setCreateError(null);
+  };
+
+  // Reusable New DM Modal component
+  const NewDmModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <h3 className="font-adonis text-xl mb-4">New Direct Message</h3>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Recipient Wallet Address
+          </label>
+          <input
+            type="text"
+            value={newDmAddress}
+            onChange={(e) => setNewDmAddress(e.target.value)}
+            placeholder="0x..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {createError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            {createError}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={closeModal}
+            className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+            disabled={isCreatingDm}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreateDm}
+            disabled={isCreatingDm}
+            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+          >
+            {isCreatingDm ? 'Creating...' : 'Create DM'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="p-4 text-sm text-gray-500">
@@ -116,53 +167,7 @@ export function DirectMessageList({
         </div>
 
         {/* New DM Modal */}
-        {showNewDmModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h3 className="font-adonis text-xl mb-4">New Direct Message</h3>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Recipient Wallet Address
-                </label>
-                <input
-                  type="text"
-                  value={newDmAddress}
-                  onChange={(e) => setNewDmAddress(e.target.value)}
-                  placeholder="0x..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {createError && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-                  {createError}
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowNewDmModal(false);
-                    setNewDmAddress('');
-                    setCreateError(null);
-                  }}
-                  className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
-                  disabled={isCreatingDm}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateDm}
-                  disabled={isCreatingDm}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400"
-                >
-                  {isCreatingDm ? 'Creating...' : 'Create DM'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {showNewDmModal && <NewDmModal />}
       </div>
     );
   }
@@ -214,53 +219,7 @@ export function DirectMessageList({
       </div>
 
       {/* New DM Modal */}
-      {showNewDmModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="font-adonis text-xl mb-4">New Direct Message</h3>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Recipient Wallet Address
-              </label>
-              <input
-                type="text"
-                value={newDmAddress}
-                onChange={(e) => setNewDmAddress(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {createError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-                {createError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowNewDmModal(false);
-                  setNewDmAddress('');
-                  setCreateError(null);
-                }}
-                className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
-                disabled={isCreatingDm}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateDm}
-                disabled={isCreatingDm}
-                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400"
-              >
-                {isCreatingDm ? 'Creating...' : 'Create DM'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showNewDmModal && <NewDmModal />}
     </div>
   );
 }

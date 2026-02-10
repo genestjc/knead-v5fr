@@ -155,11 +155,13 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
  * Claim accumulated earnings for the Engine wallet from rewards contract
  */
 async function claimEngineEarnings(): Promise<void> {
-  if (!SERVER_WALLET_ADDRESS) {
+  const engineWalletAddress = SERVER_WALLET_ADDRESS;
+  
+  if (!engineWalletAddress) {
     throw new Error('ENGINE_SERVER_WALLET_ADDRESS not set');
   }
 
-  const stats = await getParticipantStats(SERVER_WALLET_ADDRESS);
+  const stats = await getParticipantStats(engineWalletAddress);
   
   if (stats.availableToClaim < 0.001) {
     console.log('No earnings to claim (less than 0.001 $TOWNS)');

@@ -77,7 +77,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       }
 
       console.log('✅ Tokens awarded successfully:', data.transactionHash);
-      toast.success(`Awarded ${amount} $TOWNS! ${reaction}\n25% goes to contributor pool.`);
+      toast.success(`Awarded ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`);
 
     } catch (error: any) {
       console.error('Error awarding tokens:', error);
