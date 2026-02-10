@@ -40,18 +40,17 @@ export interface ChatUser {
 }
 
 export interface UserPermissions {
-  userId: string;
-  role: UserRole;
-  contributorType?: ContributorType;
-  canViewChannel: boolean;
-  canPostInChannel: boolean;
-  canAwardLikes: boolean;
-  canReceiveLikes: boolean;
-  distributionBudgetRemaining: number;
-  personalEarningsAvailable: number;
-  participantTier?: ParticipantTier;
-  totalPoints: number;
-  freemiumTimeRemaining?: number; // in minutes
+  canView: boolean;
+  canPost: boolean;
+  canDelete: boolean;
+  canEdit: boolean;
+  isBanned: boolean;
+  membershipTier: MembershipTier;
+  role: 'freemium' | 'participant' | 'contributor';
+  contributorType?: ContributorType | null;
+  freemiumMinutesUsed?: number;
+  canDM?: boolean;
+  isLiveEvent?: boolean;
 }
 
 export interface ChatMessage {
