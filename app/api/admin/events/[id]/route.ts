@@ -74,9 +74,30 @@ export async function PATCH(
 
     console.log('[PATCH /api/admin/events] Event updated successfully');
 
-    return NextResponse.json<ApiResponse<null>>({
+    // ✅ NEW: Return permission update instructions for client
+    const needsPermissionUpdate = status === 'live' || status === 'ended';
+
+    // Validate required environment variables
+    if (needsPermissionUpdate) {
+      if (!process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID) {
+        console.error('[PATCH /api/admin/events] Missing NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID');
+      }
+      if (!process.env.TOWNS_PARTICIPANT_ROLE_ID) {
+        console.error('[PATCH /api/admin/events] Missing TOWNS_PARTICIPANT_ROLE_ID');
+      }
+    }
+
+    return NextResponse.json<ApiResponse<any>>({
       success: true,
       message: 'Event status updated',
+      needsPermissionUpdate,
+      roleUpdate: needsPermissionUpdate ? {
+        spaceId: process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID,
+        roleId: parseInt(process.env.TOWNS_PARTICIPANT_ROLE_ID || '0'),
+        permissions: status === 'live' 
+          ? ['Read', 'Write', 'React'] // Grant messaging during event
+          : ['Read'] // View-only when ended
+      } : undefined
     });
   } catch (error) {
     console.error('[PATCH /api/admin/events] Exception:', error);
