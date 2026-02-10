@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef, useMemo } from 'react'; // ✅ Added useMemo
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -368,6 +368,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                             isOwn={message.isOwn || false}
                             streamId={channelId}
                             canAwardTokens={canAwardTokens}
+                            isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                            eventId={activeEvent?.id}
+                            channelId={channelId}
+                            spaceId={spaceId}
                           />
                         ))}
                         <div ref={messagesEndRef} />
@@ -465,6 +469,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                             isOwn={message.isOwn || false}
                             streamId={channelId}
                             canAwardTokens={canAwardTokens}
+                            isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                            eventId={activeEvent?.id}
+                            channelId={channelId}
+                            spaceId={spaceId}
                           />
                         ))}
                         <div ref={messagesEndRef} />
@@ -572,6 +580,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                         isOwn={message.isOwn || false}
                         streamId={channelId}
                         canAwardTokens={canAwardTokens}
+                        isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                        eventId={activeEvent?.id}
+                        channelId={channelId}
+                        spaceId={spaceId}
                       />
                     ))}
                     <div ref={messagesEndRef} />
