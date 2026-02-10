@@ -1,14 +1,14 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react'; // ✅ Added useMemo
 import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
-import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import EventVideoStage from '@/components/chat/EventVideoStage'; // ✅ Changed to default import
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -53,7 +53,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   
-  // ✅ REMOVED: const { disconnect } = useAgentConnection();
+  // ✅ NEW: Refs to track event ID and token to prevent unnecessary re-renders
+  const activeEventIdRef = useRef<string | null>(null);
+  const dailyTokenRef = useRef<string | null>(null);
+  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -79,83 +82,108 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // Poll for live events every 30 seconds
-  // ✅ UPDATED: Real-time event subscription + polling fallback
-useEffect(() => {
-  async function fetchLiveEvent() {
-    try {
-      console.log('🔍 [ConnectedChat] Fetching live events...');
-      const res = await fetch('/api/events?status=live');
-      const data = await res.json();
-      
-      console.log('📊 [ConnectedChat] Live events response:', data);
-      
-      if (data.success && data.data.length > 0) {
-        const liveEvent = data.data[0];
-        console.log('🎥 [ConnectedChat] Setting active event:', liveEvent.title);
-        setActiveEvent(liveEvent);
+  // ✅ UPDATED: Smart event polling - only update state when values actually change
+  useEffect(() => {
+    async function fetchLiveEvent() {
+      try {
+        console.log('🔍 [ConnectedChat] Fetching live events...');
+        const res = await fetch('/api/events?status=live', {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        const data = await res.json();
         
-        if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
-          const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
+        console.log('📊 [ConnectedChat] Live events response:', data);
+        
+        if (data.success && data.data.length > 0) {
+          const liveEvent = data.data[0];
           
-          const tokenRes = await fetch('/api/events/generate-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              roomName: liveEvent.dailyRoomName,
-              walletAddress: activeAccount.address,
-              isHost: isHost,
-            }),
-          });
+          // ✅ CRITICAL: Only update if event ID changed
+          if (activeEventIdRef.current !== liveEvent.id) {
+            console.log('🎥 [ConnectedChat] NEW event detected:', liveEvent.title);
+            activeEventIdRef.current = liveEvent.id;
+            setActiveEvent(liveEvent);
+            
+            // Reset token when event changes
+            dailyTokenRef.current = null;
+            setDailyToken(null);
+          } else {
+            console.log('⏭️ [ConnectedChat] Same event, skipping update');
+          }
           
-          const tokenData = await tokenRes.json();
-          if (tokenData.success) {
-            console.log('✅ [ConnectedChat] Daily token generated');
-            setDailyToken(tokenData.data.token);
+          // ✅ Generate token only if needed
+          if (liveEvent.videoEnabled && 
+              liveEvent.dailyRoomName && 
+              activeAccount?.address && 
+              !dailyTokenRef.current) {
+            
+            const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
+            
+            console.log('🎫 [ConnectedChat] Generating Daily token...');
+            const tokenRes = await fetch('/api/events/generate-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomName: liveEvent.dailyRoomName,
+                walletAddress: activeAccount.address,
+                isHost: isHost,
+              }),
+            });
+            
+            const tokenData = await tokenRes.json();
+            if (tokenData.success && tokenData.data.token !== dailyTokenRef.current) {
+              console.log('✅ [ConnectedChat] New Daily token generated');
+              dailyTokenRef.current = tokenData.data.token;
+              setDailyToken(tokenData.data.token);
+            }
+          }
+        } else {
+          // ✅ Only clear if we had an event before
+          if (activeEventIdRef.current !== null) {
+            console.log('📭 [ConnectedChat] No live events - clearing');
+            activeEventIdRef.current = null;
+            dailyTokenRef.current = null;
+            setActiveEvent(null);
+            setDailyToken(null);
           }
         }
-      } else {
-        console.log('📭 [ConnectedChat] No live events - hiding video');
-        setActiveEvent(null);
-        setDailyToken(null);
+      } catch (error) {
+        console.error('❌ [ConnectedChat] Error fetching live event:', error);
       }
-    } catch (error) {
-      console.error('❌ [ConnectedChat] Error fetching live event:', error);
     }
-  }
-  
-  // Initial fetch
-  fetchLiveEvent();
-  
-  // Poll every 30 seconds
-  const interval = setInterval(fetchLiveEvent, 30000);
-  
-  // ✅ NEW: Real-time subscription for instant updates
-  const supabase = createSupabaseClient();
-  const channel = supabase
-    .channel('chat_live_events')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'chat_events',
-      },
-      (payload) => {
-        console.log('🔄 [ConnectedChat] Event changed:', payload);
-        // Refetch when any event changes
-        fetchLiveEvent();
-      }
-    )
-    .subscribe((status) => {
-      console.log('📡 [ConnectedChat] Event subscription:', status);
-    });
-  
-  return () => {
-    clearInterval(interval);
-    supabase.removeChannel(channel);
-  };
-}, [activeAccount?.address]);
+    
+    // Initial fetch
+    fetchLiveEvent();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetchLiveEvent, 30000);
+    
+    // ✅ Real-time subscription for instant updates
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel('chat_live_events')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_events',
+        },
+        (payload) => {
+          console.log('🔄 [ConnectedChat] Event changed:', payload);
+          // Refetch when any event changes
+          fetchLiveEvent();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [ConnectedChat] Event subscription:', status);
+      });
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [activeAccount?.address]);
 
   useEffect(() => {
     if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
@@ -242,6 +270,20 @@ useEffect(() => {
       };
     }) || [];
 
+  // ✅ NEW: Memoize video stage props to prevent unnecessary re-renders
+  const videoStageProps = useMemo(() => {
+    if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
+      return null;
+    }
+    
+    return {
+      event: activeEvent,
+      currentUserAddress: activeAccount.address,
+      roomUrl: activeEvent.dailyRoomUrl,
+      token: dailyToken,
+    };
+  }, [activeEvent?.id, activeEvent?.dailyRoomUrl, dailyToken, activeAccount?.address]);
+
   if (isSpaceLoading || isTimelineLoading) {
     return (
       <ChatLayout>
@@ -275,19 +317,14 @@ useEffect(() => {
     <>
       <DailyProvider>
         <ChatLayout>
-          {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
+          {videoStageProps && activeEvent?.videoEnabled ? (
             // SPLIT-SCREEN LAYOUT
             <>
               {/* Desktop/Tablet: Horizontal split */}
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
                 {/* Top half: Video */}
                 <div className="border-b border-gray-200">
-                  <EventVideoStage 
-                    event={activeEvent} 
-                    currentUserAddress={activeAccount?.address || ''}
-                    roomUrl={activeEvent.dailyRoomUrl}
-                    token={dailyToken}
-                  />
+                  <EventVideoStage {...videoStageProps} />
                 </div>
                 
                 {/* Bottom half: Chat */}
@@ -312,7 +349,6 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* ✅ Added pb-16 for bottom banner space */}
                   <div className="flex-1 overflow-y-auto pb-16">
                     {isTimelineLoading ? (
                       <LoadingSpinner />
@@ -388,12 +424,7 @@ useEffect(() => {
               {/* Mobile: Vertical 3-section split */}
               <div className="lg:hidden flex flex-col h-screen">
                 <div className="h-1/3 border-b border-gray-200">
-                  <EventVideoStage 
-                    event={activeEvent} 
-                    currentUserAddress={activeAccount?.address || ''}
-                    roomUrl={activeEvent.dailyRoomUrl}
-                    token={dailyToken}
-                  />
+                  <EventVideoStage {...videoStageProps} />
                 </div>
                 
                 <div className="h-2/3 flex flex-col overflow-hidden">
@@ -416,7 +447,6 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* ✅ Added pb-16 for bottom banner space */}
                   <div className="flex-1 overflow-y-auto pb-16">
                     {isTimelineLoading ? (
                       <LoadingSpinner />
@@ -504,8 +534,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* ✅ Removed FreemiumBanner from here - it's now at bottom */}
-
               {permissions?.canPost && userRole === 'participant' && (
                 <div className="bg-green-50 border-b border-green-200 px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -525,7 +553,6 @@ useEffect(() => {
                 />
               )}
 
-              {/* ✅ Added pb-16 for bottom banner space */}
               <div className="flex-1 overflow-y-auto pb-16">
                 {isTimelineLoading ? (
                   <LoadingSpinner />
