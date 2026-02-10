@@ -3,10 +3,10 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
-import { useActiveWallet, ConnectButton } from 'thirdweb/react';
+import { useActiveWallet, useConnect } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
-import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
 
@@ -52,37 +52,122 @@ const wallets = [
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ✅ NEW: BOT AUTO-CONNECT HOOK
+// ✅ BOT AUTO-CONNECT HOOK (ThirdWeb SDK - Browser Edition)
+// Uses privateKeyToAccount instead of Engine (no paid service needed)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function useBotAutoConnect() {
+  const { connect: connectWallet } = useConnect();
+  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   const wallet = useActiveWallet();
-  const { isAgentConnected } = useAgentConnection();
+  const [botInitialized, setBotInitialized] = useState(false);
 
+  // Step 1: Create wallet from private key and connect
   useEffect(() => {
-    // Check if bot mode is enabled (injected by headless browser)
-    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE && window.KEY_SHARER_PRIVATE_KEY) {
-      console.log('🤖 Bot auto-connect mode detected');
-      console.log('   Wallet connected:', !!wallet);
-      console.log('   Agent connected:', isAgentConnected);
-      
-      // Wait for both wallet and agent to be connected
-      if (wallet && isAgentConnected) {
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('✅ BOT SUCCESSFULLY CONNECTED');
-        console.log(`   Wallet: ${wallet.getAccount()?.address}`);
-        console.log(`   Time: ${new Date().toISOString()}`);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE || !window.KEY_SHARER_PRIVATE_KEY) {
+      return;
+    }
+
+    if (botInitialized || wallet) {
+      return;
+    }
+
+    const initBotWallet = async () => {
+      try {
+        console.log('🤖 Bot Mode: Creating wallet from private key...');
         
-        // ✅ Set flags so headless browser knows we're connected
-        window.KEY_SHARER_CONNECTED = true;
-        window.KEY_SHARER_ATTEMPTED = true;
-        window.KEY_SHARER_ERROR = undefined;
-      } else {
-        // Still waiting
-        window.KEY_SHARER_ATTEMPTED = true;
+        // ✅ Create account from private key (ThirdWeb v5 SDK)
+        const account = privateKeyToAccount({
+          client,
+          privateKey: window.KEY_SHARER_PRIVATE_KEY!,
+        });
+        
+        console.log('✅ Bot account created:', account.address);
+        
+        // ✅ Create in-app wallet
+        const botWallet = inAppWallet();
+        
+        // ✅ Connect the wallet using the connect hook
+        await connectWallet(async () => {
+          await botWallet.connect({
+            client,
+            chain: activeChain,
+            strategy: "private_key",
+            privateKey: window.KEY_SHARER_PRIVATE_KEY!,
+          });
+          return botWallet;
+        });
+        
+        console.log('✅ Bot wallet connected');
+        setBotInitialized(true);
+        
+      } catch (error: any) {
+        console.error('❌ Bot wallet connection failed:', error);
+        window.KEY_SHARER_ERROR = `Wallet connection failed: ${error.message}`;
         window.KEY_SHARER_CONNECTED = false;
+        setBotInitialized(true);
       }
+    };
+
+    initBotWallet();
+  }, [botInitialized, wallet, connectWallet]);
+
+  // Step 2: Connect Towns agent after wallet is ready
+  useEffect(() => {
+    if (!wallet || isAgentConnected) {
+      return;
+    }
+
+    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+      const initAgent = async () => {
+        try {
+          console.log('🤖 Bot Mode: Connecting Towns agent...');
+          
+          const signer = await getEthersV5Signer(wallet, activeChain, client);
+          
+          await connectAgent(signer, { 
+            townsConfig: TOWNS_CONFIG,
+            onTokenExpired: () => console.log('🔄 Token expired')
+          });
+          
+          console.log('✅ Bot Towns agent connected');
+          
+        } catch (error: any) {
+          console.error('❌ Bot agent connection failed:', error);
+          window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
+          window.KEY_SHARER_CONNECTED = false;
+        }
+      };
+
+      initAgent();
+    }
+  }, [wallet, isAgentConnected, connectAgent]);
+
+  // Step 3: Mark as fully connected
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) {
+      return;
+    }
+
+    console.log('🤖 Bot Status:', {
+      wallet: !!wallet,
+      walletAddress: wallet?.getAccount?.()?.address,
+      agentConnected: isAgentConnected,
+    });
+
+    if (wallet && isAgentConnected) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('✅ BOT SUCCESSFULLY CONNECTED');
+      console.log(`   Wallet: ${wallet.getAccount?.()?.address}`);
+      console.log(`   Time: ${new Date().toISOString()}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      window.KEY_SHARER_CONNECTED = true;
+      window.KEY_SHARER_ATTEMPTED = true;
+      delete window.KEY_SHARER_ERROR;
+    } else {
+      window.KEY_SHARER_ATTEMPTED = true;
+      window.KEY_SHARER_CONNECTED = false;
     }
   }, [wallet, isAgentConnected]);
 }
@@ -132,7 +217,6 @@ function SetupFlow() {
                 console.error('❌ Setup failed:', error);
                 setSetupStep("Setup failed - please refresh");
                 
-                // ✅ Set error for bot
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                     window.KEY_SHARER_ERROR = error.message;
                     window.KEY_SHARER_CONNECTED = false;
@@ -243,7 +327,6 @@ function TownsChat() {
                 } else {
                     console.error('❌ Join failed:', error);
                     
-                    // ✅ Set error for bot
                     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                         window.KEY_SHARER_ERROR = error.message;
                         window.KEY_SHARER_CONNECTED = false;
@@ -341,14 +424,13 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     
-    // ✅ NEW: Bot auto-connect hook
+    // ✅ Bot auto-connect hook
     useBotAutoConnect();
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // Check for export intent after OAuth redirect
     useEffect(() => {
       const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
       
@@ -366,24 +448,32 @@ export default function ChatTestClient() {
         }, 1500);
       }
     }, [wallet, isAgentConnected]);
-    
-    // ✅ NEW: Debug bot status (only in development or when bot mode is active)
-    useEffect(() => {
-      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-        console.log('🤖 Bot Mode Status:', {
-          autoMode: window.KEY_SHARER_AUTO_MODE,
-          privateKeySet: !!window.KEY_SHARER_PRIVATE_KEY,
-          attempted: window.KEY_SHARER_ATTEMPTED,
-          connected: window.KEY_SHARER_CONNECTED,
-          error: window.KEY_SHARER_ERROR,
-          walletConnected: !!wallet,
-          agentConnected: isAgentConnected,
-        });
-      }
-    }, [wallet, isAgentConnected]);
 
     if (!isMounted) return <LoadingSpinner />;
 
+    // ✅ Skip ConnectButton in bot mode - wallet connects programmatically
+    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+      if (!wallet) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md">
+              <LoadingSpinner />
+              <p className="font-georgia-pro text-sm text-gray-600 mt-4">
+                🤖 Bot Mode: Connecting wallet programmatically...
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!isAgentConnected) {
+        return <SetupFlow />;
+      }
+
+      return <TownsChat />;
+    }
+
+    // Normal user flow (not bot)
     if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
