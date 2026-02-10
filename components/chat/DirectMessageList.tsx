@@ -98,14 +98,27 @@ export function DirectMessageList({
       
       const errorMessage = error.message || String(error);
       
-      // ✅ Handle "stream already exists" error
+      // ✅ Handle "stream already exists" - find and open existing DM
       if (errorMessage.includes('already exists')) {
-        setCreateError('✅ DM already exists! Please wait 10 seconds for sync, or close and refresh manually. Page will auto-refresh.');
+        // Search for existing DM with this recipient
+        const existingDm = dms.find(
+          dm => dm.other_user?.wallet_address?.toLowerCase() === newDmAddress.trim().toLowerCase()
+        );
         
-        // ✅ Wait 10 seconds to let Towns nodes sync miniblocks
+        if (existingDm) {
+          // Found it! Open the existing DM immediately
+          console.log('✅ Found existing DM, opening it:', existingDm.id);
+          onSelectDm(existingDm.id, existingDm.towns_dm_id, existingDm.other_user?.display_name);
+          setShowNewDmModal(false);
+          setNewDmAddress('');
+          return;
+        }
+        
+        // DM exists but not synced yet - need to refresh
+        setCreateError('✅ DM exists but not synced. Refreshing in 5 seconds...');
         setTimeout(() => {
           window.location.reload();
-        }, 10000);
+        }, 5000);
         return;
       }
       
@@ -115,12 +128,10 @@ export function DirectMessageList({
           errorMessage.includes('timeout') || 
           errorMessage.includes('deadline') || 
           errorMessage.includes('context deadline exceeded')) {
-        setCreateError('⏱️ Network syncing... Please wait 10 seconds. The page will auto-refresh, or you can close and refresh manually.');
-        
-        // ✅ Wait 10 seconds for miniblock sync
+        setCreateError('⏱️ Network syncing... Refreshing in 5 seconds...');
         setTimeout(() => {
           window.location.reload();
-        }, 10000);
+        }, 5000);
         return;
       }
       
