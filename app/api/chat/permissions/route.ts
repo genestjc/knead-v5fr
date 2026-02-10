@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json<ApiResponse<null>>({ success: false, error: 'Missing userAddress parameter' }, { status: 400 });
     }
 
-    // Get role from NFT ownership
+    // Get role from NFT ownership (includes Event Pass check)
     const roleInfo = await getUserRole(userAddress);
     
     // Check if there's currently a live event
@@ -27,16 +27,27 @@ export async function GET(req: NextRequest) {
 
     const hasLiveEvent = Boolean(liveEvents && liveEvents.length > 0);
     
-    // Determine permissions based on NFT role
+    // ✅ NEW: Log Event Pass status
+    console.log('[Permissions]', {
+      address: userAddress.slice(0, 8) + '...',
+      role: roleInfo.role,
+      hasEventPass: roleInfo.hasEventPass,
+      eventId: roleInfo.eventId,
+      hasLiveEvent,
+    });
+    
+    // Determine permissions
     const canView = true; // All users can view (freemium has timer)
-    // Contributors can always post; Participants only during live events
+    
+    // ✅ Contributors can always post
+    // ✅ Participants can post if they have Event Pass OR there's a live event
     const canPost = roleInfo.role === 'contributor' || 
-                    (roleInfo.role === 'participant' && hasLiveEvent);
-    const userIsAdmin = roleInfo.role === 'contributor'; // Contributors are moderators
+                    (roleInfo.role === 'participant' && (roleInfo.hasEventPass || hasLiveEvent));
+    
+    const userIsAdmin = roleInfo.role === 'contributor';
     
     let freemiumMinutesUsed = 0;
     if (roleInfo.role === 'freemium') {
-      // Get freemium time from Supabase (reuse existing supabase instance)
       const { data, error } = await supabase.rpc('get_freemium_chat_time_remaining', {
         p_wallet_address: userAddress.toLowerCase(),
       });
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest) {
         canPost,
         canDelete: userIsAdmin,
         canEdit: userIsAdmin,
-        isBanned: false, // TODO: Add on-chain ban list if needed
+        isBanned: false,
         membershipTier: roleInfo.role === 'contributor' ? 'contributor' : roleInfo.role === 'participant' ? 'premium' : 'freemium',
         role: roleInfo.role,
         contributorType: roleInfo.hasContributor ? 'invited' : null,
