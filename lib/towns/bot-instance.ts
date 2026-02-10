@@ -45,9 +45,7 @@ export async function getTownsBot(): Promise<Bot> {
 
   // Initialize the bot with the private key
   // The bot will use this to sign transactions and interact with the Towns Protocol
-  botInstance = await makeTownsBot(privateKey, jwtSecret, {
-    // Add any additional configuration as needed
-  });
+  botInstance = await makeTownsBot(privateKey, jwtSecret);
 
   return botInstance;
 }

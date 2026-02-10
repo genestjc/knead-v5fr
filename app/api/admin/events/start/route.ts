@@ -78,10 +78,16 @@ export async function POST(req: NextRequest) {
     try {
       const bot = await getTownsBot();
       const spaceId = getSpaceId();
-      const participantRoleId = getParticipantRoleId();
+      const participantRoleIdStr = getParticipantRoleId();
+      
+      // Validate and parse role ID
+      const participantRoleId = parseInt(participantRoleIdStr, 10);
+      if (isNaN(participantRoleId)) {
+        throw new Error(`Invalid TOWNS_PARTICIPANT_ROLE_ID: ${participantRoleIdStr}`);
+      }
 
       // Update the Participant role to include Write permissions
-      await bot.updateRole(spaceId, parseInt(participantRoleId), {
+      await bot.updateRole(spaceId, participantRoleId, {
         name: 'Participant',
         permissions: [Permission.Read, Permission.Write],
       });

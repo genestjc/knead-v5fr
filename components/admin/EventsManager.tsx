@@ -281,8 +281,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         console.log(`✅ Event status updated to: ${newStatus}`);
         
         // Show warning if Towns permissions update failed
+        // This is a warning, not an error, since the event was successfully updated
         if (data.data?.townsUpdateFailed) {
-          setError(data.message || 'Event updated but Towns permissions may need manual update');
+          console.warn('⚠️ Towns permissions update failed:', data.message);
+          // Show a non-blocking warning to the user
+          alert(data.message || 'Event updated but Towns permissions may need manual update');
         }
         
         // ✅ Real-time will handle the update
