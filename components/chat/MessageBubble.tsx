@@ -27,8 +27,8 @@ interface MessageBubbleProps {
   canAwardTokens?: boolean;
   isAdmin?: boolean;
   eventId?: number;
-  channelId?: string;  // ✅ ADD THIS
-  spaceId?: string;    // ✅ ADD THIS
+  channelId?: string;
+  spaceId?: string;
 }
 
 export function MessageBubble({ 
@@ -38,8 +38,8 @@ export function MessageBubble({
   canAwardTokens,
   isAdmin = false,
   eventId,
-  channelId,   // ✅ ADD THIS
-  spaceId      // ✅ ADD THIS
+  channelId,
+  spaceId
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -57,38 +57,67 @@ export function MessageBubble({
     });
   };
 
-  // ✅ Handle like button click
+  // ✅ Handle like button click with debug logging
   const handleLike = async () => {
     console.log('❤️ Tip button clicked');
+    console.log('🔍 Message data:', {
+      messageId: message.id,
+      senderId: message.sender.id,
+      senderName: message.sender.name,
+      isOwn: isOwn,
+    });
+    
+    if (!message.sender.id) {
+      console.error('❌ Message sender ID is missing!', message);
+      alert('Cannot tip: Sender information is missing');
+      return;
+    }
     
     await awardTokensOnLike(
       message.id,
       message.sender.id,
-      10, // Base amount: 10 TOWNS
+      10,
       '❤️'
     );
   };
 
-  // ✅ Handle right-click (desktop)
+  // ✅ Handle right-click (desktop) with debug logging
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (!isAdmin) return;
+    console.log('🖱️ Right-click detected');
+    console.log('   isAdmin:', isAdmin);
+    console.log('   eventId:', eventId);
+    console.log('   channelId:', channelId);
+    console.log('   spaceId:', spaceId);
+    
+    if (!isAdmin) {
+      console.log('❌ Not admin, ignoring right-click');
+      return;
+    }
     
     e.preventDefault();
+    console.log('✅ Showing context menu at:', { x: e.clientX, y: e.clientY });
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
   };
 
-  // ✅ Handle long-press (mobile)
+  // ✅ Handle long-press (mobile) with debug logging
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
   
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isAdmin) return;
+    console.log('📱 Touch start detected');
+    console.log('   isAdmin:', isAdmin);
+    
+    if (!isAdmin) {
+      console.log('❌ Not admin, ignoring touch');
+      return;
+    }
     
     const timer = setTimeout(() => {
       const touch = e.touches[0];
+      console.log('✅ Long press detected, showing context menu');
       setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
       setShowContextMenu(true);
-    }, 500); // 500ms long press
+    }, 500);
     
     setPressTimer(timer);
   };
@@ -112,7 +141,6 @@ export function MessageBubble({
         onTouchEnd={handleTouchEnd}
       >
         <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
-          {/* Message Bubble */}
           <div
             className={`
               rounded-[18px] px-4 py-2 
@@ -126,7 +154,6 @@ export function MessageBubble({
               {message.content}
             </p>
 
-            {/* $TOWNS Award Badge */}
             {message.townsAwarded && message.townsAwarded > 0 && (
               <div className="mt-2 flex items-center gap-1 text-xs opacity-90">
                 <span className="font-semibold">
@@ -137,7 +164,6 @@ export function MessageBubble({
             )}
           </div>
 
-          {/* Metadata below bubble */}
           <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
             <span className="font-georgia-pro">
               {!isOwn && `${message.sender.name} • `}
@@ -145,7 +171,6 @@ export function MessageBubble({
             </span>
           </div>
 
-          {/* ✅ Tip button for contributors (not own messages) */}
           {!isOwn && canAwardTokens && streamId && (
             <button
               onClick={handleLike}
@@ -163,22 +188,19 @@ export function MessageBubble({
         </div>
       </motion.div>
 
-     {/* ✅ Admin Context Menu */}
-{showContextMenu && isAdmin && eventId && channelId && spaceId && (
-  <AdminContextMenu
-    message={message}
-    eventId={eventId}
-    channelId={channelId}  // ✅ ADD THIS
-    spaceId={spaceId}      // ✅ ADD THIS
-    position={contextMenuPosition}
-    onClose={() => setShowContextMenu(false)}
-  />
-)}
+      {showContextMenu && isAdmin && eventId && channelId && spaceId && (
+        <AdminContextMenu
+          message={message}
+          eventId={eventId}
+          channelId={channelId}
+          spaceId={spaceId}
+          position={contextMenuPosition}
+          onClose={() => setShowContextMenu(false)}
+        />
+      )}
     </>
   );
 }
-
-// ... (EventBanner and TypingIndicator stay the same)
 
 export function EventBanner({ eventTitle, timeRemaining, isLive = true }: {
   eventTitle: string;
