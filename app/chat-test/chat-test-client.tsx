@@ -1,492 +1,634 @@
 'use client';
 
-import nextDynamic from 'next/dynamic';
-import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
-import { useActiveWallet, useConnect } from 'thirdweb/react';
-import { client, activeChain } from '@/thirdweb-client';
-import { townsEnv } from '@towns-protocol/sdk';
-import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
-import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
-import type { ChatUser } from '@/types/chat';
-import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button'; // ✅ Import custom button
+export const dynamic = 'force-dynamic';
+import { useState, useEffect, useRef, useMemo } from 'react'; // ✅ Added useMemo
+import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import { ChatLayout } from '@/components/chat/ChatLayout';
+import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
+import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
+import { DailyProvider } from '@/components/chat/DailyProvider';
+import EventVideoStage from '@/components/chat/EventVideoStage'; // ✅ Changed to default import
+import type { ChatUser, ChatEvent } from '@/types/chat';
+import { useActiveAccount } from 'thirdweb/react';
+import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
+import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { useChatPermissions } from '@/hooks/use-chat-permissions';
+import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
+import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
-const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
-
-const JOIN_VERSION = 'v2';
-
-const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: activeChain.rpc,
-});
-
-const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
-  ssr: false,
-  loading: () => <LoadingSpinner />,
-});
+interface ConnectedChatProps {
+  currentUser: ChatUser;
+  spaceId: string;
+  defaultChannelId: string;
+}
 
 const LoadingSpinner = () => (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-600">Loading...</p>
-        </div>
+    <div className="text-center py-10">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+        <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
     </div>
 );
 
-// ✅ Removed wallets array - ThirdWebConnectButton handles this internally
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ✅ BOT AUTO-CONNECT HOOK (Fixed - Use Account Directly)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function useBotAutoConnect() {
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const wallet = useActiveWallet();
-  const [botAccount, setBotAccount] = useState<any>(null);
-  const [botInitialized, setBotInitialized] = useState(false);
-
-  // Step 1: Create account from private key
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE || !window.KEY_SHARER_PRIVATE_KEY) {
-      return;
-    }
-
-    if (botInitialized) {
-      return;
-    }
-
-    const initBotAccount = async () => {
-      try {
-        console.log('🤖 Bot Mode: Creating account from private key...');
-        
-        // ✅ Create account from private key (this IS the wallet!)
-        const account = privateKeyToAccount({
-          client,
-          privateKey: window.KEY_SHARER_PRIVATE_KEY!,
-        });
-        
-        console.log('✅ Bot account created:', account.address);
-        
-        // ✅ Create a mock wallet object that Towns expects
-        const mockWallet = {
-          getAccount: () => account,
-          getChain: () => activeChain,
-          disconnect: async () => {},
-          switchChain: async () => {},
-        };
-        
-        console.log('✅ Bot wallet object created');
-        
-        // ✅ Store for agent connection
-        setBotAccount(mockWallet);
-        
-        // ✅ Clean up
-        delete window.KEY_SHARER_PRIVATE_KEY;
-        console.log('🧹 Private key removed from browser memory');
-        
-        setBotInitialized(true);
-        
-      } catch (error: any) {
-        console.error('❌ Bot account creation failed:', error);
-        console.error('   Error message:', error.message);
-        window.KEY_SHARER_ERROR = `Account creation failed: ${error.message}`;
-        window.KEY_SHARER_CONNECTED = false;
-        setBotInitialized(true);
-      }
-    };
-
-    initBotAccount();
-  }, [botInitialized]);
-
-  // Step 2: Connect Towns agent after account is ready
-  useEffect(() => {
-    if (!botAccount || isAgentConnected) {
-      return;
-    }
-
-    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      const initAgent = async () => {
-        try {
-          console.log('🤖 Bot Mode: Connecting Towns agent...');
-          console.log('   Account address:', botAccount.getAccount()?.address);
-          
-          const signer = await getEthersV5Signer(botAccount, activeChain, client);
-          console.log('   Signer created:', !!signer);
-          
-          await connectAgent(signer, { 
-            townsConfig: TOWNS_CONFIG,
-            onTokenExpired: () => console.log('🔄 Token expired')
-          });
-          
-          console.log('✅ Bot Towns agent connected');
-          
-        } catch (error: any) {
-          console.error('❌ Bot agent connection failed:', error);
-          console.error('   Error message:', error.message);
-          console.error('   Error stack:', error.stack);
-          window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
-          window.KEY_SHARER_CONNECTED = false;
-        }
-      };
-
-      initAgent();
-    }
-  }, [botAccount, isAgentConnected, connectAgent]);
-
-  // Step 3: Mark as fully connected
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) {
-      return;
-    }
-
-    // Use either the regular wallet or bot account
-    const activeWallet = wallet || botAccount;
-
-    console.log('🤖 Bot Status:', {
-      hasWallet: !!activeWallet,
-      walletAddress: activeWallet?.getAccount?.()?.address,
-      agentConnected: isAgentConnected,
-    });
-
-    if (activeWallet && isAgentConnected) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('✅ BOT SUCCESSFULLY CONNECTED');
-      console.log(`   Wallet: ${activeWallet.getAccount?.()?.address}`);
-      console.log(`   Time: ${new Date().toISOString()}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      window.KEY_SHARER_CONNECTED = true;
-      window.KEY_SHARER_ATTEMPTED = true;
-      delete window.KEY_SHARER_ERROR;
-    } else {
-      window.KEY_SHARER_ATTEMPTED = true;
-      window.KEY_SHARER_CONNECTED = false;
-    }
-  }, [wallet, botAccount, isAgentConnected]);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function SetupFlow() {
-    const wallet = useActiveWallet();
-    const { connect, isAgentConnected } = useAgentConnection();
-    const [setupComplete, setSetupComplete] = useState(false);
-    const [setupStep, setSetupStep] = useState("Preparing your account...");
-
-    useEffect(() => {
-        if (!wallet || isAgentConnected || setupComplete) return;
-
-        const runSetup = async () => {
-            try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) return;
-
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                
-                if (!hasJoinedBefore) {
-                    setSetupStep("Creating your membership...");
-                    await fetch('/api/towns/mint-membership', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
-                    });
-                }
-
-                setSetupStep("Connecting to network...");
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
-                await connect(signer, { 
-                    townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('🔄 Token expired')
-                });
-                
-                console.log('✅ Towns agent connected');
-                console.log('⛽ Gas sponsorship enabled via EIP-7702');
-                setSetupComplete(true);
-
-            } catch (error: any) {
-                console.error('❌ Setup failed:', error);
-                setSetupStep("Setup failed - please refresh");
-                
-                if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                    window.KEY_SHARER_ERROR = error.message;
-                    window.KEY_SHARER_CONNECTED = false;
-                }
-                
-                alert(`Setup failed: ${error.message}`);
-            }
-        };
-
-        runSetup();
-    }, [wallet, isAgentConnected, setupComplete, connect]);
-
+// ✅ Wrapper component that checks if agent is connected
+export default function ConnectedChat(props: ConnectedChatProps) {
+  const { isAgentConnected } = useAgentConnection();
+  
+  if (!isAgentConnected) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="text-center max-w-md px-4">
-                <h2 className="font-adonis text-3xl mb-4">Setting Up Your Membership</h2>
-                <LoadingSpinner />
-                <p className="font-georgia-pro text-sm text-gray-600 mt-4">
-                    {setupStep}
-                </p>
-                {!setupStep.includes("failed") && (
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        Gas fees sponsored by Knead ⚡
-                    </p>
-                )}
-            </div>
-        </div>
+      <ChatLayout>
+        <LoadingSpinner />
+      </ChatLayout>
     );
+  }
+  
+  return <ConnectedChatInner {...props} />;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ✅ Inner component
+function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
+  const [messageInput, setMessageInput] = useState('');
+  const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
+  const [dailyToken, setDailyToken] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
+  
+  // ✅ NEW: Refs to track event ID and token to prevent unnecessary re-renders
+  const activeEventIdRef = useRef<string | null>(null);
+  const dailyTokenRef = useRef<string | null>(null);
+  
+  const activeAccount = useActiveAccount();
 
-function TownsChat() {
-    const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
-    const [hasJoined, setHasJoined] = useState(false);
+  const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
+  const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
+  const { permissions } = useChatPermissions(activeAccount?.address || null);
 
-    const wallet = useActiveWallet();
-    const { joinSpace } = useJoinSpace();
-    const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
+  const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
+  
+  const channelId = space?.channelIds?.[0] || defaultChannelId;
+  
+  const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
+  const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
-    const currentUser: ChatUser | null = useMemo(() => {
-        const address = wallet?.getAccount()?.address;
-        if (!address) return null;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function detectRole() {
+      if (activeAccount?.address) {
+        const roleInfo = await getUserRole(activeAccount.address);
+        setUserRole(roleInfo.role);
+      }
+    }
+    detectRole();
+  }, [activeAccount?.address]);
+
+  // ✅ UPDATED: Smart event polling - only update state when values actually change
+  useEffect(() => {
+    async function fetchLiveEvent() {
+      try {
+        console.log('🔍 [ConnectedChat] Fetching live events...');
+        const res = await fetch('/api/events?status=live', {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        const data = await res.json();
         
-        return {
-            id: address,
-            address: address,
-            displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
-            role: 'viewer',
-            membershipTier: 'freemium',
-            isBanned: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        };
-    }, [wallet]);
-
-    useEffect(() => {
-        if (space) {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('📊 Space Sync Status:');
-            console.log('   Initialized:', space.initialized);
-            console.log('   Channel IDs:', space.channelIds);
-            console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        }
-    }, [space]);
-
-    useEffect(() => {
-        if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
-
-        const joinSpaceNow = async () => {
-            try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) return;
-
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                
-                if (hasJoinedBefore) {
-                    console.log('✅ User already joined before (from localStorage v2)');
-                    setSpaceId(SAVED_SPACE_ID);
-                    setHasJoined(true);
-                    return;
-                }
-
-                console.log('🚀 Joining space for the first time...');
-                console.log('⛽ Gas will be sponsored via EIP-7702');
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
-                await joinSpace(SAVED_SPACE_ID, signer);
-                
-                console.log('✅ Join space successful!');
-                localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                setSpaceId(SAVED_SPACE_ID);
-                setHasJoined(true);
-
-            } catch (error: any) {
-                const userAddress = wallet.getAccount()?.address;
-                
-                if (error.message?.includes('already a member')) {
-                    console.log('✅ Already a member - treating as success');
-                    if (userAddress) {
-                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                    }
-                    setSpaceId(SAVED_SPACE_ID);
-                    setHasJoined(true);
-                } else {
-                    console.error('❌ Join failed:', error);
-                    
-                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                        window.KEY_SHARER_ERROR = error.message;
-                        window.KEY_SHARER_CONNECTED = false;
-                    }
-                    
-                    alert(`Failed to join space: ${error.message}`);
-                }
+        console.log('📊 [ConnectedChat] Live events response:', data);
+        
+        if (data.success && data.data.length > 0) {
+          const liveEvent = data.data[0];
+          
+          // ✅ CRITICAL: Only update if event ID changed
+          if (activeEventIdRef.current !== liveEvent.id) {
+            console.log('🎥 [ConnectedChat] NEW event detected:', liveEvent.title);
+            activeEventIdRef.current = liveEvent.id;
+            setActiveEvent(liveEvent);
+            
+            // Reset token when event changes
+            dailyTokenRef.current = null;
+            setDailyToken(null);
+          } else {
+            console.log('⏭️ [ConnectedChat] Same event, skipping update');
+          }
+          
+          // ✅ Generate token only if needed
+          if (liveEvent.videoEnabled && 
+              liveEvent.dailyRoomName && 
+              activeAccount?.address && 
+              !dailyTokenRef.current) {
+            
+            const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
+            
+            console.log('🎫 [ConnectedChat] Generating Daily token...');
+            const tokenRes = await fetch('/api/events/generate-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomName: liveEvent.dailyRoomName,
+                walletAddress: activeAccount.address,
+                isHost: isHost,
+              }),
+            });
+            
+            const tokenData = await tokenRes.json();
+            if (tokenData.success && tokenData.data.token !== dailyTokenRef.current) {
+              console.log('✅ [ConnectedChat] New Daily token generated');
+              dailyTokenRef.current = tokenData.data.token;
+              setDailyToken(tokenData.data.token);
             }
-        };
-
-        joinSpaceNow();
-    }, [wallet, hasJoined, joinSpace]);
-
-    if (isSpaceLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Loading space data...
-                    </p>
-                </div>
-            </div>
-        );
+          }
+        } else {
+          // ✅ Only clear if we had an event before
+          if (activeEventIdRef.current !== null) {
+            console.log('📭 [ConnectedChat] No live events - clearing');
+            activeEventIdRef.current = null;
+            dailyTokenRef.current = null;
+            setActiveEvent(null);
+            setDailyToken(null);
+          }
+        }
+      } catch (error) {
+        console.error('❌ [ConnectedChat] Error fetching live event:', error);
+      }
     }
-
-    if (!space) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ Space not found</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!space.initialized) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Syncing with stream nodes...
-                    </p>
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This may take a few seconds
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    const channelId = space.channelIds?.[0];
-
-    if (!channelId) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-2">
-                        Space ID: {spaceId?.substring(0, 16)}...
-                    </p>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
-                    >
-                        Retry
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (hasJoined && currentUser) {
-        return (
-            <div className="w-full h-screen">
-                <ConnectedChat
-                    currentUser={currentUser}
-                    spaceId={spaceId!}
-                    defaultChannelId={channelId}
-                />
-            </div>
-        );
-    }
-
-    return <LoadingSpinner />;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAIN COMPONENT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-export default function ChatTestClient() {
-    const [isMounted, setIsMounted] = useState(false);
-    const wallet = useActiveWallet();
-    const { isAgentConnected } = useAgentConnection();
     
-    // ✅ Bot auto-connect hook
-    useBotAutoConnect();
+    // Initial fetch
+    fetchLiveEvent();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetchLiveEvent, 30000);
+    
+    // ✅ Real-time subscription for instant updates
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel('chat_live_events')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_events',
+        },
+        (payload) => {
+          console.log('🔄 [ConnectedChat] Event changed:', payload);
+          // Refetch when any event changes
+          fetchLiveEvent();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [ConnectedChat] Event subscription:', status);
+      });
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [activeAccount?.address]);
 
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
+  useEffect(() => {
+    if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
+      console.log(`⚠️ Miniblock hash error, will retry in 2 seconds (attempt ${retryCount + 1}/3)`);
+      const timer = setTimeout(() => {
+        setRetryCount(retryCount + 1);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [sendError, retryCount]);
 
-    useEffect(() => {
-      const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
+  useEffect(() => {
+    console.log('🔍 ConnectedChat Debug:');
+    console.log('   - spaceId:', spaceId);
+    console.log('   - space:', space);
+    console.log('   - channelId:', channelId);
+    console.log('   - timeline length:', timeline?.length);
+    
+    if (spaceError) console.error('❌ Space error:', spaceError);
+    if (timelineError) console.error('❌ Timeline error:', timelineError);
+    if (sendError) console.error('❌ Send error:', sendError);
+  }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [timeline]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isFreemiumUser && !hasTimeLeft) {
+      alert('⏱️ Your free viewing time has expired. Upgrade to Knead Monthly to continue.');
+      return;
+    }
+    
+    if (userRole === 'freemium') {
+      alert('👀 Freemium users can only view messages. Upgrade to Knead Monthly to participate.');
+      return;
+    }
+    
+    if (!messageInput.trim() || isSending || !channelId) {
+      console.warn('Cannot send message:', { 
+        hasInput: !!messageInput.trim(), 
+        isSending, 
+        hasChannelId: !!channelId 
+      });
+      return;
+    }
+
+    try {
+      console.log('📤 Sending message:', messageInput);
+      setRetryCount(0);
       
-      if (hasExportIntent && wallet && isAgentConnected) {
-        localStorage.removeItem("exportKeyIntent");
-        
-        setTimeout(() => {
-          alert(
-            "✅ Authentication successful!\n\n" +
-            "To export your private key:\n" +
-            "1. Click the 'K' logo (top left)\n" +
-            "2. Click 'Export Private Key'\n" +
-            "3. Follow the instructions"
-          );
-        }, 1500);
+      await sendMessage(messageInput);
+      
+      console.log('✅ Message sent successfully');
+      setMessageInput('');
+    } catch (error: any) {
+      console.error('❌ Failed to send message:', error);
+      
+      if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
+        alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
+      } else if (error.message?.includes('already a member')) {
+        console.log('ℹ️ Already a member, ignoring error');
+      } else {
+        alert(`Failed to send message: ${error.message}`);
       }
-    }, [wallet, isAgentConnected]);
+    }
+  };
 
-    if (!isMounted) return <LoadingSpinner />;
+  const messages = timeline
+    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+    .map((event: any) => {
+      return {
+        id: event.eventId || event.id,
+        content: event.content?.body || '',
+        sender: {
+          id: event.creatorUserId || '',
+          name: event.creatorDisplayName || 'Anonymous',
+          avatar: undefined,
+        },
+        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+        isOwn: event.creatorUserId === activeAccount?.address,
+      };
+    }) || [];
 
-    // ✅ Skip ConnectButton in bot mode - wallet connects programmatically
-    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      if (!wallet) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="text-center max-w-md">
-              <LoadingSpinner />
-              <p className="font-georgia-pro text-sm text-gray-600 mt-4">
-                🤖 Bot Mode: Connecting wallet programmatically...
-              </p>
-            </div>
+  // ✅ NEW: Memoize video stage props to prevent unnecessary re-renders
+  const videoStageProps = useMemo(() => {
+    if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
+      return null;
+    }
+    
+    return {
+      event: activeEvent,
+      currentUserAddress: activeAccount.address,
+      roomUrl: activeEvent.dailyRoomUrl,
+      token: dailyToken,
+    };
+  }, [activeEvent?.id, activeEvent?.dailyRoomUrl, dailyToken, activeAccount?.address]);
+
+  if (isSpaceLoading || isTimelineLoading) {
+    return (
+      <ChatLayout>
+        <LoadingSpinner />
+      </ChatLayout>
+    );
+  }
+
+  if (spaceError || timelineError) {
+    return (
+      <ChatLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-red-500 py-8">
+            <p className="font-georgia-pro text-lg">❌ Error loading chat</p>
+            <p className="font-georgia-pro text-sm mt-2">
+              {spaceError?.message || timelineError?.message || 'Unknown error'}
+            </p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+            >
+              Retry
+            </button>
           </div>
-        );
-      }
+        </div>
+      </ChatLayout>
+    );
+  }
 
-      if (!isAgentConnected) {
-        return <SetupFlow />;
-      }
-
-      return <TownsChat />;
-    }
-
-    // Normal user flow (not bot)
-    if (!wallet) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center max-w-md px-4">
-                    <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                    {/* ✅ Use custom ThirdWebConnectButton */}
-                    <ThirdWebConnectButton 
-                      theme="light"
-                      size="wide"
-                      className="inline-block"
-                    />
+  return (
+    <>
+      <DailyProvider>
+        <ChatLayout>
+          {videoStageProps && activeEvent?.videoEnabled ? (
+            // SPLIT-SCREEN LAYOUT
+            <>
+              {/* Desktop/Tablet: Horizontal split */}
+              <div className="hidden lg:grid lg:grid-rows-2 h-screen">
+                {/* Top half: Video */}
+                <div className="border-b border-gray-200">
+                  <EventVideoStage {...videoStageProps} />
                 </div>
+                
+                {/* Bottom half: Chat */}
+                <div className="flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                        {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : userRole === 'participant' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {isTimelineLoading ? (
+                      <LoadingSpinner />
+                    ) : messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-gray-500 py-8">
+                          <p className="font-georgia-pro text-lg">No messages yet.</p>
+                          <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-4">
+                        {messages.map((message: any) => (
+                          <MessageBubble
+                            key={message.id}
+                            message={message}
+                            isOwn={message.isOwn || false}
+                            streamId={channelId}
+                            canAwardTokens={canAwardTokens}
+                          />
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-4 bg-white">
+                    <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        placeholder={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Messaging available during live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium to participate in events"
+                            : channelId 
+                              ? "iMessage" 
+                              : "Loading..."
+                        }
+                        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || !channelId}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                        className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "Messaging available during live events only"
+                            : ""
+                        }
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor" 
+                          className="w-5 h-5"
+                        >
+                          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                        </svg>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile: Vertical 3-section split */}
+              <div className="lg:hidden flex flex-col h-screen">
+                <div className="h-1/3 border-b border-gray-200">
+                  <EventVideoStage {...videoStageProps} />
+                </div>
+                
+                <div className="h-2/3 flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : userRole === 'participant' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {isTimelineLoading ? (
+                      <LoadingSpinner />
+                    ) : messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-gray-500 py-8">
+                          <p className="font-georgia-pro text-sm">No messages yet.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-2 px-2">
+                        {messages.map((message: any) => (
+                          <MessageBubble
+                            key={message.id}
+                            message={message}
+                            isOwn={message.isOwn || false}
+                            streamId={channelId}
+                            canAwardTokens={canAwardTokens}
+                          />
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-2 bg-white">
+                    <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        placeholder={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium"
+                            : "Message"
+                        }
+                        className={`flex-1 px-3 py-2 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro text-sm ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || !channelId}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                        className="w-8 h-8 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor" 
+                          className="w-4 h-4"
+                        >
+                          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                        </svg>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            // NORMAL CHAT (no event or no video)
+            <div className="h-full flex flex-col bg-white">
+              <div className="bg-gray-50 px-4 py-2 border-b">
+                <div className="flex items-center justify-between">
+                  <p className="font-georgia-pro text-sm text-gray-600">
+                    <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                    {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                  </p>
+                  <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                    userRole === 'contributor' 
+                      ? 'bg-purple-100 text-purple-800' 
+                      : userRole === 'participant' 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {userRole === 'contributor' && '⭐ Contributor'}
+                    {userRole === 'participant' && '💬 Participant'}
+                    {userRole === 'freemium' && '👀 Freemium'}
+                  </span>
+                </div>
+              </div>
+
+              {permissions?.canPost && userRole === 'participant' && (
+                <div className="bg-green-50 border-b border-green-200 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600">🎙️</span>
+                    <p className="text-sm text-green-800 font-medium">
+                      Event is live! You can now ask questions and participate.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeEvent && (
+                <EventBanner
+                  eventTitle={activeEvent.title}
+                  timeRemaining={undefined}
+                  isLive={true}
+                />
+              )}
+
+              <div className="flex-1 overflow-y-auto pb-16">
+                {isTimelineLoading ? (
+                  <LoadingSpinner />
+                ) : messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-gray-500 py-8">
+                      <p className="font-georgia-pro text-lg">No messages yet.</p>
+                      <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-4">
+                    {messages.map((message: any) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        isOwn={message.isOwn || false}
+                        streamId={channelId}
+                        canAwardTokens={canAwardTokens}
+                      />
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-gray-200 p-4 bg-white">
+                <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder={
+                      !permissions?.canPost && userRole === 'participant'
+                        ? "💬 Messaging available during live events only"
+                        : !permissions?.canPost && userRole === 'freemium'
+                        ? "🔒 Upgrade to Premium to participate in events"
+                        : channelId 
+                          ? "iMessage" 
+                          : "Loading..."
+                    }
+                    className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                      permissions?.canPost 
+                        ? 'focus:ring-[#007AFF] border-gray-300' 
+                        : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                    }`}
+                    disabled={!permissions?.canPost || isSending || !channelId}
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                    className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      !permissions?.canPost && userRole === 'participant'
+                        ? "Messaging available during live events only"
+                        : ""
+                    }
+                  >
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 24 24" 
+                      fill="currentColor" 
+                      className="w-5 h-5"
+                    >
+                      <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                    </svg>
+                  </button>
+                </form>
+              </div>
             </div>
-        );
-    }
-
-    if (!isAgentConnected) {
-        return <SetupFlow />;
-    }
-
-    return <TownsChat />;
+          )}
+        </ChatLayout>
+      </DailyProvider>
+      
+      {/* ✅ Minimal Bottom Banner - Fixed position, shows only with ≤10 min */}
+      <FreemiumBanner remainingMinutes={remainingMinutes} />
+    </>
+  );
 }
