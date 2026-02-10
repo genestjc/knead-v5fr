@@ -30,7 +30,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ✅ Wrapper component that checks if agent is connected
 export default function ConnectedChat(props: ConnectedChatProps) {
   const { isAgentConnected } = useAgentConnection();
   
@@ -45,7 +44,6 @@ export default function ConnectedChat(props: ConnectedChatProps) {
   return <ConnectedChatInner {...props} />;
 }
 
-// ✅ Inner component
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
@@ -53,7 +51,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   
-  // ✅ NEW: Refs to track event ID and token to prevent unnecessary re-renders
   const activeEventIdRef = useRef<string | null>(null);
   const dailyTokenRef = useRef<string | null>(null);
   
@@ -72,6 +69,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ✅ Debug admin check
+  useEffect(() => {
+    console.log('🔐 Admin Check:', {
+      currentAddress: activeAccount?.address,
+      masterAdmin: process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET,
+      isMatch: activeAccount?.address?.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase(),
+    });
+  }, [activeAccount?.address]);
+
   useEffect(() => {
     async function detectRole() {
       if (activeAccount?.address) {
@@ -82,7 +88,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // ✅ UPDATED: Smart event polling - only update state when values actually change
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -98,20 +103,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         if (data.success && data.data.length > 0) {
           const liveEvent = data.data[0];
           
-          // ✅ CRITICAL: Only update if event ID changed
           if (activeEventIdRef.current !== liveEvent.id) {
             console.log('🎥 [ConnectedChat] NEW event detected:', liveEvent.title);
             activeEventIdRef.current = liveEvent.id;
             setActiveEvent(liveEvent);
             
-            // Reset token when event changes
             dailyTokenRef.current = null;
             setDailyToken(null);
           } else {
             console.log('⏭️ [ConnectedChat] Same event, skipping update');
           }
           
-          // ✅ Generate token only if needed
           if (liveEvent.videoEnabled && 
               liveEvent.dailyRoomName && 
               activeAccount?.address && 
@@ -138,7 +140,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             }
           }
         } else {
-          // ✅ Only clear if we had an event before
           if (activeEventIdRef.current !== null) {
             console.log('📭 [ConnectedChat] No live events - clearing');
             activeEventIdRef.current = null;
@@ -152,13 +153,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
     
-    // Initial fetch
     fetchLiveEvent();
     
-    // Poll every 30 seconds
     const interval = setInterval(fetchLiveEvent, 30000);
     
-    // ✅ Real-time subscription for instant updates
     const supabase = createSupabaseClient();
     const channel = supabase
       .channel('chat_live_events')
@@ -171,7 +169,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         },
         (payload) => {
           console.log('🔄 [ConnectedChat] Event changed:', payload);
-          // Refetch when any event changes
           fetchLiveEvent();
         }
       )
@@ -254,23 +251,46 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  // ✅ UPDATED: Better message mapping with debug logging
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
+      // ✅ Debug logging to see what fields are available
+      console.log('🔍 Message event:', {
+        eventId: event.eventId,
+        creatorUserId: event.creatorUserId,
+        creatorAddress: event.creatorAddress,
+        userId: event.userId,
+        sender: event.sender,
+        payload: event.payload,
+      });
+
+      // ✅ Try multiple possible fields for user address
+      const senderId = event.creatorUserId || 
+                       event.creatorAddress || 
+                       event.userId || 
+                       event.payload?.creatorUserId ||
+                       '';
+      
+      if (!senderId) {
+        console.warn('⚠️ No sender ID found for event:', event);
+      }
+
       return {
         id: event.eventId || event.id,
         content: event.content?.body || '',
         sender: {
-          id: event.creatorUserId || '',
+          id: senderId,
           name: event.creatorDisplayName || 'Anonymous',
           avatar: undefined,
         },
         timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: event.creatorUserId === activeAccount?.address,
+        isOwn: senderId && activeAccount?.address 
+          ? senderId.toLowerCase() === activeAccount.address.toLowerCase() 
+          : false,
       };
     }) || [];
 
-  // ✅ NEW: Memoize video stage props to prevent unnecessary re-renders
   const videoStageProps = useMemo(() => {
     if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
       return null;
@@ -318,16 +338,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       <DailyProvider>
         <ChatLayout>
           {videoStageProps && activeEvent?.videoEnabled ? (
-            // SPLIT-SCREEN LAYOUT
             <>
               {/* Desktop/Tablet: Horizontal split */}
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
-                {/* Top half: Video */}
                 <div className="border-b border-gray-200">
                   <EventVideoStage {...videoStageProps} />
                 </div>
                 
-                {/* Bottom half: Chat */}
                 <div className="flex flex-col overflow-hidden">
                   <div className="bg-gray-50 px-4 py-2 border-b">
                     <div className="flex items-center justify-between">
@@ -520,7 +537,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             </>
           ) : (
-            // NORMAL CHAT (no event or no video)
             <div className="h-full flex flex-col bg-white">
               <div className="bg-gray-50 px-4 py-2 border-b">
                 <div className="flex items-center justify-between">
@@ -639,7 +655,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </ChatLayout>
       </DailyProvider>
       
-      {/* ✅ Minimal Bottom Banner - Fixed position, shows only with ≤10 min */}
       <FreemiumBanner remainingMinutes={remainingMinutes} />
     </>
   );
