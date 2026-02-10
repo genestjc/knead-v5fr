@@ -19,19 +19,6 @@ import { useEffect, useState } from 'react';
 import { useUserDms, useCreateDm } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 
-interface DmConversation {
-  id: string;
-  towns_dm_id: string;
-  created_at: string;
-  last_message_at: string;
-  other_user: {
-    id: string;
-    wallet_address: string;
-    role: string;
-    display_name: string;
-  } | null;
-}
-
 interface DirectMessageListProps {
   userId: string;  // Actually the wallet address (kept for compatibility)
   onSelectDm: (dmId: string, townsDmId: string, otherUserName?: string) => void;
@@ -46,27 +33,13 @@ export function DirectMessageList({
   // Check if user is a contributor (required for DM access)
   const { isContributor, loading: permissionsLoading } = useContributorPermissions(userId);
   
-  // ✅ CORRECT: Use Towns SDK's useUserDms hook
-  const { data: townsDms, isLoading, error: dmsError } = useUserDms();
+  // ✅ FIXED: Use correct return value from useUserDms
+  const { streamIds, isLoading, error: dmsError } = useUserDms();
   const { createDM, isPending: isCreatingDm } = useCreateDm();
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
-  
-  // Transform Towns DM data to match component's expected format
-  const dms: DmConversation[] = (townsDms || []).map((dm: any) => ({
-    id: dm.id,
-    towns_dm_id: dm.id,
-    created_at: dm.createdAt || new Date().toISOString(),
-    last_message_at: dm.lastMessageAt || dm.createdAt || new Date().toISOString(),
-    other_user: {
-      id: dm.otherUserId || '',
-      wallet_address: dm.otherUserId || '',
-      role: 'contributor',
-      display_name: dm.otherUserName || 'Unknown',
-    },
-  }));
 
   const handleCreateDm = async () => {
     // Extra safety check - should never reach here for non-contributors
@@ -98,27 +71,14 @@ export function DirectMessageList({
       
       const errorMessage = error.message || String(error);
       
-      // ✅ Handle "stream already exists" - find and open existing DM
+      // ✅ Handle "stream already exists" - DM exists, need to sync and find it
       if (errorMessage.includes('already exists')) {
-        // Search for existing DM with this recipient
-        const existingDm = dms.find(
-          dm => dm.other_user?.wallet_address?.toLowerCase() === newDmAddress.trim().toLowerCase()
-        );
+        setCreateError('✅ DM already exists! Syncing... Refreshing in 3 seconds.');
         
-        if (existingDm) {
-          // Found it! Open the existing DM immediately
-          console.log('✅ Found existing DM, opening it:', existingDm.id);
-          onSelectDm(existingDm.id, existingDm.towns_dm_id, existingDm.other_user?.display_name);
-          setShowNewDmModal(false);
-          setNewDmAddress('');
-          return;
-        }
-        
-        // DM exists but not synced yet - need to refresh
-        setCreateError('✅ DM exists but not synced. Refreshing in 5 seconds...');
+        // Wait for sync, then refresh to show the DM
         setTimeout(() => {
           window.location.reload();
-        }, 5000);
+        }, 3000);
         return;
       }
       
@@ -228,7 +188,7 @@ export function DirectMessageList({
     );
   }
 
-  if (dms.length === 0) {
+  if (!streamIds || streamIds.length === 0) {
     return (
       <div className="p-4">
         <button
@@ -271,37 +231,13 @@ export function DirectMessageList({
       </div>
 
       <div className="space-y-1">
-        {dms.map((dm) => (
-          <button
-            key={dm.id}
-            onClick={() => onSelectDm(dm.id, dm.towns_dm_id, dm.other_user?.display_name)}
-            className={`
-              w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
-              ${selectedDmId === dm.id ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
-            `}
-          >
-            <div className="flex items-center gap-3">
-              {/* Avatar placeholder */}
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-                {dm.other_user?.display_name.slice(0, 2).toUpperCase() || '??'}
-              </div>
-
-              {/* User info */}
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">
-                  {dm.other_user?.display_name || 'Unknown User'}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {dm.other_user?.role === 'contributor' && '✓ Contributor'}
-                </div>
-              </div>
-
-              {/* Timestamp */}
-              <div className="text-xs text-gray-400">
-                {formatTimestamp(dm.last_message_at)}
-              </div>
-            </div>
-          </button>
+        {streamIds.map((streamId) => (
+          <DmListItem
+            key={streamId}
+            streamId={streamId}
+            onSelect={onSelectDm}
+            isSelected={selectedDmId === streamId}
+          />
         ))}
       </div>
 
@@ -311,18 +247,49 @@ export function DirectMessageList({
   );
 }
 
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+// ✅ NEW: Separate component for each DM item
+function DmListItem({ 
+  streamId, 
+  onSelect, 
+  isSelected 
+}: { 
+  streamId: string; 
+  onSelect: (dmId: string, townsDmId: string, otherUserName?: string) => void;
+  isSelected: boolean;
+}) {
+  // For now, show streamId as the display name
+  // TODO: Use useDm and useMemberList to get proper user info
+  const displayName = `DM ${streamId.slice(0, 8)}...`;
   
-  return date.toLocaleDateString();
+  return (
+    <button
+      onClick={() => onSelect(streamId, streamId, displayName)}
+      className={`
+        w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
+        ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
+      `}
+    >
+      <div className="flex items-center gap-3">
+        {/* Avatar placeholder */}
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+          DM
+        </div>
+
+        {/* User info */}
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate">
+            {displayName}
+          </div>
+          <div className="text-xs text-gray-500">
+            ✓ Contributor
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <div className="text-xs text-gray-400">
+          now
+        </div>
+      </div>
+    </button>
+  );
 }
