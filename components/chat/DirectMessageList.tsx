@@ -48,7 +48,7 @@ export function DirectMessageList({
   
   // ✅ CORRECT: Use Towns SDK's useUserDms hook
   const { data: townsDms, isLoading, error: dmsError } = useUserDms();
-  const { createDm, isPending: isCreatingDm } = useCreateDm();
+  const { createDM, isPending: isCreatingDm } = useCreateDm(); // ✅ FIXED: Capital DM
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
@@ -83,11 +83,13 @@ export function DirectMessageList({
     setCreateError(null);
     
     try {
-      const result = await createDm({ recipientAddress: newDmAddress.trim() });
+      // ✅ FIXED: Call createDM with userId string directly, not an object
+      const result = await createDM(newDmAddress.trim());
       
-      if (result?.id) {
+      // ✅ FIXED: Use streamId from result
+      if (result?.streamId) {
         // DM created successfully, select it
-        onSelectDm(result.id, result.id);
+        onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
       }
