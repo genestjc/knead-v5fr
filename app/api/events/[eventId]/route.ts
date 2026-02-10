@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { createClient } from '@supabase/supabase-js';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // ============================================
 // PATCH - Update event status
 // ============================================
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { eventId: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { eventId } = params;
+    const { id: eventId } = await context.params;
+    
+    if (!eventId || eventId === 'undefined' || eventId === 'null') {
+      console.error('[PATCH /api/admin/events] Invalid eventId:', eventId);
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Invalid event ID' },
+        { status: 400 }
+      );
+    }
+    
     const body = await req.json();
     const { adminAddress, status } = body;
 
@@ -34,7 +44,17 @@ export async function PATCH(
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // ✅ CREATE FRESH CLIENT
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
     const { error } = await supabase
       .from('chat_events')
@@ -54,9 +74,20 @@ export async function PATCH(
 
     console.log('[PATCH /api/admin/events] Event updated successfully');
 
-    return NextResponse.json<ApiResponse<null>>({
+    // ✅ NEW: Return permission update instructions for client
+    const needsPermissionUpdate = status === 'live' || status === 'ended';
+
+    return NextResponse.json<ApiResponse<any>>({
       success: true,
       message: 'Event status updated',
+      needsPermissionUpdate,
+      roleUpdate: needsPermissionUpdate ? {
+        spaceId: process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID,
+        roleId: parseInt(process.env.TOWNS_PARTICIPANT_ROLE_ID || '0'),
+        permissions: status === 'live' 
+          ? ['Read', 'Write', 'React'] // Grant messaging during event
+          : ['Read'] // View-only when ended
+      } : undefined
     });
   } catch (error) {
     console.error('[PATCH /api/admin/events] Exception:', error);
@@ -72,10 +103,19 @@ export async function PATCH(
 // ============================================
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { eventId: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { eventId } = params;
+    const { id: eventId } = await context.params;
+    
+    if (!eventId || eventId === 'undefined' || eventId === 'null') {
+      console.error('[DELETE /api/admin/events] Invalid eventId:', eventId);
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Invalid event ID' },
+        { status: 400 }
+      );
+    }
+    
     const { searchParams } = new URL(req.url);
     const adminAddress = searchParams.get('adminAddress');
 
@@ -97,21 +137,26 @@ export async function DELETE(
       );
     }
 
-    const supabase = createSupabaseAdmin();
+    // ✅ CREATE FRESH CLIENT
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
 
     // Get event to delete Daily.co room if exists
-    const { data: event, error: fetchError } = await supabase
+    const { data: event } = await supabase
       .from('chat_events')
       .select('daily_room_name, video_enabled')
       .eq('id', eventId)
       .single();
 
-    if (fetchError) {
-      console.error('[DELETE /api/admin/events] Error fetching event:', fetchError);
-      // Continue with deletion even if fetch fails
-    }
-
-    // Delete Daily.co room if exists and API key is configured
+    // Delete Daily.co room if exists
     if (event?.daily_room_name && event?.video_enabled && process.env.DAILY_API_KEY) {
       try {
         console.log('[DELETE /api/admin/events] Deleting Daily.co room:', event.daily_room_name);
@@ -124,13 +169,12 @@ export async function DELETE(
         });
 
         if (dailyResponse.ok) {
-          console.log('[DELETE /api/admin/events] Daily.co room deleted successfully');
+          console.log('[DELETE /api/admin/events] Daily.co room deleted');
         } else {
-          console.error('[DELETE /api/admin/events] Failed to delete Daily.co room:', await dailyResponse.text());
+          console.error('[DELETE /api/admin/events] Failed to delete Daily.co room');
         }
       } catch (dailyError) {
         console.error('[DELETE /api/admin/events] Error deleting Daily.co room:', dailyError);
-        // Continue with event deletion even if Daily room deletion fails
       }
     }
 
