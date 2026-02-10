@@ -33,10 +33,17 @@ interface DmConversation {
 }
 
 interface DirectMessageListProps {
-  userId: string;
+  userId: string;  // Actually the wallet address (kept for compatibility)
   onSelectDm: (dmId: string, townsDmId: string, otherUserName?: string) => void;
   selectedDmId?: string;
 }
+export function DirectMessageList({ 
+  userId,  // ✅ This is actually activeAccount.address (wallet address)
+  onSelectDm, 
+  selectedDmId 
+}: DirectMessageListProps) {
+  // ✅ This should work because userId IS the wallet address
+  const { isContributor, loading: permissionsLoading } = useContributorPermissions(userId);
 
 export function DirectMessageList({ 
   userId, 
