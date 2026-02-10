@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
+import { useAdminRedact } from '@towns-protocol/react-sdk'; // ✅ ADD THIS
 
 interface AdminContextMenuProps {
   message: {
@@ -33,6 +34,9 @@ export function AdminContextMenu({
 }: AdminContextMenuProps) {
   const activeAccount = useActiveAccount();
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // ✅ Use Towns Protocol hook for message deletion
+  const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
 
   // Close on click outside
   useEffect(() => {
@@ -85,38 +89,22 @@ export function AdminContextMenu({
     }
   };
 
+  // ✅ NEW: Use Towns Protocol hook to delete message
   const handleDeleteMessage = async () => {
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
-    setIsProcessing(true);
     try {
-      const response = await fetch('/api/admin/chat/delete-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminAddress: activeAccount?.address,
-          messageId: message.id,
-          channelId: channelId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast.success('Message deleted from Towns Protocol');
-        onClose();
-      } else {
-        toast.error(data.error || 'Failed to delete message');
-      }
+      await adminRedact({ eventId: message.id });
+      toast.success('Message deleted from Towns Protocol');
+      onClose();
     } catch (error: any) {
+      console.error('Failed to delete message:', error);
       toast.error(error.message || 'Failed to delete message');
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const handleBanUser = async () => {
-    if (!confirm(`Ban ${message.sender.name}? They will be banned from Towns Protocol.`)) return;
+    if (!confirm(`Ban ${message.sender.name}? They will be banned from the chat.`)) return;
 
     setIsProcessing(true);
     try {
@@ -134,7 +122,7 @@ export function AdminContextMenu({
       const data = await response.json();
 
       if (data.success) {
-        toast.success(`${message.sender.name} has been banned from Towns Protocol`);
+        toast.success(`${message.sender.name} has been banned`);
         onClose();
       } else {
         toast.error(data.error || 'Failed to ban user');
@@ -197,7 +185,7 @@ export function AdminContextMenu({
         <div className="py-1">
           <button
             onClick={handleDeleteMessage}
-            disabled={isProcessing}
+            disabled={isProcessing || isRedacting}
             className="w-full px-3 py-2 text-left text-sm font-georgia-pro hover:bg-yellow-50 transition disabled:opacity-50 flex items-center gap-2"
           >
             <span>🗑️</span>
@@ -215,7 +203,7 @@ export function AdminContextMenu({
         </div>
 
         {/* Processing indicator */}
-        {isProcessing && (
+        {(isProcessing || isRedacting) && (
           <div className="px-3 py-2 bg-gray-50 border-t border-gray-200">
             <p className="text-xs font-georgia-pro text-gray-600 flex items-center gap-2">
               <span className="animate-spin">⏳</span>
