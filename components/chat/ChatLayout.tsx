@@ -4,6 +4,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
+import { DirectMessageList } from './DirectMessageList';
+import { DirectMessageInterface } from './DirectMessageInterface';
+import { useActiveAccount } from 'thirdweb/react';
+import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 
 interface MenuItem {
   icon: string;
@@ -20,7 +24,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
-  // ✅ REMOVED: showExportInstructions state (no longer needed)
+  const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string } | null>(null);
+  
+  const activeAccount = useActiveAccount();
+  const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
   
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
@@ -58,11 +65,23 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             </motion.h1>
           </motion.div>
 
-          {/* ✅ UPDATED: Removed onExportClick prop */}
-          <WalletSummary 
-            context="chat"
-            onExternalWalletExport={() => setShowExternalWalletMessage(true)}
-          />
+          <div className="flex items-center gap-3">
+            {/* Paper Plane Icon for DMs (Contributors Only) */}
+            {isContributor && (
+              <button
+                onClick={() => setDmsOpen(true)}
+                className="text-2xl hover:scale-110 transition-transform"
+                title="Direct Messages"
+              >
+                ✈️
+              </button>
+            )}
+
+            <WalletSummary 
+              context="chat"
+              onExternalWalletExport={() => setShowExternalWalletMessage(true)}
+            />
+          </div>
         </div>
 
         <AnimatePresence>
@@ -108,21 +127,60 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-xl z-40"
+            className="fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-xl z-40 overflow-hidden"
           >
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-adonis text-xl">Direct Messages</h2>
-                <button
-                  onClick={() => setDmsOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
+            <div className="h-full flex flex-col">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-adonis text-xl">Direct Messages</h2>
+                  <button
+                    onClick={() => {
+                      setDmsOpen(false);
+                      setSelectedDm(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <p className="font-georgia-pro text-sm text-gray-500">
-                Coming soon...
-              </p>
+              
+              <div className="flex-1 overflow-auto">
+                {!isContributor ? (
+                  <div className="p-4">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-sm text-gray-700">
+                        🔒 Direct messages are only available to contributors.
+                      </p>
+                    </div>
+                  </div>
+                ) : selectedDm ? (
+                  <div className="h-full flex flex-col">
+                    <div className="p-3 bg-gray-50 border-b border-gray-200">
+                      <button
+                        onClick={() => setSelectedDm(null)}
+                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                      >
+                        ← Back to DMs
+                      </button>
+                    </div>
+                    <DirectMessageInterface
+                      dmId={selectedDm.dmId}
+                      townsDmId={selectedDm.townsDmId}
+                      currentUserId={activeAccount?.address || ''}
+                      otherUserName={selectedDm.otherUserName}
+                    />
+                  </div>
+                ) : (
+                  <DirectMessageList
+                    userId={activeAccount?.address || ''}
+                    onSelectDm={(dmId, townsDmId, otherUserName = 'User') => 
+                      setSelectedDm({ dmId, townsDmId, otherUserName })
+                    }
+                    selectedDmId={selectedDm?.dmId}
+                  />
+                )}
+              </div>
             </div>
           </motion.div>
         )}

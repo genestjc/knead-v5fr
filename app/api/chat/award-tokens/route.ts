@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isContributor } from '@/lib/blockchain/contributor-nft';
+import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
 import { getUserTownsBalance } from '@/lib/blockchain/towns-utils';
 
 export const dynamic = 'force-dynamic';
@@ -7,17 +8,16 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/chat/award-tokens
  * 
- * Validate token award request before executing on client side.
- * Actual token transfer is signed and executed by the contributor's wallet.
+ * Award tokens via Engine wallet (no user signature required).
  * 
  * This endpoint:
  * 1. Verifies contributor has NFT permission
- * 2. Checks contributor has sufficient $TOWNS balance
- * 3. Returns validation result
+ * 2. Awards tokens via Engine wallet
+ * 3. Returns transaction hash
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contributorAddress, participantAddress, amount, actionType, eventId } = await req.json();
+    const { contributorAddress, participantAddress, amount, actionType } = await req.json();
 
     // Validate inputs
     if (!contributorAddress || !participantAddress || !amount) {
@@ -46,28 +46,24 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    // 2. Check contributor has sufficient balance
-    const contributorBalance = await getUserTownsBalance(contributorAddress);
-    if (contributorBalance < amountNum) {
-      return NextResponse.json({ 
-        error: `Insufficient $TOWNS balance. You have ${contributorBalance.toFixed(2)} $TOWNS, but tried to award ${amountNum.toFixed(2)} $TOWNS.` 
-      }, { status: 400 });
-    }
+    // 2. Award tokens via Engine wallet (no user signature required)
+    const result = await awardTownsViaEngine(
+      participantAddress,
+      amountNum,
+      actionType || 'message_like'
+    );
 
-    // Validation successful - return success
-    // Actual token transfer happens client-side with wallet signature
     return NextResponse.json({
       success: true,
-      validated: true,
-      contributorBalance,
+      transactionHash: result.transactionHash,
       amount: amountNum,
-      message: 'Validation successful. Please sign the transaction in your wallet to award tokens.',
+      message: 'Tokens awarded successfully! 25% contributed to the weekly pool for all contributors.',
     });
 
   } catch (error: any) {
-    console.error('Token award validation error:', error);
+    console.error('Token award error:', error);
     return NextResponse.json({ 
-      error: error.message || 'Internal server error.' 
+      error: error.message || 'Failed to award tokens.' 
     }, { status: 500 });
   }
 }
