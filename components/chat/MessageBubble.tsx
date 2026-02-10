@@ -27,6 +27,8 @@ interface MessageBubbleProps {
   canAwardTokens?: boolean;
   isAdmin?: boolean;
   eventId?: number;
+  channelId?: string;  // ✅ ADD THIS
+  spaceId?: string;    // ✅ ADD THIS
 }
 
 export function MessageBubble({ 
@@ -35,7 +37,9 @@ export function MessageBubble({
   streamId, 
   canAwardTokens,
   isAdmin = false,
-  eventId
+  eventId,
+  channelId,   // ✅ ADD THIS
+  spaceId      // ✅ ADD THIS
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -159,15 +163,17 @@ export function MessageBubble({
         </div>
       </motion.div>
 
-      {/* ✅ Admin Context Menu */}
-      {showContextMenu && isAdmin && eventId && (
-        <AdminContextMenu
-          message={message}
-          eventId={eventId}
-          position={contextMenuPosition}
-          onClose={() => setShowContextMenu(false)}
-        />
-      )}
+     {/* ✅ Admin Context Menu */}
+{showContextMenu && isAdmin && eventId && channelId && spaceId && (
+  <AdminContextMenu
+    message={message}
+    eventId={eventId}
+    channelId={channelId}  // ✅ ADD THIS
+    spaceId={spaceId}      // ✅ ADD THIS
+    position={contextMenuPosition}
+    onClose={() => setShowContextMenu(false)}
+  />
+)}
     </>
   );
 }
