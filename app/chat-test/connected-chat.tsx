@@ -506,7 +506,7 @@ useEffect(() => {
 
               {/* ✅ Removed FreemiumBanner from here - it's now at bottom */}
 
-              {activeEvent && userRole === 'participant' && permissions?.canPost && (
+              {permissions?.canPost && userRole === 'participant' && (
                 <div className="bg-green-50 border-b border-green-200 px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="text-green-600">🎙️</span>

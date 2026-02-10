@@ -5,7 +5,7 @@ export function useChatPermissions(userAddress: string | null) {
   const [permissions, setPermissions] = useState<SimpleChatPermissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldPollRef = useRef<boolean>(false);
 
   useEffect(() => {
     async function fetchPermissions() {
@@ -25,15 +25,9 @@ export function useChatPermissions(userAddress: string | null) {
         if (data.success && data.data) {
           setPermissions(data.data);
           
-          // Set up polling only for participants and freemium users
+          // Determine if we should poll based on role
           // Contributors don't need polling since they always have access
-          if (data.data.role !== 'contributor' && !pollingIntervalRef.current) {
-            pollingIntervalRef.current = setInterval(fetchPermissions, 30000);
-          } else if (data.data.role === 'contributor' && pollingIntervalRef.current) {
-            // Stop polling if user is a contributor
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
+          shouldPollRef.current = data.data.role !== 'contributor';
         } else {
           setError(data.error || 'Failed to fetch permissions');
         }
@@ -45,13 +39,18 @@ export function useChatPermissions(userAddress: string | null) {
       }
     }
 
+    // Initial fetch
     fetchPermissions();
     
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+    // Set up polling interval (only polls if shouldPollRef is true)
+    const interval = setInterval(() => {
+      if (shouldPollRef.current) {
+        fetchPermissions();
       }
+    }, 30000);
+    
+    return () => {
+      clearInterval(interval);
     };
   }, [userAddress]);
 
