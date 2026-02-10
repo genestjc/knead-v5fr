@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { getContract, prepareContractCall, sendTransaction } from 'thirdweb';
+import { base } from 'thirdweb/chains';
+import { useActiveAccount } from 'thirdweb/react';
+import { client as thirdwebClient } from '@/thirdweb-client';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -17,11 +21,15 @@ interface User {
 }
 
 export function EventsManager({ adminAddress }: EventsManagerProps) {
+  // ✅ Get connected wallet account for signing transactions
+  const account = useActiveAccount();
+  
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
+  const [isProcessingNFTs, setIsProcessingNFTs] = useState(false);
 
   // Guest management
   const [guestSearchTerm, setGuestSearchTerm] = useState('');
@@ -46,7 +54,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchEvents();
 
     // ✅ REAL-TIME SUBSCRIPTION
-    
     const supabase = createSupabaseClient();    
     console.log('🔄 [EventsManager] Setting up real-time subscription...');
     
@@ -55,7 +62,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'chat_events',
         },
@@ -63,15 +70,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           console.log('🔄 [EventsManager] Real-time event change:', payload.eventType, payload);
           
           if (payload.eventType === 'INSERT') {
-            // ✅ New event created - refetch to get full data with relations
             console.log('➕ New event inserted, refetching...');
             fetchEvents();
           } else if (payload.eventType === 'UPDATE') {
-            // ✅ Event updated (e.g., status change: scheduled → live)
             console.log('🔄 Event updated, refetching...');
             fetchEvents();
           } else if (payload.eventType === 'DELETE') {
-            // ✅ Event deleted - remove from list
             console.log('🗑️ Event deleted:', payload.old.id);
             setEvents((prev) => prev.filter((event) => event.id !== payload.old.id));
           }
@@ -81,7 +85,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         console.log('📡 [EventsManager] Subscription status:', status);
       });
 
-    // ✅ Cleanup on unmount
     return () => {
       console.log('🧹 [EventsManager] Cleaning up real-time subscription');
       supabase.removeChannel(channel);
@@ -105,39 +108,38 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const fetchEvents = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    
-    // ✅ ADD TIMESTAMP CACHE BUSTER
-    const timestamp = Date.now();
-    const response = await fetch(
-      `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
-      {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-        },
-      }
-    );
-    
-    const data = await response.json();
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const timestamp = Date.now();
+      const response = await fetch(
+        `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        }
+      );
+      
+      const data = await response.json();
 
-    if (data.success) {
-      console.log('✅ [EventsManager] Fetched events:', data.data.length);
-      console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
-      setEvents(data.data);
-    } else {
-      setError(data.error || 'Failed to fetch events');
+      if (data.success) {
+        console.log('✅ [EventsManager] Fetched events:', data.data.length);
+        console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
+        setEvents(data.data);
+      } else {
+        setError(data.error || 'Failed to fetch events');
+      }
+    } catch (err) {
+      setError('Error fetching events');
+      console.error('[EventsManager] Fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError('Error fetching events');
-    console.error('[EventsManager] Fetch error:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const searchUsers = async (searchTerm: string) => {
     if (searchTerm.length < 2) {
@@ -211,8 +213,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         console.log('✅ Event created successfully!');
         setShowCreateModal(false);
         resetForm();
-        // ✅ Real-time will handle the update, but we can also manually trigger
-        // fetchEvents(); // Optional: real-time should handle this
         alert('Event created successfully!');
       } else {
         setError(data.error || 'Failed to create event');
@@ -239,8 +239,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     setGuestSearchResults([]);
   };
 
+  // ✅ UPDATED: Handle Event Pass NFTs when starting/ending events
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     try {
+      // Step 1: Update database
       const response = await fetch(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -254,14 +256,155 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
       if (data.success) {
         console.log(`✅ Event status updated to: ${newStatus}`);
-        // ✅ Real-time will handle the update
-        // fetchEvents(); // Optional: real-time should handle this
+        
+        // Step 2: Mint or burn Event Passes on-chain
+        if (newStatus === 'live' || newStatus === 'ended') {
+          await handleEventPassNFTs(eventId, newStatus);
+        }
       } else {
         setError(data.error || 'Failed to update event');
       }
     } catch (err) {
       setError('Error updating event');
       console.error(err);
+    }
+  };
+
+  // ✅ NEW: Handle Event Pass NFT minting/burning for students/participants
+  const handleEventPassNFTs = async (eventId: string, status: string) => {
+    if (isProcessingNFTs) {
+      alert('Already processing NFTs. Please wait...');
+      return;
+    }
+
+    try {
+      setIsProcessingNFTs(true);
+      
+      console.log('🎫 Managing Event Pass NFTs for status:', status);
+      
+      // Check if admin wallet is connected
+      if (!account) {
+        alert('❌ Please connect your admin wallet first!\n\nYou need to sign the transaction to mint/burn Event Passes.');
+        return;
+      }
+      
+      // Prompt for student/participant addresses
+      const instruction = status === 'live' 
+        ? '🎓 Enter STUDENT wallet addresses (who will participate in TEXT CHAT):\n\nThese should be users with Knead Monthly Pass.\nThey will receive Event Pass NFTs to send messages during the event.'
+        : '🔥 Enter the SAME student addresses to BURN their Event Passes:\n\nThis will revoke their ability to send messages.';
+      
+      const participantAddressesInput = prompt(
+        `${instruction}\n\nFormat (comma-separated):\n0x123...,0x456...,0x789...`
+      );
+      
+      if (!participantAddressesInput) {
+        alert('❌ No addresses entered.\n\nEvent status was updated, but no NFTs were minted/burned.\n\nYou can manually mint/burn later if needed.');
+        setIsProcessingNFTs(false);
+        return;
+      }
+      
+      const participantAddresses = participantAddressesInput
+        .split(',')
+        .map(addr => addr.trim())
+        .filter(addr => addr.startsWith('0x'));
+      
+      if (participantAddresses.length === 0) {
+        alert('❌ No valid Ethereum addresses found.\n\nPlease use format: 0x123...,0x456...');
+        setIsProcessingNFTs(false);
+        return;
+      }
+
+      console.log(`📋 Processing ${participantAddresses.length} student addresses...`);
+
+      // Get Event Pass contract
+      const eventPassContract = getContract({
+        client: thirdwebClient,
+        chain: base,
+        address: process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT!,
+      });
+
+      if (status === 'live') {
+        // ✅ Mint Event Passes to students
+        console.log(`🎫 Minting Event Passes to ${participantAddresses.length} students...`);
+        
+        const transaction = prepareContractCall({
+          contract: eventPassContract,
+          method: "function batchMintPasses(address[] memory recipients, string memory eventId)",
+          params: [participantAddresses, eventId],
+        });
+
+        const confirmation = confirm(
+          `⏳ Ready to mint ${participantAddresses.length} Event Passes?\n\n` +
+          `Students will be able to:\n` +
+          `✅ Send messages in chat\n` +
+          `✅ React to messages\n` +
+          `✅ Participate in discussion\n\n` +
+          `You (host) and guests will join via video.\n\n` +
+          `Click OK to sign the transaction.`
+        );
+        
+        if (!confirmation) {
+          setIsProcessingNFTs(false);
+          return;
+        }
+        
+        const txResult = await sendTransaction({
+          transaction,
+          account,
+        });
+        
+        console.log(`✅ Event Passes minted! Tx: ${txResult.transactionHash}`);
+        alert(
+          `✅ Event Started!\n\n` +
+          `🎫 ${participantAddresses.length} Event Passes minted!\n\n` +
+          `Students can now send messages in chat.\n\n` +
+          `📹 You and your guests can join the video room.\n\n` +
+          `Tx: ${txResult.transactionHash.slice(0, 10)}...`
+        );
+        
+      } else if (status === 'ended') {
+        // ✅ Burn Event Passes from students
+        console.log(`🔥 Burning Event Passes from ${participantAddresses.length} students...`);
+        
+        const transaction = prepareContractCall({
+          contract: eventPassContract,
+          method: "function batchBurnPasses(address[] memory holders)",
+          params: [participantAddresses],
+        });
+
+        const confirmation = confirm(
+          `⏳ Ready to burn ${participantAddresses.length} Event Passes?\n\n` +
+          `Students will lose:\n` +
+          `❌ Ability to send messages\n` +
+          `✅ They can still view chat history\n\n` +
+          `Click OK to sign the transaction.`
+        );
+        
+        if (!confirmation) {
+          setIsProcessingNFTs(false);
+          return;
+        }
+        
+        const txResult = await sendTransaction({
+          transaction,
+          account,
+        });
+        
+        console.log(`✅ Event Passes burned! Tx: ${txResult.transactionHash}`);
+        alert(
+          `✅ Event Ended!\n\n` +
+          `🔥 ${participantAddresses.length} Event Passes burned!\n\n` +
+          `Students can no longer send messages.\n` +
+          `They can still view the chat history.\n\n` +
+          `Tx: ${txResult.transactionHash.slice(0, 10)}...`
+        );
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Error managing Event Pass NFTs:', err);
+      alert(`❌ Failed to manage Event Passes:\n\n${err.message || 'Unknown error'}\n\nPlease check console for details.`);
+    } finally {
+      setIsProcessingNFTs(false);
     }
   };
 
@@ -277,8 +420,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
       if (data.success) {
         console.log('✅ Event deleted');
-        // ✅ Real-time will handle the removal
-        // fetchEvents(); // Optional: real-time should handle this
       } else {
         setError(data.error || 'Failed to delete event');
       }
@@ -320,6 +461,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           <p className="font-georgia-pro text-sm text-gray-600">
             Manage live events and video streaming • <span className="text-green-600">● Real-time updates enabled</span>
           </p>
+          {!account && (
+            <p className="font-georgia-pro text-xs text-orange-600 mt-1">
+              ⚠️ Connect your wallet to mint/burn Event Pass NFTs
+            </p>
+          )}
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -390,11 +536,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
               {event.guests && event.guests.length > 0 && (
                 <div className="mb-4">
-                  <span className="font-georgia-pro text-sm text-gray-500">Guests:</span>
+                  <span className="font-georgia-pro text-sm text-gray-500">Video Guests (join Daily.co room):</span>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {event.guests.map((guest: any) => (
                       <span key={guest.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-georgia-pro">
-                        {guest.alias || guest.displayName || guest.address.slice(0, 8)}
+                        📹 {guest.alias || guest.displayName || guest.address.slice(0, 8)}
                       </span>
                     ))}
                   </div>
@@ -403,7 +549,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
               {event.dailyRoomUrl && (
                 <div className="mb-4 p-3 bg-purple-50 rounded">
-                  <p className="font-georgia-pro text-xs text-gray-600 mb-1">Daily.co Room:</p>
+                  <p className="font-georgia-pro text-xs text-gray-600 mb-1">📹 Video Room (Host + Guests only):</p>
                   <a
                     href={event.dailyRoomUrl}
                     target="_blank"
@@ -419,22 +565,25 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 {event.status === 'scheduled' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'live')}
-                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition"
+                    disabled={isProcessingNFTs}
+                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    🔴 Start Event
+                    {isProcessingNFTs ? '⏳ Processing...' : '🔴 Start Event & Mint Passes'}
                   </button>
                 )}
                 {event.status === 'live' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'ended')}
-                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition"
+                    disabled={isProcessingNFTs}
+                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    End Event
+                    {isProcessingNFTs ? '⏳ Processing...' : '⏹️ End Event & Burn Passes'}
                   </button>
                 )}
                 <button
                   onClick={() => handleDeleteEvent(event.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition"
+                  disabled={isProcessingNFTs}
+                  className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -458,7 +607,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
-                  placeholder="e.g., Interview with Jane Doe"
+                  placeholder="e.g., Interview with Bill Norris"
                   required
                 />
               </div>
@@ -526,13 +675,16 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               </div>
 
               <div>
-                <label className="block font-georgia-pro text-sm mb-2">Guests (Optional)</label>
+                <label className="block font-georgia-pro text-sm mb-2">
+                  Video Guests (Optional) 
+                  <span className="text-xs text-gray-500 ml-2">- These people will join you in the Daily.co video room</span>
+                </label>
                 
                 {selectedGuests.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
                     {selectedGuests.map(guest => (
                       <div key={guest.id} className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                        <span className="font-georgia-pro">{guest.alias || guest.displayName || guest.address.slice(0, 8)}</span>
+                        <span className="font-georgia-pro">📹 {guest.alias || guest.displayName || guest.address.slice(0, 8)}</span>
                         <button
                           type="button"
                           onClick={() => removeGuest(guest.id)}
@@ -554,7 +706,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                       searchUsers(e.target.value);
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
-                    placeholder="Search by name or address..."
+                    placeholder="Search by name or address... (e.g., Bill Norris)"
                   />
                   
                   {guestSearchResults.length > 0 && (
@@ -603,7 +755,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 {formData.videoEnabled && (
                   <div className="mt-3 p-3 bg-purple-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-purple-800">
-                      💡 Daily.co room will be created automatically for video/audio streaming.
+                      💡 Daily.co room will be created for you and your video guests. Students will participate via text chat with Event Pass NFTs.
                     </p>
                   </div>
                 )}
