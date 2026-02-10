@@ -48,6 +48,22 @@ export function MessageBubble({ message, isOwn, streamId, canAwardTokens }: Mess
     });
   };
 
+  // ✅ Handle like button click
+  const handleLike = async () => {
+    console.log('❤️ Like button clicked for message:', {
+      messageId: message.id,
+      senderId: message.sender.id,
+      senderName: message.sender.name,
+    });
+
+    await awardTokensOnLike(
+      message.id,          // messageId
+      message.sender.id,   // recipientAddress (wallet address)
+      8,                   // ✅ amount as NUMBER (not string)
+      '❤️'                // reaction emoji
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -89,17 +105,18 @@ export function MessageBubble({ message, isOwn, streamId, canAwardTokens }: Mess
           </span>
         </div>
 
-        {/* Like button for contributors */}
+        {/* ✅ Like button for contributors only (not own messages) */}
         {!isOwn && canAwardTokens && streamId && (
           <button
-            onClick={() => awardTokensOnLike(message.id, message.sender.id, '8', '❤️')}
+            onClick={handleLike}
             disabled={isReacting}
             className="mt-2 px-3 py-1 text-xs rounded-full bg-white border border-gray-300 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            aria-label="Tip 8 TOWNS"
           >
             {isReacting ? (
               <>⏳ Sending...</>
             ) : (
-              <>🤍 Like (8 $TOWNS)</>
+              <>❤️ Tip 8 $TOWNS</>
             )}
           </button>
         )}
