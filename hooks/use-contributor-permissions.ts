@@ -15,6 +15,7 @@ interface ContributorPermissions {
   isContributor: boolean;
   canAwardTokens: boolean;
   canModerate: boolean;
+  canCreateDM: (recipientAddress: string) => Promise<boolean>;
   loading: boolean;
 }
 
@@ -65,11 +66,36 @@ export function useContributorPermissions(address: string | null | undefined): C
   const canAwardTokens = isContributor;
   const canModerate = isContributor;
 
+  /**
+   * Check if user can create DM with recipient
+   * Both sender and recipient must be contributors
+   * 
+   * @param recipientAddress - Recipient's wallet address
+   * @returns True if both are contributors
+   */
+  const canCreateDM = async (recipientAddress: string): Promise<boolean> => {
+    if (!address) return false;
+
+    try {
+      // Both users must be contributors
+      const [senderRole, recipientRole] = await Promise.all([
+        getUserRole(address),
+        getUserRole(recipientAddress)
+      ]);
+
+      return senderRole.role === 'contributor' && recipientRole.role === 'contributor';
+    } catch (error) {
+      console.error('Error checking DM permissions:', error);
+      return false;
+    }
+  };
+
   return {
     role,
     isContributor,
     canAwardTokens,
     canModerate,
+    canCreateDM,
     loading,
   };
 }

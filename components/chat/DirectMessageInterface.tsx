@@ -118,6 +118,15 @@ export function DirectMessageInterface({
       {/* Input */}
       <div className="border-t p-4 bg-white">
         <div className="flex gap-2">
+          {/* TODO: IPFS Upload Feature - Enable after ThirdWeb IPFS setup */}
+          <button
+            disabled
+            title="File upload coming soon (ThirdWeb IPFS)"
+            className="px-3 py-2 text-gray-400 border border-gray-300 rounded-lg cursor-not-allowed opacity-50"
+          >
+            📎
+          </button>
+          
           <input
             type="text"
             value={messageInput}

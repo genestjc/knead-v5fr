@@ -7,11 +7,12 @@
  * - Shows other user's info
  * - Last message preview
  * - Click to open DM
- * - New message button (contributor-only)
+ * - New message button (contributor-only with DM permission check)
  */
 
 import { useEffect, useState } from 'react';
 import { useUserDms, useCreateDm } from '@towns-protocol/react-sdk';
+import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 
 interface DmConversation {
   id: string;
@@ -40,6 +41,7 @@ export function DirectMessageList({
   // ✅ CORRECT: Use Towns SDK's useUserDms hook
   const { data: townsDms, isLoading, error: dmsError } = useUserDms();
   const { createDm, isPending: isCreatingDm } = useCreateDm();
+  const { canCreateDM, isContributor } = useContributorPermissions(userId);
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
@@ -68,6 +70,14 @@ export function DirectMessageList({
     setCreateError(null);
     
     try {
+      // Check if both users have DM permissions
+      const canCreate = await canCreateDM(newDmAddress.trim());
+      
+      if (!canCreate) {
+        setCreateError('Only Contributors can send direct messages to each other.');
+        return;
+      }
+      
       const result = await createDm({ recipientAddress: newDmAddress.trim() });
       
       if (result?.id) {
@@ -152,17 +162,22 @@ export function DirectMessageList({
   if (dms.length === 0) {
     return (
       <div className="p-4">
-        <button
-          onClick={() => setShowNewDmModal(true)}
-          className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm mb-4"
-        >
-          + New Message
-        </button>
+        {isContributor && (
+          <button
+            onClick={() => setShowNewDmModal(true)}
+            className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm mb-4"
+          >
+            + New Message
+          </button>
+        )}
         
         <div className="text-sm text-gray-500">
           <p>No conversations yet.</p>
           <p className="mt-2 text-xs">
-            Contributors can start direct messages with each other.
+            {isContributor 
+              ? 'Contributors can start direct messages with each other.'
+              : 'Only Contributors can send direct messages.'
+            }
           </p>
         </div>
 
@@ -174,14 +189,16 @@ export function DirectMessageList({
 
   return (
     <div>
-      <div className="p-3 border-b border-gray-200">
-        <button
-          onClick={() => setShowNewDmModal(true)}
-          className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-        >
-          + New Message
-        </button>
-      </div>
+      {isContributor && (
+        <div className="p-3 border-b border-gray-200">
+          <button
+            onClick={() => setShowNewDmModal(true)}
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+          >
+            + New Message
+          </button>
+        </div>
+      )}
 
       <div className="space-y-1">
         {dms.map((dm) => (
