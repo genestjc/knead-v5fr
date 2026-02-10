@@ -5,13 +5,8 @@
  * 
  * Token Ownership Model:
  * - Freemium: Owns Token ID 0 ONLY (no Token ID 1, no Contributor NFT)
- * - Participant: Owns Token ID 0 + Token ID 1
+ * - Participant: Owns Token ID 0 + Token ID 1 OR has Event Pass
  * - Contributor: Owns Token ID 0 + Contributor NFT (Token ID 1, 2, or 3)
- * 
- * Contributor Token IDs (KneadContributors contract):
- * - Token ID 1: Appointed Contributor (0.8x multiplier)
- * - Token ID 2: Invited Contributor (1.0x multiplier)
- * - Token ID 3: Earned Contributor (1.5x multiplier)
  */
 
 import { getContract, readContract } from "thirdweb";
@@ -24,14 +19,13 @@ export interface UserRoleInfo {
   role: UserRole;
   hasKneadMonthly: boolean;
   hasContributor: boolean;
+  hasEventPass: boolean; // ✅ NEW
+  eventId?: string; // ✅ NEW
   contributorTokenId?: number; // 1, 2, or 3
 }
 
 /**
  * Check if user owns Knead Monthly subscription (Token ID 1)
- * 
- * @param address - User's wallet address
- * @returns True if user owns Token ID 1
  */
 export async function hasKneadMonthly(address: string): Promise<boolean> {
   try {
@@ -48,7 +42,6 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
       address: nftContractAddress,
     });
 
-    // Check ERC1155 balance for Token ID 1 (Knead Monthly)
     const balance = await readContract({
       contract,
       method: "function balanceOf(address account, uint256 id) view returns (uint256)",
@@ -64,9 +57,6 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
 
 /**
  * Check if user is a contributor (owns Token ID 1, 2, or 3)
- * 
- * @param address - User's wallet address
- * @returns Object with contributor status and token ID
  */
 export async function isContributor(address: string): Promise<{ 
   isContributor: boolean; 
@@ -86,7 +76,6 @@ export async function isContributor(address: string): Promise<{
       address: contributorContractAddress,
     });
 
-    // ✅ FIXED: Changed from [10, 11, 12] to [1, 2, 3]
     const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
     
     for (const tokenId of tokenIds) {
@@ -109,19 +98,68 @@ export async function isContributor(address: string): Promise<{
 }
 
 /**
+ * ✅ NEW: Check if user has an active Event Pass
+ */
+export async function hasEventPass(address: string): Promise<{
+  hasPass: boolean;
+  eventId?: string;
+}> {
+  try {
+    const eventPassContract = process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT;
+    
+    if (!eventPassContract) {
+      console.warn("NEXT_PUBLIC_EVENT_PASS_CONTRACT is not set");
+      return { hasPass: false };
+    }
+
+    const contract = getContract({
+      client: thirdwebClient,
+      chain: base,
+      address: eventPassContract,
+    });
+
+    // Check if user has active pass
+    const hasPass = await readContract({
+      contract,
+      method: "function hasActivePass(address user) view returns (bool)",
+      params: [address],
+    });
+
+    if (!hasPass) {
+      return { hasPass: false };
+    }
+
+    // Get event ID if they have a pass
+    try {
+      const eventId = await readContract({
+        contract,
+        method: "function getUserEventId(address user) view returns (string)",
+        params: [address],
+      });
+      
+      return { hasPass: true, eventId };
+    } catch (e) {
+      // User has pass but error getting event ID
+      return { hasPass: true };
+    }
+  } catch (error) {
+    console.error("Error checking Event Pass:", error);
+    return { hasPass: false };
+  }
+}
+
+/**
  * Get user's role based on NFT ownership
  * 
- * Priority: Contributor > Participant > Freemium
- * 
- * @param address - User's wallet address
- * @returns User role information
+ * Priority: Contributor > Participant (Monthly OR Event Pass) > Freemium
  */
 export async function getUserRole(address: string): Promise<UserRoleInfo> {
   try {
-    // Check both NFT types in parallel
-    const [hasMonthly, contributorCheck] = await Promise.all([
+    // Check all NFT types in parallel
+    const [hasMonthly, contributorCheck, eventPassCheck] = await Promise.all([
       hasKneadMonthly(address),
       isContributor(address),
+      hasEventPass(address), // ✅ NEW
     ]);
 
     // Determine role based on priority
@@ -129,7 +167,8 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
     
     if (contributorCheck.isContributor) {
       role = 'contributor';
-    } else if (hasMonthly) {
+    } else if (hasMonthly || eventPassCheck.hasPass) {
+      // ✅ Event Pass grants Participant role
       role = 'participant';
     }
 
@@ -137,25 +176,24 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
       role,
       hasKneadMonthly: hasMonthly,
       hasContributor: contributorCheck.isContributor,
+      hasEventPass: eventPassCheck.hasPass, // ✅ NEW
+      eventId: eventPassCheck.eventId, // ✅ NEW
       contributorTokenId: contributorCheck.tokenId,
     };
   } catch (error) {
     console.error("Error getting user role:", error);
     
-    // Fail-safe: return freemium role if we can't determine
     return {
       role: 'freemium',
       hasKneadMonthly: false,
       hasContributor: false,
+      hasEventPass: false,
     };
   }
 }
 
 /**
  * Get contributor type name from token ID
- * 
- * @param tokenId - Token ID (1, 2, or 3)
- * @returns Contributor type name
  */
 export function getContributorTypeName(tokenId?: number): string {
   switch (tokenId) {
