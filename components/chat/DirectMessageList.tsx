@@ -48,7 +48,7 @@ export function DirectMessageList({
   
   // ✅ CORRECT: Use Towns SDK's useUserDms hook
   const { data: townsDms, isLoading, error: dmsError } = useUserDms();
-  const { createDM, isPending: isCreatingDm } = useCreateDm(); // ✅ FIXED: Capital DM
+  const { createDM, isPending: isCreatingDm } = useCreateDm();
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
@@ -83,10 +83,10 @@ export function DirectMessageList({
     setCreateError(null);
     
     try {
-      // ✅ FIXED: Call createDM with userId string directly, not an object
+      // Call createDM with userId string directly
       const result = await createDM(newDmAddress.trim());
       
-      // ✅ FIXED: Use streamId from result
+      // Use streamId from result
       if (result?.streamId) {
         // DM created successfully, select it
         onSelectDm(result.streamId, result.streamId);
@@ -95,7 +95,35 @@ export function DirectMessageList({
       }
     } catch (error: any) {
       console.error('Failed to create DM:', error);
-      setCreateError(error.message || 'Failed to create DM. Please try again.');
+      
+      const errorMessage = error.message || String(error);
+      
+      // ✅ Handle "stream already exists" error
+      if (errorMessage.includes('already exists')) {
+        setCreateError('✅ DM already exists! Refreshing in 2 seconds...');
+        
+        // Wait 2 seconds, then refresh page to sync DMs
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        return;
+      }
+      
+      // ✅ Handle timeout/deadline errors
+      if (errorMessage.includes('timeout') || 
+          errorMessage.includes('deadline') || 
+          errorMessage.includes('context deadline exceeded')) {
+        setCreateError('⏱️ Network timeout. The DM may have been created. Refreshing in 3 seconds...');
+        
+        // Wait 3 seconds, then refresh page to check if DM was created
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+        return;
+      }
+      
+      // ✅ Generic error
+      setCreateError(errorMessage || 'Failed to create DM. Please try again.');
     }
   };
 
@@ -125,7 +153,11 @@ export function DirectMessageList({
         </div>
 
         {createError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+          <div className={`mb-4 p-3 border rounded-md text-sm ${
+            createError.includes('✅') || createError.includes('⏱️')
+              ? 'bg-blue-50 border-blue-200 text-blue-700'
+              : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
             {createError}
           </div>
         )}
