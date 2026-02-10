@@ -7,12 +7,11 @@
  * - Contributor: Full access, can message anytime (Contributor NFT holders)
  * 
  * Setup Requirements:
- * 1. Create Towns Space
- * 2. Set up TokenEntitlementModule roles:
+ * 1. Create Towns Space via SpaceFactory contract
+ * 2. Set up TokenEntitlementModule roles using Owner wallet:
  *    - Participant Role: Requires Knead Monthly NFT (token ID 1)
  *    - Contributor Role: Requires Contributor NFT (token IDs 1, 2, or 3)
- * 3. Configure bot with admin permissions
- * 4. Set environment variables for space and role IDs
+ * 3. Set environment variables for space and role IDs
  */
 
 import { useSpace } from '@towns-protocol/react-sdk';
