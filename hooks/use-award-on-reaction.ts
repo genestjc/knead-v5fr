@@ -9,10 +9,6 @@
 
 import { useState } from 'react';
 import { useSendReaction } from '@towns-protocol/react-sdk';
-import { prepareContractCall, sendTransaction } from 'thirdweb';
-import { getContract } from 'thirdweb';
-import { base } from 'thirdweb/chains';
-import { client as thirdwebClient } from '@/thirdweb-client';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
 
@@ -58,43 +54,39 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         reaction: reaction,
       });
 
-      // Step 2: Award $TOWNS tokens via smart contract
-      console.log('Awarding $TOWNS tokens...');
+      // Step 2: Award $TOWNS tokens via Engine wallet (no signature required)
+      console.log('Awarding $TOWNS tokens via Engine...');
       
-      const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-      
-      if (!rewardsContractAddress) {
-        throw new Error('Rewards contract address not configured');
+      const response = await fetch('/api/chat/award-tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contributorAddress: activeAccount.address,
+          participantAddress: recipientAddress,
+          amount: amount,
+          actionType: 'message_like',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to award tokens');
       }
 
-      const rewardsContract = getContract({
-        client: thirdwebClient,
-        chain: base,
-        address: rewardsContractAddress,
-      });
-
-      const transaction = prepareContractCall({
-        contract: rewardsContract,
-        method: 'function awardTowns(address recipient, uint256 amount, string memory actionType)',
-        params: [recipientAddress, BigInt(Math.floor(parseFloat(amount) * 1e18)), 'message_like'],
-      });
-
-      const result = await sendTransaction({
-        transaction,
-        account: activeAccount,
-      });
-
-      console.log('✅ Tokens awarded successfully:', result.transactionHash);
-      toast.success(`Awarded ${amount} $TOWNS! ${reaction}`);
+      console.log('✅ Tokens awarded successfully:', data.transactionHash);
+      toast.success(`Awarded ${amount} $TOWNS! ${reaction}\n25% goes to contributor pool.`);
 
     } catch (error: any) {
       console.error('Error awarding tokens:', error);
       
       // Provide specific error messages
-      if (error.message?.includes('user rejected')) {
-        toast.error('Transaction cancelled');
-      } else if (error.message?.includes('insufficient funds')) {
-        toast.error('Insufficient funds for transaction');
+      if (error.message?.includes('contributors with NFT')) {
+        toast.error('Only contributors can award tokens');
+      } else if (error.message?.includes('yourself')) {
+        toast.error('Cannot award tokens to yourself');
       } else {
         toast.error(`Failed to award tokens: ${error.message || 'Unknown error'}`);
       }

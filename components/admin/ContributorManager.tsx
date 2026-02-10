@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { ContributorPoolWidget } from './ContributorPoolWidget';
 
 interface Contributor {
   id: string;
@@ -196,6 +197,7 @@ export function ContributorManager({ adminAddress }: { adminAddress: string }) {
   return (
     <div>
       <h2 className="font-adonis text-3xl mb-6">On-Chain Contributor Management</h2>
+      <ContributorPoolWidget />
       <AddContributorForm onMintSuccess={fetchContributors} />
       {isLoading ? (
         <p className="text-center mt-8">Loading contributors...</p>
