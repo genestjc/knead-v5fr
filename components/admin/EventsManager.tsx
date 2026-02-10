@@ -277,7 +277,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
             case 'Read': return Permission.Read;
             case 'Write': return Permission.Write;
             case 'React': return Permission.React;
-            default: return Permission.Read;
+            default: 
+              console.warn(`Unknown permission type: ${p}, defaulting to Read`);
+              return Permission.Read;
           }
         });
 
@@ -459,7 +461,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     disabled={isUpdating || isUpdatingRole}
                     className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50"
                   >
-                    {isUpdatingRole ? '⏳ Starting...' : isUpdating ? '⏳ Updating...' : '🔴 Start Event'}
+                    {(() => {
+                      if (isUpdatingRole) return '⏳ Starting...';
+                      if (isUpdating) return '⏳ Updating...';
+                      return '🔴 Start Event';
+                    })()}
                   </button>
                 )}
                 {event.status === 'live' && (
@@ -468,7 +474,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     disabled={isUpdating || isUpdatingRole}
                     className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50"
                   >
-                    {isUpdatingRole ? '⏳ Ending...' : isUpdating ? '⏳ Updating...' : 'End Event'}
+                    {(() => {
+                      if (isUpdatingRole) return '⏳ Ending...';
+                      if (isUpdating) return '⏳ Updating...';
+                      return 'End Event';
+                    })()}
                   </button>
                 )}
                 <button

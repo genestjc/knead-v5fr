@@ -77,6 +77,16 @@ export async function PATCH(
     // ✅ NEW: Return permission update instructions for client
     const needsPermissionUpdate = status === 'live' || status === 'ended';
 
+    // Validate required environment variables
+    if (needsPermissionUpdate) {
+      if (!process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID) {
+        console.error('[PATCH /api/admin/events] Missing NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID');
+      }
+      if (!process.env.TOWNS_PARTICIPANT_ROLE_ID) {
+        console.error('[PATCH /api/admin/events] Missing TOWNS_PARTICIPANT_ROLE_ID');
+      }
+    }
+
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       message: 'Event status updated',
