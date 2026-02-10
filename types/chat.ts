@@ -194,3 +194,16 @@ export interface ModerationResult {
   };
   message?: string;
 }
+
+// Simplified permissions returned by /api/chat/permissions
+export interface SimpleChatPermissions {
+  canView: boolean;
+  canPost: boolean;
+  canDelete: boolean;
+  canEdit: boolean;
+  isBanned: boolean;
+  membershipTier: MembershipTier;
+  role: 'freemium' | 'participant' | 'contributor';
+  contributorType: 'invited' | null;
+  freemiumMinutesUsed: number;
+}

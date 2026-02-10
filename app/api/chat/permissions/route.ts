@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin, checkFreemiumTimeRemaining } from '@/lib/supabase/chat-client';
-import { canViewChannel, canPostInChannel, isAdmin } from '@/lib/chat/permissions'; // CORRECTED IMPORT
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
-import type { ApiResponse, UserPermissions } from '@/types/chat';
+import type { ApiResponse, SimpleChatPermissions } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,15 +17,26 @@ export async function GET(req: NextRequest) {
     // Get role from NFT ownership
     const roleInfo = await getUserRole(userAddress);
     
+    // Check if there's currently a live event
+    const supabase = createSupabaseAdmin();
+    const { data: liveEvents } = await supabase
+      .from('chat_events')
+      .select('id, title')
+      .eq('status', 'live')
+      .limit(1);
+
+    const hasLiveEvent = Boolean(liveEvents && liveEvents.length > 0);
+    
     // Determine permissions based on NFT role
     const canView = true; // All users can view (freemium has timer)
-    const canPost = roleInfo.role === 'participant' || roleInfo.role === 'contributor';
+    // Contributors can always post; Participants only during live events
+    const canPost = roleInfo.role === 'contributor' || 
+                    (roleInfo.role === 'participant' && hasLiveEvent);
     const userIsAdmin = roleInfo.role === 'contributor'; // Contributors are moderators
     
     let freemiumMinutesUsed = 0;
     if (roleInfo.role === 'freemium') {
-      // Get freemium time from Supabase
-      const supabase = createSupabaseAdmin();
+      // Get freemium time from Supabase (reuse existing supabase instance)
       const { data, error } = await supabase.rpc('get_freemium_chat_time_remaining', {
         p_wallet_address: userAddress.toLowerCase(),
       });
@@ -36,7 +46,7 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    const finalPermissions: UserPermissions = {
+    const finalPermissions: SimpleChatPermissions = {
         canView,
         canPost,
         canDelete: userIsAdmin,
@@ -48,7 +58,7 @@ export async function GET(req: NextRequest) {
         freemiumMinutesUsed,
     };
 
-    return NextResponse.json<ApiResponse<UserPermissions>>({
+    return NextResponse.json<ApiResponse<SimpleChatPermissions>>({
       success: true,
       data: finalPermissions,
     });

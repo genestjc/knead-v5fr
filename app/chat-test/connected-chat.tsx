@@ -13,6 +13,7 @@ import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
@@ -57,6 +58,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
+  const { permissions } = useChatPermissions(activeAccount?.address || null);
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -344,19 +346,30 @@ useEffect(() => {
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         placeholder={
-                          userRole === 'freemium' 
-                            ? "Freemium users can only view messages..." 
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Messaging available during live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium to participate in events"
                             : channelId 
                               ? "iMessage" 
                               : "Loading..."
                         }
-                        className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
-                        disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || !channelId}
                       />
                       <button 
                         type="submit" 
-                        disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
                         className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "Messaging available during live events only"
+                            : ""
+                        }
                       >
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
@@ -435,13 +448,23 @@ useEffect(() => {
                         type="text"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        placeholder={userRole === 'freemium' ? "View only..." : "Message"}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro text-sm"
-                        disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                        placeholder={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium"
+                            : "Message"
+                        }
+                        className={`flex-1 px-3 py-2 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro text-sm ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || !channelId}
                       />
                       <button 
                         type="submit" 
-                        disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
                         className="w-8 h-8 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg 
@@ -482,6 +505,17 @@ useEffect(() => {
               </div>
 
               {/* ✅ Removed FreemiumBanner from here - it's now at bottom */}
+
+              {permissions?.canPost && userRole === 'participant' && (
+                <div className="bg-green-50 border-b border-green-200 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600">🎙️</span>
+                    <p className="text-sm text-green-800 font-medium">
+                      Event is live! You can now ask questions and participate.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {activeEvent && (
                 <EventBanner
@@ -525,19 +559,30 @@ useEffect(() => {
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     placeholder={
-                      userRole === 'freemium' 
-                        ? "Freemium users can only view messages..." 
+                      !permissions?.canPost && userRole === 'participant'
+                        ? "💬 Messaging available during live events only"
+                        : !permissions?.canPost && userRole === 'freemium'
+                        ? "🔒 Upgrade to Premium to participate in events"
                         : channelId 
                           ? "iMessage" 
                           : "Loading..."
                     }
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] font-georgia-pro"
-                    disabled={isSending || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)}
+                    className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                      permissions?.canPost 
+                        ? 'focus:ring-[#007AFF] border-gray-300' 
+                        : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                    }`}
+                    disabled={!permissions?.canPost || isSending || !channelId}
                   />
                   <button 
                     type="submit" 
-                    disabled={isSending || !messageInput.trim() || !channelId || userRole === 'freemium' || (isFreemiumUser && !hasTimeLeft)} 
+                    disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
                     className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      !permissions?.canPost && userRole === 'participant'
+                        ? "Messaging available during live events only"
+                        : ""
+                    }
                   >
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
