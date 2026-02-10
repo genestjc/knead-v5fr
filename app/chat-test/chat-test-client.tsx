@@ -16,9 +16,8 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 const JOIN_VERSION = 'v2';
 
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: activeChain.rpc, // Use the same RPC URL
+  rpcUrl: activeChain.rpc,
 });
-
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -34,7 +33,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ✅ UPDATED: Use EIP-7702 for gas sponsorship (EOA-compatible) + Enable private key export
 const wallets = [
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
@@ -45,8 +43,7 @@ const wallets = [
       mode: "redirect",
       redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
     },
-    hidePrivateKeyExport: false, // ✅ Enable private key export for non-custodial compliance
-    // ✅ EIP-7702: Gas sponsorship with EOA compatibility
+    hidePrivateKeyExport: false,
     executionMode: {
       mode: "EIP7702",
       sponsorGas: true,
@@ -54,9 +51,45 @@ const wallets = [
   }),
 ];
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ✅ NEW: BOT AUTO-CONNECT HOOK
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function useBotAutoConnect() {
+  const wallet = useActiveWallet();
+  const { isAgentConnected } = useAgentConnection();
+
+  useEffect(() => {
+    // Check if bot mode is enabled (injected by headless browser)
+    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE && window.KEY_SHARER_PRIVATE_KEY) {
+      console.log('🤖 Bot auto-connect mode detected');
+      console.log('   Wallet connected:', !!wallet);
+      console.log('   Agent connected:', isAgentConnected);
+      
+      // Wait for both wallet and agent to be connected
+      if (wallet && isAgentConnected) {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('✅ BOT SUCCESSFULLY CONNECTED');
+        console.log(`   Wallet: ${wallet.getAccount()?.address}`);
+        console.log(`   Time: ${new Date().toISOString()}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        // ✅ Set flags so headless browser knows we're connected
+        window.KEY_SHARER_CONNECTED = true;
+        window.KEY_SHARER_ATTEMPTED = true;
+        window.KEY_SHARER_ERROR = undefined;
+      } else {
+        // Still waiting
+        window.KEY_SHARER_ATTEMPTED = true;
+        window.KEY_SHARER_CONNECTED = false;
+      }
+    }
+  }, [wallet, isAgentConnected]);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
@@ -81,8 +114,6 @@ function SetupFlow() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
                     });
-
-                    // ✅ NO MANUAL FUNDING NEEDED - EIP-7702 sponsors gas automatically
                 }
 
                 setSetupStep("Connecting to network...");
@@ -100,6 +131,13 @@ function SetupFlow() {
             } catch (error: any) {
                 console.error('❌ Setup failed:', error);
                 setSetupStep("Setup failed - please refresh");
+                
+                // ✅ Set error for bot
+                if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                    window.KEY_SHARER_ERROR = error.message;
+                    window.KEY_SHARER_CONNECTED = false;
+                }
+                
                 alert(`Setup failed: ${error.message}`);
             }
         };
@@ -125,9 +163,9 @@ function SetupFlow() {
     );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TOWNS CHAT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
@@ -204,6 +242,13 @@ function TownsChat() {
                     setHasJoined(true);
                 } else {
                     console.error('❌ Join failed:', error);
+                    
+                    // ✅ Set error for bot
+                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                        window.KEY_SHARER_ERROR = error.message;
+                        window.KEY_SHARER_CONNECTED = false;
+                    }
+                    
                     alert(`Failed to join space: ${error.message}`);
                 }
             }
@@ -287,28 +332,29 @@ function TownsChat() {
     return <LoadingSpinner />;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
+    
+    // ✅ NEW: Bot auto-connect hook
+    useBotAutoConnect();
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // ✅ NEW: Check for export intent after OAuth redirect
+    // Check for export intent after OAuth redirect
     useEffect(() => {
       const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
       
       if (hasExportIntent && wallet && isAgentConnected) {
-        // Clear the flag
         localStorage.removeItem("exportKeyIntent");
         
-        // Show reminder to user
         setTimeout(() => {
           alert(
             "✅ Authentication successful!\n\n" +
@@ -318,6 +364,21 @@ export default function ChatTestClient() {
             "3. Follow the instructions"
           );
         }, 1500);
+      }
+    }, [wallet, isAgentConnected]);
+    
+    // ✅ NEW: Debug bot status (only in development or when bot mode is active)
+    useEffect(() => {
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        console.log('🤖 Bot Mode Status:', {
+          autoMode: window.KEY_SHARER_AUTO_MODE,
+          privateKeySet: !!window.KEY_SHARER_PRIVATE_KEY,
+          attempted: window.KEY_SHARER_ATTEMPTED,
+          connected: window.KEY_SHARER_CONNECTED,
+          error: window.KEY_SHARER_ERROR,
+          walletConnected: !!wallet,
+          agentConnected: isAgentConnected,
+        });
       }
     }, [wallet, isAgentConnected]);
 
