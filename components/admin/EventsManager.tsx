@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { useUpdateRole, Permission } from '@towns-protocol/react-sdk';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -23,6 +24,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false); // ✅ NEW: Loading state
+  
+  // ✅ NEW: Towns SDK hook for updating role permissions
+  const { updateRole, isPending: isUpdatingRole } = useUpdateRole();
 
   // Guest management
   const [guestSearchTerm, setGuestSearchTerm] = useState('');
@@ -235,10 +239,15 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   // ✅ UPDATED: Use PATCH endpoint with permission update flag
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
+    if (isUpdatingRole) {
+      alert('Please wait for the current permission update to complete.');
+      return;
+    }
+
     try {
       setIsUpdating(true);
       
-      // 1. Update Supabase status
+      // 1. Update event status in database
       const response = await fetch(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -251,31 +260,45 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error);
+        throw new Error(data.error || 'Failed to update event');
       }
 
-      // 2. If we need to update permissions, show manual instructions
-      // TODO: Replace this with actual Towns SDK call using Owner wallet
+      // 2. If permissions need updating, use Towns SDK
       if (data.needsPermissionUpdate && data.roleUpdate) {
-        console.log('🔐 [EventsManager] Permissions need updating:', data.roleUpdate);
+        console.log('🔐 Updating Towns permissions:', data.roleUpdate);
         
-        const permissionsText = data.roleUpdate.permissions.join(', ');
-        const action = newStatus === 'live' ? 'grant messaging permissions' : 'revoke messaging permissions';
-        
-        alert(
-          `⚠️ Manual Step Required:\n\n` +
-          `Event status updated to "${newStatus}".\n\n` +
-          `Please ${action} for Participants:\n` +
-          `Permissions: ${permissionsText}\n\n` +
-          `(This will be automated in the next update using your Owner wallet)`
-        );
+        const spaceId = data.roleUpdate.spaceId;
+        const roleId = data.roleUpdate.roleId;
+        const permissions = data.roleUpdate.permissions;
+
+        // Map string permissions to Towns Permission enum
+        const townPermissions = permissions.map((p: string) => {
+          switch(p) {
+            case 'Read': return Permission.Read;
+            case 'Write': return Permission.Write;
+            case 'React': return Permission.React;
+            default: return Permission.Read;
+          }
+        });
+
+        // Prompt admin to sign permission update
+        await updateRole({
+          spaceId,
+          roleId,
+          permissions: townPermissions,
+        });
+
+        console.log('✅ Permissions updated successfully');
+        alert(`Event ${newStatus === 'live' ? 'started' : 'ended'} and permissions updated!`);
+      } else {
+        console.log('✅ Event status updated (no permission changes needed)');
       }
 
-      console.log(`✅ Event status updated to: ${newStatus}`);
-      
-    } catch (err) {
-      console.error('Error updating event status:', err);
-      alert('Failed to update event status');
+      // Refresh events list
+      await fetchEvents();
+    } catch (err: any) {
+      console.error('Error updating event:', err);
+      alert(`Failed to update event: ${err.message || 'Unknown error'}`);
     } finally {
       setIsUpdating(false);
     }
@@ -433,19 +456,19 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 {event.status === 'scheduled' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'live')}
-                    disabled={isUpdating}
+                    disabled={isUpdating || isUpdatingRole}
                     className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50"
                   >
-                    {isUpdating ? '⏳ Updating...' : '🔴 Start Event'}
+                    {isUpdatingRole ? '⏳ Starting...' : isUpdating ? '⏳ Updating...' : '🔴 Start Event'}
                   </button>
                 )}
                 {event.status === 'live' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'ended')}
-                    disabled={isUpdating}
+                    disabled={isUpdating || isUpdatingRole}
                     className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50"
                   >
-                    {isUpdating ? '⏳ Ending...' : 'End Event'}
+                    {isUpdatingRole ? '⏳ Ending...' : isUpdating ? '⏳ Updating...' : 'End Event'}
                   </button>
                 )}
                 <button
