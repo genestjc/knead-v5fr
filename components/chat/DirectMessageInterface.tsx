@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -25,16 +26,15 @@ export function DirectMessageInterface({
   currentUserId,
   otherUserName,
 }: DirectMessageInterfaceProps) {
-  // ✅ FIXED: Use useTimeline for messages, useDm for metadata
   const { data: dm } = useDm(townsDmId);
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Filter for actual message events
-  const messages = (events || []).filter((event: any) => 
-    event.content?.kind === 'ChannelMessage' || event.localEvent?.payload?.content?.body
+  // ✅ FIXED: Filter for ChannelMessage events only
+  const messages = (events || []).filter(
+    (event) => event.content?.kind === RiverTimelineEvent.ChannelMessage
   );
 
   // Auto-scroll to bottom when new messages arrive
@@ -46,7 +46,6 @@ export function DirectMessageInterface({
     if (!messageInput.trim() || isSending) return;
 
     try {
-      // Send DM via Towns SDK
       await sendMessage(messageInput);
       setMessageInput('');
     } catch (error) {
@@ -89,17 +88,21 @@ export function DirectMessageInterface({
             <p className="text-sm mt-2">Start the conversation!</p>
           </div>
         ) : (
-          messages.map((event: any, index: number) => {
-            // Extract message data from event
-            const msg = event.localEvent?.payload?.content || event.content;
-            const authorId = event.creatorUserId || event.localEvent?.creatorUserId || '';
-            const isCurrentUser = authorId.toLowerCase() === currentUserId.toLowerCase();
+          messages.map((event, index) => {
+            // ✅ FIXED: Access message body from event.content.body
+            const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage 
+              ? event.content.body 
+              : '';
+            
+            // ✅ FIXED: Use event.creatorUserId for author
+            const isCurrentUser = event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
+            
+            // Use timestamp from event
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
-            const messageText = msg?.body || msg?.text || '';
             
             return (
               <div
-                key={event.hashStr || index}
+                key={event.eventId || index}
                 className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
               >
                 <div
