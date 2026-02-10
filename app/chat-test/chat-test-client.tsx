@@ -9,6 +9,7 @@ import { townsEnv } from '@towns-protocol/sdk';
 import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
+import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button'; // ✅ Import custom button
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -33,23 +34,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-const wallets = [
-  createWallet("io.metamask"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-  inAppWallet({
-    auth: {
-      options: ["email", "google", "apple", "phone"],
-      mode: "redirect",
-      redirectUrl: typeof window !== "undefined" ? window.location.origin + "/chat-test" : undefined,
-    },
-    hidePrivateKeyExport: false,
-    executionMode: {
-      mode: "EIP7702",
-      sponsorGas: true,
-    },
-  }),
-];
+// ✅ Removed wallets array - ThirdWebConnectButton handles this internally
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ✅ BOT AUTO-CONNECT HOOK (ThirdWeb SDK - Browser Edition)
@@ -99,6 +84,11 @@ function useBotAutoConnect() {
         });
         
         console.log('✅ Bot wallet connected');
+        
+        // ✅ Clean up - remove private key from window after connection
+        delete window.KEY_SHARER_PRIVATE_KEY;
+        console.log('🧹 Private key removed from browser memory');
+        
         setBotInitialized(true);
         
       } catch (error: any) {
@@ -172,7 +162,7 @@ function useBotAutoConnect() {
   }, [wallet, isAgentConnected]);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -477,9 +467,14 @@ export default function ChatTestClient() {
     if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center max-w-md">
+                <div className="text-center max-w-md px-4">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                    <ConnectButton client={client} chain={activeChain} wallets={wallets} />
+                    {/* ✅ Use custom ThirdWebConnectButton */}
+                    <ThirdWebConnectButton 
+                      theme="light"
+                      size="wide"
+                      className="inline-block"
+                    />
                 </div>
             </div>
         );
