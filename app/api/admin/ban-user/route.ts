@@ -1,8 +1,7 @@
-// app/api/admin/chat/ban-user/route.ts
+// app/api/admin/ban-user/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { banUserFromTowns, unbanUserFromTowns } from '@/lib/towns/admin-actions';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    // ✅ Step 1: Update database ban status
+    // ✅ Update database ban status (your existing working logic)
     const { error: updateError } = await supabase
       .from('chat_users')
       .update({ is_banned: ban })
@@ -67,30 +66,10 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // ✅ Step 2: Ban from Towns Protocol (if spaceId provided)
-    if (spaceId) {
-      try {
-        if (ban) {
-          await banUserFromTowns(user.id, spaceId);
-          console.log('✅ User banned from Towns Protocol');
-        } else {
-          await unbanUserFromTowns(user.id, spaceId);
-          console.log('✅ User unbanned from Towns Protocol');
-        }
-      } catch (townsError: any) {
-        console.error('⚠️ Towns Protocol ban/unban failed:', townsError);
-        // Return error since Towns integration is critical
-        return NextResponse.json<ApiResponse<null>>({ 
-          success: false, 
-          error: `Database updated but Towns Protocol ban failed: ${townsError.message}` 
-        }, { status: 500 });
-      }
-    }
-
     return NextResponse.json<ApiResponse<null>>({ 
       success: true, 
       message: ban 
-        ? 'User banned from chat and Towns Protocol successfully' 
+        ? 'User banned from chat successfully' 
         : 'User unbanned successfully'
     });
 
