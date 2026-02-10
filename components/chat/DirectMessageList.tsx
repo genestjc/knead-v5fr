@@ -8,10 +8,16 @@
  * - Last message preview
  * - Click to open DM
  * - New message button (contributor-only)
+ * 
+ * DM Access: Only Contributors can create and view DMs
+ * - Freemium users: No DM access
+ * - Participants: No DM access
+ * - Contributors: Full DM access
  */
 
 import { useEffect, useState } from 'react';
 import { useUserDms, useCreateDm } from '@towns-protocol/react-sdk';
+import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 
 interface DmConversation {
   id: string;
@@ -37,6 +43,9 @@ export function DirectMessageList({
   onSelectDm, 
   selectedDmId 
 }: DirectMessageListProps) {
+  // Check if user is a contributor (required for DM access)
+  const { isContributor, loading: permissionsLoading } = useContributorPermissions(userId);
+  
   // ✅ CORRECT: Use Towns SDK's useUserDms hook
   const { data: townsDms, isLoading, error: dmsError } = useUserDms();
   const { createDm, isPending: isCreatingDm } = useCreateDm();
@@ -60,6 +69,12 @@ export function DirectMessageList({
   }));
 
   const handleCreateDm = async () => {
+    // Extra safety check - should never reach here for non-contributors
+    if (!isContributor) {
+      setCreateError('Only Contributors can send direct messages');
+      return;
+    }
+
     if (!newDmAddress.trim()) {
       setCreateError('Please enter a wallet address');
       return;
@@ -133,10 +148,27 @@ export function DirectMessageList({
     </div>
   );
 
-  if (isLoading) {
+  if (permissionsLoading || isLoading) {
     return (
       <div className="p-4 text-sm text-gray-500">
         Loading conversations...
+      </div>
+    );
+  }
+
+  // ✅ Hide DM UI completely for non-contributors
+  if (!isContributor) {
+    return (
+      <div className="p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-medium text-blue-900 mb-2">Direct Messages</h3>
+          <p className="text-sm text-blue-700">
+            Direct messaging is available only to Contributors.
+          </p>
+          <p className="text-xs text-blue-600 mt-2">
+            💡 Contributors have full access to DMs and can message each other anytime.
+          </p>
+        </div>
       </div>
     );
   }
