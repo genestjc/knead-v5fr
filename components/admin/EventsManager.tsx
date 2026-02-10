@@ -22,6 +22,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
+  const [isUpdating, setIsUpdating] = useState(false); // ✅ NEW: Loading state
 
   // Guest management
   const [guestSearchTerm, setGuestSearchTerm] = useState('');
@@ -46,7 +47,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchEvents();
 
     // ✅ REAL-TIME SUBSCRIPTION
-    
     const supabase = createSupabaseClient();    
     console.log('🔄 [EventsManager] Setting up real-time subscription...');
     
@@ -63,15 +63,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           console.log('🔄 [EventsManager] Real-time event change:', payload.eventType, payload);
           
           if (payload.eventType === 'INSERT') {
-            // ✅ New event created - refetch to get full data with relations
             console.log('➕ New event inserted, refetching...');
             fetchEvents();
           } else if (payload.eventType === 'UPDATE') {
-            // ✅ Event updated (e.g., status change: scheduled → live)
             console.log('🔄 Event updated, refetching...');
             fetchEvents();
           } else if (payload.eventType === 'DELETE') {
-            // ✅ Event deleted - remove from list
             console.log('🗑️ Event deleted:', payload.old.id);
             setEvents((prev) => prev.filter((event) => event.id !== payload.old.id));
           }
@@ -105,39 +102,38 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const fetchEvents = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    
-    // ✅ ADD TIMESTAMP CACHE BUSTER
-    const timestamp = Date.now();
-    const response = await fetch(
-      `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
-      {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-        },
-      }
-    );
-    
-    const data = await response.json();
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const timestamp = Date.now();
+      const response = await fetch(
+        `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        }
+      );
+      
+      const data = await response.json();
 
-    if (data.success) {
-      console.log('✅ [EventsManager] Fetched events:', data.data.length);
-      console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
-      setEvents(data.data);
-    } else {
-      setError(data.error || 'Failed to fetch events');
+      if (data.success) {
+        console.log('✅ [EventsManager] Fetched events:', data.data.length);
+        console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
+        setEvents(data.data);
+      } else {
+        setError(data.error || 'Failed to fetch events');
+      }
+    } catch (err) {
+      setError('Error fetching events');
+      console.error('[EventsManager] Fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError('Error fetching events');
-    console.error('[EventsManager] Fetch error:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const searchUsers = async (searchTerm: string) => {
     if (searchTerm.length < 2) {
@@ -211,8 +207,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         console.log('✅ Event created successfully!');
         setShowCreateModal(false);
         resetForm();
-        // ✅ Real-time will handle the update, but we can also manually trigger
-        // fetchEvents(); // Optional: real-time should handle this
         alert('Event created successfully!');
       } else {
         setError(data.error || 'Failed to create event');
@@ -239,63 +233,51 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     setGuestSearchResults([]);
   };
 
+  // ✅ UPDATED: Use PATCH endpoint with permission update flag
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     try {
-      let response;
+      setIsUpdating(true);
       
-      // Use dedicated start/end endpoints for live event transitions
-      // These endpoints handle Towns Protocol permission updates
-      if (newStatus === 'live') {
-        response = await fetch('/api/admin/events/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            eventId,
-            adminAddress,
-          }),
-        });
-      } else if (newStatus === 'ended') {
-        response = await fetch('/api/admin/events/end', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            eventId,
-            adminAddress,
-          }),
-        });
-      } else {
-        // For other status changes, use the existing PATCH endpoint
-        response = await fetch(`/api/admin/events/${eventId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            adminAddress,
-            status: newStatus,
-          }),
-        });
-      }
+      // 1. Update Supabase status
+      const response = await fetch(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminAddress,
+          status: newStatus,
+        }),
+      });
 
       const data = await response.json();
 
-      if (data.success) {
-        console.log(`✅ Event status updated to: ${newStatus}`);
-        
-        // Show warning if Towns permissions update failed
-        // This is a warning, not an error, since the event was successfully updated
-        if (data.data?.townsUpdateFailed) {
-          console.warn('⚠️ Towns permissions update failed:', data.message);
-          // Show a non-blocking warning to the user
-          alert(data.message || 'Event updated but Towns permissions may need manual update');
-        }
-        
-        // ✅ Real-time will handle the update
-        // fetchEvents(); // Optional: real-time should handle this
-      } else {
-        setError(data.error || 'Failed to update event');
+      if (!data.success) {
+        throw new Error(data.error);
       }
+
+      // 2. If we need to update permissions, show manual instructions
+      // TODO: Replace this with actual Towns SDK call using Owner wallet
+      if (data.needsPermissionUpdate && data.roleUpdate) {
+        console.log('🔐 [EventsManager] Permissions need updating:', data.roleUpdate);
+        
+        const permissionsText = data.roleUpdate.permissions.join(', ');
+        const action = newStatus === 'live' ? 'grant messaging permissions' : 'revoke messaging permissions';
+        
+        alert(
+          `⚠️ Manual Step Required:\n\n` +
+          `Event status updated to "${newStatus}".\n\n` +
+          `Please ${action} for Participants:\n` +
+          `Permissions: ${permissionsText}\n\n` +
+          `(This will be automated in the next update using your Owner wallet)`
+        );
+      }
+
+      console.log(`✅ Event status updated to: ${newStatus}`);
+      
     } catch (err) {
-      setError('Error updating event');
-      console.error(err);
+      console.error('Error updating event status:', err);
+      alert('Failed to update event status');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -311,8 +293,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
       if (data.success) {
         console.log('✅ Event deleted');
-        // ✅ Real-time will handle the removal
-        // fetchEvents(); // Optional: real-time should handle this
       } else {
         setError(data.error || 'Failed to delete event');
       }
@@ -453,17 +433,19 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 {event.status === 'scheduled' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'live')}
-                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition"
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50"
                   >
-                    🔴 Start Event
+                    {isUpdating ? '⏳ Updating...' : '🔴 Start Event'}
                   </button>
                 )}
                 {event.status === 'live' && (
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'ended')}
-                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition"
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50"
                   >
-                    End Event
+                    {isUpdating ? '⏳ Ending...' : 'End Event'}
                   </button>
                 )}
                 <button
@@ -485,6 +467,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
             <h3 className="font-adonis text-2xl mb-6">Create New Event</h3>
             
             <form onSubmit={handleCreateEvent} className="space-y-4">
+              {/* ... rest of the form (unchanged) ... */}
               <div>
                 <label className="block font-georgia-pro text-sm mb-2">Event Title</label>
                 <input
