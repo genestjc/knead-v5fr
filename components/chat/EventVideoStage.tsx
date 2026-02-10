@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react'; // ✅ Added useRef
 import { useDaily, useParticipantIds, useLocalSessionId } from '@daily-co/daily-react';
 import { DailyVideoTile } from './DailyVideoTile';
 import type { ChatEvent } from '@/types/chat';
@@ -19,11 +19,15 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ NEW: Add refs to prevent duplicate joins
+  const hasAttemptedJoinRef = useRef(false);
+  const currentRoomRef = useRef<string | null>(null);
+
   const isHost = event.host?.id 
     ? currentUserAddress.toLowerCase() === event.host.id.toLowerCase() 
     : false;
 
-  // ✅ FIX: Join call with proper cleanup and duplicate prevention
+  // ✅ UPDATED: Join call with better duplicate prevention
   useEffect(() => {
     if (!daily) {
       console.log('⏳ [EventVideoStage] Daily not ready yet');
@@ -35,15 +39,23 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       return;
     }
 
+    // ✅ NEW: Check if we already joined this exact room
+    if (hasAttemptedJoinRef.current && currentRoomRef.current === roomUrl) {
+      console.log('⏭️ [EventVideoStage] Already joined this room, skipping');
+      return;
+    }
+
     // ✅ FIX: Prevent duplicate joins
     const meetingState = daily.meetingState();
     if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
       console.log('✅ [EventVideoStage] Already joined/joining, skipping');
       setJoining(false);
+      hasAttemptedJoinRef.current = true; // ✅ Mark as attempted
+      currentRoomRef.current = roomUrl; // ✅ Remember this room
       return;
     }
     
-    let isMounted = true; // ✅ Track component mount state
+    let isMounted = true;
     
     async function joinCall() {
       if (!isMounted) return;
@@ -56,6 +68,10 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         console.log('   Room URL:', roomUrl);
         console.log('   Is Host:', isHost);
         console.log('   Meeting State:', daily.meetingState());
+
+        // ✅ NEW: Mark as attempting BEFORE join
+        hasAttemptedJoinRef.current = true;
+        currentRoomRef.current = roomUrl;
 
         await daily.join({
           url: roomUrl,
@@ -81,22 +97,29 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         if (isMounted) {
           setError((err as Error).message || 'Failed to join video call');
           setJoining(false);
+          // ✅ NEW: Reset refs on error so we can retry
+          hasAttemptedJoinRef.current = false;
+          currentRoomRef.current = null;
         }
       }
     }
 
     joinCall();
 
-    // ✅ Cleanup: Mark as unmounted and leave call
+    // ✅ UPDATED: Only leave if switching rooms
     return () => {
       isMounted = false;
       console.log('🧹 [EventVideoStage] Component unmounting');
-      if (daily && daily.meetingState() === 'joined-meeting') {
+      
+      // ✅ NEW: Don't leave if we're staying in the same room
+      if (daily && daily.meetingState() === 'joined-meeting' && currentRoomRef.current !== roomUrl) {
         console.log('🚪 [EventVideoStage] Leaving call on cleanup');
         daily.leave().catch(console.error);
+        hasAttemptedJoinRef.current = false;
+        currentRoomRef.current = null;
       }
     };
-  }, [daily, roomUrl, token]); // ✅ Removed currentUserAddress and isHost from dependencies
+  }, [daily, roomUrl, token]);
 
   // ✅ Monitor connection state and errors
   useEffect(() => {
@@ -138,6 +161,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const handleLeaveCall = async () => {
     if (daily) {
       console.log('🚪 [EventVideoStage] User manually leaving call');
+      // ✅ NEW: Reset refs when manually leaving
+      hasAttemptedJoinRef.current = false;
+      currentRoomRef.current = null;
       await daily.leave();
     }
   };
@@ -292,3 +318,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     </div>
   );
 }
+
+// ✅ NEW: Add default export for compatibility
+export default EventVideoStage;
