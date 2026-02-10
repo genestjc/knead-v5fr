@@ -21,10 +21,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
-    start_time: '',
-    end_time: '',
-    guest_name: '',
-    video_enabled: false,
+    scheduledStart: '',
+    scheduledEnd: '',
+    eventType: 'live-interview',
+    videoEnabled: false,
   });
 
   useEffect(() => {
@@ -33,17 +33,20 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   }, [adminAddress]);
 
-  // ✅ FIXED: Include adminAddress as query parameter
+  // ✅ FIXED: Use /api/admin/events with adminAddress query param
   const fetchEvents = async () => {
     try {
       setIsLoading(true);
       
-      // ✅ Add adminAddress to the query
+      console.log('Fetching events with adminAddress:', adminAddress);
+      
       const response = await fetch(`/api/admin/events?adminAddress=${encodeURIComponent(adminAddress)}`);
       const data = await response.json();
       
+      console.log('Events response:', data);
+      
       if (data.success) {
-        setEvents(data.events || []);
+        setEvents(data.data || []);
       } else {
         console.error('Failed to fetch events:', data.error);
         alert(`Failed to load events: ${data.error}`);
@@ -56,7 +59,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  // ✅ NEW: Create event handler
+  // ✅ Use /api/events POST (your existing route)
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -68,15 +71,40 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     try {
       setIsUpdating(true);
       
-      // Convert datetime-local to ISO string
+      const channelId = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+      
+      if (!channelId) {
+        throw new Error('Channel ID not configured');
+      }
+
+      // Find or create host user
+      const hostResponse = await fetch('/api/chat/users/find-or-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: adminAddress }),
+      });
+      
+      const hostData = await hostResponse.json();
+      
+      if (!hostData.success || !hostData.data) {
+        throw new Error('Failed to get host user');
+      }
+
       const eventData = {
-        ...newEvent,
-        start_time: new Date(newEvent.start_time).toISOString(),
-        end_time: newEvent.end_time ? new Date(newEvent.end_time).toISOString() : null,
-        adminAddress,
+        title: newEvent.title,
+        description: newEvent.description,
+        channelId,
+        eventType: newEvent.eventType,
+        scheduledStart: new Date(newEvent.scheduledStart).toISOString(),
+        scheduledEnd: new Date(newEvent.scheduledEnd).toISOString(),
+        videoEnabled: newEvent.videoEnabled,
+        hostId: hostData.data.id,
+        guestIds: [],
       };
 
-      const response = await fetch('/api/admin/events', {
+      console.log('Creating event:', eventData);
+
+      const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventData),
@@ -89,10 +117,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         setNewEvent({
           title: '',
           description: '',
-          start_time: '',
-          end_time: '',
-          guest_name: '',
-          video_enabled: false,
+          scheduledStart: '',
+          scheduledEnd: '',
+          eventType: 'live-interview',
+          videoEnabled: false,
         });
         setShowCreateForm(false);
         await fetchEvents();
@@ -107,6 +135,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
+  // ✅ Use /api/events/[eventId] PATCH (your existing route)
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     if (isUpdating) {
       alert('Please wait for the current update to complete.');
@@ -121,14 +150,19 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     try {
       setIsUpdating(true);
       
+      console.log('Updating event status:', { eventId, newStatus });
+      
       // 1. Update event status in database
-      const response = await fetch(`/api/admin/events/${eventId}`, {
+      const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminAddress, status: newStatus }),
       });
 
       const data = await response.json();
+      
+      console.log('Update response:', data);
+      
       if (!data.success) throw new Error(data.error);
 
       console.log('✅ Event status updated in database');
@@ -183,7 +217,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           });
           
           console.log(`✅ Passes minted! Tx: ${txResult.transactionHash}`);
-          alert(`✅ Event Started!\n\n${participantAddresses.length} Event Passes minted!\n\nParticipants can now message in chat.\n\nTx: ${txResult.transactionHash.slice(0, 10)}...`);
+          alert(`✅ Event Started!\n\n${participantAddresses.length} Event Passes minted!\n\nTx: ${txResult.transactionHash.slice(0, 10)}...`);
           
         } else if (newStatus === 'ended') {
           const transaction = prepareContractCall({
@@ -200,7 +234,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           });
           
           console.log(`✅ Passes burned! Tx: ${txResult.transactionHash}`);
-          alert(`✅ Event Ended!\n\n${participantAddresses.length} Event Passes burned!\n\nParticipants can no longer message.\n\nTx: ${txResult.transactionHash.slice(0, 10)}...`);
+          alert(`✅ Event Ended!\n\n${participantAddresses.length} Event Passes burned!\n\nTx: ${txResult.transactionHash.slice(0, 10)}...`);
         }
       } else {
         alert(`Event status updated to: ${newStatus}`);
@@ -215,13 +249,14 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
+  // ✅ Use /api/events/[eventId] DELETE (your existing route)
   const handleDeleteEvent = async (eventId: string) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
 
     try {
       setIsUpdating(true);
       
-      const response = await fetch(`/api/admin/events/${eventId}?adminAddress=${encodeURIComponent(adminAddress)}`, {
+      const response = await fetch(`/api/events/${eventId}?adminAddress=${encodeURIComponent(adminAddress)}`, {
         method: 'DELETE',
       });
 
@@ -284,14 +319,17 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               </div>
 
               <div>
-                <label className="block font-georgia-pro text-sm font-medium mb-2">Guest Name</label>
-                <input
-                  type="text"
-                  value={newEvent.guest_name}
-                  onChange={(e) => setNewEvent({ ...newEvent, guest_name: e.target.value })}
+                <label className="block font-georgia-pro text-sm font-medium mb-2">Event Type</label>
+                <select
+                  value={newEvent.eventType}
+                  onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg font-georgia-pro focus:ring-2 focus:ring-black focus:border-transparent"
-                  placeholder="e.g., Jane Doe"
-                />
+                >
+                  <option value="live-interview">Live Interview</option>
+                  <option value="ama">AMA</option>
+                  <option value="workshop">Workshop</option>
+                  <option value="discussion">Discussion</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -299,20 +337,21 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   <label className="block font-georgia-pro text-sm font-medium mb-2">Start Time *</label>
                   <input
                     type="datetime-local"
-                    value={newEvent.start_time}
-                    onChange={(e) => setNewEvent({ ...newEvent, start_time: e.target.value })}
+                    value={newEvent.scheduledStart}
+                    onChange={(e) => setNewEvent({ ...newEvent, scheduledStart: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg font-georgia-pro focus:ring-2 focus:ring-black focus:border-transparent"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-georgia-pro text-sm font-medium mb-2">End Time (Optional)</label>
+                  <label className="block font-georgia-pro text-sm font-medium mb-2">End Time *</label>
                   <input
                     type="datetime-local"
-                    value={newEvent.end_time}
-                    onChange={(e) => setNewEvent({ ...newEvent, end_time: e.target.value })}
+                    value={newEvent.scheduledEnd}
+                    onChange={(e) => setNewEvent({ ...newEvent, scheduledEnd: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg font-georgia-pro focus:ring-2 focus:ring-black focus:border-transparent"
+                    required
                   />
                 </div>
               </div>
@@ -321,8 +360,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 <input
                   type="checkbox"
                   id="video_enabled"
-                  checked={newEvent.video_enabled}
-                  onChange={(e) => setNewEvent({ ...newEvent, video_enabled: e.target.checked })}
+                  checked={newEvent.videoEnabled}
+                  onChange={(e) => setNewEvent({ ...newEvent, videoEnabled: e.target.checked })}
                   className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
                 />
                 <label htmlFor="video_enabled" className="ml-2 font-georgia-pro text-sm">
@@ -359,23 +398,23 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     <h3 className="font-adonis text-xl mb-1">{event.title}</h3>
-                    {event.guest_name && (
+                    {event.host && (
                       <p className="font-georgia-pro text-sm text-gray-600 mb-2">
-                        🎙️ with {event.guest_name}
+                        🎙️ Host: {event.host.displayName || event.host.alias || `${event.host.address.slice(0, 6)}...${event.host.address.slice(-4)}`}
                       </p>
                     )}
                     <p className="font-georgia-pro text-sm text-gray-500">
-                      📅 {format(new Date(event.start_time), 'PPP p')}
+                      📅 {format(new Date(event.scheduledStart), 'PPP p')}
                     </p>
-                    {event.video_enabled && event.daily_room_url && (
+                    {event.videoEnabled && event.dailyRoomUrl && (
                       <p className="font-georgia-pro text-xs text-blue-600 mt-1">
-                        🎥 Video: {event.daily_room_url}
+                        🎥 Video: {event.dailyRoomUrl}
                       </p>
                     )}
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-georgia-pro font-medium ${
                     event.status === 'live' ? 'bg-green-100 text-green-800' :
-                    event.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                    event.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {event.status}
@@ -389,7 +428,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 )}
                 
                 <div className="flex gap-2 mt-4">
-                  {event.status === 'upcoming' && (
+                  {event.status === 'scheduled' && (
                     <button
                       onClick={() => handleUpdateEventStatus(event.id, 'live')}
                       disabled={isUpdating}
