@@ -37,23 +37,22 @@ const LoadingSpinner = () => (
 // ✅ Removed wallets array - ThirdWebConnectButton handles this internally
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ✅ BOT AUTO-CONNECT HOOK (ThirdWeb SDK - Browser Edition)
-// Uses privateKeyToAccount instead of Engine (no paid service needed)
+// ✅ BOT AUTO-CONNECT HOOK (Fixed - Direct Connection)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function useBotAutoConnect() {
-  const { connect: connectWallet } = useConnect();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   const wallet = useActiveWallet();
+  const [botWallet, setBotWallet] = useState<any>(null);
   const [botInitialized, setBotInitialized] = useState(false);
 
-  // Step 1: Create wallet from private key and connect
+  // Step 1: Create wallet from private key
   useEffect(() => {
     if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE || !window.KEY_SHARER_PRIVATE_KEY) {
       return;
     }
 
-    if (botInitialized || wallet) {
+    if (botInitialized) {
       return;
     }
 
@@ -61,7 +60,7 @@ function useBotAutoConnect() {
       try {
         console.log('🤖 Bot Mode: Creating wallet from private key...');
         
-        // ✅ Create account from private key (ThirdWeb v5 SDK)
+        // ✅ Create account from private key
         const account = privateKeyToAccount({
           client,
           privateKey: window.KEY_SHARER_PRIVATE_KEY!,
@@ -70,22 +69,24 @@ function useBotAutoConnect() {
         console.log('✅ Bot account created:', account.address);
         
         // ✅ Create in-app wallet
-        const botWallet = inAppWallet();
+        const wallet = inAppWallet();
         
-        // ✅ Connect the wallet using the connect hook
-        await connectWallet(async () => {
-          await botWallet.connect({
-            client,
-            chain: activeChain,
-            strategy: "private_key",
-            privateKey: window.KEY_SHARER_PRIVATE_KEY!,
-          });
-          return botWallet;
+        console.log('🔌 Connecting wallet...');
+        
+        // ✅ Connect directly (not through the hook)
+        await wallet.connect({
+          client,
+          chain: activeChain,
+          strategy: "private_key",
+          privateKey: window.KEY_SHARER_PRIVATE_KEY!,
         });
         
         console.log('✅ Bot wallet connected');
         
-        // ✅ Clean up - remove private key from window after connection
+        // ✅ Store the wallet for agent connection
+        setBotWallet(wallet);
+        
+        // ✅ Clean up
         delete window.KEY_SHARER_PRIVATE_KEY;
         console.log('🧹 Private key removed from browser memory');
         
@@ -93,6 +94,7 @@ function useBotAutoConnect() {
         
       } catch (error: any) {
         console.error('❌ Bot wallet connection failed:', error);
+        console.error('   Error message:', error.message);
         window.KEY_SHARER_ERROR = `Wallet connection failed: ${error.message}`;
         window.KEY_SHARER_CONNECTED = false;
         setBotInitialized(true);
@@ -100,11 +102,11 @@ function useBotAutoConnect() {
     };
 
     initBotWallet();
-  }, [botInitialized, wallet, connectWallet]);
+  }, [botInitialized]);
 
   // Step 2: Connect Towns agent after wallet is ready
   useEffect(() => {
-    if (!wallet || isAgentConnected) {
+    if (!botWallet || isAgentConnected) {
       return;
     }
 
@@ -112,8 +114,10 @@ function useBotAutoConnect() {
       const initAgent = async () => {
         try {
           console.log('🤖 Bot Mode: Connecting Towns agent...');
+          console.log('   Wallet address:', botWallet.getAccount()?.address);
           
-          const signer = await getEthersV5Signer(wallet, activeChain, client);
+          const signer = await getEthersV5Signer(botWallet, activeChain, client);
+          console.log('   Signer created:', !!signer);
           
           await connectAgent(signer, { 
             townsConfig: TOWNS_CONFIG,
@@ -124,6 +128,8 @@ function useBotAutoConnect() {
           
         } catch (error: any) {
           console.error('❌ Bot agent connection failed:', error);
+          console.error('   Error message:', error.message);
+          console.error('   Error stack:', error.stack);
           window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
           window.KEY_SHARER_CONNECTED = false;
         }
@@ -131,7 +137,7 @@ function useBotAutoConnect() {
 
       initAgent();
     }
-  }, [wallet, isAgentConnected, connectAgent]);
+  }, [botWallet, isAgentConnected, connectAgent]);
 
   // Step 3: Mark as fully connected
   useEffect(() => {
@@ -139,16 +145,19 @@ function useBotAutoConnect() {
       return;
     }
 
+    // Use either the regular wallet or bot wallet
+    const activeWallet = wallet || botWallet;
+
     console.log('🤖 Bot Status:', {
-      wallet: !!wallet,
-      walletAddress: wallet?.getAccount?.()?.address,
+      hasWallet: !!activeWallet,
+      walletAddress: activeWallet?.getAccount?.()?.address,
       agentConnected: isAgentConnected,
     });
 
-    if (wallet && isAgentConnected) {
+    if (activeWallet && isAgentConnected) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ BOT SUCCESSFULLY CONNECTED');
-      console.log(`   Wallet: ${wallet.getAccount?.()?.address}`);
+      console.log(`   Wallet: ${activeWallet.getAccount?.()?.address}`);
       console.log(`   Time: ${new Date().toISOString()}`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
@@ -159,7 +168,7 @@ function useBotAutoConnect() {
       window.KEY_SHARER_ATTEMPTED = true;
       window.KEY_SHARER_CONNECTED = false;
     }
-  }, [wallet, isAgentConnected]);
+  }, [wallet, botWallet, isAgentConnected]);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
