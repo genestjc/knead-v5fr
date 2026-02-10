@@ -8,7 +8,7 @@ import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
-import EventVideoStage from '@/components/chat/EventVideoStage'; // ✅ Changed to default import
+import { EventVideoStage } from '@/components/chat/EventVideoStage';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
