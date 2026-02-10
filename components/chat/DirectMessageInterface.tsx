@@ -4,13 +4,13 @@
  * Direct Message Interface Component
  * 
  * 1-on-1 chat interface for contributor DMs
- * - Real-time messages via Towns useDm hook
+ * - Real-time messages via Towns useTimeline hook
  * - Send messages
  * - Shows other participant info
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -25,10 +25,17 @@ export function DirectMessageInterface({
   currentUserId,
   otherUserName,
 }: DirectMessageInterfaceProps) {
-  const { data: messages, isLoading } = useDm(townsDmId);
+  // ✅ FIXED: Use useTimeline for messages, useDm for metadata
+  const { data: dm } = useDm(townsDmId);
+  const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Filter for actual message events
+  const messages = (events || []).filter((event: any) => 
+    event.content?.kind === 'ChannelMessage' || event.localEvent?.payload?.content?.body
+  );
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -39,9 +46,8 @@ export function DirectMessageInterface({
     if (!messageInput.trim() || isSending) return;
 
     try {
-      // ✅ CORRECT: Send DM via Towns SDK (no custom metadata)
+      // Send DM via Towns SDK
       await sendMessage(messageInput);
-
       setMessageInput('');
     } catch (error) {
       console.error('Failed to send DM:', error);
@@ -77,18 +83,23 @@ export function DirectMessageInterface({
           <div className="text-center text-gray-500 py-8">
             Loading messages...
           </div>
-        ) : (messages || []).length === 0 ? (
+        ) : messages.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <p>No messages yet.</p>
             <p className="text-sm mt-2">Start the conversation!</p>
           </div>
         ) : (
-          (messages || []).map((msg) => {
-            const isCurrentUser = msg.author.did === currentUserId;
+          messages.map((event: any, index: number) => {
+            // Extract message data from event
+            const msg = event.localEvent?.payload?.content || event.content;
+            const authorId = event.creatorUserId || event.localEvent?.creatorUserId || '';
+            const isCurrentUser = authorId.toLowerCase() === currentUserId.toLowerCase();
+            const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
+            const messageText = msg?.body || msg?.text || '';
             
             return (
               <div
-                key={msg.id}
+                key={event.hashStr || index}
                 className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
               >
                 <div
@@ -100,9 +111,9 @@ export function DirectMessageInterface({
                     }
                   `}
                 >
-                  <p className="text-sm">{msg.content}</p>
+                  <p className="text-sm">{messageText}</p>
                   <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { 
+                    {new Date(timestamp).toLocaleTimeString([], { 
                       hour: '2-digit', 
                       minute: '2-digit' 
                     })}
