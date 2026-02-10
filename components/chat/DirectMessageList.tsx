@@ -100,25 +100,27 @@ export function DirectMessageList({
       
       // ✅ Handle "stream already exists" error
       if (errorMessage.includes('already exists')) {
-        setCreateError('✅ DM already exists! Refreshing in 2 seconds...');
+        setCreateError('✅ DM already exists! Please wait 10 seconds for sync, or close and refresh manually. Page will auto-refresh.');
         
-        // Wait 2 seconds, then refresh page to sync DMs
+        // ✅ Wait 10 seconds to let Towns nodes sync miniblocks
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 10000);
         return;
       }
       
-      // ✅ Handle timeout/deadline errors
-      if (errorMessage.includes('timeout') || 
+      // ✅ Handle BAD_PREV_MINIBLOCK_HASH / sync errors
+      if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || 
+          errorMessage.includes('miniblock') ||
+          errorMessage.includes('timeout') || 
           errorMessage.includes('deadline') || 
           errorMessage.includes('context deadline exceeded')) {
-        setCreateError('⏱️ Network timeout. The DM may have been created. Refreshing in 3 seconds...');
+        setCreateError('⏱️ Network syncing... Please wait 10 seconds. The page will auto-refresh, or you can close and refresh manually.');
         
-        // Wait 3 seconds, then refresh page to check if DM was created
+        // ✅ Wait 10 seconds for miniblock sync
         setTimeout(() => {
           window.location.reload();
-        }, 3000);
+        }, 10000);
         return;
       }
       
@@ -231,6 +233,14 @@ export function DirectMessageList({
             Contributors can start direct messages with each other.
           </p>
         </div>
+
+        {/* ✅ Manual refresh button */}
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full mt-3 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+        >
+          🔄 Refresh DM List
+        </button>
 
         {/* New DM Modal */}
         {showNewDmModal && <NewDmModal />}
