@@ -15,7 +15,7 @@ export type ContributorType = 'appointed' | 'earned' | 'invited' | null;
  * Check if user is a contributor via NFT ownership
  * 
  * @param address - User's wallet address
- * @returns True if user owns a contributor NFT
+ * @returns True if user owns a contributor NFT (Token ID 1, 2, or 3)
  */
 export async function isContributor(address: string): Promise<boolean> {
   try {
@@ -33,14 +33,22 @@ export async function isContributor(address: string): Promise<boolean> {
       address: nftContractAddress,
     });
 
-    // Check ERC721 balance
-    const balance = await readContract({
-      contract,
-      method: "function balanceOf(address owner) view returns (uint256)",
-      params: [address],
-    });
+    // ✅ FIXED: Check ERC1155 balance for token IDs 1, 2, 3
+    const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
+    
+    for (const tokenId of tokenIds) {
+      const balance = await readContract({
+        contract,
+        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
+        params: [address, BigInt(tokenId)],
+      });
+      
+      if (Number(balance) > 0) {
+        return true;
+      }
+    }
 
-    return Number(balance) > 0;
+    return false;
   } catch (error) {
     console.error("Error checking contributor NFT:", error);
     // Fail-open: if we can't check, assume not a contributor
@@ -49,16 +57,15 @@ export async function isContributor(address: string): Promise<boolean> {
 }
 
 /**
- * Get contributor type from NFT metadata
+ * Get the contributor token ID owned by a user
  * 
- * This function attempts to read the contributor role from NFT metadata.
- * In a production setup, this would query token metadata and look for
- * role attributes. For now, it provides a basic implementation.
+ * Checks which contributor NFT token ID (1, 2, or 3) the user owns.
+ * If user owns multiple, returns the first one found (in order: 1, 2, 3).
  * 
  * @param address - User's wallet address
- * @returns Contributor type or null if not a contributor
+ * @returns Token ID (1, 2, or 3) or null if not a contributor
  */
-export async function getContributorType(address: string): Promise<ContributorType> {
+export async function getContributorTypeId(address: string): Promise<number | null> {
   try {
     const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     
@@ -72,30 +79,80 @@ export async function getContributorType(address: string): Promise<ContributorTy
       address: nftContractAddress,
     });
 
-    // First check if user has any NFTs
-    const balance = await readContract({
-      contract,
-      method: "function balanceOf(address owner) view returns (uint256)",
-      params: [address],
-    });
+    const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
+    
+    for (const tokenId of tokenIds) {
+      const balance = await readContract({
+        contract,
+        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
+        params: [address, BigInt(tokenId)],
+      });
+      
+      if (Number(balance) > 0) {
+        return tokenId;
+      }
+    }
 
-    if (Number(balance) === 0) {
+    return null;
+  } catch (error) {
+    console.error("Error getting contributor type ID:", error);
+    return null;
+  }
+}
+
+/**
+ * Get contributor type from NFT token ID ownership
+ * 
+ * Checks which contributor NFT token ID the user owns and returns the corresponding type.
+ * 
+ * @param address - User's wallet address
+ * @returns Contributor type or null if not a contributor
+ */
+export async function getContributorType(address: string): Promise<ContributorType> {
+  try {
+    const tokenId = await getContributorTypeId(address);
+    
+    if (!tokenId) {
       return null;
     }
 
-    // TODO: In a full implementation, we would:
-    // 1. Get the token ID(s) owned by the user
-    // 2. Fetch the token metadata (tokenURI)
-    // 3. Parse the metadata JSON to find the 'Role' attribute
-    // 4. Return the role value
-    
-    // For now, return a default type if they own the NFT
-    // This can be enhanced when the actual NFT metadata structure is defined
-    return 'invited';
-    
+    switch (tokenId) {
+      case 1:
+        return 'appointed';
+      case 2:
+        return 'invited';
+      case 3:
+        return 'earned';
+      default:
+        return null;
+    }
   } catch (error) {
     console.error("Error getting contributor type:", error);
     return null;
+  }
+}
+
+/**
+ * Get contributor multiplier based on token ID
+ * 
+ * Different contributor types have different reward multipliers:
+ * - Token ID 1 (Appointed): 0.8x multiplier
+ * - Token ID 2 (Invited): 1.0x multiplier
+ * - Token ID 3 (Earned): 1.5x multiplier
+ * 
+ * @param tokenId - Contributor token ID (1, 2, or 3)
+ * @returns Multiplier value
+ */
+export function getContributorMultiplier(tokenId: number | null): number {
+  switch (tokenId) {
+    case 1:
+      return 0.8; // Appointed
+    case 2:
+      return 1.0; // Invited
+    case 3:
+      return 1.5; // Earned
+    default:
+      return 0;
   }
 }
 

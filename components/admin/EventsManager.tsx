@@ -241,19 +241,53 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/admin/events/${eventId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminAddress,
-          status: newStatus,
-        }),
-      });
+      let response;
+      
+      // Use dedicated start/end endpoints for live event transitions
+      // These endpoints handle Towns Protocol permission updates
+      if (newStatus === 'live') {
+        response = await fetch('/api/admin/events/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId,
+            adminAddress,
+          }),
+        });
+      } else if (newStatus === 'ended') {
+        response = await fetch('/api/admin/events/end', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId,
+            adminAddress,
+          }),
+        });
+      } else {
+        // For other status changes, use the existing PATCH endpoint
+        response = await fetch(`/api/admin/events/${eventId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminAddress,
+            status: newStatus,
+          }),
+        });
+      }
 
       const data = await response.json();
 
       if (data.success) {
         console.log(`✅ Event status updated to: ${newStatus}`);
+        
+        // Show warning if Towns permissions update failed
+        // This is a warning, not an error, since the event was successfully updated
+        if (data.data?.townsUpdateFailed) {
+          console.warn('⚠️ Towns permissions update failed:', data.message);
+          // Show a non-blocking warning to the user
+          alert(data.message || 'Event updated but Towns permissions may need manual update');
+        }
+        
         // ✅ Real-time will handle the update
         // fetchEvents(); // Optional: real-time should handle this
       } else {
