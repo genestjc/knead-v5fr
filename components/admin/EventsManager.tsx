@@ -231,7 +231,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     setGuestSearchResults([]);
   };
 
-  // ✅ SIMPLIFIED: Just update database status (permission check happens in /api/chat/permissions)
+  // ✅ UPDATED: Calls bot to update blockchain permissions
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     if (isUpdating) {
       alert('Please wait for the current update to complete.');
@@ -241,7 +241,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     try {
       setIsUpdating(true);
       
-      // Update event status in database
+      // 1. Update event status in database
       const response = await fetch(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -257,8 +257,42 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         throw new Error(data.error || 'Failed to update event');
       }
 
-      console.log('✅ Event status updated');
-      alert(`Event ${newStatus === 'live' ? 'started' : 'ended'}! Participant permissions updated automatically.`);
+      console.log('✅ Event status updated in database');
+
+      // 2. Call bot to update role permissions on-chain
+      if (newStatus === 'live' || newStatus === 'ended') {
+        const permissions = newStatus === 'live' 
+          ? ['Read', 'Write', 'React'] 
+          : ['Read'];
+        
+        console.log('🤖 Calling bot to update blockchain permissions:', permissions);
+        
+        const botUrl = process.env.NEXT_PUBLIC_BOT_URL || 'https://your-bot.onrender.com';
+        const botResponse = await fetch(`${botUrl}/update-role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            spaceAddress: process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ADDRESS,
+            roleId: parseInt(process.env.NEXT_PUBLIC_TOWNS_PARTICIPANT_ROLE_ID || '0'),
+            permissions,
+            apiKey: process.env.NEXT_PUBLIC_BOT_API_KEY,
+          }),
+        });
+
+        const botData = await botResponse.json();
+        
+        if (botData.success) {
+          console.log('✅ Bot updated permissions on-chain!');
+          console.log(`   Tx Hash: ${botData.txHash}`);
+          console.log(`   Block: ${botData.blockNumber}`);
+          alert(`Event ${newStatus}! ✅\n\nPermissions updated on-chain:\nTx: ${botData.txHash.slice(0, 10)}...`);
+        } else {
+          console.error('❌ Bot failed:', botData.error);
+          alert(`Event status updated in database, but blockchain update failed:\n${botData.error}\n\nParticipants can still message (UI permissions work), but blockchain enforcement failed.`);
+        }
+      } else {
+        alert(`Event ${newStatus}!`);
+      }
 
       // Refresh events list
       await fetchEvents();
@@ -449,10 +483,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         )}
       </div>
 
-      {/* Create Event Modal - (keeping existing modal code, just the closing tag) */}
+      {/* Create Event Modal - keeping your existing modal code */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          {/* ... existing modal JSX from your code ... */}
+          {/* ... (keep all your existing modal JSX) ... */}
         </div>
       )}
     </div>
