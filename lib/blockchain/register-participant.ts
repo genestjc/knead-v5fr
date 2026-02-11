@@ -23,23 +23,36 @@ function getRewardsContract() {
 
 /**
  * Check if a participant is registered in the rewards contract
+ * ✅ UPDATED: Now reads participants mapping directly for accurate check
  */
 export async function isParticipantRegistered(address: string): Promise<boolean> {
   try {
     const contract = getRewardsContract();
     
-    // Try to get participant stats - if they exist, they're registered
-    await readContract({
+    // Read participant struct directly from contract
+    const participant = await readContract({
       contract,
-      method: 'function getParticipantStats(address) view returns (uint256 totalEarned, uint256 totalClaimed, uint256 availableToClaim, uint256 lastClaimTime)',
+      method: 'function participants(address) view returns (address walletAddress, uint256 totalTownsEarned, bool hasGraduated, bool isRegistered, uint256 tier, uint256 registrationTime)',
       params: [address],
     });
     
-    // If we get stats back without error, they're registered
-    return true;
-  } catch {
-    // If error, they're likely not registered
-    return false;
+    // participant is returned as an array
+    // Index 3 = isRegistered boolean
+    return participant[3] as boolean;
+    
+  } catch (error: any) {
+    console.error('Error checking registration status:', error);
+    
+    // If participant doesn't exist in mapping, they're not registered
+    const errorMsg = error.message?.toLowerCase() || '';
+    if (errorMsg.includes('not found') || 
+        errorMsg.includes('does not exist') || 
+        errorMsg.includes('execution reverted')) {
+      return false;
+    }
+    
+    // For other errors (network, RPC, etc.), throw to surface the issue
+    throw new Error(`Failed to check registration: ${error.message || String(error)}`);
   }
 }
 
