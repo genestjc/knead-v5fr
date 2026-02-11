@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -201,6 +202,29 @@ export async function POST(req: NextRequest) {
         }
       } catch (dailyError) {
         console.error('[POST /api/events] Error creating Daily.co room:', dailyError);
+      }
+    }
+
+    // Create on-chain event for Live/Discussion events
+    let onChainEventId = null;
+    if (eventType === 'live' || eventType === 'discussion') {
+      try {
+        const startTimestamp = Math.floor(new Date(scheduledStart).getTime() / 1000);
+        const endTimestamp = Math.floor(new Date(scheduledEnd).getTime() / 1000);
+        const chainEventType = eventType === 'live' ? EventType.Live : EventType.Discussion;
+        
+        onChainEventId = await createOnChainEvent(
+          title,
+          startTimestamp,
+          endTimestamp,
+          chainEventType,
+          50 // Default RSVP cap based on Daily max participants
+        );
+        
+        console.log('[POST /api/events] Created on-chain event:', onChainEventId);
+      } catch (chainError) {
+        console.error('[POST /api/events] Error creating on-chain event:', chainError);
+        // Don't fail the whole request if on-chain creation fails
       }
     }
 

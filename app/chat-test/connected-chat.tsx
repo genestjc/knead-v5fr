@@ -251,25 +251,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ UPDATED: Better message mapping with debug logging
+  // Message mapping without excessive debug logging
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
-      // ✅ Debug logging to see what fields are available
-      console.log('🔍 Message event:', {
-        eventId: event.eventId,
-        creatorUserId: event.creatorUserId,
-        creatorAddress: event.creatorAddress,
-        userId: event.userId,
-        sender: event.sender,
-        payload: event.payload,
-      });
-
-      // ✅ Try multiple possible fields for user address
+      // Try multiple possible fields for user address
       const senderId = event.sender?.id || '';
       
       if (!senderId) {
-        console.warn('⚠️ No sender ID found for event:', event);
+        console.warn('⚠️ No sender ID found for event:', event.eventId);
       }
 
       return {

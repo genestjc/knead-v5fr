@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contributorAddress, participantAddress, amount, actionType } = await req.json();
+    const { contributorAddress, participantAddress, amount, actionType, eventId } = await req.json();
 
     // Validate inputs
     if (!contributorAddress || !participantAddress || !amount) {
@@ -47,17 +47,26 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Award tokens via Engine wallet (no user signature required)
+    // Pass eventId if provided for event-specific bonuses
     const result = await awardTownsViaEngine(
       participantAddress,
       amountNum,
-      actionType || 'message_like'
+      actionType || 'message_like',
+      eventId
     );
+
+    const awardType = eventId !== undefined ? 'event bonus' : 'general tip';
+    const message = eventId !== undefined 
+      ? `Event bonus awarded successfully! (Event #${eventId})`
+      : 'Tokens awarded successfully! 25% contributed to the weekly pool for all contributors.';
 
     return NextResponse.json({
       success: true,
       transactionHash: result.transactionHash,
       amount: amountNum,
-      message: 'Tokens awarded successfully! 25% contributed to the weekly pool for all contributors.',
+      awardType,
+      eventId: eventId !== undefined ? eventId : null,
+      message,
     });
 
   } catch (error: any) {
