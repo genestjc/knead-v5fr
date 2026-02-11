@@ -1,42 +1,43 @@
 /**
  * ThirdWeb Storage - IPFS Upload Utilities
  * Provides functions for uploading files to IPFS via ThirdWeb's storage SDK.
- * Used for contributor profile avatars and media uploads.
  */
 import { createThirdwebClient } from "thirdweb";
 import { upload, download, resolveScheme } from "thirdweb/storage";
 
+// ✅ IMPORTANT: Must use client ID (not secret key) for public access
+const CLIENT_ID = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+
+if (!CLIENT_ID) {
+  console.error('❌ NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set!');
+}
+
 // Initialize ThirdWeb client
 const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+  clientId: CLIENT_ID!,
 });
 
 /**
  * Upload a single file to IPFS with validation
- * @param file - File to upload
- * @returns IPFS URI (ipfs://...)
  */
 export async function uploadToIPFS(file: File): Promise<string> {
   try {
-    if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
+    if (!CLIENT_ID) {
       throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set");
     }
 
-    // Validate file size (20MB max - handles high-res phone photos)
-    const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+    // Validate file size (20MB max)
+    const MAX_SIZE = 20 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       throw new Error('File too large. Maximum size is 20MB.');
     }
 
-    // Validate file type - block dangerous file types
+    // Validate file type
     const allowedTypes = [
-      // Images
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
-      // Documents
       'application/pdf', 'text/plain',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      // Video (small clips)
       'video/mp4', 'video/quicktime'
     ];
 
@@ -52,7 +53,6 @@ export async function uploadToIPFS(file: File): Promise<string> {
     }
 
     if (!allowedTypes.includes(file.type) && file.type !== '') {
-      // If type is empty, check extension (for some mobile uploads)
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic'];
       const docExtensions = ['.pdf', '.txt', '.doc', '.docx'];
       const videoExtensions = ['.mp4', '.mov'];
@@ -63,7 +63,7 @@ export async function uploadToIPFS(file: File): Promise<string> {
       }
     }
 
-    // ✅ Upload to IPFS via ThirdWeb
+    // Upload to IPFS
     const uri = await upload({
       client,
       files: [file],
@@ -78,13 +78,43 @@ export async function uploadToIPFS(file: File): Promise<string> {
 }
 
 /**
+ * Convert IPFS URI to HTTPS gateway URL
+ * ✅ SIMPLIFIED: Just use direct gateway URL construction
+ */
+export function getIPFSGatewayUrl(ipfsUri: string): string {
+  if (!ipfsUri) {
+    throw new Error("IPFS URI is required");
+  }
+
+  if (!CLIENT_ID) {
+    throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set");
+  }
+  
+  // If it's already an HTTP URL, return as-is
+  if (ipfsUri.startsWith('http://') || ipfsUri.startsWith('https://')) {
+    return ipfsUri;
+  }
+
+  // Convert ipfs:// to ThirdWeb gateway URL
+  const hash = ipfsUri.replace('ipfs://', '');
+  
+  // ✅ Use ThirdWeb's authenticated gateway
+  const gatewayUrl = `https://${CLIENT_ID}.ipfscdn.io/ipfs/${hash}`;
+  
+  console.log('✅ IPFS URI resolved:', { 
+    original: ipfsUri, 
+    resolved: gatewayUrl 
+  });
+  
+  return gatewayUrl;
+}
+
+/**
  * Upload multiple files to IPFS
- * @param files - Array of files to upload
- * @returns Array of IPFS URIs
  */
 export async function uploadMultipleToIPFS(files: File[]): Promise<string[]> {
   try {
-    if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
+    if (!CLIENT_ID) {
       throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set");
     }
 
@@ -103,50 +133,11 @@ export async function uploadMultipleToIPFS(files: File[]): Promise<string[]> {
 }
 
 /**
- * ✅ NEW: Convert IPFS URI to HTTPS gateway URL using ThirdWeb's authenticated gateway
- * @param ipfsUri - IPFS URI (ipfs://...)
- * @returns HTTPS gateway URL (protected by your API key)
- */
-export async function getIPFSGatewayUrl(ipfsUri: string): Promise<string> {
-  if (!ipfsUri) {
-    throw new Error("IPFS URI is required");
-  }
-
-  if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
-    throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set");
-  }
-  
-  // If it's already an HTTP URL, return as-is
-  if (ipfsUri.startsWith('http://') || ipfsUri.startsWith('https://')) {
-    return ipfsUri;
-  }
-
-  // ✅ Use ThirdWeb's resolveScheme for authenticated gateway access
-  try {
-    const resolvedUri = await resolveScheme({
-      client,
-      uri: ipfsUri,
-    });
-    
-    console.log('✅ IPFS URI resolved:', { original: ipfsUri, resolved: resolvedUri });
-    return resolvedUri;
-  } catch (error) {
-    console.error('Error resolving IPFS URI:', error);
-    
-    // Fallback to manual construction if resolveScheme fails
-    const hash = ipfsUri.replace('ipfs://', '');
-    return `https://${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}.ipfscdn.io/ipfs/${hash}`;
-  }
-}
-
-/**
  * Download a file from IPFS
- * @param ipfsUri - IPFS URI (ipfs://...)
- * @returns Downloaded file data
  */
 export async function downloadFromIPFS(ipfsUri: string): Promise<Response> {
   try {
-    if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
+    if (!CLIENT_ID) {
       throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set");
     }
 
@@ -164,8 +155,6 @@ export async function downloadFromIPFS(ipfsUri: string): Promise<Response> {
 
 /**
  * Helper to check if file is an image
- * @param filename - File name to check
- * @returns True if the file is an image
  */
 export function isImageFile(filename: string): boolean {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic'];
