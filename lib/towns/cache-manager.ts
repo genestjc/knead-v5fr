@@ -16,25 +16,56 @@ export function clearTownsCache() {
   console.log(`✅ Cleared ${keysToRemove.length} Towns cache keys`);
 }
 
+export function clearAllUserCaches() {
+  console.log('🧹 Clearing ALL user-specific Towns caches...');
+  
+  const keysToRemove = Object.keys(localStorage).filter(key => 
+    key.startsWith('river-') || 
+    key.startsWith('towns-') || 
+    key.startsWith('csb-') ||
+    key.includes('stream') ||
+    key.includes('miniblock') ||
+    key.includes('timeline') ||
+    key.includes('user-')
+  );
+  
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+  });
+  
+  // Also clear session storage
+  const sessionKeys = Object.keys(sessionStorage).filter(key =>
+    key.startsWith('river-') ||
+    key.startsWith('towns-') ||
+    key.startsWith('csb-')
+  );
+  
+  sessionKeys.forEach(key => {
+    sessionStorage.removeItem(key);
+  });
+  
+  console.log(`✅ Cleared ${keysToRemove.length} localStorage keys and ${sessionKeys.length} sessionStorage keys`);
+}
+
 export function trackUserState(role: string, isContributor: boolean) {
   const stateKey = 'knead_user_state';
   const currentState = `${role}:${isContributor}`;
   const previousState = localStorage.getItem(stateKey);
   
-  // ✅ Towns recommendation: Clear cache on first load if state exists
+  // ✅ Only log state changes, don't auto-clear cache
   if (previousState && previousState !== currentState) {
-    console.log(`🔄 State changed: ${previousState} → ${currentState}`);
-    clearTownsCache();
-    localStorage.setItem(stateKey, currentState);
-    return true; // Cache was cleared
+    console.log(`🔄 User state changed: ${previousState} → ${currentState}`);
+    // ❌ REMOVED: clearTownsCache() - was too aggressive and caused infinite loops
+    // Users can manually refresh if needed
   }
   
+  // Always update stored state
   localStorage.setItem(stateKey, currentState);
-  return false; // No cache clear needed
+  return false; // ✅ Never return true to prevent auto-reload
 }
 
 /**
- * ✅ Towns recommendation: Clear cache if error detected on first load
+ * ✅ Clear cache if error detected on first load
  */
 export function clearCacheOnError() {
   const errorKey = 'knead_last_sync_error';
