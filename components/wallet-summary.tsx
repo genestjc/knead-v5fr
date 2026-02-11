@@ -48,20 +48,40 @@ export function WalletSummary({
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   const isChatContext = context === "chat";
 
+  // 🔍 DEBUG: Log component mount and props
+  useEffect(() => {
+    console.log('🔍 WalletSummary mounted');
+    console.log('🔍 Context:', context);
+    console.log('🔍 isChatContext:', isChatContext);
+    console.log('🔍 Account:', account?.address);
+  }, []);
+
   // Check contributor status
   useEffect(() => {
+    console.log('🔍 Contributor check useEffect triggered');
+    console.log('🔍 Account address:', account?.address);
+    
     if (!account?.address) {
+      console.log('❌ No account address, setting isContributor to false');
       setIsContributor(false);
       return;
     }
     
     const checkContributorStatus = async () => {
       try {
+        console.log('🔍 Starting contributor status check...');
+        
         const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+        
+        console.log('🔍 NFT Contract Address from env:', nftContractAddress);
+        
         if (!nftContractAddress) {
-          console.warn('Contributor NFT contract address not configured');
+          console.warn('❌ Contributor NFT contract address not configured in .env.local');
+          console.warn('❌ Add: NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS=0xYourContractAddress');
           return;
         }
+        
+        console.log('✅ Creating NFT contract instance...');
         
         const nftContract = getContract({
           client,
@@ -69,31 +89,48 @@ export function WalletSummary({
           address: nftContractAddress,
         });
         
+        console.log('✅ NFT Contract created');
+        
         // Check if they own any of the contributor tokens (1, 2, or 3)
-        const contributorTokenIds = [1, 2, 3];  // ✅ CORRECT        
+        const contributorTokenIds = [1, 2, 3];
+        
+        console.log('🔍 Checking token IDs:', contributorTokenIds);
+        
         for (const tokenId of contributorTokenIds) {
+          console.log(`🔍 Checking token ID ${tokenId}...`);
+          
           const balance = await readContract({
             contract: nftContract,
             method: 'function balanceOf(address owner, uint256 id) view returns (uint256)',
             params: [account.address, BigInt(tokenId)],
           });
           
+          console.log(`🔍 Token ${tokenId} balance:`, balance.toString());
+          
           if (balance > 0n) {
-            console.log(`✅ User owns Contributor NFT #${tokenId}`);
+            console.log(`✅ User owns Contributor NFT #${tokenId}!`);
+            console.log('✅ Setting isContributor to TRUE');
             setIsContributor(true);
             return;
           }
         }
         
+        console.log('❌ User does not own any contributor NFTs');
         setIsContributor(false);
       } catch (error) {
-        console.error('Failed to check contributor status:', error);
+        console.error('❌ Failed to check contributor status:', error);
+        console.error('❌ Error details:', error);
         setIsContributor(false);
       }
     };
     
     checkContributorStatus();
   }, [account?.address]);
+
+  // 🔍 DEBUG: Watch isContributor state changes
+  useEffect(() => {
+    console.log('🔍 isContributor state changed to:', isContributor);
+  }, [isContributor]);
 
   // Fetch TOWNS balance
   useEffect(() => {
@@ -138,14 +175,26 @@ export function WalletSummary({
 
   // Fetch claimable balance (contributors only)
   useEffect(() => {
-    if (!isContributor || !account?.address || !isChatContext) return;
+    console.log('🔍 Claimable balance useEffect triggered');
+    console.log('🔍 isContributor:', isContributor);
+    console.log('🔍 isChatContext:', isChatContext);
+    
+    if (!isContributor || !account?.address || !isChatContext) {
+      console.log('❌ Not fetching claimable balance - requirements not met');
+      return;
+    }
+    
+    console.log('✅ Fetching claimable balance...');
     
     const fetchClaimableBalance = async () => {
       setIsLoadingClaimable(true);
       try {
         const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+        
+        console.log('🔍 Rewards contract address:', rewardsContractAddress);
+        
         if (!rewardsContractAddress) {
-          console.warn('Rewards contract address not configured');
+          console.warn('❌ Rewards contract address not configured');
           return;
         }
         
@@ -171,7 +220,7 @@ export function WalletSummary({
         setClaimableBalance(displayClaimable);
         console.log(`✅ Claimable balance: ${displayClaimable} TOWNS`);
       } catch (error) {
-        console.error('Failed to fetch claimable balance:', error);
+        console.error('❌ Failed to fetch claimable balance:', error);
         setClaimableBalance('0');
       } finally {
         setIsLoadingClaimable(false);
