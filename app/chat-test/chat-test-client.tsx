@@ -3,14 +3,13 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
-import { useActiveWallet, useConnect } from 'thirdweb/react';
+import { useActiveWallet } from 'thirdweb/react';
 import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
-import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
+import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { clearTownsCache, clearCacheOnError } from '@/lib/towns/cache-manager';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -158,7 +157,7 @@ function useBotAutoConnect() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW
+// SETUP FLOW - ✅ NO CACHE CLEARING!
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
@@ -175,9 +174,8 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ NEW: Clear cache on first load if error detected
-                clearCacheOnError();
-
+                // ✅ NO CACHE CLEARING - Let SDK manage persistence!
+                
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (!hasJoinedBefore) {
@@ -199,14 +197,6 @@ function SetupFlow() {
                 
                 console.log('✅ Towns agent connected');
                 console.log('⛽ Gas sponsorship enabled via EIP-7702');
-
-                // ✅ NEW: Clear old cache after first successful connection
-                const isFirstConnection = !localStorage.getItem('knead_towns_initialized');
-                if (isFirstConnection) {
-                  console.log('🧹 First connection - clearing any old cache...');
-                  clearTownsCache();
-                  localStorage.setItem('knead_towns_initialized', 'true');
-                }
                 
                 setSetupComplete(true);
 
