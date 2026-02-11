@@ -10,6 +10,7 @@ import { getWalletBalance } from "thirdweb/wallets";
 import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
@@ -41,6 +42,10 @@ export function WalletSummary({
   const [claimableBalance, setClaimableBalance] = useState<string>("0");
   const [isLoadingClaimable, setIsLoadingClaimable] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  
+  // Contributor Settings Modal states
+  const [showContributorSettings, setShowContributorSettings] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -131,6 +136,26 @@ export function WalletSummary({
   useEffect(() => {
     console.log('🔍 isContributor state changed to:', isContributor);
   }, [isContributor]);
+
+  // Fetch user data for contributor settings
+  useEffect(() => {
+    if (!account?.address || !isChatContext) return;
+    
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch(`/api/chat/user?address=${account.address}`);
+        const data = await response.json();
+        if (data.success) {
+          setUserData(data.data);
+          console.log('✅ User data loaded:', data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data:', error);
+      }
+    };
+    
+    fetchUserData();
+  }, [account?.address, isChatContext]);
 
   // Fetch TOWNS balance
   useEffect(() => {
@@ -425,7 +450,7 @@ export function WalletSummary({
 
   const handleContributorSettings = () => {
     setIsDropdownOpen(false);
-    window.location.href = '/contributor-settings';
+    setShowContributorSettings(true);
   };
 
   const handleExportKey = () => {
@@ -796,6 +821,16 @@ export function WalletSummary({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Contributor Settings Modal */}
+      <ContributorSettingsModal
+        isOpen={showContributorSettings}
+        onClose={() => setShowContributorSettings(false)}
+        userAddress={account.address}
+        currentAlias={userData?.alias}
+        currentAvatar={userData?.avatar}
+        userId={userData?.id}
+      />
     </>
   );
 }
