@@ -69,9 +69,8 @@ export function WalletSummary({
           address: nftContractAddress,
         });
         
-        // Check if they own any of the contributor tokens (10, 11, or 12)
-        const contributorTokenIds = [10, 11, 12];
-        
+        // Check if they own any of the contributor tokens (1, 2, or 3)
+        const contributorTokenIds = [1, 2, 3];  // ✅ CORRECT        
         for (const tokenId of contributorTokenIds) {
           const balance = await readContract({
             contract: nftContract,
