@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { AdminContextMenu } from './AdminContextMenu';
+import { FileMessageDisplay } from './FileMessageDisplay';
 
 interface ChatMessage {
   id: string;
@@ -132,6 +133,12 @@ export function MessageBubble({
     }
   };
 
+  // Check if message contains a file
+  const fileMatch = message.content.match(/\[FILE:(.+?)\]\((.+?)\)/);
+  const isFileMessage = !!fileMatch;
+  const fileName = fileMatch?.[1];
+  const ipfsUri = fileMatch?.[2];
+
   return (
     <>
       <motion.div
@@ -153,9 +160,17 @@ export function MessageBubble({
               }
             `}
           >
-            <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-              {message.content}
-            </p>
+            {isFileMessage && fileName && ipfsUri ? (
+              <FileMessageDisplay 
+                fileName={fileName}
+                ipfsUri={ipfsUri}
+                isCurrentUser={isOwn}
+              />
+            ) : (
+              <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                {message.content}
+              </p>
+            )}
 
             {message.townsAwarded && message.townsAwarded > 0 && (
               <div className="mt-2 flex items-center gap-1 text-xs opacity-90">

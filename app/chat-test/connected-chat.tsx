@@ -9,6 +9,7 @@ import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import { FileMessageDisplay } from '@/components/chat/FileMessageDisplay';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -16,6 +17,7 @@ import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { uploadToIPFS } from '@/lib/thirdweb/storage';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -50,9 +52,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [dailyToken, setDailyToken] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
+  const [isUploading, setIsUploading] = useState(false);
   
   const activeEventIdRef = useRef<string | null>(null);
   const dailyTokenRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const activeAccount = useActiveAccount();
 
@@ -251,6 +255,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const ipfsUri = await uploadToIPFS(file);
+      
+      // Send message with file info
+      const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
+      await sendMessage(fileMessage);
+      
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      console.error('File upload failed:', error);
+      alert(error.message || 'Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Message mapping without excessive debug logging
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
@@ -384,12 +412,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
                   <div className="border-t border-gray-200 p-4 bg-white">
                     <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                      />
+                      
+                      {/* Paperclip button - only for Contributors */}
+                      {canAwardTokens && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isSending || !permissions?.canPost}
+                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                          title="Upload file"
+                        >
+                          📎
+                        </button>
+                      )}
+                      
                       <input
                         type="text"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         placeholder={
-                          !permissions?.canPost && userRole === 'participant'
+                          isUploading
+                            ? "Uploading file..."
+                            : !permissions?.canPost && userRole === 'participant'
                             ? "💬 Messaging available during live events only"
                             : !permissions?.canPost && userRole === 'freemium'
                             ? "🔒 Upgrade to Premium to participate in events"
@@ -402,11 +454,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                             ? 'focus:ring-[#007AFF] border-gray-300' 
                             : 'bg-gray-100 border-gray-200 cursor-not-allowed'
                         }`}
-                        disabled={!permissions?.canPost || isSending || !channelId}
+                        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
                       />
                       <button 
                         type="submit" 
-                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
                         className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
                           !permissions?.canPost && userRole === 'participant'
@@ -485,12 +537,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
                   <div className="border-t border-gray-200 p-2 bg-white">
                     <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                      />
+                      
+                      {/* Paperclip button - only for Contributors */}
+                      {canAwardTokens && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isSending || !permissions?.canPost}
+                          className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                          title="Upload file"
+                        >
+                          📎
+                        </button>
+                      )}
+                      
                       <input
                         type="text"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         placeholder={
-                          !permissions?.canPost && userRole === 'participant'
+                          isUploading
+                            ? "Uploading..."
+                            : !permissions?.canPost && userRole === 'participant'
                             ? "💬 Live events only"
                             : !permissions?.canPost && userRole === 'freemium'
                             ? "🔒 Upgrade to Premium"
@@ -501,11 +577,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                             ? 'focus:ring-[#007AFF] border-gray-300' 
                             : 'bg-gray-100 border-gray-200 cursor-not-allowed'
                         }`}
-                        disabled={!permissions?.canPost || isSending || !channelId}
+                        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
                       />
                       <button 
                         type="submit" 
-                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
                         className="w-8 h-8 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg 
@@ -595,12 +671,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
               <div className="border-t border-gray-200 p-4 bg-white">
                 <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                  />
+                  
+                  {/* Paperclip button - only for Contributors */}
+                  {canAwardTokens && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading || isSending || !permissions?.canPost}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                      title="Upload file"
+                    >
+                      📎
+                    </button>
+                  )}
+                  
                   <input
                     type="text"
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     placeholder={
-                      !permissions?.canPost && userRole === 'participant'
+                      isUploading
+                        ? "Uploading file..."
+                        : !permissions?.canPost && userRole === 'participant'
                         ? "💬 Messaging available during live events only"
                         : !permissions?.canPost && userRole === 'freemium'
                         ? "🔒 Upgrade to Premium to participate in events"
@@ -613,11 +713,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                         ? 'focus:ring-[#007AFF] border-gray-300' 
                         : 'bg-gray-100 border-gray-200 cursor-not-allowed'
                     }`}
-                    disabled={!permissions?.canPost || isSending || !channelId}
+                    disabled={!permissions?.canPost || isSending || isUploading || !channelId}
                   />
                   <button 
                     type="submit" 
-                    disabled={!permissions?.canPost || !messageInput.trim() || isSending || !channelId} 
+                    disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
                     className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
                     title={
                       !permissions?.canPost && userRole === 'participant'

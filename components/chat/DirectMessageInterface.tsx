@@ -12,6 +12,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import { uploadToIPFS } from '@/lib/thirdweb/storage';
+import { FileMessageDisplay } from './FileMessageDisplay';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -30,7 +32,9 @@ export function DirectMessageInterface({
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const [messageInput, setMessageInput] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ✅ FIXED: Filter for ChannelMessage events only
   const messages = (events || []).filter(
@@ -58,6 +62,30 @@ export function DirectMessageInterface({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const ipfsUri = await uploadToIPFS(file);
+      
+      // Send message with file info
+      const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
+      await sendMessage(fileMessage);
+      
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      console.error('File upload failed:', error);
+      alert(error.message || 'Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -100,6 +128,12 @@ export function DirectMessageInterface({
             // Use timestamp from event
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
+            // Check if message contains a file
+            const fileMatch = messageText.match(/\[FILE:(.+?)\]\((.+?)\)/);
+            const isFileMessage = !!fileMatch;
+            const fileName = fileMatch?.[1];
+            const ipfsUri = fileMatch?.[2];
+            
             return (
               <div
                 key={event.eventId || index}
@@ -114,7 +148,15 @@ export function DirectMessageInterface({
                     }
                   `}
                 >
-                  <p className="text-sm">{messageText}</p>
+                  {isFileMessage && fileName && ipfsUri ? (
+                    <FileMessageDisplay 
+                      fileName={fileName}
+                      ipfsUri={ipfsUri}
+                      isCurrentUser={isCurrentUser}
+                    />
+                  ) : (
+                    <p className="text-sm">{messageText}</p>
+                  )}
                   <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
                     {new Date(timestamp).toLocaleTimeString([], { 
                       hour: '2-digit', 
@@ -132,21 +174,40 @@ export function DirectMessageInterface({
       {/* Input */}
       <div className="border-t p-4 bg-white">
         <div className="flex gap-2">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+          />
+          
+          {/* Paperclip button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading || isSending}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            title="Upload file"
+          >
+            📎
+          </button>
+          
           <input
             type="text"
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
+            placeholder={isUploading ? "Uploading file..." : "Type a message..."}
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isSending}
+            disabled={isSending || isUploading}
           />
           <button
             onClick={handleSendMessage}
-            disabled={isSending || !messageInput.trim()}
+            disabled={isSending || isUploading || !messageInput.trim()}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSending ? 'Sending...' : 'Send'}
+            {isSending ? 'Sending...' : isUploading ? 'Uploading...' : 'Send'}
           </button>
         </div>
       </div>
