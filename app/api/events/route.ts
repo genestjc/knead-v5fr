@@ -4,7 +4,7 @@ import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management
 import type { ApiResponse } from '@/types/chat';
 
 // Constants
-const DEFAULT_RSVP_CAP = 50; // Default max participants for events
+const DEFAULT_RSVP_CAP = 999999; // Default max participants for events
 
 export const dynamic = 'force-dynamic';
 
