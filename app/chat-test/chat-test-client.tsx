@@ -163,7 +163,7 @@ function useBotAutoConnect() {
 
 function SetupFlow() {
     const wallet = useActiveWallet();
-    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
+    const { connect, connectUsingBearerToken, isAgentConnected, isAgentConnecting } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Connecting...");
 
@@ -267,13 +267,18 @@ function SetupFlow() {
                         ⚡ No signature needed - using saved session
                     </p>
                 )}
+                {isAgentConnecting && (
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        🔗 Connecting to Towns network...
+                    </p>
+                )}
             </div>
         </div>
     );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ FIXED: No polling, pure React reactivity
+// TOWNS CHAT - ✅ FIXED: Wait for isAgentConnected before joining
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -282,6 +287,7 @@ function TownsChat() {
     const [isJoining, setIsJoining] = useState(false);
 
     const wallet = useActiveWallet();
+    const { isAgentConnected } = useAgentConnection(); // ✅ ADD THIS
     const { joinSpace } = useJoinSpace();
     const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
@@ -313,8 +319,14 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ Join space ONCE (no polling)
+    // ✅ Join space ONCE (ONLY when agent is connected)
     useEffect(() => {
+        // ✅ CRITICAL: Don't join until agent is connected!
+        if (!isAgentConnected) {
+            console.log('⏳ Waiting for agent connection before joining space...');
+            return;
+        }
+
         if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
@@ -340,7 +352,7 @@ function TownsChat() {
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
                 await joinSpace(SAVED_SPACE_ID, signer, { 
-                    skipMintMembership: true // ✅ No NFT mint needed
+                    skipMintMembership: true
                 });
                 
                 console.log('✅ Join space successful!');
@@ -372,7 +384,7 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [wallet, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, wallet, hasJoined, isJoining, joinSpace]); // ✅ ADD isAgentConnected to deps
 
     // ✅ Handle initialization (React will re-run when space.initialized changes)
     useEffect(() => {
@@ -380,6 +392,20 @@ function TownsChat() {
             console.log('✅ Space fully initialized with channels:', space.channelIds);
         }
     }, [hasJoined, space?.initialized, space?.channelIds]);
+
+    // ✅ Show loading if agent not connected yet
+    if (!isAgentConnected) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        Connecting to Towns network...
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (isSpaceLoading || isJoining) {
         return (
