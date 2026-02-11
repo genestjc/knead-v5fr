@@ -1,11 +1,7 @@
 'use client';
 
-/**
- * File Message Display Component
- * Renders file messages with proper display for images and download links for other files
- */
 import { getIPFSGatewayUrl, isImageFile } from '@/lib/thirdweb/storage';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface FileMessageDisplayProps {
   fileName: string;
@@ -14,41 +10,22 @@ interface FileMessageDisplayProps {
 }
 
 export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMessageDisplayProps) {
-  const [gatewayUrl, setGatewayUrl] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   
   const isImage = isImageFile(fileName);
-
-  // ✅ Resolve IPFS URI to gateway URL
-  useEffect(() => {
-    async function resolveUri() {
-      try {
-        const url = await getIPFSGatewayUrl(ipfsUri);
-        setGatewayUrl(url);
-      } catch (error) {
-        console.error('Failed to resolve IPFS URI:', error);
-        setImageError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    resolveUri();
-  }, [ipfsUri]);
-
-  if (isLoading) {
-    return (
-      <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border bg-gray-100">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-        <p className="text-sm text-gray-600">Loading file...</p>
-      </div>
-    );
+  
+  // ✅ Now synchronous - no async needed
+  let gatewayUrl = '';
+  try {
+    gatewayUrl = getIPFSGatewayUrl(ipfsUri);
+  } catch (error) {
+    console.error('Failed to get gateway URL:', error);
+    setImageError(true);
   }
 
   if (isImage) {
     if (imageError || !gatewayUrl) {
-      // Fallback UI for failed image loads
       return (
         <div
           className={`
@@ -60,7 +37,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
           `}
         >
           <span className="text-2xl">⚠️</span>
-          <div>
+          <div className="flex-1">
             <p className={`text-sm font-medium ${isCurrentUser ? 'text-white' : 'text-gray-900'}`}>
               {fileName}
             </p>
@@ -74,21 +51,39 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
 
     return (
       <div className="mt-2">
+        {!imageLoaded && (
+          <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg mb-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+            <p className="text-sm text-gray-600">Loading image...</p>
+          </div>
+        )}
+        
         <img
           src={gatewayUrl}
           alt={fileName}
-          className="max-w-full max-h-64 rounded-lg object-contain"
+          className={`max-w-full max-h-64 rounded-lg object-contain ${imageLoaded ? 'block' : 'hidden'}`}
           loading="lazy"
-          onError={() => setImageError(true)}
+          onLoad={() => {
+            console.log('✅ Image loaded successfully');
+            setImageLoaded(true);
+          }}
+          onError={(e) => {
+            console.error('❌ Image failed to load:', gatewayUrl);
+            setImageError(true);
+          }}
+          crossOrigin="anonymous"
         />
-        <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
-          {fileName}
-        </p>
+        
+        {imageLoaded && (
+          <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
+            {fileName}
+          </p>
+        )}
       </div>
     );
   }
 
-  // Non-image files - download link
+  // Non-image files
   if (!gatewayUrl) {
     return (
       <div className="mt-2 p-3 rounded-lg border bg-gray-100">
