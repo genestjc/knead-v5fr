@@ -3,7 +3,7 @@
  * Provides functions for uploading files to IPFS via ThirdWeb's storage SDK.
  */
 import { upload } from "thirdweb/storage";
-import { client } from "../../thirdweb-client"; // ✅ Go up TWO levels to project root
+import { client } from "../../thirdweb-client"; // ✅ Up 2 levels to project root
 
 /**
  * Upload a single file to IPFS with validation
@@ -53,7 +53,7 @@ export async function uploadToIPFS(file: File): Promise<string> {
       }
     }
 
-    // ✅ Upload to IPFS using your existing client
+    // ✅ Upload to IPFS
     const uri = await upload({
       client,
       files: [file],
