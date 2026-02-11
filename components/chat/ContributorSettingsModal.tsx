@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, User, Check, Settings } from 'lucide-react';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { useToast } from '@/hooks/use-toast';
-import { clearTownsCache } from '@/lib/towns/cache-manager';
 
 interface ContributorSettingsModalProps {
   isOpen: boolean;
@@ -123,10 +122,6 @@ export function ContributorSettingsModal({
         title: 'Profile updated!',
         description: 'Your contributor settings have been saved.',
       });
-
-      // ✅ Clear Towns cache to prevent sync errors
-      console.log('🔄 Clearing Towns cache to force re-sync...');
-      clearTownsCache();
 
       setTimeout(() => {
         console.log('🔄 Reloading to re-initialize Towns with updated profile...');
