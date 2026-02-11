@@ -9,7 +9,8 @@ import { townsEnv } from '@towns-protocol/sdk';
 import { createWallet, inAppWallet, privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
-import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button'; // ✅ Import custom button
+import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
+import { clearTownsCache, clearCacheOnError } from '@/lib/towns/cache-manager';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -34,10 +35,8 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ✅ Removed wallets array - ThirdWebConnectButton handles this internally
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ✅ BOT AUTO-CONNECT HOOK (Fixed - Use Account Directly)
+// ✅ BOT AUTO-CONNECT HOOK
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function useBotAutoConnect() {
@@ -46,7 +45,6 @@ function useBotAutoConnect() {
   const [botAccount, setBotAccount] = useState<any>(null);
   const [botInitialized, setBotInitialized] = useState(false);
 
-  // Step 1: Create account from private key
   useEffect(() => {
     if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE || !window.KEY_SHARER_PRIVATE_KEY) {
       return;
@@ -60,7 +58,6 @@ function useBotAutoConnect() {
       try {
         console.log('🤖 Bot Mode: Creating account from private key...');
         
-        // ✅ Create account from private key (this IS the wallet!)
         const account = privateKeyToAccount({
           client,
           privateKey: window.KEY_SHARER_PRIVATE_KEY!,
@@ -68,7 +65,6 @@ function useBotAutoConnect() {
         
         console.log('✅ Bot account created:', account.address);
         
-        // ✅ Create a mock wallet object that Towns expects
         const mockWallet = {
           getAccount: () => account,
           getChain: () => activeChain,
@@ -78,10 +74,8 @@ function useBotAutoConnect() {
         
         console.log('✅ Bot wallet object created');
         
-        // ✅ Store for agent connection
         setBotAccount(mockWallet);
         
-        // ✅ Clean up
         delete window.KEY_SHARER_PRIVATE_KEY;
         console.log('🧹 Private key removed from browser memory');
         
@@ -99,7 +93,6 @@ function useBotAutoConnect() {
     initBotAccount();
   }, [botInitialized]);
 
-  // Step 2: Connect Towns agent after account is ready
   useEffect(() => {
     if (!botAccount || isAgentConnected) {
       return;
@@ -134,13 +127,11 @@ function useBotAutoConnect() {
     }
   }, [botAccount, isAgentConnected, connectAgent]);
 
-  // Step 3: Mark as fully connected
   useEffect(() => {
     if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) {
       return;
     }
 
-    // Use either the regular wallet or bot account
     const activeWallet = wallet || botAccount;
 
     console.log('🤖 Bot Status:', {
@@ -166,7 +157,7 @@ function useBotAutoConnect() {
   }, [wallet, botAccount, isAgentConnected]);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -183,6 +174,9 @@ function SetupFlow() {
             try {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
+
+                // ✅ NEW: Clear cache on first load if error detected
+                clearCacheOnError();
 
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
@@ -205,6 +199,15 @@ function SetupFlow() {
                 
                 console.log('✅ Towns agent connected');
                 console.log('⛽ Gas sponsorship enabled via EIP-7702');
+
+                // ✅ NEW: Clear old cache after first successful connection
+                const isFirstConnection = !localStorage.getItem('knead_towns_initialized');
+                if (isFirstConnection) {
+                  console.log('🧹 First connection - clearing any old cache...');
+                  clearTownsCache();
+                  localStorage.setItem('knead_towns_initialized', 'true');
+                }
+                
                 setSetupComplete(true);
 
             } catch (error: any) {
@@ -418,7 +421,6 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     
-    // ✅ Bot auto-connect hook
     useBotAutoConnect();
 
     useEffect(() => {
@@ -445,7 +447,6 @@ export default function ChatTestClient() {
 
     if (!isMounted) return <LoadingSpinner />;
 
-    // ✅ Skip ConnectButton in bot mode - wallet connects programmatically
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
       if (!wallet) {
         return (
@@ -467,13 +468,11 @@ export default function ChatTestClient() {
       return <TownsChat />;
     }
 
-    // Normal user flow (not bot)
     if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center max-w-md px-4">
                     <h1 className="font-adonis text-4xl mb-4">Connect Your Wallet</h1>
-                    {/* ✅ Use custom ThirdWebConnectButton */}
                     <ThirdWebConnectButton 
                       theme="light"
                       size="wide"
