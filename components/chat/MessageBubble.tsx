@@ -1,5 +1,3 @@
-// components/chat/MessageBubble.tsx
-
 'use client';
 
 import React, { useState } from 'react';
@@ -58,67 +56,37 @@ export function MessageBubble({
     });
   };
 
-  // ✅ Handle like button click with eventId support
   const handleLike = async () => {
-    console.log('❤️ Tip button clicked');
-    console.log('🔍 Message data:', {
-      messageId: message.id,
-      senderId: message.sender.id,
-      senderName: message.sender.name,
-      isOwn: isOwn,
-      eventId: eventId || 'none',
-    });
-    
     if (!message.sender.id) {
       console.error('❌ Message sender ID is missing!', message);
       alert('Cannot tip: Sender information is missing');
       return;
     }
     
-    // Pass eventId if available (during live event)
     await awardTokensOnLike(
       message.id,
       message.sender.id,
       10,
       '❤️',
-      eventId // Pass eventId if present
+      eventId
     );
   };
 
-  // ✅ Handle right-click (desktop) with debug logging
   const handleContextMenu = (e: React.MouseEvent) => {
-    console.log('🖱️ Right-click detected');
-    console.log('   isAdmin:', isAdmin);
-    console.log('   eventId:', eventId);
-    console.log('   channelId:', channelId);
-    console.log('   spaceId:', spaceId);
-    
-    if (!isAdmin) {
-      console.log('❌ Not admin, ignoring right-click');
-      return;
-    }
+    if (!isAdmin) return;
     
     e.preventDefault();
-    console.log('✅ Showing context menu at:', { x: e.clientX, y: e.clientY });
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
   };
 
-  // ✅ Handle long-press (mobile) with debug logging
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
   
   const handleTouchStart = (e: React.TouchEvent) => {
-    console.log('📱 Touch start detected');
-    console.log('   isAdmin:', isAdmin);
-    
-    if (!isAdmin) {
-      console.log('❌ Not admin, ignoring touch');
-      return;
-    }
+    if (!isAdmin) return;
     
     const timer = setTimeout(() => {
       const touch = e.touches[0];
-      console.log('✅ Long press detected, showing context menu');
       setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
       setShowContextMenu(true);
     }, 500);
@@ -133,7 +101,6 @@ export function MessageBubble({
     }
   };
 
-  // Check if message contains a file
   const fileMatch = message.content.match(/\[FILE:(.+?)\]\((.+?)\)/);
   const isFileMessage = !!fileMatch;
   const fileName = fileMatch?.[1];
@@ -150,59 +117,80 @@ export function MessageBubble({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
-          <div
-            className={`
-              rounded-[18px] px-4 py-2 
-              ${isOwn 
-                ? 'bg-[#007AFF] text-white' 
-                : 'bg-[#E5E5EA] text-black'
-              }
-            `}
-          >
-            {isFileMessage && fileName && ipfsUri ? (
-              <FileMessageDisplay 
-                fileName={fileName}
-                ipfsUri={ipfsUri}
-                isCurrentUser={isOwn}
-              />
-            ) : (
-              <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                {message.content}
-              </p>
-            )}
-
-            {message.townsAwarded && message.townsAwarded > 0 && (
-              <div className="mt-2 flex items-center gap-1 text-xs opacity-90">
-                <span className="font-semibold">
-                  +{message.townsAwarded.toFixed(2)} $TOWNS
-                </span>
-                <span>🪙</span>
-              </div>
-            )}
-          </div>
-
-          <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
-            <span className="font-georgia-pro">
-              {!isOwn && `${message.sender.name} • `}
-              {formatTime(message.timestamp)}
-            </span>
-          </div>
-
-          {!isOwn && canAwardTokens && streamId && (
-            <button
-              onClick={handleLike}
-              disabled={isReacting}
-              className="mt-2 px-3 py-1 text-xs rounded-full bg-white border border-gray-300 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm"
-              aria-label="Tip 10 TOWNS"
-            >
-              {isReacting ? (
-                <>⏳ Sending...</>
+        {/* ✅ NEW: Flex container with avatar */}
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%]`}>
+          {/* ✅ Avatar (only for other users, not your own messages) */}
+          {!isOwn && (
+            <div className="flex-shrink-0">
+              {message.sender.avatar ? (
+                <img
+                  src={message.sender.avatar}
+                  alt={message.sender.name}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                />
               ) : (
-                <>❤️ Tip 10 TOWNS</>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
+                  {message.sender.name.substring(0, 2).toUpperCase()}
+                </div>
               )}
-            </button>
+            </div>
           )}
+
+          {/* Message content */}
+          <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+            <div
+              className={`
+                rounded-[18px] px-4 py-2 
+                ${isOwn 
+                  ? 'bg-[#007AFF] text-white' 
+                  : 'bg-[#E5E5EA] text-black'
+                }
+              `}
+            >
+              {isFileMessage && fileName && ipfsUri ? (
+                <FileMessageDisplay 
+                  fileName={fileName}
+                  ipfsUri={ipfsUri}
+                  isCurrentUser={isOwn}
+                />
+              ) : (
+                <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                  {message.content}
+                </p>
+              )}
+
+              {message.townsAwarded && message.townsAwarded > 0 && (
+                <div className="mt-2 flex items-center gap-1 text-xs opacity-90">
+                  <span className="font-semibold">
+                    +{message.townsAwarded.toFixed(2)} $TOWNS
+                  </span>
+                  <span>🪙</span>
+                </div>
+              )}
+            </div>
+
+            <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
+              <span className="font-georgia-pro">
+                {!isOwn && `${message.sender.name} • `}
+                {formatTime(message.timestamp)}
+              </span>
+            </div>
+
+            {!isOwn && canAwardTokens && streamId && (
+              <button
+                onClick={handleLike}
+                disabled={isReacting}
+                className="mt-2 px-3 py-1 text-xs rounded-full bg-white border border-gray-300 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm"
+                aria-label="Tip 10 TOWNS"
+              >
+                {isReacting ? (
+                  <>⏳ Sending...</>
+                ) : (
+                  <>❤️ Tip 10 TOWNS</>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
 
