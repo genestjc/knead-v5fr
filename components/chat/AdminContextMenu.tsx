@@ -54,40 +54,55 @@ export function AdminContextMenu({
   }, [onClose]);
 
   const handleAwardBonus = async (amount: number, bonusType: string) => {
-    if (!activeAccount?.address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
+  if (!activeAccount?.address) {
+    toast.error('Please connect your wallet');
+    return;
+  }
 
-    setIsProcessing(true);
-    try {
-      // ✅ UPDATED: New endpoint path
-      const response = await fetch('/api/chat/award-bonus', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminAddress: activeAccount.address,
-          eventId,
-          participantAddress: message.sender.id,
-          bonusAmount: amount,
-          bonusType,
-        }),
+  setIsProcessing(true);
+  try {
+    console.log('🎁 Awarding bonus:', {
+      admin: activeAccount.address,
+      participant: message.sender.id,
+      amount,
+      bonusType,
+      eventId,
+    });
+
+    const response = await fetch('/api/chat/award-bonus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminAddress: activeAccount.address,
+        eventId,
+        participantAddress: message.sender.id,
+        bonusAmount: amount,
+        bonusType,
+      }),
+    });
+
+    const data = await response.json();
+    
+    console.log('📬 API Response:', data);
+
+    if (data.success) {
+      toast.success(`Awarded ${amount} TOWNS bonus!`, {
+        description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast.success(`Awarded ${amount} TOWNS bonus!`);
-        onClose();
-      } else {
-        toast.error(data.error || 'Failed to award bonus');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to award bonus');
-    } finally {
-      setIsProcessing(false);
+      onClose();
+    } else {
+      console.error('❌ API Error:', data);
+      toast.error(data.error || 'Failed to award bonus', {
+        description: data.details,
+      });
     }
-  };
+  } catch (error: any) {
+    console.error('❌ Catch Error:', error);
+    toast.error(error.message || 'Failed to award bonus');
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const handleDeleteMessage = async () => {
     if (!confirm('Delete this message from Towns Protocol?')) return;
