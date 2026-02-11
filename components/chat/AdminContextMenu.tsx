@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
-import { useAdminRedact } from '@towns-protocol/react-sdk'; // ✅ ADD THIS
+import { useAdminRedact } from '@towns-protocol/react-sdk';
 
 interface AdminContextMenuProps {
   message: {
@@ -17,7 +17,7 @@ interface AdminContextMenuProps {
     };
     content: string;
   };
-  eventId: number;
+  eventId?: number;
   channelId: string;
   spaceId: string;
   position: { x: number; y: number };
@@ -35,7 +35,6 @@ export function AdminContextMenu({
   const activeAccount = useActiveAccount();
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // ✅ Use Towns Protocol hook for message deletion
   const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
 
   // Close on click outside
@@ -89,12 +88,12 @@ export function AdminContextMenu({
     }
   };
 
-  // ✅ NEW: Use Towns Protocol hook to delete message
   const handleDeleteMessage = async () => {
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
     try {
-      await adminRedact({ eventId: message.id });
+      // ✅ FIXED: Pass message.id directly (not wrapped in object)
+      await adminRedact(message.id);
       toast.success('Message deleted from Towns Protocol');
       onClose();
     } catch (error: any) {
