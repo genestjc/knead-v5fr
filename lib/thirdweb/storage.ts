@@ -42,7 +42,10 @@ export async function uploadToIPFS(file: File): Promise<string> {
       'video/mp4', 'video/quicktime'
     ];
     
-    const dangerousExtensions = ['.exe', '.bat', '.sh', '.app', '.dmg', '.scr', '.com', '.cmd', '.msi'];
+    const dangerousExtensions = [
+      '.exe', '.bat', '.sh', '.app', '.dmg', '.scr', '.com', '.cmd', '.msi',
+      '.ps1', '.vbs', '.jar', '.deb', '.rpm', '.run', '.bin', '.apk'
+    ];
     const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
     
     if (dangerousExtensions.includes(fileExtension)) {
