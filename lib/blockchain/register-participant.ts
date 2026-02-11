@@ -47,12 +47,12 @@ export async function isParticipantRegistered(address: string): Promise<boolean>
 
 /**
  * Register a participant in the rewards contract
- * Must be called before awarding tokens to new users
  * 
  * @param address - Participant's wallet address
- * @param cohort - Cohort number (default: 0)
+ * @param cohort - Cohort number (defaults to 1 = general cohort, NOT 0!)
  */
-export async function registerParticipant(address: string, cohort: number = 0): Promise<{ transactionHash: string }> {
+export async function registerParticipant(address: string, cohort: number = 1): Promise<{ transactionHash: string }> {
+  //                                                                                  ↑ CHANGE TO 1
   try {
     const contract = getRewardsContract();
     
@@ -79,7 +79,6 @@ export async function registerParticipant(address: string, cohort: number = 0): 
   } catch (error: any) {
     const errorMsg = error.message?.toLowerCase() || '';
     
-    // If already registered, that's actually fine!
     if (errorMsg.includes('already registered')) {
       console.log('ℹ️ Participant already registered:', address);
       return { transactionHash: 'already-registered' };
