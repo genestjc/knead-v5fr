@@ -55,14 +55,18 @@ export async function awardTownsViaEngine(
     // Convert amount to wei (18 decimals)
     const amountInWei = BigInt(Math.floor(amount * 1e18));
     
-    // Prepare the awardTowns transaction
+    // Use awardEventBonus instead of awardTowns
     const transaction = prepareContractCall({
       contract: rewardsContract,
-      method: 'function awardTowns(address recipient, uint256 amount, string memory actionType)',
-      params: [participantAddress, amountInWei, actionType],
+      method: 'function awardEventBonus(uint256 _eventId, address _participant, uint256 _bonusAmount, string _bonusType)',
+      params: [
+        0n, // eventId - use 0 for general tips, or pass actual eventId
+        participantAddress,
+        amountInWei,
+        actionType
+      ],
     });
     
-    // Send transaction from Engine wallet
     const receipt = await sendEngineTransaction({
       transaction,
       account: serverWallet,
