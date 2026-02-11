@@ -19,7 +19,7 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { useTownsConnectionMonitor } from '@/hooks/use-towns-connection';
-import { trackUserState, recordSyncError } from '@/lib/towns/cache-manager';
+import { recordSyncError } from '@/lib/towns/cache-manager';
 import { useOptimisticMessages } from '@/hooks/use-optimistic-messages';
 
 interface ConnectedChatProps {
@@ -67,10 +67,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions } = useChatPermissions(activeAccount?.address || null);
 
-  // ✅ NEW: Monitor Towns connection health
   const { isConnected, reconnectAttempts } = useTownsConnectionMonitor();
 
-  // ✅ NEW: Optimistic message updates
   const {
     optimisticMessages,
     addOptimisticMessage,
@@ -87,19 +85,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ✅ NEW: Track user state changes and clear cache if needed
-  useEffect(() => {
-    if (activeAccount?.address && userRole) {
-      const cacheCleared = trackUserState(userRole, canAwardTokens);
-      
-      if (cacheCleared) {
-        console.log('🔄 User state changed - reloading in 2 seconds...');
-        setTimeout(() => window.location.reload(), 2000);
-      }
-    }
-  }, [userRole, canAwardTokens, activeAccount?.address]);
+  // ❌ REMOVED: Auto-reload on state change (was causing infinite loop)
 
-  // ✅ NEW: Show connection status if having issues
   if (reconnectAttempts > 2) {
     return (
       <ChatLayout>
@@ -138,8 +125,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     detectRole();
   }, [activeAccount?.address]);
-
-  // ... (event fetching useEffect stays the same) ...
 
   useEffect(() => {
     async function fetchLiveEvent() {
@@ -258,11 +243,91 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (sendError) console.error('❌ Send error:', sendError);
   }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError]);
 
+  // ✅ NEW: ENCRYPTION & ENTITLEMENT DIAGNOSTIC
+  useEffect(() => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔐 ENCRYPTION & ENTITLEMENT DEBUG:');
+    console.log('   Current user:', activeAccount?.address);
+    console.log('   User role:', userRole);
+    console.log('   Can award tokens:', canAwardTokens);
+    console.log('   Permissions:', permissions);
+    console.log('   Is freemium:', isFreemiumUser);
+    console.log('   Has time left:', hasTimeLeft);
+    console.log('   Timeline total events:', timeline?.length || 0);
+    
+    if (timeline && timeline.length > 0) {
+      const messageEvents = timeline.filter(
+        (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
+      );
+      console.log('   Message events (ChannelMessage):', messageEvents.length);
+      
+      const errorEvents = timeline.filter((e: any) => 
+        e.error || 
+        e.decryptionFailed || 
+        e.decryptionError ||
+        (e.content && e.content.error)
+      );
+      
+      if (errorEvents.length > 0) {
+        console.log('   ❌ EVENTS WITH ERRORS:', errorEvents.length);
+        errorEvents.forEach((e: any, i: number) => {
+          console.log(`      Error ${i + 1}:`, {
+            eventId: e.eventId,
+            error: e.error,
+            decryptionFailed: e.decryptionFailed,
+            decryptionError: e.decryptionError,
+            contentError: e.content?.error,
+          });
+        });
+      } else {
+        console.log('   ✅ No decryption errors detected');
+      }
+      
+      console.log('   Sample messages (first 3):');
+      messageEvents.slice(0, 3).forEach((event: any, index: number) => {
+        console.log(`      Message ${index + 1}:`, {
+          eventId: event.eventId?.substring(0, 16),
+          sender: event.sender?.id?.substring(0, 16) || event.creatorUserId?.substring(0, 16) || 'unknown',
+          content: event.content?.body?.substring(0, 30),
+          kind: event.content?.kind,
+          encrypted: event.encrypted,
+          hasSessionKey: !!event.sessionKey,
+        });
+      });
+      
+      const allSenders = new Set(
+        messageEvents.map((e: any) => 
+          e.sender?.id || e.creatorUserId || 'unknown'
+        )
+      );
+      console.log('   Unique senders in timeline:', allSenders.size);
+      console.log('   Sender addresses:', Array.from(allSenders).map(s => 
+        typeof s === 'string' ? s.substring(0, 16) + '...' : s
+      ));
+      
+      const currentUserMessages = messageEvents.filter((e: any) => {
+        const senderId = e.sender?.id || e.creatorUserId;
+        return senderId && activeAccount?.address && 
+               senderId.toLowerCase() === activeAccount.address.toLowerCase();
+      });
+      
+      if (currentUserMessages.length === messageEvents.length && messageEvents.length > 0) {
+        console.log('   ⚠️  WARNING: You only see your own messages!');
+        console.log('   ⚠️  This suggests an entitlement/encryption key issue');
+      } else {
+        console.log('   ✅ You can see messages from other users');
+      }
+    } else {
+      console.log('   ℹ️  No timeline events yet');
+    }
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }, [timeline, userRole, canAwardTokens, permissions, activeAccount?.address, isFreemiumUser, hasTimeLeft]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline, optimisticMessages]);
 
-  // ✅ UPDATED: Handle send message with optimistic updates
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -287,13 +352,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     const messageContent = messageInput;
     
-    // ✅ Show message immediately (optimistic update)
     const tempId = addOptimisticMessage(
       messageContent,
       currentUser.displayName || currentUser.address
     );
     
-    // Clear input immediately
     setMessageInput('');
 
     try {
@@ -304,15 +367,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       
       console.log('✅ Message sent successfully');
       
-      // Mark optimistic message as sent
       markMessageSent(tempId);
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
       
-      // Mark optimistic message as failed
       markMessageFailed(tempId);
       
-      // Restore input so user can retry
       setMessageInput(messageContent);
       
       if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
@@ -348,7 +408,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ UPDATED: Combine real + optimistic messages
   const messages = [
     ...(timeline
       ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
@@ -373,7 +432,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             : false,
         };
       }) || []),
-    // ✅ Add optimistic messages
     ...optimisticMessages,
   ].sort((a, b) => a.timestamp - b.timestamp);
 
@@ -418,7 +476,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </ChatLayout>
     );
   }
-  
+
   return (
     <>
       <DailyProvider>
