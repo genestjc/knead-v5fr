@@ -323,90 +323,64 @@ function TownsChat() {
     }, [space]);
 
     // ✅ Join space - let SDK mint with EIP-7702
-    useEffect(() => {
-        // Wait for BOTH agent connected AND sync agent available
-        if (!isAgentConnected || !syncAgent) {
-            if (!isAgentConnected) {
-                console.log('⏳ Waiting for agent connection...');
-            } else if (!syncAgent) {
-                console.log('⏳ Agent connected, waiting for sync agent...');
-            }
-            return;
-        }
+// In TownsChat component, replace the joinSpace effect with this:
 
-        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
-
-        const joinSpaceNow = async () => {
-            setIsJoining(true);
-            
-            try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) {
-                    setIsJoining(false);
-                    return;
-                }
-
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                
-                if (hasJoinedBefore) {
-                    console.log('✅ Already joined');
-                    setHasJoined(true);
-                    setIsJoining(false);
-                    return;
-                }
-
-                console.log('⏳ Stabilizing...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                console.log('🚀 Joining space (SDK will mint NFT with EIP-7702)...');
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
-                // ✅ NO SKIP - let SDK mint with gas sponsorship!
-                await joinSpace(SAVED_SPACE_ID, signer);
-                
-                console.log('✅ Joined successfully!');
-                localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                setHasJoined(true);
-
-            } catch (error: any) {
-                if (error.message?.includes('already a member')) {
-                    console.log('✅ Already a member');
-                    const userAddress = wallet.getAccount()?.address;
-                    if (userAddress) {
-                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                    }
-                    setHasJoined(true);
-                } else {
-                    console.error('❌ Join failed:', error);
-                    alert(`Failed to join: ${error.message}`);
-                }
-            } finally {
-                setIsJoining(false);
-            }
-        };
-
-        joinSpaceNow();
-    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
-
-    // ✅ Log when space initializes
-    useEffect(() => {
-        if (hasJoined && space?.initialized) {
-            console.log('✅ Space fully initialized with channels:', space.channelIds);
-        }
-    }, [hasJoined, space?.initialized, space?.channelIds]);
-
-    if (!isAgentConnected || !syncAgent) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {!isAgentConnected ? 'Connecting to Towns...' : 'Initializing...'}
-                    </p>
-                </div>
-            </div>
-        );
+useEffect(() => {
+  // Wait for BOTH agent connected AND sync agent available
+  if (!isAgentConnected || !syncAgent) {
+    if (!isAgentConnected) {
+      console.log('⏳ Waiting for agent connection...');
+    } else if (!syncAgent) {
+      console.log('⏳ Agent connected, waiting for sync agent...');
     }
+    return;
+  }
+
+  if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
+
+  const joinSpaceNow = async () => {
+    setIsJoining(true);
+    
+    try {
+      const userAddress = wallet.getAccount()?.address;
+      if (!userAddress) {
+        setIsJoining(false);
+        return;
+      }
+
+      // ❌ REMOVE THIS - localStorage check is wrong
+      // const hasJoinedBefore = localStorage.getItem(...);
+      
+      console.log('⏳ Stabilizing...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      console.log('🚀 Joining space (will use existing NFT)...');
+      const signer = await getEthersV5Signer(wallet, activeChain, client);
+      
+      // ✅ ALWAYS call joinSpace - it connects you to stream nodes
+      // Since you already own the NFT, skip minting
+      await joinSpace(SAVED_SPACE_ID, signer, { 
+        skipMintMembership: true  // You already own it
+      });
+      
+      console.log('✅ Joined successfully!');
+      setHasJoined(true);
+
+    } catch (error: any) {
+      if (error.message?.includes('already a member')) {
+        console.log('✅ Already a member');
+        setHasJoined(true);
+      } else {
+        console.error('❌ Join failed:', error);
+        alert(`Failed to join: ${error.message}`);
+      }
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  joinSpaceNow();
+}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
 
     if (isSpaceLoading || isJoining) {
         return (
