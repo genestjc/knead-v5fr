@@ -35,7 +35,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ✅ BOT AUTO-CONNECT HOOK
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -109,7 +109,7 @@ function useBotAutoConnect() {
           
           await connectAgent(signer, { 
             townsConfig: TOWNS_CONFIG,
-            onTokenExpired: () => console.log('��� Token expired')
+            onTokenExpired: () => console.log('🔄 Token expired')
           });
           
           console.log('✅ Bot Towns agent connected');
@@ -145,7 +145,7 @@ function useBotAutoConnect() {
       console.log('✅ BOT SUCCESSFULLY CONNECTED');
       console.log(`   Wallet: ${activeWallet.getAccount?.()?.address}`);
       console.log(`   Time: ${new Date().toISOString()}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       window.KEY_SHARER_CONNECTED = true;
       window.KEY_SHARER_ATTEMPTED = true;
@@ -158,14 +158,14 @@ function useBotAutoConnect() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ RESTORED MINTING + BEARER TOKEN
+// SETUP FLOW - ✅ NO MINT API, JUST CONNECT AGENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
-    const { connect, connectUsingBearerToken, isAgentConnected, isAgentConnecting } = useAgentConnection();
+    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
-    const [setupStep, setSetupStep] = useState("Preparing your account...");
+    const [setupStep, setSetupStep] = useState("Connecting...");
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -175,27 +175,7 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ STEP 1: MINT MEMBERSHIP (if needed) - happens in background via EIP-7702
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                
-                if (!hasJoinedBefore) {
-                    setSetupStep("Creating your membership...");
-                    console.log('🎫 Minting membership NFT (gas sponsored)...');
-                    
-                    try {
-                        await fetch('/api/towns/mint-membership', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
-                        });
-                        console.log('✅ Membership created');
-                    } catch (mintError) {
-                        console.warn('⚠️ Mint failed (may already exist):', mintError);
-                        // Continue anyway - joinSpace will handle it
-                    }
-                }
-
-                // ✅ STEP 2: CONNECT TOWNS AGENT (try bearer token first!)
+                // ✅ Try bearer token first (fast reconnect)
                 const savedToken = getSavedTownsAuth();
                 
                 if (savedToken) {
@@ -216,12 +196,12 @@ function SetupFlow() {
                         return;
                         
                     } catch (tokenError: any) {
-                        console.warn('⚠️ Saved token failed, requesting new signature:', tokenError.message);
+                        console.warn('⚠️ Saved token failed, will request new signature:', tokenError.message);
                         clearTownsAuth();
                     }
                 }
 
-                // ✅ STEP 3: SIGNATURE-BASED AUTH (only if no valid token)
+                // ✅ Signature-based auth
                 setSetupStep("Please sign the message...");
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
@@ -236,7 +216,7 @@ function SetupFlow() {
                 
                 console.log('✅ Towns agent connected');
                 
-                // ✅ SAVE BEARER TOKEN for next time
+                // ✅ Save bearer token for next time
                 try {
                     const syncAgent = agent as any;
                     if (syncAgent?.auth?.token || syncAgent?.authToken || syncAgent?.token) {
@@ -271,7 +251,7 @@ function SetupFlow() {
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md px-4">
                 <h2 className="font-adonis text-3xl mb-4">
-                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Setting Up Your Membership"}
+                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Connecting to Chat"}
                 </h2>
                 <LoadingSpinner />
                 <p className="font-georgia-pro text-sm text-gray-600 mt-4">
@@ -287,18 +267,13 @@ function SetupFlow() {
                         ⚡ No signature needed - using saved session
                     </p>
                 )}
-                {!setupStep.includes("failed") && !setupStep.includes("sign") && (
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        Gas fees sponsored by Knead ⚡
-                    </p>
-                )}
             </div>
         </div>
     );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ WAIT FOR SYNC AGENT + NO SKIP
+// TOWNS CHAT - ✅ LET SDK MINT WITH EIP-7702 (NO SKIP)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -347,7 +322,7 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ Join space ONLY when sync agent ready
+    // ✅ Join space - let SDK mint with EIP-7702
     useEffect(() => {
         // Wait for BOTH agent connected AND sync agent available
         if (!isAgentConnected || !syncAgent) {
@@ -374,46 +349,36 @@ function TownsChat() {
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (hasJoinedBefore) {
-                    console.log('✅ User already joined before');
+                    console.log('✅ Already joined');
                     setHasJoined(true);
                     setIsJoining(false);
                     return;
                 }
 
-                // ✅ Small delay for client stability
-                console.log('⏳ Stabilizing connection...');
+                console.log('⏳ Stabilizing...');
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
-                console.log('🚀 Joining space...');
-                console.log('   SDK will detect existing NFT automatically');
+                console.log('🚀 Joining space (SDK will mint NFT with EIP-7702)...');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                // ✅ NO SKIP - let SDK detect the NFT we minted earlier!
+                // ✅ NO SKIP - let SDK mint with gas sponsorship!
                 await joinSpace(SAVED_SPACE_ID, signer);
                 
-                console.log('✅ Join space successful!');
+                console.log('✅ Joined successfully!');
                 localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                 setHasJoined(true);
 
             } catch (error: any) {
-                const userAddress = wallet.getAccount()?.address;
-                
                 if (error.message?.includes('already a member')) {
-                    console.log('✅ Already a member - treating as success');
+                    console.log('✅ Already a member');
+                    const userAddress = wallet.getAccount()?.address;
                     if (userAddress) {
                         localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                     }
                     setHasJoined(true);
                 } else {
                     console.error('❌ Join failed:', error);
-                    console.error('   Error message:', error.message);
-                    
-                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                        window.KEY_SHARER_ERROR = error.message;
-                        window.KEY_SHARER_CONNECTED = false;
-                    }
-                    
-                    alert(`Failed to join space: ${error.message}`);
+                    alert(`Failed to join: ${error.message}`);
                 }
             } finally {
                 setIsJoining(false);
@@ -430,7 +395,6 @@ function TownsChat() {
         }
     }, [hasJoined, space?.initialized, space?.channelIds]);
 
-    // Show loading if agent/sync not ready
     if (!isAgentConnected || !syncAgent) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -490,9 +454,6 @@ function TownsChat() {
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-2">
-                        Space ID: {spaceId?.substring(0, 16)}...
-                    </p>
                     <button 
                         onClick={() => window.location.reload()}
                         className="mt-4 px-4 py-2 bg-black text-white rounded-full"
@@ -519,7 +480,7 @@ function TownsChat() {
     return <LoadingSpinner />;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
