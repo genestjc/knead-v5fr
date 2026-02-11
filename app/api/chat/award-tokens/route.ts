@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isContributor } from '@/lib/blockchain/contributor-nft';
 import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
 import { getUserTownsBalance } from '@/lib/blockchain/towns-utils';
+import { isParticipantRegistered, registerParticipant } from '@/lib/blockchain/register-participant';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,26 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    // 2. Award tokens via Engine wallet (no user signature required)
+    // 2. Check if participant is registered
+    const isRegistered = await isParticipantRegistered(participantAddress);
+    
+    // If not registered, register them first
+    if (!isRegistered) {
+      console.log('🔄 Participant not registered, registering now:', participantAddress);
+      
+      try {
+        await registerParticipant(participantAddress);
+        console.log('✅ Participant registered successfully');
+      } catch (regError) {
+        console.error('Failed to register participant:', regError);
+        return NextResponse.json(
+          { error: 'Failed to register participant before awarding tokens' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 3. Award tokens via Engine wallet (no user signature required)
     // Pass eventId if provided for event-specific bonuses
     const result = await awardTownsViaEngine(
       participantAddress,
@@ -66,6 +86,7 @@ export async function POST(req: NextRequest) {
       amount: amountNum,
       awardType,
       eventId: eventId !== undefined ? eventId : null,
+      registered: !isRegistered, // Let frontend know if we had to register
       message,
     });
 
