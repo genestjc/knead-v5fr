@@ -55,6 +55,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   const [isUploading, setIsUploading] = useState(false);
+  const [contributorProfiles, setContributorProfiles] = useState<Record<string, any>>({});
   
   const activeEventIdRef = useRef<string | null>(null);
   const dailyTokenRef = useRef<string | null>(null);
@@ -216,7 +217,40 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [sendError, retryCount]);
 
-  // ✅ DIAGNOSTIC LOGGING
+  // ✅ Fetch contributor profiles for message senders
+  useEffect(() => {
+    if (!timeline) return;
+    
+    const senderAddresses = new Set(
+      timeline
+        .filter((e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage)
+        .map((e: any) => e.sender?.id || e.creatorUserId)
+        .filter(Boolean)
+    );
+    
+    senderAddresses.forEach(async (address) => {
+      if (contributorProfiles[address]) return;
+      
+      try {
+        const res = await fetch(`/api/chat/user?address=${address}`);
+        const data = await res.json();
+        
+        if (data.success && data.user) {
+          setContributorProfiles(prev => ({
+            ...prev,
+            [address]: {
+              alias: data.user.alias || data.user.displayName,
+              avatar: data.user.avatar,
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile for', address, error);
+      }
+    });
+  }, [timeline, contributorProfiles]);
+
+  // ✅ Diagnostic logging
   useEffect(() => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔐 ENCRYPTION & ENTITLEMENT DEBUG:');
@@ -332,20 +366,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ CREATE MESSAGES ARRAY
+  // ✅ Create messages array with profiles
   const messages = useMemo(() => {
     const timelineMessages = timeline
       ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
       .map((event: any) => {
         const senderId = event.sender?.id || event.creatorUserId || '';
+        const profile = contributorProfiles[senderId];
         
         return {
           id: event.eventId || event.id,
           content: event.content?.body || '',
           sender: {
             id: senderId,
-            name: event.creatorDisplayName || 'Anonymous',
-            avatar: undefined,
+            name: profile?.alias || `${senderId.substring(0, 6)}...${senderId.substring(senderId.length - 4)}`,
+            avatar: profile?.avatar,
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: senderId && activeAccount?.address 
@@ -358,7 +393,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       ...timelineMessages,
       ...optimisticMessages,
     ].sort((a, b) => a.timestamp - b.timestamp);
-  }, [timeline, optimisticMessages, activeAccount?.address]);
+  }, [timeline, optimisticMessages, activeAccount?.address, contributorProfiles]);
 
   const videoStageProps = useMemo(() => {
     if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
@@ -408,116 +443,387 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     <>
       <DailyProvider>
         <ChatLayout>
-          <div className="h-full flex flex-col bg-white">
-            <div className="bg-gray-50 px-4 py-2 border-b">
-              <div className="flex items-center justify-between">
-                <p className="font-georgia-pro text-sm text-gray-600">
-                  <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-                  {channelId && ` → ${channelId.substring(0, 8)}...`}
-                </p>
-                <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-                  userRole === 'contributor' 
-                    ? 'bg-purple-100 text-purple-800' 
-                    : userRole === 'participant' 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {userRole === 'contributor' && '⭐ Contributor'}
-                  {userRole === 'participant' && '💬 Participant'}
-                  {userRole === 'freemium' && '👀 Freemium'}
-                </span>
-              </div>
-            </div>
+          {videoStageProps && activeEvent?.videoEnabled ? (
+            <>
+              {/* Desktop/Tablet: Horizontal split */}
+              <div className="hidden lg:grid lg:grid-rows-2 h-screen">
+                <div className="border-b border-gray-200">
+                  <EventVideoStage {...videoStageProps} />
+                </div>
+                
+                <div className="flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                        {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : userRole === 'participant' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
 
-            <div className="flex-1 overflow-y-auto pb-16">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-gray-500 py-8">
-                    <p className="font-georgia-pro text-lg">No messages yet.</p>
-                    <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {isTimelineLoading ? (
+                      <LoadingSpinner />
+                    ) : messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-gray-500 py-8">
+                          <p className="font-georgia-pro text-lg">No messages yet.</p>
+                          <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-4">
+                        {messages.map((message: any) => (
+                          <MessageBubble
+                            key={message.id}
+                            message={message}
+                            isOwn={message.isOwn || false}
+                            streamId={channelId}
+                            canAwardTokens={canAwardTokens}
+                            isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                            eventId={activeEvent?.id}
+                            channelId={channelId}
+                            spaceId={spaceId}
+                          />
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-4 bg-white">
+                    <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                      />
+                      
+                      {canAwardTokens && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isSending || !permissions?.canPost}
+                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                          title="Upload file"
+                        >
+                          📎
+                        </button>
+                      )}
+                      
+                      <input
+                        type="text"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        placeholder={
+                          isUploading
+                            ? "Uploading file..."
+                            : !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Messaging available during live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium to participate in events"
+                            : channelId 
+                              ? "iMessage" 
+                              : "Loading..."
+                        }
+                        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+                        className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          !permissions?.canPost && userRole === 'participant'
+                            ? "Messaging available during live events only"
+                            : ""
+                        }
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor" 
+                          className="w-5 h-5"
+                        >
+                          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                        </svg>
+                      </button>
+                    </form>
                   </div>
                 </div>
-              ) : (
-                <div className="py-4">
-                  {messages.map((message: any) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      isOwn={message.isOwn || false}
-                      streamId={channelId}
-                      canAwardTokens={canAwardTokens}
-                      isAdmin={activeAccount?.address?.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
-                      eventId={activeEvent?.id}
-                      channelId={channelId}
-                      spaceId={spaceId}
-                    />
-                  ))}
-                  <div ref={messagesEndRef} />
+              </div>
+
+              {/* Mobile: Vertical 3-section split */}
+              <div className="lg:hidden flex flex-col h-screen">
+                <div className="h-1/3 border-b border-gray-200">
+                  <EventVideoStage {...videoStageProps} />
+                </div>
+                
+                <div className="h-2/3 flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : userRole === 'participant' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {isTimelineLoading ? (
+                      <LoadingSpinner />
+                    ) : messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-gray-500 py-8">
+                          <p className="font-georgia-pro text-sm">No messages yet.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-2 px-2">
+                        {messages.map((message: any) => (
+                          <MessageBubble
+                            key={message.id}
+                            message={message}
+                            isOwn={message.isOwn || false}
+                            streamId={channelId}
+                            canAwardTokens={canAwardTokens}
+                            isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                            eventId={activeEvent?.id}
+                            channelId={channelId}
+                            spaceId={spaceId}
+                          />
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-2 bg-white">
+                    <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                      />
+                      
+                      {canAwardTokens && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isSending || !permissions?.canPost}
+                          className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                          title="Upload file"
+                        >
+                          📎
+                        </button>
+                      )}
+                      
+                      <input
+                        type="text"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        placeholder={
+                          isUploading
+                            ? "Uploading..."
+                            : !permissions?.canPost && userRole === 'participant'
+                            ? "💬 Live events only"
+                            : !permissions?.canPost && userRole === 'freemium'
+                            ? "🔒 Upgrade to Premium"
+                            : "Message"
+                        }
+                        className={`flex-1 px-3 py-2 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro text-sm ${
+                          permissions?.canPost 
+                            ? 'focus:ring-[#007AFF] border-gray-300' 
+                            : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                        }`}
+                        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+                        className="w-8 h-8 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor" 
+                          className="w-4 h-4"
+                        >
+                          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                        </svg>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="h-full flex flex-col bg-white">
+              <div className="bg-gray-50 px-4 py-2 border-b">
+                <div className="flex items-center justify-between">
+                  <p className="font-georgia-pro text-sm text-gray-600">
+                    <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                    {channelId && ` → Channel: ${channelId.substring(0, 8)}...`}
+                  </p>
+                  <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                    userRole === 'contributor' 
+                      ? 'bg-purple-100 text-purple-800' 
+                      : userRole === 'participant' 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {userRole === 'contributor' && '⭐ Contributor'}
+                    {userRole === 'participant' && '💬 Participant'}
+                    {userRole === 'freemium' && '👀 Freemium'}
+                  </span>
+                </div>
+              </div>
+
+              {permissions?.canPost && userRole === 'participant' && (
+                <div className="bg-green-50 border-b border-green-200 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600">🎙️</span>
+                    <p className="text-sm text-green-800 font-medium">
+                      Event is live! You can now ask questions and participate.
+                    </p>
+                  </div>
                 </div>
               )}
-            </div>
 
-            <div className="border-t border-gray-200 p-4 bg-white">
-              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+              {activeEvent && (
+                <EventBanner
+                  eventTitle={activeEvent.title}
+                  timeRemaining={undefined}
+                  isLive={true}
                 />
-                
-                {canAwardTokens && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading || isSending || !permissions?.canPost}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                    title="Upload file"
-                  >
-                    📎
-                  </button>
+              )}
+
+              <div className="flex-1 overflow-y-auto pb-16">
+                {isTimelineLoading ? (
+                  <LoadingSpinner />
+                ) : messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-gray-500 py-8">
+                      <p className="font-georgia-pro text-lg">No messages yet.</p>
+                      <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-4">
+                    {messages.map((message: any) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        isOwn={message.isOwn || false}
+                        streamId={channelId}
+                        canAwardTokens={canAwardTokens}
+                        isAdmin={activeAccount?.address.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                        eventId={activeEvent?.id}
+                        channelId={channelId}
+                        spaceId={spaceId}
+                      />
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
                 )}
-                
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  placeholder={
-                    isUploading
-                      ? "Uploading file..."
-                      : !permissions?.canPost && userRole === 'participant'
-                      ? "💬 Messaging available during live events only"
-                      : !permissions?.canPost && userRole === 'freemium'
-                      ? "🔒 Upgrade to Premium to participate in events"
-                      : channelId 
-                        ? "iMessage" 
-                        : "Loading..."
-                  }
-                  className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
-                    permissions?.canPost 
-                      ? 'focus:ring-[#007AFF] border-gray-300' 
-                      : 'bg-gray-100 border-gray-200 cursor-not-allowed'
-                  }`}
-                  disabled={!permissions?.canPost || isSending || isUploading || !channelId}
-                />
-                <button 
-                  type="submit" 
-                  disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
-                  className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 24 24" 
-                    fill="currentColor" 
-                    className="w-5 h-5"
+              </div>
+
+              <div className="border-t border-gray-200 p-4 bg-white">
+                <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                  />
+                  
+                  {canAwardTokens && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading || isSending || !permissions?.canPost}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                      title="Upload file"
+                    >
+                      📎
+                    </button>
+                  )}
+                  
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder={
+                      isUploading
+                        ? "Uploading file..."
+                        : !permissions?.canPost && userRole === 'participant'
+                        ? "💬 Messaging available during live events only"
+                        : !permissions?.canPost && userRole === 'freemium'
+                        ? "🔒 Upgrade to Premium to participate in events"
+                        : channelId 
+                          ? "iMessage" 
+                          : "Loading..."
+                    }
+                    className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                      permissions?.canPost 
+                        ? 'focus:ring-[#007AFF] border-gray-300' 
+                        : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                    }`}
+                    disabled={!permissions?.canPost || isSending || isUploading || !channelId}
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+                    className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      !permissions?.canPost && userRole === 'participant'
+                        ? "Messaging available during live events only"
+                        : ""
+                    }
                   >
-                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                  </svg>
-                </button>
-              </form>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 24 24" 
+                      fill="currentColor" 
+                      className="w-5 h-5"
+                    >
+                      <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                    </svg>
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
         </ChatLayout>
       </DailyProvider>
       
