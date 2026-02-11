@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       amount: amountNum,
       awardType,
       eventId: eventId !== undefined ? eventId : null,
-      registered: !isRegistered, // Let frontend know if we had to register
+      wasAutoRegistered: !isRegistered,
       message,
     });
 
