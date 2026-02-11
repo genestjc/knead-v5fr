@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
+import { awardTownsViaEngine, isParticipant } from '@/lib/blockchain/award-rewards-engine';
 
-/**
- * Award Event Bonus via Admin Context Menu
- * Allows admins to award bonus tokens during live events
- * Admin verification happens at blockchain level (Engine wallet has ORACLE_ROLE)
- */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { adminAddress, eventId, participantAddress, bonusAmount, bonusType } = body;
 
+    console.log('📥 Award bonus request:', { adminAddress, eventId, participantAddress, bonusAmount, bonusType });
+
     // Validate required fields
     if (!participantAddress || !bonusAmount || !bonusType) {
+      console.error('❌ Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields: participantAddress, bonusAmount, bonusType' },
         { status: 400 }
@@ -21,27 +19,37 @@ export async function POST(req: NextRequest) {
 
     // Validate amount is positive
     if (bonusAmount <= 0) {
+      console.error('❌ Invalid bonus amount:', bonusAmount);
       return NextResponse.json(
         { error: 'Bonus amount must be positive' },
         { status: 400 }
       );
     }
 
-    console.log('🎁 Admin awarding bonus:', {
-      admin: adminAddress || 'system',
-      participant: participantAddress,
-      amount: bonusAmount,
-      type: bonusType,
-      eventId: eventId || 'general',
-    });
+    // Check if participant is registered
+    console.log('🔍 Checking if participant is registered...');
+    const registered = await isParticipant(participantAddress);
+    console.log('✅ Participant registered:', registered);
+    
+    if (!registered) {
+      console.error('❌ Participant not registered:', participantAddress);
+      return NextResponse.json(
+        { 
+          error: 'Participant not registered',
+          details: `${participantAddress} must be registered before receiving bonuses. Register them first via the contract's registerParticipant() function.`,
+        },
+        { status: 400 }
+      );
+    }
 
-    // ✅ Award tokens via Engine (blockchain-level authorization)
-    // The Engine wallet must have ORACLE_ROLE on the contract
+    console.log('🎁 Awarding bonus via Engine...');
+
+    // Award tokens via Engine
     const result = await awardTownsViaEngine(
       participantAddress,
       bonusAmount,
       bonusType,
-      eventId // Pass eventId for event bonuses
+      eventId
     );
 
     console.log('✅ Bonus awarded successfully:', result.transactionHash);
@@ -55,6 +63,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('❌ Error awarding bonus:', error);
+    console.error('Error stack:', error.stack);
     
     return NextResponse.json(
       { 
