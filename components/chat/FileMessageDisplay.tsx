@@ -2,7 +2,7 @@
 
 import { MediaRenderer } from "thirdweb/react";
 import { isImageFile } from '@/lib/thirdweb/storage';
-import { client } from '@/lib/thirdweb-client'; // ✅ Use your existing client
+import { client } from '@/thirdweb-client'; // ✅ Correct path: project root
 
 interface FileMessageDisplayProps {
   fileName: string;
