@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, User, Check } from 'lucide-react';
+import { X, Upload, User, Check, Settings } from 'lucide-react';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { useToast } from '@/hooks/use-toast';
+import { clearTownsCache } from '@/lib/towns/cache-manager';
 
 interface ContributorSettingsModalProps {
   isOpen: boolean;
@@ -31,7 +32,6 @@ export function ContributorSettingsModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setAlias(currentAlias || '');
@@ -44,7 +44,6 @@ export function ContributorSettingsModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
@@ -54,7 +53,6 @@ export function ContributorSettingsModal({
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: 'File too large',
@@ -66,7 +64,6 @@ export function ContributorSettingsModal({
 
     setAvatarFile(file);
 
-    // Create local preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setAvatarPreview(reader.result as string);
@@ -80,7 +77,6 @@ export function ContributorSettingsModal({
     try {
       let avatarUrl = currentAvatar;
 
-      // Upload new avatar to IPFS if file was selected
       if (avatarFile) {
         setIsUploading(true);
         console.log('📤 Uploading avatar to IPFS...');
@@ -103,7 +99,6 @@ export function ContributorSettingsModal({
         setIsUploading(false);
       }
 
-      // Update profile in database
       console.log('💾 Updating profile in database...');
       const response = await fetch('/api/contributor/update-profile', {
         method: 'POST',
@@ -129,12 +124,15 @@ export function ContributorSettingsModal({
         description: 'Your contributor settings have been saved.',
       });
 
-      // Close modal after short delay
+      // ✅ Clear Towns cache to prevent sync errors
+      console.log('🔄 Clearing Towns cache to force re-sync...');
+      clearTownsCache();
+
       setTimeout(() => {
+        console.log('🔄 Reloading to re-initialize Towns with updated profile...');
         onClose();
-        // Refresh page to update UI
         window.location.reload();
-      }, 1000);
+      }, 1500);
 
     } catch (error) {
       console.error('❌ Save error:', error);
@@ -164,7 +162,6 @@ export function ContributorSettingsModal({
           className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Settings className="w-6 h-6 text-gray-700" />
@@ -178,14 +175,12 @@ export function ContributorSettingsModal({
             </button>
           </div>
 
-          {/* Avatar Upload */}
           <div className="mb-6">
             <label className="block font-adonis text-sm text-gray-700 mb-3">
               Profile Photo
             </label>
             
             <div className="flex items-center gap-4">
-              {/* Avatar Preview */}
               <div className="relative">
                 {avatarPreview ? (
                   <img
@@ -199,7 +194,6 @@ export function ContributorSettingsModal({
                   </div>
                 )}
                 
-                {/* Upload overlay */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || isSaving}
@@ -209,7 +203,6 @@ export function ContributorSettingsModal({
                 </button>
               </div>
 
-              {/* Upload button */}
               <div className="flex-1">
                 <input
                   ref={fileInputRef}
@@ -234,7 +227,6 @@ export function ContributorSettingsModal({
             </div>
           </div>
 
-          {/* Alias/Username */}
           <div className="mb-6">
             <label className="block font-adonis text-sm text-gray-700 mb-2">
               Display Name
@@ -253,7 +245,6 @@ export function ContributorSettingsModal({
             </p>
           </div>
 
-          {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-700">
               💡 <strong>Your profile is public</strong>
@@ -263,7 +254,6 @@ export function ContributorSettingsModal({
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3">
             <button
               onClick={onClose}
