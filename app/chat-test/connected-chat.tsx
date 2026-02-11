@@ -9,7 +9,6 @@ import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
-import { FileMessageDisplay } from '@/components/chat/FileMessageDisplay';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -127,27 +126,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
-        console.log('🔍 [ConnectedChat] Fetching live events...');
         const res = await fetch('/api/events?status=live', {
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' }
         });
         const data = await res.json();
         
-        console.log('�� [ConnectedChat] Live events response:', data);
-        
         if (data.success && data.data.length > 0) {
           const liveEvent = data.data[0];
           
           if (activeEventIdRef.current !== liveEvent.id) {
-            console.log('🎥 [ConnectedChat] NEW event detected:', liveEvent.title);
             activeEventIdRef.current = liveEvent.id;
             setActiveEvent(liveEvent);
             
             dailyTokenRef.current = null;
             setDailyToken(null);
-          } else {
-            console.log('⏭️ [ConnectedChat] Same event, skipping update');
           }
           
           if (liveEvent.videoEnabled && 
@@ -157,7 +150,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             
             const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
             
-            console.log('🎫 [ConnectedChat] Generating Daily token...');
             const tokenRes = await fetch('/api/events/generate-token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -170,14 +162,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             
             const tokenData = await tokenRes.json();
             if (tokenData.success && tokenData.data.token !== dailyTokenRef.current) {
-              console.log('✅ [ConnectedChat] New Daily token generated');
               dailyTokenRef.current = tokenData.data.token;
               setDailyToken(tokenData.data.token);
             }
           }
         } else {
           if (activeEventIdRef.current !== null) {
-            console.log('📭 [ConnectedChat] No live events - clearing');
             activeEventIdRef.current = null;
             dailyTokenRef.current = null;
             setActiveEvent(null);
@@ -185,7 +175,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           }
         }
       } catch (error) {
-        console.error('❌ [ConnectedChat] Error fetching live event:', error);
+        console.error('❌ Error fetching live event:', error);
       }
     }
     
@@ -204,13 +194,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           table: 'chat_events',
         },
         (payload) => {
-          console.log('🔄 [ConnectedChat] Event changed:', payload);
           fetchLiveEvent();
         }
       )
-      .subscribe((status) => {
-        console.log('📡 [ConnectedChat] Event subscription:', status);
-      });
+      .subscribe();
     
     return () => {
       clearInterval(interval);
@@ -229,32 +216,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [sendError, retryCount]);
 
-  useEffect(() => {
-    console.log('🔍 ConnectedChat Debug:');
-    console.log('   - spaceId:', spaceId);
-    console.log('   - space:', space);
-    console.log('   - channelId:', channelId);
-    console.log('   - timeline length:', timeline?.length);
-    
-    if (spaceError) console.error('❌ Space error:', spaceError);
-    if (timelineError) console.error('❌ Timeline error:', timelineError);
-    if (sendError) console.error('❌ Send error:', sendError);
-  }, [spaceId, space, channelId, timeline, spaceError, timelineError, sendError]);
-
-  // ✅ ENHANCED: ENCRYPTION & ENTITLEMENT DIAGNOSTIC
+  // ✅ DIAGNOSTIC LOGGING
   useEffect(() => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔐 ENCRYPTION & ENTITLEMENT DEBUG:');
     console.log('   Current user:', activeAccount?.address);
     console.log('   User role:', userRole);
-    console.log('   Can award tokens:', canAwardTokens);
-    console.log('   Permissions:', permissions);
-    console.log('   Is freemium:', isFreemiumUser);
-    console.log('   Has time left:', hasTimeLeft);
     console.log('   Timeline total events:', timeline?.length || 0);
     
     if (timeline && timeline.length > 0) {
-      // ✅ Show ALL event types
       const eventsByType: Record<string, number> = {};
       timeline.forEach((e: any) => {
         const kind = e.content?.kind || e.kind || 'unknown';
@@ -262,90 +232,26 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       });
       
       console.log('   📊 Events by type:', eventsByType);
-      console.log('   📋 All timeline events (full details):');
-      timeline.forEach((event: any, index: number) => {
-        console.log(`      Event ${index + 1}:`, {
-          eventId: event.eventId?.substring(0, 16),
-          kind: event.content?.kind || event.kind,
-          sender: event.sender?.id?.substring(0, 16) || event.creatorUserId?.substring(0, 16),
-          body: event.content?.body?.substring(0, 50),
-          encrypted: event.encrypted,
-          error: event.error,
-          decryptionFailed: event.decryptionFailed,
-          fullEvent: event, // ✅ Show full object for inspection
-        });
-      });
       
       const messageEvents = timeline.filter(
         (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
       );
       console.log('   Message events (ChannelMessage):', messageEvents.length);
       
-      const errorEvents = timeline.filter((e: any) => 
-        e.error || 
-        e.decryptionFailed || 
-        e.decryptionError ||
-        (e.content && e.content.error)
-      );
-      
-      if (errorEvents.length > 0) {
-        console.log('   ❌ EVENTS WITH ERRORS:', errorEvents.length);
-        errorEvents.forEach((e: any, i: number) => {
-          console.log(`      Error ${i + 1}:`, {
-            eventId: e.eventId,
-            error: e.error,
-            decryptionFailed: e.decryptionFailed,
-            decryptionError: e.decryptionError,
-            contentError: e.content?.error,
-            fullEvent: e,
-          });
-        });
-      } else {
-        console.log('   ✅ No decryption errors detected');
-      }
-      
       if (messageEvents.length > 0) {
         console.log('   📨 ChannelMessage details:');
         messageEvents.forEach((event: any, index: number) => {
           console.log(`      Message ${index + 1}:`, {
-            eventId: event.eventId?.substring(0, 16),
-            sender: event.sender?.id?.substring(0, 16) || event.creatorUserId?.substring(0, 16) || 'unknown',
-            senderFull: event.sender?.id || event.creatorUserId,
             content: event.content?.body,
-            kind: event.content?.kind,
-            encrypted: event.encrypted,
-            hasSessionKey: !!event.sessionKey,
+            senderFull: event.sender?.id || event.creatorUserId,
+            eventId: event.eventId?.substring(0, 16),
           });
         });
       }
-      
-      const allSenders = new Set(
-        messageEvents.map((e: any) => 
-          e.sender?.id || e.creatorUserId || 'unknown'
-        )
-      );
-      console.log('   Unique senders in timeline:', allSenders.size);
-      console.log('   Sender addresses (full):', Array.from(allSenders));
-      
-      const currentUserMessages = messageEvents.filter((e: any) => {
-        const senderId = e.sender?.id || e.creatorUserId;
-        return senderId && activeAccount?.address && 
-               senderId.toLowerCase() === activeAccount.address.toLowerCase();
-      });
-      
-      if (currentUserMessages.length === messageEvents.length && messageEvents.length > 0) {
-        console.log('   ⚠️  WARNING: You only see your own messages!');
-        console.log('   ⚠️  This suggests an entitlement/encryption key issue');
-      } else if (messageEvents.length > 0) {
-        console.log('   ✅ You can see messages from other users');
-        console.log(`   📊 Your messages: ${currentUserMessages.length} / Total: ${messageEvents.length}`);
-      }
-    } else {
-      console.log('   ℹ️  No timeline events yet');
     }
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }, [timeline, userRole, canAwardTokens, permissions, activeAccount?.address, isFreemiumUser, hasTimeLeft]);
+  }, [timeline, userRole, activeAccount?.address]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -365,11 +271,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     
     if (!messageInput.trim() || isSending || !channelId) {
-      console.warn('Cannot send message:', { 
-        hasInput: !!messageInput.trim(), 
-        isSending, 
-        hasChannelId: !!channelId 
-      });
       return;
     }
 
@@ -431,16 +332,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  const messages = [
-    ...(timeline
+  // ✅ CREATE MESSAGES ARRAY
+  const messages = useMemo(() => {
+    const timelineMessages = timeline
       ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
       .map((event: any) => {
-        const senderId = event.sender?.id || '';
+        const senderId = event.sender?.id || event.creatorUserId || '';
         
-        if (!senderId) {
-          console.warn('⚠️ No sender ID found for event:', event.eventId);
-        }
-
         return {
           id: event.eventId || event.id,
           content: event.content?.body || '',
@@ -454,9 +352,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             ? senderId.toLowerCase() === activeAccount.address.toLowerCase() 
             : false,
         };
-      }) || []),
-    ...optimisticMessages,
-  ].sort((a, b) => a.timestamp - b.timestamp);
+      }) || [];
+
+    return [
+      ...timelineMessages,
+      ...optimisticMessages,
+    ].sort((a, b) => a.timestamp - b.timestamp);
+  }, [timeline, optimisticMessages, activeAccount?.address]);
 
   const videoStageProps = useMemo(() => {
     if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
@@ -500,20 +402,122 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   }
 
+  console.log('🎨 Rendering with messages:', messages.length);
+
   return (
     <>
       <DailyProvider>
         <ChatLayout>
-          {/* ... rest of your existing render code - no changes needed ... */}
-          {videoStageProps && activeEvent?.videoEnabled ? (
-            <>
-              {/* Your existing video stage code */}
-            </>
-          ) : (
-            <>
-              {/* Your existing non-video code */}
-            </>
-          )}
+          <div className="h-full flex flex-col bg-white">
+            <div className="bg-gray-50 px-4 py-2 border-b">
+              <div className="flex items-center justify-between">
+                <p className="font-georgia-pro text-sm text-gray-600">
+                  <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                  {channelId && ` → ${channelId.substring(0, 8)}...`}
+                </p>
+                <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                  userRole === 'contributor' 
+                    ? 'bg-purple-100 text-purple-800' 
+                    : userRole === 'participant' 
+                      ? 'bg-blue-100 text-blue-800' 
+                      : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {userRole === 'contributor' && '⭐ Contributor'}
+                  {userRole === 'participant' && '💬 Participant'}
+                  {userRole === 'freemium' && '👀 Freemium'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pb-16">
+              {messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-gray-500 py-8">
+                    <p className="font-georgia-pro text-lg">No messages yet.</p>
+                    <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4">
+                  {messages.map((message: any) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isOwn={message.isOwn || false}
+                      streamId={channelId}
+                      canAwardTokens={canAwardTokens}
+                      isAdmin={activeAccount?.address?.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase()}
+                      eventId={activeEvent?.id}
+                      channelId={channelId}
+                      spaceId={spaceId}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 p-4 bg-white">
+              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+                />
+                
+                {canAwardTokens && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isSending || !permissions?.canPost}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                    title="Upload file"
+                  >
+                    📎
+                  </button>
+                )}
+                
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  placeholder={
+                    isUploading
+                      ? "Uploading file..."
+                      : !permissions?.canPost && userRole === 'participant'
+                      ? "💬 Messaging available during live events only"
+                      : !permissions?.canPost && userRole === 'freemium'
+                      ? "🔒 Upgrade to Premium to participate in events"
+                      : channelId 
+                        ? "iMessage" 
+                        : "Loading..."
+                  }
+                  className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+                    permissions?.canPost 
+                      ? 'focus:ring-[#007AFF] border-gray-300' 
+                      : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                  }`}
+                  disabled={!permissions?.canPost || isSending || isUploading || !channelId}
+                />
+                <button 
+                  type="submit" 
+                  disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+                  className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24" 
+                    fill="currentColor" 
+                    className="w-5 h-5"
+                  >
+                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
         </ChatLayout>
       </DailyProvider>
       
