@@ -2,9 +2,9 @@
 
 import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
-import { Copy, LogOut, Send, Key, Wallet, AlertTriangle } from "lucide-react";
+import { Copy, LogOut, Send, Key, Wallet, AlertTriangle, DollarSign, Download, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getContract, sendTransaction } from "thirdweb";
+import { getContract, sendTransaction, prepareContractCall, readContract } from "thirdweb";
 import { transfer } from "thirdweb/extensions/erc20";
 import { getWalletBalance } from "thirdweb/wallets";
 import { client, activeChain } from "@/thirdweb-client";
@@ -36,12 +36,67 @@ export function WalletSummary({
   
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   
+  // Contributor-specific states
+  const [isContributor, setIsContributor] = useState(false);
+  const [claimableBalance, setClaimableBalance] = useState<string>("0");
+  const [isLoadingClaimable, setIsLoadingClaimable] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   const isChatContext = context === "chat";
 
+  // Check contributor status
+  useEffect(() => {
+    if (!account?.address) {
+      setIsContributor(false);
+      return;
+    }
+    
+    const checkContributorStatus = async () => {
+      try {
+        const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+        if (!nftContractAddress) {
+          console.warn('Contributor NFT contract address not configured');
+          return;
+        }
+        
+        const nftContract = getContract({
+          client,
+          chain: activeChain,
+          address: nftContractAddress,
+        });
+        
+        // Check if they own any of the contributor tokens (10, 11, or 12)
+        const contributorTokenIds = [10, 11, 12];
+        
+        for (const tokenId of contributorTokenIds) {
+          const balance = await readContract({
+            contract: nftContract,
+            method: 'function balanceOf(address owner, uint256 id) view returns (uint256)',
+            params: [account.address, BigInt(tokenId)],
+          });
+          
+          if (balance > 0n) {
+            console.log(`✅ User owns Contributor NFT #${tokenId}`);
+            setIsContributor(true);
+            return;
+          }
+        }
+        
+        setIsContributor(false);
+      } catch (error) {
+        console.error('Failed to check contributor status:', error);
+        setIsContributor(false);
+      }
+    };
+    
+    checkContributorStatus();
+  }, [account?.address]);
+
+  // Fetch TOWNS balance
   useEffect(() => {
     if (!isChatContext || !account?.address) return;
 
@@ -54,9 +109,6 @@ export function WalletSummary({
           setTownsBalance("0");
           return;
         }
-
-        console.log('🔍 Fetching TOWNS balance for:', account.address);
-        console.log('🔍 Contract:', townsContractAddress);
 
         const balance = await getWalletBalance({
           address: account.address,
@@ -71,7 +123,6 @@ export function WalletSummary({
         });
         
         setTownsBalance(displayBalance);
-        console.log(`✅ TOWNS Balance: ${displayBalance} ${balance.symbol}`);
       } catch (error) {
         console.error("Failed to fetch TOWNS balance:", error);
         setTownsBalance("0");
@@ -85,6 +136,53 @@ export function WalletSummary({
     const interval = setInterval(fetchBalance, 30000);
     return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
+
+  // Fetch claimable balance (contributors only)
+  useEffect(() => {
+    if (!isContributor || !account?.address || !isChatContext) return;
+    
+    const fetchClaimableBalance = async () => {
+      setIsLoadingClaimable(true);
+      try {
+        const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+        if (!rewardsContractAddress) {
+          console.warn('Rewards contract address not configured');
+          return;
+        }
+        
+        const rewardsContract = getContract({
+          client,
+          chain: activeChain,
+          address: rewardsContractAddress,
+        });
+        
+        const stats = await readContract({
+          contract: rewardsContract,
+          method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
+          params: [account.address],
+        });
+        
+        // stats[5] is claimable
+        const claimable = Number(stats[5]) / 1e18;
+        const displayClaimable = claimable.toLocaleString('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        });
+        
+        setClaimableBalance(displayClaimable);
+        console.log(`✅ Claimable balance: ${displayClaimable} TOWNS`);
+      } catch (error) {
+        console.error('Failed to fetch claimable balance:', error);
+        setClaimableBalance('0');
+      } finally {
+        setIsLoadingClaimable(false);
+      }
+    };
+    
+    fetchClaimableBalance();
+    const interval = setInterval(fetchClaimableBalance, 30000);
+    return () => clearInterval(interval);
+  }, [isContributor, account?.address, isChatContext]);
 
   const handleCopy = async () => {
     if (!account?.address) return;
@@ -106,6 +204,67 @@ export function WalletSummary({
     }
   };
 
+  const handleClaimTowns = async () => {
+    if (!account) return;
+    
+    const claimableNum = parseFloat(claimableBalance.replace(/,/g, ''));
+    if (claimableNum <= 0) {
+      toast({
+        title: "Nothing to claim",
+        description: "You don't have any TOWNS to claim yet",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsClaiming(true);
+    setIsDropdownOpen(false);
+    
+    try {
+      const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+      if (!rewardsContractAddress) throw new Error('Rewards contract not configured');
+      
+      const rewardsContract = getContract({
+        client,
+        chain: activeChain,
+        address: rewardsContractAddress,
+      });
+      
+      const transaction = prepareContractCall({
+        contract: rewardsContract,
+        method: 'function claimTowns()',
+        params: [],
+      });
+      
+      const result = await sendTransaction({
+        account,
+        transaction,
+      });
+      
+      toast({
+        title: "TOWNS claimed!",
+        description: `Successfully claimed ${claimableBalance} TOWNS`,
+      });
+      
+      console.log(`✅ Claim TX: https://basescan.org/tx/${result.transactionHash}`);
+      
+      // Refresh balances
+      setClaimableBalance('0');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: any) {
+      console.error('Claim error:', error);
+      toast({
+        title: "Claim failed",
+        description: error.message || 'Failed to claim TOWNS',
+        variant: "destructive",
+      });
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
   const handleWithdrawClick = () => {
     if (!wallet) {
       toast({
@@ -124,103 +283,102 @@ export function WalletSummary({
   };
 
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setWithdrawError(null);
+    e.preventDefault();
+    setWithdrawError(null);
 
-  if (!wallet || !account) {
-    setWithdrawError("No wallet connected");
-    return;
-  }
-
-  const amountString = withdrawAmount.replace(/,/g, "").trim();
-  
-  const amount = parseFloat(amountString);
-  if (isNaN(amount) || amount <= 0) {
-    setWithdrawError("Please enter a valid amount greater than 0");
-    return;
-  }
-
-  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-  if (!addressRegex.test(destinationAddress)) {
-    setWithdrawError("Please enter a valid Ethereum address (0x followed by 40 hex characters)");
-    return;
-  }
-
-  setIsWithdrawing(true);
-
-  try {
-    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-    if (!townsContractAddress) {
-      throw new Error('TOWNS contract address not configured');
-    }
-
-    const contract = getContract({
-      client,
-      chain: activeChain,
-      address: townsContractAddress,
-    });
-
-    console.log('🔍 Amount to send:', amountString);
-    console.log('🔍 Current balance:', townsBalance);
-
-    const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
-    if (balanceNum < amount) {
-      setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
-      setIsWithdrawing(false);
+    if (!wallet || !account) {
+      setWithdrawError("No wallet connected");
       return;
     }
 
-    const transaction = transfer({
-      contract,
-      to: destinationAddress,
-      amount: amountString,
-    });
+    const amountString = withdrawAmount.replace(/,/g, "").trim();
+    
+    const amount = parseFloat(amountString);
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError("Please enter a valid amount greater than 0");
+      return;
+    }
 
-    console.log('🔄 Sending transaction with gas sponsorship...');
-    
-    const result = await sendTransaction({
-      account,
-      transaction,
-    });
-    
-    toast({
-      title: "Transfer successful!",
-      description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
-    });
+    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!addressRegex.test(destinationAddress)) {
+      setWithdrawError("Please enter a valid Ethereum address (0x followed by 40 hex characters)");
+      return;
+    }
 
-    console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
-    
-    setShowWithdrawalModal(false);
-    
-    // ✅ Just refresh the balance instead of reloading the page
-    setTimeout(async () => {
-      try {
-        const balance = await getWalletBalance({
-          address: account.address,
-          client,
-          chain: activeChain,
-          tokenAddress: townsContractAddress,
-        });
-        
-        const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2,
-        });
-        
-        setTownsBalance(displayBalance);
-        console.log(`✅ Updated balance: ${displayBalance} ${balance.symbol}`);
-      } catch (error) {
-        console.error("Failed to refresh balance:", error);
+    setIsWithdrawing(true);
+
+    try {
+      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
+      if (!townsContractAddress) {
+        throw new Error('TOWNS contract address not configured');
       }
-    }, 2000);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Withdrawal error:', error);
-    setWithdrawError(errorMessage);
-  } finally {
-    setIsWithdrawing(false);
-  }
-};
+
+      const contract = getContract({
+        client,
+        chain: activeChain,
+        address: townsContractAddress,
+      });
+
+      const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
+      if (balanceNum < amount) {
+        setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
+        setIsWithdrawing(false);
+        return;
+      }
+
+      const transaction = transfer({
+        contract,
+        to: destinationAddress,
+        amount: amountString,
+      });
+      
+      const result = await sendTransaction({
+        account,
+        transaction,
+      });
+      
+      toast({
+        title: "Transfer successful!",
+        description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
+      });
+
+      console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
+      
+      setShowWithdrawalModal(false);
+      
+      // Refresh balance
+      setTimeout(async () => {
+        try {
+          const balance = await getWalletBalance({
+            address: account.address,
+            client,
+            chain: activeChain,
+            tokenAddress: townsContractAddress,
+          });
+          
+          const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
+          
+          setTownsBalance(displayBalance);
+        } catch (error) {
+          console.error("Failed to refresh balance:", error);
+        }
+      }, 2000);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Withdrawal error:', error);
+      setWithdrawError(errorMessage);
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  const handleContributorSettings = () => {
+    setIsDropdownOpen(false);
+    window.location.href = '/contributor-settings';
+  };
 
   const handleExportKey = () => {
     setIsDropdownOpen(false);
@@ -260,7 +418,6 @@ export function WalletSummary({
         key.includes('wallet')
       );
       
-      console.log('Clearing the following localStorage keys:', thirdwebKeys);
       thirdwebKeys.forEach(key => localStorage.removeItem(key));
       
       const sessionKeys = Object.keys(sessionStorage).filter(key => 
@@ -322,6 +479,7 @@ export function WalletSummary({
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="py-1">
+              {/* Copy Address */}
               <button
                 onClick={handleCopy}
                 className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -334,6 +492,7 @@ export function WalletSummary({
                 <>
                   <div className="border-t border-gray-100 my-1"></div>
                   
+                  {/* $TOWNS Balance */}
                   <div className="px-4 py-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -346,6 +505,33 @@ export function WalletSummary({
                     </div>
                   </div>
 
+                  {/* Claim $TOWNS - Contributors only */}
+                  {isContributor && (
+                    <>
+                      <div className="px-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm font-adonis text-gray-700">
+                            <DollarSign className="w-4 h-4 mr-2" />
+                            Claimable
+                          </div>
+                          <span className="text-sm font-adonis font-semibold text-green-600">
+                            {isLoadingClaimable ? "..." : claimableBalance}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleClaimTowns}
+                        disabled={isClaiming || parseFloat(claimableBalance.replace(/,/g, '')) <= 0}
+                        className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {isClaiming ? 'Claiming...' : 'Claim TOWNS'}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Send $TOWNS */}
                   <button
                     onClick={handleWithdrawClick}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -354,6 +540,20 @@ export function WalletSummary({
                     Send $TOWNS
                   </button>
 
+                  <div className="border-t border-gray-100 my-1"></div>
+
+                  {/* Contributor Settings - Contributors only */}
+                  {isContributor && (
+                    <button
+                      onClick={handleContributorSettings}
+                      className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Contributor Settings
+                    </button>
+                  )}
+
+                  {/* Export Private Key */}
                   <button
                     onClick={handleExportKey}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -366,6 +566,7 @@ export function WalletSummary({
 
               <div className="border-t border-gray-100 my-1"></div>
 
+              {/* Sign Out */}
               <button
                 onClick={handleSignOut}
                 disabled={isSigningOut}
@@ -487,7 +688,7 @@ export function WalletSummary({
 
               <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-start gap-2">
-                  <span className="text-lg">🔒</span>
+                  <Wallet className="w-4 h-4 text-green-600 mt-0.5" />
                   <p className="font-georgia-pro text-xs text-green-800">
                     Your funds are secured by smart contracts on Base. Transactions are processed on-chain.
                   </p>
@@ -514,7 +715,7 @@ export function WalletSummary({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center mb-6">
-                <span className="text-6xl">🔐</span>
+                <Key className="w-16 h-16 mx-auto text-gray-700" />
               </div>
 
               <h2 className="font-adonis text-2xl text-center mb-4">External Wallet Detected</h2>
