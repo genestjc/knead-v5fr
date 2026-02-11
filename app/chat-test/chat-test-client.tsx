@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
@@ -287,9 +287,17 @@ function TownsChat() {
     const [isJoining, setIsJoining] = useState(false);
 
     const wallet = useActiveWallet();
-    const { isAgentConnected } = useAgentConnection(); // ✅ ADD THIS
+    const { isAgentConnected } = useAgentConnection();
     const { joinSpace } = useJoinSpace();
     const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
+    
+    // ✅ Get the sync agent to verify it's ready
+    let syncAgent;
+    try {
+        syncAgent = useSyncAgent();
+    } catch {
+        syncAgent = null;
+    }
 
     const currentUser: ChatUser | null = useMemo(() => {
         const address = wallet?.getAccount()?.address;
@@ -307,7 +315,7 @@ function TownsChat() {
         };
     }, [wallet]);
 
-    // ✅ Log space status (React will re-run when space updates)
+    // ✅ Log space status
     useEffect(() => {
         if (space) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -319,11 +327,15 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ Join space ONCE (ONLY when agent is connected)
+    // ✅ Join space ONLY when BOTH agent connected AND sync agent ready
     useEffect(() => {
-        // ✅ CRITICAL: Don't join until agent is connected!
-        if (!isAgentConnected) {
-            console.log('⏳ Waiting for agent connection before joining space...');
+        // ✅ Wait for BOTH agent connected AND sync agent available
+        if (!isAgentConnected || !syncAgent) {
+            if (!isAgentConnected) {
+                console.log('⏳ Waiting for agent connection...');
+            } else if (!syncAgent) {
+                console.log('⏳ Agent connected, waiting for sync agent to be ready...');
+            }
             return;
         }
 
@@ -348,6 +360,10 @@ function TownsChat() {
                     return;
                 }
 
+                // ✅ Small delay to ensure river client is fully ready
+                console.log('⏳ Waiting 1 second for river client to stabilize...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 console.log('🚀 Joining space with skipMintMembership: true');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
@@ -370,6 +386,7 @@ function TownsChat() {
                     setHasJoined(true);
                 } else {
                     console.error('❌ Join failed:', error);
+                    console.error('   Error message:', error.message);
                     
                     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                         window.KEY_SHARER_ERROR = error.message;
@@ -384,23 +401,23 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [isAgentConnected, wallet, hasJoined, isJoining, joinSpace]); // ✅ ADD isAgentConnected to deps
+    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]); // ✅ syncAgent in deps
 
-    // ✅ Handle initialization (React will re-run when space.initialized changes)
+    // ✅ Handle initialization
     useEffect(() => {
         if (hasJoined && space?.initialized) {
             console.log('✅ Space fully initialized with channels:', space.channelIds);
         }
     }, [hasJoined, space?.initialized, space?.channelIds]);
 
-    // ✅ Show loading if agent not connected yet
-    if (!isAgentConnected) {
+    // ✅ Show loading if agent/sync not ready
+    if (!isAgentConnected || !syncAgent) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Connecting to Towns network...
+                        {!isAgentConnected ? 'Connecting to Towns network...' : 'Initializing sync agent...'}
                     </p>
                 </div>
             </div>
