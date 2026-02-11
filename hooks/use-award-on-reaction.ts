@@ -17,7 +17,8 @@ interface UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number, // ✅ Changed from string to number
-    reaction?: string
+    reaction?: string,
+    eventId?: number // NEW: Optional event ID
   ) => Promise<void>;
   isReacting: boolean;
 }
@@ -37,7 +38,8 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number = 10, // ✅ Default to 10 TOWNS
-    reaction: string = '❤️'
+    reaction: string = '❤️',
+    eventId?: number // NEW: Optional event ID
   ): Promise<void> {
     // ✅ VALIDATION: Check all required parameters
     console.log('🎯 awardTokensOnLike called with:', {
@@ -45,6 +47,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       recipientAddress,
       amount,
       reaction,
+      eventId: eventId !== undefined ? eventId : 'none',
       activeAccount: activeAccount?.address,
     });
 
@@ -94,12 +97,14 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       console.log('   From (contributor):', activeAccount.address);
       console.log('   To (participant):', recipientAddress);
       console.log('   Amount:', amount);
+      console.log('   Event ID:', eventId !== undefined ? eventId : 'general');
       
       const requestBody = {
         contributorAddress: activeAccount.address,
         participantAddress: recipientAddress,
         amount: amount.toString(), // ✅ Convert to string for API
         actionType: 'message_like',
+        eventId: eventId, // Include eventId if provided
       };
 
       console.log('📤 Request body:', requestBody);
@@ -120,8 +125,12 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         throw new Error(data.error || 'Failed to award tokens');
       }
 
+      const awardTypeMessage = eventId !== undefined 
+        ? `Event bonus of ${amount} $TOWNS awarded! ${reaction}`
+        : `Tipped ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`;
+      
       console.log('✅ Tokens awarded successfully:', data.transactionHash);
-      toast.success(`Tipped ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`);
+      toast.success(awardTypeMessage);
 
     } catch (error: any) {
       console.error('❌ Error awarding tokens:', error);

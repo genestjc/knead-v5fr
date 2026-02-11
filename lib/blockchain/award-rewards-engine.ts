@@ -37,17 +37,19 @@ function getRewardsContract() {
  * Award $TOWNS tokens via Engine wallet (no user signature required)
  * 
  * This function uses the Engine wallet to award tokens on behalf of contributors.
- * The Engine wallet must have CONTRIBUTOR_ROLE on the rewards contract.
+ * The Engine wallet must have ORACLE_ROLE on the rewards contract.
  * 
  * @param participantAddress - Recipient's wallet address
  * @param amount - Amount in $TOWNS tokens (not wei)
  * @param actionType - Type of action (e.g., "message_like")
+ * @param eventId - Optional event ID for event-specific bonuses
  * @returns Transaction hash
  */
 export async function awardTownsViaEngine(
   participantAddress: string,
   amount: number,
-  actionType: string = 'message_like'
+  actionType: string = 'message_like',
+  eventId?: number
 ): Promise<{ transactionHash: string }> {
   try {
     const rewardsContract = getRewardsContract();
@@ -55,17 +57,18 @@ export async function awardTownsViaEngine(
     // Convert amount to wei (18 decimals)
     const amountInWei = BigInt(Math.floor(amount * 1e18));
     
-    // Use awardEventBonus instead of awardTowns
-    const transaction = prepareContractCall({
-      contract: rewardsContract,
-      method: 'function awardEventBonus(uint256 _eventId, address _participant, uint256 _bonusAmount, string _bonusType)',
-      params: [
-        0n, // eventId - use 0 for general tips, or pass actual eventId
-        participantAddress,
-        amountInWei,
-        actionType
-      ],
-    });
+    // Use different function based on whether eventId is provided
+    const transaction = eventId !== undefined
+      ? prepareContractCall({
+          contract: rewardsContract,
+          method: 'function awardEventBonus(uint256 _eventId, address _participant, uint256 _bonusAmount, string _bonusType)',
+          params: [BigInt(eventId), participantAddress, amountInWei, actionType],
+        })
+      : prepareContractCall({
+          contract: rewardsContract,
+          method: 'function awardTowns(address recipient, uint256 amount, string actionType)',
+          params: [participantAddress, amountInWei, actionType],
+        });
     
     const receipt = await sendEngineTransaction({
       transaction,
@@ -76,6 +79,7 @@ export async function awardTownsViaEngine(
       recipient: participantAddress,
       amount,
       actionType,
+      eventId: eventId !== undefined ? eventId : 'general',
       txHash: receipt.transactionHash,
     });
     

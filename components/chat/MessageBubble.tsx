@@ -57,7 +57,7 @@ export function MessageBubble({
     });
   };
 
-  // ✅ Handle like button click with debug logging
+  // ✅ Handle like button click with eventId support
   const handleLike = async () => {
     console.log('❤️ Tip button clicked');
     console.log('🔍 Message data:', {
@@ -65,6 +65,7 @@ export function MessageBubble({
       senderId: message.sender.id,
       senderName: message.sender.name,
       isOwn: isOwn,
+      eventId: eventId || 'none',
     });
     
     if (!message.sender.id) {
@@ -73,11 +74,13 @@ export function MessageBubble({
       return;
     }
     
+    // Pass eventId if available (during live event)
     await awardTokensOnLike(
       message.id,
       message.sender.id,
       10,
-      '❤️'
+      '❤️',
+      eventId // Pass eventId if present
     );
   };
 
