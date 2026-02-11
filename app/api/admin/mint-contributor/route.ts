@@ -1,99 +1,68 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getContract, prepareContractCall, Engine } from "thirdweb";
-import { base } from "thirdweb/chains";
-import { client, serverWallet } from "@/thirdweb-server-wallet";
-
-const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
-
-const getRoleToTokenId = (role: string): bigint | null => {
-  const roleMap: Record<string, bigint> = {
-    'appointed': 1n,
-    'invited': 2n,
-    'earned': 3n,
-  };
-  return roleMap[role] || null;
-};
+import { NextRequest, NextResponse } from 'next/server';
+import { mintContributorNFT } from '@/lib/blockchain/contributor-nft';
+import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
 
 export async function POST(req: NextRequest) {
   try {
-    const CONTRIBUTOR_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
+    const { recipientAddress, role, weeklyBudget, adminAddress } = await req.json();
 
-    if (!CONTRIBUTOR_CONTRACT_ADDRESS || !MASTER_ADMIN_ADDRESS) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Server configuration error: Missing environment variables" 
-      }, { status: 500 });
-    }
-
-    const { recipientAddress, role, adminAddress } = await req.json();
-
+    // Validate inputs
     if (!recipientAddress || !role || !adminAddress) {
       return NextResponse.json({ 
-        success: false, 
-        error: "Missing required fields." 
+        error: 'Missing required fields: recipientAddress, role, and adminAddress are required' 
       }, { status: 400 });
     }
 
-    if (!isAddress(recipientAddress) || !isAddress(adminAddress)) {
+    if (!weeklyBudget || weeklyBudget <= 0) {
       return NextResponse.json({ 
-        success: false, 
-        error: "Invalid address format." 
+        error: 'Weekly budget must be greater than 0' 
       }, { status: 400 });
     }
 
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS.toLowerCase()) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Unauthorized" 
-      }, { status: 401 });
-    }
+    // Map role to contributor type
+    const contributorTypeMap = {
+      'appointed': 0,
+      'invited': 1,
+      'earned': 2,
+    } as const;
 
-    const tokenId = getRoleToTokenId(role);
-    if (!tokenId) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Invalid role specified." 
-      }, { status: 400 });
-    }
+    const contributorType = contributorTypeMap[role as keyof typeof contributorTypeMap];
 
-    const contract = getContract({
-      client,
-      address: CONTRIBUTOR_CONTRACT_ADDRESS,
-      chain: base,
+    console.log('🔄 Adding contributor:', {
+      recipient: recipientAddress,
+      role,
+      contributorType,
+      weeklyBudget,
     });
 
-    // Use your contract's adminMintContributor function
-    const transaction = prepareContractCall({
-      contract,
-      method: "function adminMintContributor(address to, uint256 tokenId)",
-      params: [recipientAddress, tokenId],
-      gasLimit: 300000n,
+    // Step 1: Mint NFT (gives CONTRIBUTOR_ROLE on NFT contract)
+    console.log('📝 Step 1: Minting NFT...');
+    const mintResult = await mintContributorNFT(recipientAddress, role, adminAddress);
+    console.log('✅ NFT minted:', mintResult);
+
+    // Step 2: Add to rewards contract (sets weekly budget)
+    console.log('📝 Step 2: Adding to rewards contract...');
+    const rewardsResult = await addContributorToRewards(
+      recipientAddress,
+      contributorType,
+      weeklyBudget
+    );
+    console.log('✅ Added to rewards contract:', rewardsResult);
+
+    return NextResponse.json({
+      success: true,
+      tokenId: mintResult.tokenId,
+      transactionHash: mintResult.transactionHash,
+      rewardsTransactionHash: rewardsResult.transactionHash,
+      message: `Contributor added successfully! NFT minted with ${weeklyBudget} TOWNS weekly budget.`,
+      weeklyBudget,
+      contributorType: role,
     });
 
-    const { transactionId } = await serverWallet.enqueueTransaction({
-      transaction,
-    });
-
-    const { transactionHash } = await Engine.waitForTransactionHash({
-      client,
-      transactionId,
-    });
-
+  } catch (error: any) {
+    console.error('❌ Mint contributor error:', error);
     return NextResponse.json({ 
-      success: true, 
-      transactionHash,
-      transactionId,
-      tokenId: Number(tokenId),
-      role: role
-    });
-
-  } catch (error) {
-    console.error("Minting failed:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json({ 
-      success: false, 
-      error: errorMessage 
+      error: error.message || 'Failed to add contributor' 
     }, { status: 500 });
   }
 }
