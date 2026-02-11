@@ -61,7 +61,8 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
-      const response = await fetch('/api/admin/chat/award-bonus', {
+      // ✅ UPDATED: New endpoint path
+      const response = await fetch('/api/chat/award-bonus', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,7 +93,6 @@ export function AdminContextMenu({
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
     try {
-      // ✅ FIXED: Pass message.id directly (not wrapped in object)
       await adminRedact(message.id);
       toast.success('Message deleted from Towns Protocol');
       onClose();
