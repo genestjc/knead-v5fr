@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic';
  * 
  * This endpoint:
  * 1. Verifies contributor has NFT permission
- * 2. Awards tokens via Engine wallet
- * 3. Returns transaction hash
+ * 2. Auto-registers participant if needed
+ * 3. Awards tokens via Engine wallet
+ * 4. Returns transaction hash
  */
 export async function POST(req: NextRequest) {
   try {
