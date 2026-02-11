@@ -23,36 +23,26 @@ function getRewardsContract() {
 
 /**
  * Check if a participant is registered in the rewards contract
- * ✅ UPDATED: Now reads participants mapping directly for accurate check
+ * ✅ UPDATED: Uses contract's isParticipant function directly
  */
 export async function isParticipantRegistered(address: string): Promise<boolean> {
   try {
     const contract = getRewardsContract();
     
-    // Read participant struct directly from contract
-    const participant = await readContract({
+    // Use the contract's built-in isParticipant function
+    const isRegistered = await readContract({
       contract,
-      method: 'function participants(address) view returns (address walletAddress, uint256 totalTownsEarned, bool hasGraduated, bool isRegistered, uint256 tier, uint256 registrationTime)',
+      method: 'function isParticipant(address) view returns (bool)',
       params: [address],
     });
     
-    // participant is returned as an array
-    // Index 3 = isRegistered boolean
-    return participant[3] as boolean;
+    return isRegistered;
     
   } catch (error: any) {
     console.error('Error checking registration status:', error);
     
-    // If participant doesn't exist in mapping, they're not registered
-    const errorMsg = error.message?.toLowerCase() || '';
-    if (errorMsg.includes('not found') || 
-        errorMsg.includes('does not exist') || 
-        errorMsg.includes('execution reverted')) {
-      return false;
-    }
-    
-    // For other errors (network, RPC, etc.), throw to surface the issue
-    throw new Error(`Failed to check registration: ${error.message || String(error)}`);
+    // If there's an error, assume not registered (safer to try registration)
+    return false;
   }
 }
 
@@ -83,7 +73,15 @@ export async function registerParticipant(address: string): Promise<{ transactio
     return {
       transactionHash: receipt.transactionHash,
     };
-  } catch (error) {
+  } catch (error: any) {
+    const errorMsg = error.message?.toLowerCase() || '';
+    
+    // If already registered, that's actually fine!
+    if (errorMsg.includes('already registered')) {
+      console.log('ℹ️ Participant already registered:', address);
+      return { transactionHash: 'already-registered' };
+    }
+    
     console.error('Error registering participant:', error);
     throw new Error(
       `Failed to register participant: ${error instanceof Error ? error.message : String(error)}`
