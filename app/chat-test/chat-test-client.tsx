@@ -17,9 +17,8 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const JOIN_VERSION = 'v2';
 
-// ✅ CORRECT: Use Towns Chain RPC (Chain ID 550)
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: townsChainRpc, // https://mainnet.rpc.towns.com
+  rpcUrl: townsChainRpc,
 });
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
@@ -159,14 +158,14 @@ function useBotAutoConnect() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ NO CACHE CLEARING!
+// SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
-    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection(); // ✅ Add connectUsingBearerToken
+    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
-    const [setupStep, setSetupStep] = useState("Preparing your account...");
+    const [setupStep, setSetupStep] = useState("Connecting...");
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -176,7 +175,7 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ TRY TOKEN-BASED AUTH FIRST (no signature required!)
+                // ✅ TRY BEARER TOKEN FIRST
                 const savedToken = getSavedTownsAuth();
                 
                 if (savedToken) {
@@ -194,43 +193,15 @@ function SetupFlow() {
                         
                         console.log('✅ Reconnected with saved session - no signature needed!');
                         setSetupComplete(true);
-                        return; // ✅ Done! No signature required
+                        return;
                         
                     } catch (tokenError: any) {
                         console.warn('⚠️ Saved token failed, will request new signature:', tokenError.message);
                         clearTownsAuth();
-                        // Fall through to signature-based auth
                     }
                 }
 
-                // ✅ SIGNATURE-BASED AUTH (only if no token or token failed)
-                setSetupStep("Checking membership...");
-                
-                const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                
-                if (!hasJoinedBefore) {
-                    try {
-                        const response = await fetch('/api/towns/mint-membership', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success || data.message?.includes('already a member')) {
-                            console.log('✅ Membership confirmed');
-                            localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                        } else if (response.status === 400 || response.status === 409) {
-                            console.log('ℹ️ User likely already a member');
-                            localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                        }
-                    } catch (mintError: any) {
-                        console.warn('⚠️ Mint error (may already be a member):', mintError.message);
-                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                    }
-                }
-
+                // ✅ SIGNATURE-BASED AUTH
                 setSetupStep("Please sign the message in your wallet...");
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
@@ -245,17 +216,13 @@ function SetupFlow() {
                 
                 console.log('✅ Towns agent connected');
                 
-                // ✅ SAVE THE BEARER TOKEN for next time
+                // ✅ SAVE BEARER TOKEN
                 try {
-                    // Get the bearer token from the SDK
-                    // The SDK should expose this, but if not we'll need to extract it
                     const syncAgent = agent as any;
                     if (syncAgent?.auth?.token || syncAgent?.authToken || syncAgent?.token) {
                         const token = syncAgent.auth?.token || syncAgent.authToken || syncAgent.token;
                         saveTownsAuth(token);
                         console.log('💾 Saved bearer token for future sessions');
-                    } else {
-                        console.warn('⚠️ Could not extract bearer token from agent');
                     }
                 } catch (saveError) {
                     console.warn('⚠️ Could not save bearer token:', saveError);
@@ -284,7 +251,7 @@ function SetupFlow() {
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md px-4">
                 <h2 className="font-adonis text-3xl mb-4">
-                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Setting Up Your Membership"}
+                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Connecting to Chat"}
                 </h2>
                 <LoadingSpinner />
                 <p className="font-georgia-pro text-sm text-gray-600 mt-4">
@@ -300,28 +267,23 @@ function SetupFlow() {
                         ⚡ No signature needed - using saved session
                     </p>
                 )}
-                {!setupStep.includes("failed") && !setupStep.includes("sign") && !setupStep.includes("Reconnecting") && (
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        Gas fees sponsored by Knead ⚡
-                    </p>
-                )}
             </div>
         </div>
     );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT
+// TOWNS CHAT - ✅ FIXED: No polling, pure React reactivity
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
-    const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
+    const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
 
     const wallet = useActiveWallet();
-    const { joinSpace, isPending: isJoinPending, error: joinError } = useJoinSpace();
-    const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId || '');
+    const { joinSpace } = useJoinSpace();
+    const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
     const currentUser: ChatUser | null = useMemo(() => {
         const address = wallet?.getAccount()?.address;
@@ -339,33 +301,21 @@ function TownsChat() {
         };
     }, [wallet]);
 
-    // Log space status
+    // ✅ Log space status (React will re-run when space updates)
     useEffect(() => {
         if (space) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('📊 Space Sync Status:');
-            console.log('   Space ID:', SAVED_SPACE_ID);
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
-        
-        if (spaceError) {
-            console.error('❌ Space Error:', spaceError);
-        }
-    }, [space, spaceError]);
+    }, [space]);
 
-    // Log join errors
+    // ✅ Join space ONCE (no polling)
     useEffect(() => {
-        if (joinError) {
-            console.error('❌ Join Error:', joinError);
-        }
-    }, [joinError]);
-
-    // Handle joining
-    useEffect(() => {
-        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID || isJoinPending) return;
+        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             setIsJoining(true);
@@ -377,105 +327,44 @@ function TownsChat() {
                     return;
                 }
 
-                console.log('🔍 Checking join status for:', userAddress);
-                console.log('🔍 Space ID:', SAVED_SPACE_ID);
-
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (hasJoinedBefore) {
-                    console.log('✅ LocalStorage says user joined before');
-                    console.log('⏳ Waiting for space to initialize...');
-                    
-                    // Wait up to 15 seconds for space to initialize
-                    let attempts = 0;
-                    while (attempts < 30) {
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        
-                        if (space?.initialized) {
-                            console.log('✅ Space initialized!');
-                            setHasJoined(true);
-                            setSpaceId(SAVED_SPACE_ID);
-                            setIsJoining(false);
-                            return;
-                        }
-                        
-                        attempts++;
-                        if (attempts % 4 === 0) {
-                            console.log(`⏳ Still waiting... (${attempts / 2}s)`);
-                        }
-                    }
-                    
-                    console.warn('⚠️ Space not initializing after 15s - trying to rejoin with skipMintMembership');
-                    
-                    // Clear the flag and try joining again
-                    localStorage.removeItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
+                    console.log('✅ User already joined before');
+                    setHasJoined(true);
+                    setIsJoining(false);
+                    return;
                 }
 
-                // Join the space (skip minting if they're already a member)
-                console.log('🚀 Joining space...');
-                console.log('   Using skipMintMembership: true');
-                
+                console.log('🚀 Joining space with skipMintMembership: true');
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
                 await joinSpace(SAVED_SPACE_ID, signer, { 
-                    skipMintMembership: true // ✅ Skip the NFT mint - they're already a member
+                    skipMintMembership: true // ✅ No NFT mint needed
                 });
                 
                 console.log('✅ Join space successful!');
                 localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
-                
-                // Wait for space to initialize
-                console.log('⏳ Waiting for space to initialize...');
-                let attempts = 0;
-                while (attempts < 30) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    if (space?.initialized) {
-                        console.log('✅ Space initialized!');
-                        setSpaceId(SAVED_SPACE_ID);
-                        setHasJoined(true);
-                        setIsJoining(false);
-                        return;
-                    }
-                    
-                    attempts++;
-                }
-                
-                console.warn('⚠️ Space still not initialized - but continuing anyway');
-                setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
 
             } catch (error: any) {
                 const userAddress = wallet.getAccount()?.address;
                 
-                console.error('❌ Join failed:', error);
-                console.error('   Error message:', error.message);
-                console.error('   Error details:', error);
-                
-                if (error.message?.includes('already a member') || 
-                    error.message?.includes('already joined') ||
-                    error.message?.includes('ALREADY_MEMBER')) {
-                    
+                if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member - treating as success');
                     if (userAddress) {
                         localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
                     }
-                    setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                 } else {
+                    console.error('❌ Join failed:', error);
+                    
                     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                         window.KEY_SHARER_ERROR = error.message;
                         window.KEY_SHARER_CONNECTED = false;
                     }
                     
-                    alert(
-                        `Failed to join space: ${error.message}\n\n` +
-                        `This may be because:\n` +
-                        `1. Invalid space ID\n` +
-                        `2. Network mismatch\n` +
-                        `3. Space doesn't exist\n\n` +
-                        `Please check your .env configuration and try again.`
-                    );
+                    alert(`Failed to join space: ${error.message}`);
                 }
             } finally {
                 setIsJoining(false);
@@ -483,40 +372,23 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [wallet, hasJoined, isJoining, isJoinPending, joinSpace, space?.initialized]);
+    }, [wallet, hasJoined, isJoining, joinSpace]);
 
-    if (isSpaceLoading || isJoining || isJoinPending) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center max-w-md px-4">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {isJoining || isJoinPending ? 'Joining space...' : 'Loading space data...'}
-                    </p>
-                    {(isJoining || isJoinPending) && (
-                        <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                            This may take 10-30 seconds
-                        </p>
-                    )}
-                </div>
-            </div>
-        );
-    }
+    // ✅ Handle initialization (React will re-run when space.initialized changes)
+    useEffect(() => {
+        if (hasJoined && space?.initialized) {
+            console.log('✅ Space fully initialized with channels:', space.channelIds);
+        }
+    }, [hasJoined, space?.initialized, space?.channelIds]);
 
-    if (spaceError) {
+    if (isSpaceLoading || isJoining) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ Space Error</p>
-                    <p className="font-georgia-pro text-sm text-gray-600 mt-2">
-                        {spaceError.message}
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        {isJoining ? 'Joining space...' : 'Loading space data...'}
                     </p>
-                    <button 
-                        onClick={() => window.location.reload()} 
-                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
-                    >
-                        Retry
-                    </button>
                 </div>
             </div>
         );
@@ -527,15 +399,6 @@ function TownsChat() {
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <p className="font-georgia-pro text-red-500">❌ Space not found</p>
-                    <p className="font-georgia-pro text-sm text-gray-600 mt-2">
-                        Check your NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID
-                    </p>
-                    <button 
-                        onClick={() => window.location.reload()} 
-                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
-                    >
-                        Retry
-                    </button>
                 </div>
             </div>
         );
@@ -544,26 +407,14 @@ function TownsChat() {
     if (!space.initialized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center max-w-md px-4">
+                <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
                         Syncing with stream nodes...
                     </p>
                     <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This can take 10-30 seconds on first connection
+                        This may take 10-30 seconds
                     </p>
-                    <button 
-                        onClick={() => {
-                            const userAddress = wallet?.getAccount()?.address;
-                            if (userAddress && SAVED_SPACE_ID) {
-                                localStorage.removeItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
-                            }
-                            window.location.reload();
-                        }}
-                        className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm hover:bg-gray-300"
-                    >
-                        Reset & Retry
-                    </button>
                 </div>
             </div>
         );
@@ -575,7 +426,7 @@ function TownsChat() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ No channels found</p>
+                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
                     <p className="font-georgia-pro text-sm text-gray-500 mt-2">
                         Space ID: {spaceId?.substring(0, 16)}...
                     </p>
