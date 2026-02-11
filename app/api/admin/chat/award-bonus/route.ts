@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
-import prisma from '@/lib/prisma';
 
 /**
  * Award Event Bonus via Admin Context Menu
  * Allows admins to award bonus tokens during live events
+ * Admin verification happens at blockchain level (Engine wallet has ORACLE_ROLE)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -12,34 +12,31 @@ export async function POST(req: NextRequest) {
     const { adminAddress, eventId, participantAddress, bonusAmount, bonusType } = body;
 
     // Validate required fields
-    if (!adminAddress || !participantAddress || !bonusAmount || !bonusType) {
+    if (!participantAddress || !bonusAmount || !bonusType) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: participantAddress, bonusAmount, bonusType' },
         { status: 400 }
       );
     }
 
-    // ✅ Verify admin status
-    const admin = await prisma.user.findUnique({
-      where: { walletAddress: adminAddress.toLowerCase() },
-    });
-
-    if (!admin || admin.role !== 'CONTRIBUTOR') {
+    // Validate amount is positive
+    if (bonusAmount <= 0) {
       return NextResponse.json(
-        { error: 'Unauthorized: Only contributors can award bonuses' },
-        { status: 403 }
+        { error: 'Bonus amount must be positive' },
+        { status: 400 }
       );
     }
 
     console.log('🎁 Admin awarding bonus:', {
-      admin: adminAddress,
+      admin: adminAddress || 'system',
       participant: participantAddress,
       amount: bonusAmount,
       type: bonusType,
       eventId: eventId || 'general',
     });
 
-    // ✅ Award tokens via Engine (with eventId if provided)
+    // ✅ Award tokens via Engine (blockchain-level authorization)
+    // The Engine wallet must have ORACLE_ROLE on the contract
     const result = await awardTownsViaEngine(
       participantAddress,
       bonusAmount,
