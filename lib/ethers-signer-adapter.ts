@@ -1,7 +1,7 @@
-// lib/ethers-signer-adapter.ts
 "use client";
 
 import type { Account } from "thirdweb/wallets";
+import { activeChain } from "@/thirdweb-client"; // ✅ Import from thirdweb-client
 
 export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const { ethers } = await import("ethers-v5");
@@ -9,11 +9,11 @@ export async function getEthersV5Signer(wallet: any, chain: any, client: any) {
   const account = wallet.getAccount();
   if (!account) throw new Error("No account connected");
 
-  // ✅ CRITICAL FIX: Use YOUR Alchemy RPC, not the default chain.rpc
-  const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+  // ✅ FIX: Use activeChain.rpc (which is your Alchemy URL)
+  const rpcUrl = activeChain.rpc;
   
   if (!rpcUrl) {
-    throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required! Set it in .env.local');
+    throw new Error('activeChain.rpc is not configured!');
   }
   
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
