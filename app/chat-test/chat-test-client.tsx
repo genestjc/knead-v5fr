@@ -4,7 +4,7 @@ import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
-import { client, activeChain } from '@/thirdweb-client';
+import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
@@ -16,8 +16,9 @@ const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
 const JOIN_VERSION = 'v2';
 
+// ✅ CORRECT: Use Towns Chain RPC (Chain ID 550)
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: activeChain.rpc,
+  rpcUrl: townsChainRpc, // https://mainnet.rpc.towns.com
 });
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
