@@ -23,7 +23,6 @@ function getRewardsContract() {
 
 /**
  * Check if a participant is registered in the rewards contract
- * ✅ UPDATED: Uses contract's isParticipant function directly
  */
 export async function isParticipantRegistered(address: string): Promise<boolean> {
   try {
@@ -49,15 +48,18 @@ export async function isParticipantRegistered(address: string): Promise<boolean>
 /**
  * Register a participant in the rewards contract
  * Must be called before awarding tokens to new users
+ * 
+ * @param address - Participant's wallet address
+ * @param cohort - Cohort number (default: 0)
  */
-export async function registerParticipant(address: string): Promise<{ transactionHash: string }> {
+export async function registerParticipant(address: string, cohort: number = 0): Promise<{ transactionHash: string }> {
   try {
     const contract = getRewardsContract();
     
     const transaction = prepareContractCall({
       contract,
-      method: 'function registerParticipant(address _participant)',
-      params: [address],
+      method: 'function registerParticipant(address _participant, uint256 _cohort)',
+      params: [address, BigInt(cohort)],
     });
     
     const receipt = await sendTransaction({
@@ -67,6 +69,7 @@ export async function registerParticipant(address: string): Promise<{ transactio
     
     console.log('✅ Participant registered:', {
       address,
+      cohort,
       txHash: receipt.transactionHash,
     });
     
