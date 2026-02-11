@@ -11,6 +11,7 @@ import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
+import { clearTownsAuth } from "@/lib/towns/auth-persistence";
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
@@ -468,55 +469,64 @@ export function WalletSummary({
   };
 
   const handleSignOut = async () => {
-    if (isSigningOut) return;
+  if (isSigningOut) return;
+  
+  try {
+    setIsSigningOut(true);
+    setIsDropdownOpen(false);
+    
+    // ✅ CLEAR TOWNS BEARER TOKEN
+    console.log('🧹 Clearing Towns authentication...');
+    clearTownsAuth();
     
     try {
-      setIsSigningOut(true);
-      setIsDropdownOpen(false);
-      
-      try {
-        await disconnect();
-        console.log("ThirdWeb disconnect successful");
-      } catch (disconnectError) {
-        console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
-      }
-      
-      localStorage.removeItem("knead_membership_cache");
-      
-      const thirdwebKeys = Object.keys(localStorage).filter(key => 
-        key.includes('thirdweb') || 
-        key.includes('walletconnect') || 
-        key.startsWith('email_') ||
-        key.startsWith('tw-') ||
-        key.includes('wallet')
-      );
-      
-      thirdwebKeys.forEach(key => localStorage.removeItem(key));
-      
-      const sessionKeys = Object.keys(sessionStorage).filter(key => 
-        key.includes('thirdweb') || 
-        key.includes('walletconnect') || 
-        key.startsWith('tw-') ||
-        key.includes('wallet')
-      );
-      
-      sessionKeys.forEach(key => sessionStorage.removeItem(key));
-      
-      document.cookie.split(";").forEach(cookie => {
-        const [name] = cookie.trim().split("=");
-        if (name.includes("thirdweb") || name.includes("wallet")) {
-          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
-        }
-      });
-      
-      setTimeout(() => {
-        window.location.href = '/?nocache=' + new Date().getTime();
-      }, 500);
-    } catch (error) {
-      console.error("Failed to sign out:", error);
-      window.location.href = '/?forcereload=' + new Date().getTime();
+      await disconnect();
+      console.log("ThirdWeb disconnect successful");
+    } catch (disconnectError) {
+      console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
     }
-  };
+    
+    // ✅ Clear membership cache
+    localStorage.removeItem("knead_membership_cache");
+    
+    // ✅ Clear ThirdWeb keys
+    const thirdwebKeys = Object.keys(localStorage).filter(key => 
+      key.includes('thirdweb') || 
+      key.includes('walletconnect') || 
+      key.startsWith('email_') ||
+      key.startsWith('tw-') ||
+      key.includes('wallet')
+    );
+    
+    thirdwebKeys.forEach(key => localStorage.removeItem(key));
+    
+    const sessionKeys = Object.keys(sessionStorage).filter(key => 
+      key.includes('thirdweb') || 
+      key.includes('walletconnect') || 
+      key.startsWith('tw-') ||
+      key.includes('wallet')
+    );
+    
+    sessionKeys.forEach(key => sessionStorage.removeItem(key));
+    
+    // ✅ Clear cookies
+    document.cookie.split(";").forEach(cookie => {
+      const [name] = cookie.trim().split("=");
+      if (name.includes("thirdweb") || name.includes("wallet")) {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+      }
+    });
+    
+    console.log('✅ All authentication cleared - redirecting...');
+    
+    setTimeout(() => {
+      window.location.href = '/?nocache=' + new Date().getTime();
+    }, 500);
+  } catch (error) {
+    console.error("Failed to sign out:", error);
+    window.location.href = '/?forcereload=' + new Date().getTime();
+  }
+};
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
