@@ -2,7 +2,7 @@
 
 import { MediaRenderer } from "thirdweb/react";
 import { isImageFile } from '@/lib/thirdweb/storage';
-import { client } from '@/thirdweb-client'; // ✅ Project root
+import { client } from '@/thirdweb-client';
 import { useState } from 'react';
 
 interface FileMessageDisplayProps {
@@ -15,9 +15,9 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
   const [hasError, setHasError] = useState(false);
   const isImage = isImageFile(fileName);
 
-  // ✅ If MediaRenderer fails, show fallback
-  if (hasError || !client) {
-    const gatewayUrl = `https://ipfs.io/ipfs/${ipfsUri.replace('ipfs://', '')}`;
+  // If MediaRenderer fails, fall back to link
+  if (hasError) {
+    const gatewayUrl = `https://gateway.thirdweb.com/ipfs/${ipfsUri.replace('ipfs://', '')}`;
     
     return (
       <a
@@ -38,7 +38,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
             {fileName}
           </p>
           <p className={`text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
-            Click to view
+            Click to {isImage ? 'view' : 'download'}
           </p>
         </div>
       </a>
@@ -53,10 +53,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
           src={ipfsUri}
           alt={fileName}
           className="max-w-full max-h-64 rounded-lg object-contain"
-          onError={() => {
-            console.error('❌ MediaRenderer failed for:', ipfsUri);
-            setHasError(true);
-          }}
+          style={{ maxWidth: '100%', maxHeight: '16rem' }}
         />
         <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
           {fileName}
@@ -66,7 +63,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
   }
 
   // Non-image files
-  const gatewayUrl = `https://ipfs.io/ipfs/${ipfsUri.replace('ipfs://', '')}`;
+  const gatewayUrl = `https://gateway.thirdweb.com/ipfs/${ipfsUri.replace('ipfs://', '')}`;
 
   return (
     <a
