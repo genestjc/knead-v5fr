@@ -2,7 +2,7 @@
  * Award on Reaction Hook
  * 
  * Combines Towns Protocol reactions with $TOWNS token awards.
- * When a contributor "likes" a message, it sends both a reaction and awards tokens.
+ * CRITICAL: Blockchain transaction is primary, River reaction is secondary.
  */
 
 'use client';
@@ -16,9 +16,9 @@ interface UseAwardOnReactionResult {
   awardTokensOnLike: (
     messageId: string,
     recipientAddress: string,
-    amount: number, // ✅ Changed from string to number
+    amount: number,
     reaction?: string,
-    eventId?: number // NEW: Optional event ID
+    eventId?: number
   ) => Promise<void>;
   isReacting: boolean;
 }
@@ -37,9 +37,9 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
   async function awardTokensOnLike(
     messageId: string,
     recipientAddress: string,
-    amount: number = 10, // ✅ Default to 10 TOWNS
+    amount: number = 10,
     reaction: string = '❤️',
-    eventId?: number // NEW: Optional event ID
+    eventId?: number
   ): Promise<void> {
     // ✅ VALIDATION: Check all required parameters
     console.log('🎯 awardTokensOnLike called with:', {
@@ -84,16 +84,10 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
     setIsReacting(true);
 
     try {
-      // Step 1: Send reaction to Towns Protocol
-      console.log('📨 Sending reaction to Towns Protocol...');
-      await sendReaction({
-        eventId: messageId,
-        reaction: reaction,
-      });
-      console.log('✅ Reaction sent');
-
-      // Step 2: Award $TOWNS tokens via Engine wallet
-      console.log('💰 Awarding $TOWNS tokens via Engine...');
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STEP 1 (CRITICAL): Award $TOWNS tokens via blockchain
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━
+      console.log('💰 [BLOCKCHAIN] Awarding $TOWNS tokens via Engine...');
       console.log('   From (contributor):', activeAccount.address);
       console.log('   To (participant):', recipientAddress);
       console.log('   Amount:', amount);
@@ -102,12 +96,12 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       const requestBody = {
         contributorAddress: activeAccount.address,
         participantAddress: recipientAddress,
-        amount: amount.toString(), // ✅ Convert to string for API
+        amount: amount.toString(),
         actionType: 'message_like',
-        eventId: eventId, // Include eventId if provided
+        eventId: eventId,
       };
 
-      console.log('📤 Request body:', requestBody);
+      console.log('📤 [BLOCKCHAIN] Request body:', requestBody);
       
       const response = await fetch('/api/chat/award-tokens', {
         method: 'POST',
@@ -117,23 +111,55 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('📥 Response status:', response.status);
+      console.log('📥 [BLOCKCHAIN] Response status:', response.status);
       const data = await response.json();
-      console.log('📥 Response data:', data);
+      console.log('📥 [BLOCKCHAIN] Response data:', data);
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to award tokens');
       }
 
+      console.log('✅ [BLOCKCHAIN] Tokens awarded successfully:', data.transactionHash);
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STEP 2 (OPTIONAL): Send reaction to River Protocol
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // This is NOT critical - if it fails, the blockchain transaction
+      // already succeeded, so we still show success to the user.
+      try {
+        console.log('📨 [RIVER] Sending reaction to Towns Protocol...');
+        await sendReaction({
+          eventId: messageId,
+          reaction: reaction,
+        });
+        console.log('✅ [RIVER] Reaction sent successfully');
+      } catch (riverError: any) {
+        // River failed, but blockchain succeeded - that's OK!
+        console.warn('⚠️ [RIVER] Failed to send reaction (but tokens were awarded):', riverError);
+        console.warn('   Error type:', riverError.name);
+        console.warn('   Error message:', riverError.message);
+        
+        // Don't throw - we already succeeded on blockchain
+        // Just log for debugging
+        if (riverError.message?.includes('QUORUM_FAILED')) {
+          console.warn('   → River quorum failed (network sync issue)');
+        } else if (riverError.message?.includes('deadline_exceeded')) {
+          console.warn('   → River timeout (nodes too slow)');
+        }
+      }
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // SHOW SUCCESS (based on blockchain, not River)
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       const awardTypeMessage = eventId !== undefined 
         ? `Event bonus of ${amount} $TOWNS awarded! ${reaction}`
         : `Tipped ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`;
       
-      console.log('✅ Tokens awarded successfully:', data.transactionHash);
       toast.success(awardTypeMessage);
 
     } catch (error: any) {
-      console.error('❌ Error awarding tokens:', error);
+      // This only catches BLOCKCHAIN errors now
+      console.error('❌ [BLOCKCHAIN] Error awarding tokens:', error);
       
       // Provide specific error messages
       if (error.message?.includes('contributors with NFT')) {
@@ -144,6 +170,8 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         toast.error('You have exceeded your weekly token budget');
       } else if (error.message?.includes('Cooldown')) {
         toast.error('Please wait before tipping this user again (2 hour cooldown)');
+      } else if (error.message?.includes('Participant not registered')) {
+        toast.error('Recipient not registered (auto-registration failed)');
       } else {
         toast.error(`Failed to award tokens: ${error.message || 'Unknown error'}`);
       }
