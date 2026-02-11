@@ -59,6 +59,8 @@ export const activeChain = {
 
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
 
+export const townsChainRpc = baseRpcUrl || base.rpc;
+
 export const KNEAD_MEMBERSHIP_CONTRACT = {
   address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
   name: "Knead Membership",
