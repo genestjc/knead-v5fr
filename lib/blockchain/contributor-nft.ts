@@ -1,10 +1,3 @@
-/**
- * Contributor NFT Permission System
- * 
- * NFT-based contributor permissions replacing database flags.
- * Contributor roles are determined by NFT ownership and metadata.
- */
-
 import { getContract, readContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client as thirdwebClient } from "@/thirdweb-client";
@@ -19,11 +12,11 @@ export type ContributorType = 'appointed' | 'earned' | 'invited' | null;
  */
 export async function isContributor(address: string): Promise<boolean> {
   try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
     
     // If no NFT contract is configured, fall back to false
     if (!nftContractAddress) {
-      console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS is not set");
+      console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS is not set");
       return false;
     }
 
@@ -67,7 +60,7 @@ export async function isContributor(address: string): Promise<boolean> {
  */
 export async function getContributorTypeId(address: string): Promise<number | null> {
   try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
     
     if (!nftContractAddress) {
       return null;
@@ -192,5 +185,86 @@ export async function hassufficientBalance(
   } catch (error) {
     console.error("Error checking contributor balance:", error);
     return false;
+  }
+}
+
+/**
+ * Mint a contributor NFT to a recipient
+ * 
+ * @param recipientAddress - Address to receive the NFT
+ * @param role - 'appointed', 'invited', or 'earned'
+ * @param adminAddress - Admin authorizing the mint (for logging)
+ * @returns Transaction hash and token ID
+ */
+export async function mintContributorNFT(
+  recipientAddress: string,
+  role: 'appointed' | 'invited' | 'earned',
+  adminAddress: string
+): Promise<{ transactionHash: string; tokenId: number }> {
+  try {
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+    
+    if (!nftContractAddress) {
+      throw new Error('NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS not set');
+    }
+
+    // Map role to token ID
+    const tokenIdMap = {
+      'appointed': 1,
+      'invited': 2,
+      'earned': 3,
+    };
+    
+    const tokenId = tokenIdMap[role];
+    
+    console.log('🎨 Minting contributor NFT:', {
+      recipient: recipientAddress,
+      role,
+      tokenId,
+      admin: adminAddress,
+    });
+
+    // Import server wallet
+    const { serverWallet } = await import('@/thirdweb-server-wallet');
+    const { createThirdwebClient } = await import('thirdweb');
+    const { sendTransaction } = await import('thirdweb/transaction');
+    const { prepareContractCall } = await import('thirdweb');
+    
+    const client = createThirdwebClient({
+      secretKey: process.env.THIRDWEB_SECRET_KEY!,
+    });
+    
+    const contract = getContract({
+      client,
+      address: nftContractAddress,
+      chain: base,
+    });
+    
+    // Call adminMintContributor(address to, uint256 tokenId)
+    const transaction = prepareContractCall({
+      contract,
+      method: 'function adminMintContributor(address to, uint256 tokenId)',
+      params: [recipientAddress, BigInt(tokenId)],
+    });
+    
+    const receipt = await sendTransaction({
+      transaction,
+      account: serverWallet,
+    });
+    
+    console.log('✅ Contributor NFT minted:', {
+      tokenId,
+      txHash: receipt.transactionHash,
+    });
+    
+    return {
+      transactionHash: receipt.transactionHash,
+      tokenId,
+    };
+  } catch (error: any) {
+    console.error('❌ Error minting contributor NFT:', error);
+    throw new Error(
+      `Failed to mint contributor NFT: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
