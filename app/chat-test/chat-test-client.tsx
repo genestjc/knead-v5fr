@@ -319,66 +319,6 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ Join space - SDK auto-detects NFT ownership
-    // Find the joinSpaceNow function in your TownsChat component
-// Around line 280-320 in your current file
-
-// REPLACE THIS SECTION:
-useEffect(() => {
-    // Wait for BOTH agent connected AND sync agent available
-    if (!isAgentConnected || !syncAgent) {
-        if (!isAgentConnected) {
-            console.log('⏳ Waiting for agent connection...');
-        } else if (!syncAgent) {
-            console.log('⏳ Agent connected, waiting for sync agent...');
-        }
-        return;
-    }
-
-    if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
-
-    const joinSpaceNow = async () => {
-        setIsJoining(true);
-        
-        try {
-            const userAddress = wallet.getAccount()?.address;
-            if (!userAddress) {
-                setIsJoining(false);
-                return;
-            }
-            
-            console.log('⏳ Stabilizing...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            console.log('🚀 Joining space...');
-            console.log('   SDK will auto-detect if you need to mint');
-            const signer = await getEthersV5Signer(wallet, activeChain, client);
-            
-            // ✅ Let SDK handle everything automatically
-            // - If user owns NFT: skips minting
-            // - If new user: mints with gas sponsorship
-            await joinSpace(SAVED_SPACE_ID, signer);
-            
-            console.log('✅ Joined successfully!');
-            setHasJoined(true);
-
-        } catch (error: any) {
-            if (error.message?.includes('already a member')) {
-                console.log('✅ Already a member');
-                setHasJoined(true);
-            } else {
-                console.error('❌ Join failed:', error);
-                alert(`Failed to join: ${error.message}`);
-            }
-        } finally {
-            setIsJoining(false);
-        }
-    };
-
-    joinSpaceNow();
-}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
-
-// WITH THIS UPDATED VERSION:
 useEffect(() => {
     // Wait for BOTH agent connected AND sync agent available
     if (!isAgentConnected || !syncAgent) {
