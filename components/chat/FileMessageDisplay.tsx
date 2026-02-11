@@ -2,7 +2,8 @@
 
 import { MediaRenderer } from "thirdweb/react";
 import { isImageFile } from '@/lib/thirdweb/storage';
-import { client } from '@/thirdweb-client'; // ✅ Correct path: project root
+import { client } from '@/thirdweb-client'; // ✅ Project root
+import { useState } from 'react';
 
 interface FileMessageDisplayProps {
   fileName: string;
@@ -11,17 +12,51 @@ interface FileMessageDisplayProps {
 }
 
 export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMessageDisplayProps) {
+  const [hasError, setHasError] = useState(false);
   const isImage = isImageFile(fileName);
+
+  // ✅ If MediaRenderer fails, show fallback
+  if (hasError || !client) {
+    const gatewayUrl = `https://ipfs.io/ipfs/${ipfsUri.replace('ipfs://', '')}`;
+    
+    return (
+      <a
+        href={gatewayUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`
+          mt-2 flex items-center gap-2 p-3 rounded-lg border transition-colors
+          ${isCurrentUser 
+            ? 'bg-blue-700 border-blue-500 hover:bg-blue-800' 
+            : 'bg-gray-100 border-gray-300 hover:bg-gray-200'
+          }
+        `}
+      >
+        <span className="text-2xl">{isImage ? '🖼️' : '📎'}</span>
+        <div>
+          <p className={`text-sm font-medium ${isCurrentUser ? 'text-white' : 'text-gray-900'}`}>
+            {fileName}
+          </p>
+          <p className={`text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
+            Click to view
+          </p>
+        </div>
+      </a>
+    );
+  }
 
   if (isImage) {
     return (
       <div className="mt-2">
-        {/* ✅ Use ThirdWeb's MediaRenderer - handles authentication automatically */}
         <MediaRenderer
           client={client}
           src={ipfsUri}
           alt={fileName}
           className="max-w-full max-h-64 rounded-lg object-contain"
+          onError={() => {
+            console.error('❌ MediaRenderer failed for:', ipfsUri);
+            setHasError(true);
+          }}
         />
         <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
           {fileName}
@@ -30,7 +65,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
     );
   }
 
-  // Non-image files - use manual gateway for download
+  // Non-image files
   const gatewayUrl = `https://ipfs.io/ipfs/${ipfsUri.replace('ipfs://', '')}`;
 
   return (
