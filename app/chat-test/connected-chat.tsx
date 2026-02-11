@@ -266,11 +266,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       });
 
       // ✅ Try multiple possible fields for user address
-      const senderId = event.creatorUserId || 
-                       event.creatorAddress || 
-                       event.userId || 
-                       event.payload?.creatorUserId ||
-                       '';
+      const senderId = event.sender?.id || '';
       
       if (!senderId) {
         console.warn('⚠️ No sender ID found for event:', event);
