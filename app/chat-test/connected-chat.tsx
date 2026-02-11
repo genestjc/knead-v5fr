@@ -7,7 +7,7 @@ import {
   useSpace, 
   useSendMessage, 
   useTimeline,
-  useScrollback  // ✅ ADD
+  useScrollback
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -63,6 +63,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const activeEventIdRef = useRef<string | null>(null);
   const dailyTokenRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const activeAccount = useActiveAccount();
 
@@ -83,25 +84,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
+  const { scrollback, isPending: isScrollingBack, data: scrollbackData } = useScrollback(channelId);
 
-  // ✅ ADD SCROLLBACK (correct implementation from docs)
-  const { 
-    scrollback, 
-    isPending: isScrollingBack, 
-    data: scrollbackData,
-    error: scrollbackError 
-  } = useScrollback(channelId);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    console.log('🔐 Admin Check:', {
-      currentAddress: activeAccount?.address,
-      masterAdmin: process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET,
-      isMatch: activeAccount?.address?.toLowerCase() === process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase(),
-    });
-  }, [activeAccount?.address]);
-
+  // Detect user role
   useEffect(() => {
     async function detectRole() {
       if (activeAccount?.address) {
@@ -112,6 +97,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
+  // Fetch live event
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -127,7 +113,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           if (activeEventIdRef.current !== liveEvent.id) {
             activeEventIdRef.current = liveEvent.id;
             setActiveEvent(liveEvent);
-            
             dailyTokenRef.current = null;
             setDailyToken(null);
           }
@@ -169,23 +154,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     
     fetchLiveEvent();
-    
     const interval = setInterval(fetchLiveEvent, 30000);
     
     const supabase = createSupabaseClient();
     const channel = supabase
       .channel('chat_live_events')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_events',
-        },
-        (payload) => {
-          fetchLiveEvent();
-        }
-      )
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_events',
+      }, () => fetchLiveEvent())
       .subscribe();
     
     return () => {
@@ -194,35 +172,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // ✅ FETCH SCROLLBACK when timeline is empty
-  useEffect(() => {
-    if (!timeline || isScrollingBack) return;
-
-    const messageEvents = timeline.filter(
-      (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
-    );
-
-    const hasReachedEnd = scrollbackData?.terminus === true;
-
-    console.log('📊 Scrollback status:', {
-      timelineLength: timeline.length,
-      messageCount: messageEvents.length,
-      isScrollingBack,
-      hasReachedEnd,
-    });
-
-    // If no messages and haven't reached the end, fetch more
-    if (messageEvents.length === 0 && !hasReachedEnd) {
-      console.log('📜 Fetching scrollback...');
-      scrollback().then(result => {
-        console.log('✅ Scrollback complete:', result);
-      }).catch(error => {
-        console.error('❌ Scrollback failed:', error);
-      });
-    }
-  }, [timeline, isScrollingBack, scrollbackData, scrollback]);
-
-  // ✅ FIXED: Fetch contributor profiles (no infinite loop)
+  // Fetch contributor profiles
   useEffect(() => {
     if (!timeline) return;
     
@@ -234,68 +184,26 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
     
     senderAddresses.forEach((address) => {
-      // ✅ Check if we already have this profile
-      setContributorProfiles(prev => {
-        if (prev[address]) return prev; // Already fetched
-        
-        // Fetch it
-        fetch(`/api/chat/user?address=${address}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.success && data.user) {
-              setContributorProfiles(current => ({
-                ...current,
-                [address]: {
-                  alias: data.user.alias || data.user.displayName,
-                  avatar: data.user.avatar,
-                }
-              }));
-            }
-          })
-          .catch(error => console.error('Failed to fetch profile for', address, error));
-        
-        return prev; // Don't update state yet
-      });
+      if (contributorProfiles[address]) return;
+      
+      fetch(`/api/chat/user?address=${address}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.user) {
+            setContributorProfiles(prev => ({
+              ...prev,
+              [address]: {
+                alias: data.user.alias || data.user.displayName,
+                avatar: data.user.avatar,
+              }
+            }));
+          }
+        })
+        .catch(error => console.error('Failed to fetch profile for', address, error));
     });
-  }, [timeline]); // ✅ Only depend on timeline, not contributorProfiles
+  }, [timeline]);
 
-  // ✅ Diagnostic logging
-  useEffect(() => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔐 ENCRYPTION & ENTITLEMENT DEBUG:');
-    console.log('   Current user:', activeAccount?.address);
-    console.log('   User role:', userRole);
-    console.log('   Timeline total events:', timeline?.length || 0);
-    
-    if (timeline && timeline.length > 0) {
-      const eventsByType: Record<string, number> = {};
-      timeline.forEach((e: any) => {
-        const kind = e.content?.kind || e.kind || 'unknown';
-        eventsByType[kind] = (eventsByType[kind] || 0) + 1;
-      });
-      
-      console.log('   📊 Events by type:', eventsByType);
-      
-      const messageEvents = timeline.filter(
-        (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
-      );
-      console.log('   Message events (ChannelMessage):', messageEvents.length);
-      
-      if (messageEvents.length > 0) {
-        console.log('   📨 ChannelMessage details:');
-        messageEvents.forEach((event: any, index: number) => {
-          console.log(`      Message ${index + 1}:`, {
-            content: event.content?.body,
-            senderFull: event.sender?.id || event.creatorUserId,
-            eventId: event.eventId?.substring(0, 16),
-          });
-        });
-      }
-    }
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }, [timeline, userRole, activeAccount?.address]);
-
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline, optimisticMessages]);
@@ -313,37 +221,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
     
-    if (!messageInput.trim() || isSending || !channelId) {
-      return;
-    }
+    if (!messageInput.trim() || isSending || !channelId) return;
 
     const messageContent = messageInput;
-    
-    const tempId = addOptimisticMessage(
-      messageContent,
-      currentUser.displayName || currentUser.address
-    );
-    
+    const tempId = addOptimisticMessage(messageContent, currentUser.displayName || currentUser.address);
     setMessageInput('');
 
     try {
-      console.log('📤 Sending message:', messageContent);
-      
       await sendMessage(messageContent);
-      
-      console.log('✅ Message sent successfully');
-      
       markMessageSent(tempId);
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
-      
       markMessageFailed(tempId);
-      
       setMessageInput(messageContent);
       
-      if (error.message?.includes('already a member')) {
-        console.log('ℹ️ Already a member, ignoring error');
-      } else {
+      if (!error.message?.includes('already a member')) {
         alert(`Failed to send message: ${error.message}`);
       }
     }
@@ -356,7 +248,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     setIsUploading(true);
     try {
       const ipfsUri = await uploadToIPFS(file);
-      
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
       await sendMessage(fileMessage);
       
@@ -371,16 +262,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ Create messages array with profiles
+  // Process messages
   const messages = useMemo(() => {
-    console.log('🔍 Processing timeline:', {
-      totalEvents: timeline?.length || 0,
-    });
-    
     const timelineMessages = timeline
-      ?.filter((event: any) => {
-        return event.content?.kind === RiverTimelineEvent.ChannelMessage;
-      })
+      ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
       .map((event: any) => {
         const senderId = event.sender?.id || event.creatorUserId || '';
         const profile = contributorProfiles[senderId];
@@ -399,8 +284,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             : false,
         };
       }) || [];
-
-    console.log('✅ Processed messages:', timelineMessages.length);
 
     return [
       ...timelineMessages,
@@ -450,16 +333,49 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   }
 
-  console.log('🎨 Rendering with messages:', messages.length);
-
-  // ... rest of your JSX rendering (keep your existing video stage and chat UI code)
-  // I'm not including the full JSX here since it's very long and hasn't changed
-  
   return (
     <>
       <DailyProvider>
         <ChatLayout>
-          {/* Your existing JSX - keep it exactly as it was */}
+          <div className="flex flex-col h-full">
+            {/* Video Stage */}
+            {videoStageProps && (
+              <EventVideoStage {...videoStageProps} />
+            )}
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  canAwardTokens={canAwardTokens}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="border-t border-gray-200 p-4">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  placeholder={userRole === 'freemium' ? 'Upgrade to send messages...' : 'Type a message...'}
+                  disabled={isSending || userRole === 'freemium'}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={isSending || !messageInput.trim() || userRole === 'freemium'}
+                  className="px-6 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50"
+                >
+                  {isSending ? 'Sending...' : 'Send'}
+                </button>
+              </form>
+            </div>
+          </div>
         </ChatLayout>
       </DailyProvider>
       
