@@ -3,6 +3,9 @@ import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management';
 import type { ApiResponse } from '@/types/chat';
 
+// Constants
+const DEFAULT_RSVP_CAP = 50; // Default max participants for events
+
 export const dynamic = 'force-dynamic';
 
 // ============================================
@@ -206,22 +209,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Create on-chain event for Live/Discussion events
-    let onChainEventId = null;
     if (eventType === 'live' || eventType === 'discussion') {
       try {
         const startTimestamp = Math.floor(new Date(scheduledStart).getTime() / 1000);
         const endTimestamp = Math.floor(new Date(scheduledEnd).getTime() / 1000);
         const chainEventType = eventType === 'live' ? EventType.Live : EventType.Discussion;
         
-        onChainEventId = await createOnChainEvent(
+        // Note: On-chain event ID is created but not stored in DB yet
+        // TODO: Add on_chain_event_id column to chat_events table to store this mapping
+        await createOnChainEvent(
           title,
           startTimestamp,
           endTimestamp,
           chainEventType,
-          50 // Default RSVP cap based on Daily max participants
+          DEFAULT_RSVP_CAP
         );
         
-        console.log('[POST /api/events] Created on-chain event:', onChainEventId);
+        console.log('[POST /api/events] Created on-chain event for:', title);
       } catch (chainError) {
         console.error('[POST /api/events] Error creating on-chain event:', chainError);
         // Don't fail the whole request if on-chain creation fails

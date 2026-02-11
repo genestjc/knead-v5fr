@@ -5,6 +5,9 @@ import { hasKneadMonthly } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
 
+// Constants
+const DEFAULT_ATTENDANCE_BONUS = 50; // TOWNS tokens awarded for event attendance
+
 /**
  * POST /api/events/mark-attendance
  * 
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ Could not mark attendance on-chain:', attendanceError.message);
       
       // 3. Fallback: Award attendance bonus directly
-      const bonusAmount = attendanceBonus || 50; // Default 50 TOWNS for attendance
+      const bonusAmount = attendanceBonus || DEFAULT_ATTENDANCE_BONUS;
       
       try {
         const bonusResult = await awardTownsViaEngine(

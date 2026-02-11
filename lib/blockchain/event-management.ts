@@ -54,6 +54,10 @@ export enum EventType {
  * @param eventType - Type of event (0=Live, 1=Discussion, 2=Essay)
  * @param rsvpCap - Maximum number of attendees (0 for unlimited)
  * @returns On-chain event ID
+ * 
+ * TODO: Parse event ID from transaction receipt logs
+ * The contract emits an EventCreated event with the new event ID
+ * Currently returns 0 as placeholder - needs log parsing implementation
  */
 export async function createOnChainEvent(
   title: string,
@@ -85,12 +89,13 @@ export async function createOnChainEvent(
       txHash: receipt.transactionHash,
     });
     
-    // Parse the event ID from the transaction receipt
-    // The createEvent function returns the eventId, which we can extract from logs
-    // For now, we'll return a placeholder - in production, parse from receipt logs
-    // This would typically involve parsing the event logs for EventCreated event
+    // TODO: Parse the event ID from the transaction receipt logs
+    // The createEvent function returns the eventId, which can be extracted from logs
+    // For now, return 0 as placeholder
+    // In production, parse from receipt.logs for EventCreated event
+    console.warn('⚠️ Event ID parsing not implemented - returning placeholder 0');
     
-    return 0; // Placeholder - should parse from transaction logs
+    return 0;
   } catch (error) {
     console.error('Error creating on-chain event:', error);
     throw new Error(
@@ -148,14 +153,23 @@ export async function markEventAttendance(
  * 1. Query a database mapping table (Daily ID -> On-chain ID)
  * 2. Or query the contract for event details by title/time
  * 
- * For now, returns the Daily event ID as-is
+ * Current limitation: Since createOnChainEvent returns 0 as placeholder,
+ * this function returns the Daily event ID as-is until proper log parsing
+ * is implemented.
+ * 
+ * TODO: Implement proper event ID mapping
+ * - Add on_chain_event_id column to chat_events table
+ * - Store mapping when creating on-chain event
+ * - Query from database instead of assuming IDs match
  * 
  * @param dailyEventId - Daily.co event ID from Supabase
  * @returns On-chain event ID
  */
 export async function getOnChainEventId(dailyEventId: number): Promise<number> {
-  // In production, this would query a mapping table or the contract
-  // For now, we'll assume the IDs are the same or need to be stored separately
+  // TODO: Query mapping from database
+  // For now, return the Daily event ID as-is
+  // This is a known limitation until proper event ID mapping is implemented
+  console.warn('⚠️ Event ID mapping not implemented - using Daily event ID as placeholder');
   return dailyEventId;
 }
 
