@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markEventAttendance } from '@/lib/blockchain/event-management';
 import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
-import { hasKneadMonthlyNFT } from '@/lib/blockchain/check-nft-ownership';
+import { hasKneadMonthly } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Verify user has Knead Monthly NFT
-    const hasNFT = await hasKneadMonthlyNFT(participantAddress);
+    const hasNFT = await hasKneadMonthly(participantAddress);
     if (!hasNFT) {
       return NextResponse.json({ 
         error: 'Only Knead Monthly NFT holders can receive attendance bonuses.' 
