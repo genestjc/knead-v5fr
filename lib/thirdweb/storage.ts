@@ -3,7 +3,7 @@
  * Provides functions for uploading files to IPFS via ThirdWeb's storage SDK.
  */
 import { upload } from "thirdweb/storage";
-import { client } from "@/lib/thirdweb-client"; // ✅ Use your existing client
+import { client } from "../../thirdweb-client"; // ✅ Go up TWO levels to project root
 
 /**
  * Upload a single file to IPFS with validation
