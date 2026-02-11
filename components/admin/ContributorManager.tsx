@@ -18,6 +18,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
   const account = useActiveAccount();
   const [recipient, setRecipient] = useState('');
   const [role, setRole] = useState<'appointed' | 'invited' | 'earned'>('invited');
+  const [weeklyBudget, setWeeklyBudget] = useState('100');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -25,6 +26,12 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
     e.preventDefault();
     if (!account?.address) {
       setMessage('Error: Admin wallet not connected.');
+      return;
+    }
+
+    const budgetNum = parseFloat(weeklyBudget);
+    if (isNaN(budgetNum) || budgetNum <= 0) {
+      setMessage('Error: Weekly budget must be a positive number.');
       return;
     }
 
@@ -38,6 +45,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
         body: JSON.stringify({
           recipientAddress: recipient,
           role: role,
+          weeklyBudget: budgetNum,
           adminAddress: account.address,
         }),
       });
@@ -45,15 +53,16 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(`Success! NFT minted (Token ID ${data.tokenId}). Tx: ${data.transactionHash.slice(0,10)}...`);
+        setMessage(`✅ Success! NFT minted (Token ID ${data.tokenId}) with ${weeklyBudget} TOWNS/week budget. Tx: ${data.transactionHash.slice(0,10)}...`);
         setRecipient('');
+        setWeeklyBudget('100'); // Reset to default
         onMintSuccess();
       } else {
-        throw new Error(data.error || 'Failed to mint NFT.');
+        throw new Error(data.error || 'Failed to add contributor.');
       }
     } catch (error) {
       console.error(error);
-      setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +70,10 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-        <h3 className="font-adonis text-2xl mb-4">Mint New Contributor NFT</h3>
+        <h3 className="font-adonis text-2xl mb-4">Add New Contributor</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Mints an NFT and sets up the contributor in the rewards contract.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
                 <label htmlFor="recipient" className="block text-sm font-medium text-gray-700">
@@ -77,9 +89,10 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
                   required 
                 />
             </div>
+            
             <div>
                 <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                  Contributor Role
+                  Contributor Type
                 </label>
                 <select 
                   id="role" 
@@ -87,23 +100,61 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
                   onChange={(e) => setRole(e.target.value as any)} 
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
                 >
-                    {/* ✅ UPDATED: Added Token IDs in labels for clarity */}
-                    <option value="appointed">Appointed (Token ID 1 - 0.8x multiplier, 3 invites)</option>
-                    <option value="invited">Invited (Token ID 2 - 1.0x multiplier, 2 invites)</option>
-                    <option value="earned">Earned (Token ID 3 - 1.5x multiplier, 3 invites)</option>
+                    <option value="appointed">Appointed (0.8x multiplier, 3 invites)</option>
+                    <option value="invited">Invited (1.0x multiplier, 2 invites)</option>
+                    <option value="earned">Earned (1.5x multiplier, 3 invites)</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Determines their reward multiplier
+                </p>
             </div>
+            
+            <div>
+                <label htmlFor="weeklyBudget" className="block text-sm font-medium text-gray-700">
+                  Weekly Budget (TOWNS)
+                </label>
+                <input 
+                  type="number" 
+                  id="weeklyBudget" 
+                  value={weeklyBudget} 
+                  onChange={(e) => setWeeklyBudget(e.target.value)} 
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black" 
+                  placeholder="100" 
+                  min="1"
+                  step="1"
+                  required 
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  How many TOWNS they can award per week (recommended: 50-500)
+                </p>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-xs text-gray-700">
+                  💡 <strong>Budget Recommendations:</strong>
+                </p>
+                <ul className="text-xs text-gray-600 mt-1 ml-4 list-disc">
+                  <li>Conservative: 50 TOWNS/week</li>
+                  <li>Standard: 100 TOWNS/week</li>
+                  <li>Generous: 500 TOWNS/week</li>
+                </ul>
+              </div>
+            
             <div>
                 <button 
                   type="submit" 
                   disabled={isLoading} 
                   className="w-full py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400"
                 >
-                    {isLoading ? 'Minting...' : 'Mint Contributor NFT'}
+                    {isLoading ? 'Setting up contributor...' : 'Add Contributor'}
                 </button>
             </div>
         </form>
-        {message && <p className="mt-4 text-sm text-center break-words">{message}</p>}
+        {message && (
+          <div className={`mt-4 p-3 rounded-md ${message.startsWith('✅') ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <p className="text-sm break-words">{message}</p>
+          </div>
+        )}
     </div>
   );
 }
