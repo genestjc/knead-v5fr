@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
+import { saveTownsAuth, getSavedTownsAuth, clearTownsAuth } from '@/lib/towns/auth-persistence';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -163,7 +164,7 @@ function useBotAutoConnect() {
 
 function SetupFlow() {
     const wallet = useActiveWallet();
-    const { connect, isAgentConnected } = useAgentConnection();
+    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection(); // ✅ Add connectUsingBearerToken
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Preparing your account...");
 
@@ -175,30 +176,92 @@ function SetupFlow() {
                 const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) return;
 
-                // ✅ NO CACHE CLEARING - Let SDK manage persistence!
+                // ✅ TRY TOKEN-BASED AUTH FIRST (no signature required!)
+                const savedToken = getSavedTownsAuth();
+                
+                if (savedToken) {
+                    setSetupStep("Reconnecting with saved session...");
+                    console.log('🔄 Attempting to reconnect with bearer token...');
+                    
+                    try {
+                        await connectUsingBearerToken(savedToken, { 
+                            townsConfig: TOWNS_CONFIG,
+                            onTokenExpired: () => {
+                                console.log('⚠️ Token expired');
+                                clearTownsAuth();
+                            }
+                        });
+                        
+                        console.log('✅ Reconnected with saved session - no signature needed!');
+                        setSetupComplete(true);
+                        return; // ✅ Done! No signature required
+                        
+                    } catch (tokenError: any) {
+                        console.warn('⚠️ Saved token failed, will request new signature:', tokenError.message);
+                        clearTownsAuth();
+                        // Fall through to signature-based auth
+                    }
+                }
+
+                // ✅ SIGNATURE-BASED AUTH (only if no token or token failed)
+                setSetupStep("Checking membership...");
                 
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (!hasJoinedBefore) {
-                    setSetupStep("Creating your membership...");
-                    await fetch('/api/towns/mint-membership', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
-                    });
+                    try {
+                        const response = await fetch('/api/towns/mint-membership', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userAddress, spaceId: SAVED_SPACE_ID }),
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success || data.message?.includes('already a member')) {
+                            console.log('✅ Membership confirmed');
+                            localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                        } else if (response.status === 400 || response.status === 409) {
+                            console.log('ℹ️ User likely already a member');
+                            localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                        }
+                    } catch (mintError: any) {
+                        console.warn('⚠️ Mint error (may already be a member):', mintError.message);
+                        localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                    }
                 }
 
-                setSetupStep("Connecting to network...");
+                setSetupStep("Please sign the message in your wallet...");
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                await connect(signer, { 
+                console.log('🔐 Requesting signature for Towns authentication...');
+                const agent = await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => console.log('🔄 Token expired')
+                    onTokenExpired: () => {
+                        console.log('⚠️ Token expired');
+                        clearTownsAuth();
+                    }
                 });
                 
                 console.log('✅ Towns agent connected');
-                console.log('⛽ Gas sponsorship enabled via EIP-7702');
                 
+                // ✅ SAVE THE BEARER TOKEN for next time
+                try {
+                    // Get the bearer token from the SDK
+                    // The SDK should expose this, but if not we'll need to extract it
+                    const syncAgent = agent as any;
+                    if (syncAgent?.auth?.token || syncAgent?.authToken || syncAgent?.token) {
+                        const token = syncAgent.auth?.token || syncAgent.authToken || syncAgent.token;
+                        saveTownsAuth(token);
+                        console.log('💾 Saved bearer token for future sessions');
+                    } else {
+                        console.warn('⚠️ Could not extract bearer token from agent');
+                    }
+                } catch (saveError) {
+                    console.warn('⚠️ Could not save bearer token:', saveError);
+                }
+                
+                console.log('⛽ Gas sponsorship enabled via EIP-7702');
                 setSetupComplete(true);
 
             } catch (error: any) {
@@ -215,17 +278,29 @@ function SetupFlow() {
         };
 
         runSetup();
-    }, [wallet, isAgentConnected, setupComplete, connect]);
+    }, [wallet, isAgentConnected, setupComplete, connect, connectUsingBearerToken]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md px-4">
-                <h2 className="font-adonis text-3xl mb-4">Setting Up Your Membership</h2>
+                <h2 className="font-adonis text-3xl mb-4">
+                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Setting Up Your Membership"}
+                </h2>
                 <LoadingSpinner />
                 <p className="font-georgia-pro text-sm text-gray-600 mt-4">
                     {setupStep}
                 </p>
-                {!setupStep.includes("failed") && (
+                {setupStep.includes("sign the message") && (
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        📝 Check your wallet for the signature request
+                    </p>
+                )}
+                {setupStep.includes("Reconnecting") && (
+                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                        ⚡ No signature needed - using saved session
+                    </p>
+                )}
+                {!setupStep.includes("failed") && !setupStep.includes("sign") && !setupStep.includes("Reconnecting") && (
                     <p className="font-georgia-pro text-xs text-gray-400 mt-2">
                         Gas fees sponsored by Knead ⚡
                     </p>
