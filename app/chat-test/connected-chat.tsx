@@ -18,6 +18,9 @@ import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
+import { useTownsConnectionMonitor } from '@/hooks/use-towns-connection';
+import { trackUserState, recordSyncError } from '@/lib/towns/cache-manager';
+import { useOptimisticMessages } from '@/hooks/use-optimistic-messages';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -64,6 +67,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions } = useChatPermissions(activeAccount?.address || null);
 
+  // ✅ NEW: Monitor Towns connection health
+  const { isConnected, reconnectAttempts } = useTownsConnectionMonitor();
+
+  // ✅ NEW: Optimistic message updates
+  const {
+    optimisticMessages,
+    addOptimisticMessage,
+    markMessageSent,
+    markMessageFailed,
+  } = useOptimisticMessages(activeAccount?.address || '');
+
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
@@ -73,7 +87,40 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Debug admin check
+  // ✅ NEW: Track user state changes and clear cache if needed
+  useEffect(() => {
+    if (activeAccount?.address && userRole) {
+      const cacheCleared = trackUserState(userRole, canAwardTokens);
+      
+      if (cacheCleared) {
+        console.log('🔄 User state changed - reloading in 2 seconds...');
+        setTimeout(() => window.location.reload(), 2000);
+      }
+    }
+  }, [userRole, canAwardTokens, activeAccount?.address]);
+
+  // ✅ NEW: Show connection status if having issues
+  if (reconnectAttempts > 2) {
+    return (
+      <ChatLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center max-w-md px-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+            <p className="font-adonis text-lg mb-2">Reconnecting to Towns...</p>
+            <p className="font-georgia-pro text-sm text-gray-600">
+              Attempt {reconnectAttempts} of 5
+            </p>
+            {reconnectAttempts > 3 && (
+              <p className="font-georgia-pro text-xs text-gray-500 mt-2">
+                If this continues, the page will refresh automatically.
+              </p>
+            )}
+          </div>
+        </div>
+      </ChatLayout>
+    );
+  }
+
   useEffect(() => {
     console.log('🔐 Admin Check:', {
       currentAddress: activeAccount?.address,
@@ -91,6 +138,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     detectRole();
   }, [activeAccount?.address]);
+
+  // ... (event fetching useEffect stays the same) ...
 
   useEffect(() => {
     async function fetchLiveEvent() {
@@ -189,6 +238,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
       console.log(`⚠️ Miniblock hash error, will retry in 2 seconds (attempt ${retryCount + 1}/3)`);
+      recordSyncError();
       const timer = setTimeout(() => {
         setRetryCount(retryCount + 1);
       }, 2000);
@@ -210,8 +260,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [timeline]);
+  }, [timeline, optimisticMessages]);
 
+  // ✅ UPDATED: Handle send message with optimistic updates
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -234,18 +285,38 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
+    const messageContent = messageInput;
+    
+    // ✅ Show message immediately (optimistic update)
+    const tempId = addOptimisticMessage(
+      messageContent,
+      currentUser.displayName || currentUser.address
+    );
+    
+    // Clear input immediately
+    setMessageInput('');
+
     try {
-      console.log('📤 Sending message:', messageInput);
+      console.log('📤 Sending message:', messageContent);
       setRetryCount(0);
       
-      await sendMessage(messageInput);
+      await sendMessage(messageContent);
       
       console.log('✅ Message sent successfully');
-      setMessageInput('');
+      
+      // Mark optimistic message as sent
+      markMessageSent(tempId);
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
       
+      // Mark optimistic message as failed
+      markMessageFailed(tempId);
+      
+      // Restore input so user can retry
+      setMessageInput(messageContent);
+      
       if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
+        recordSyncError();
         alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
       } else if (error.message?.includes('already a member')) {
         console.log('ℹ️ Already a member, ignoring error');
@@ -263,11 +334,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     try {
       const ipfsUri = await uploadToIPFS(file);
       
-      // Send message with file info
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
       await sendMessage(fileMessage);
       
-      // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -279,31 +348,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // Message mapping without excessive debug logging
-  const messages = timeline
-    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .map((event: any) => {
-      // Try multiple possible fields for user address
-      const senderId = event.sender?.id || '';
-      
-      if (!senderId) {
-        console.warn('⚠️ No sender ID found for event:', event.eventId);
-      }
+  // ✅ UPDATED: Combine real + optimistic messages
+  const messages = [
+    ...(timeline
+      ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .map((event: any) => {
+        const senderId = event.sender?.id || '';
+        
+        if (!senderId) {
+          console.warn('⚠️ No sender ID found for event:', event.eventId);
+        }
 
-      return {
-        id: event.eventId || event.id,
-        content: event.content?.body || '',
-        sender: {
-          id: senderId,
-          name: event.creatorDisplayName || 'Anonymous',
-          avatar: undefined,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: senderId && activeAccount?.address 
-          ? senderId.toLowerCase() === activeAccount.address.toLowerCase() 
-          : false,
-      };
-    }) || [];
+        return {
+          id: event.eventId || event.id,
+          content: event.content?.body || '',
+          sender: {
+            id: senderId,
+            name: event.creatorDisplayName || 'Anonymous',
+            avatar: undefined,
+          },
+          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+          isOwn: senderId && activeAccount?.address 
+            ? senderId.toLowerCase() === activeAccount.address.toLowerCase() 
+            : false,
+        };
+      }) || []),
+    // ✅ Add optimistic messages
+    ...optimisticMessages,
+  ].sort((a, b) => a.timestamp - b.timestamp);
 
   const videoStageProps = useMemo(() => {
     if (!activeEvent?.dailyRoomUrl || !dailyToken || !activeAccount?.address) {
@@ -346,7 +418,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </ChatLayout>
     );
   }
-
+  
   return (
     <>
       <DailyProvider>
@@ -412,7 +484,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
                   <div className="border-t border-gray-200 p-4 bg-white">
                     <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                      {/* Hidden file input */}
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -421,7 +492,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                         accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
                       />
                       
-                      {/* Paperclip button - only for Contributors */}
                       {canAwardTokens && (
                         <button
                           type="button"
@@ -537,7 +607,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
                   <div className="border-t border-gray-200 p-2 bg-white">
                     <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                      {/* Hidden file input */}
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -546,7 +615,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                         accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
                       />
                       
-                      {/* Paperclip button - only for Contributors */}
                       {canAwardTokens && (
                         <button
                           type="button"
@@ -671,7 +739,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
               <div className="border-t border-gray-200 p-4 bg-white">
                 <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                  {/* Hidden file input */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -680,7 +747,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
                   />
                   
-                  {/* Paperclip button - only for Contributors */}
                   {canAwardTokens && (
                     <button
                       type="button"
