@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+
+const SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID?.toLowerCase();
+const MEMBERSHIP_CONTRACT = SPACE_ID?.substring(0, 42); // ✅ First 42 chars = membership NFT contract
 
 const ALLOWED_CONTRACTS = [
-  process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID?.toLowerCase(),
-  process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS?.toLowerCase(), // ✅ ADD THIS
-  // Add other Towns contract addresses
-];
+  SPACE_ID, // Full space ID (66 chars)
+  MEMBERSHIP_CONTRACT, // ✅ ADD THIS - Membership NFT contract (42 chars)
+  process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS?.toLowerCase(),
+].filter(Boolean); // Remove undefined values
 
 const MAX_GAS_PRICE = BigInt("50000000000"); // 50 gwei max
 const MAX_DAILY_TRANSACTIONS_PER_USER = 100;
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest) {
     console.log('   Sender:', userOp.sender);
     console.log('   Targets:', userOp.data?.targets);
     console.log('   Gas Price:', userOp.gasPrice);
+    console.log('   Allowed Contracts:', ALLOWED_CONTRACTS); // ✅ Debug log
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Validation 1: Only sponsor Base mainnet
