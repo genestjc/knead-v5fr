@@ -320,59 +320,144 @@ function TownsChat() {
     }, [space]);
 
     // ✅ Join space - SDK auto-detects NFT ownership
-    useEffect(() => {
-        // Wait for BOTH agent connected AND sync agent available
-        if (!isAgentConnected || !syncAgent) {
-            if (!isAgentConnected) {
-                console.log('⏳ Waiting for agent connection...');
-            } else if (!syncAgent) {
-                console.log('⏳ Agent connected, waiting for sync agent...');
-            }
-            return;
+    // Find the joinSpaceNow function in your TownsChat component
+// Around line 280-320 in your current file
+
+// REPLACE THIS SECTION:
+useEffect(() => {
+    // Wait for BOTH agent connected AND sync agent available
+    if (!isAgentConnected || !syncAgent) {
+        if (!isAgentConnected) {
+            console.log('⏳ Waiting for agent connection...');
+        } else if (!syncAgent) {
+            console.log('⏳ Agent connected, waiting for sync agent...');
         }
+        return;
+    }
 
-        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
+    if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
-        const joinSpaceNow = async () => {
-            setIsJoining(true);
-            
-            try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) {
-                    setIsJoining(false);
-                    return;
-                }
-                
-                console.log('⏳ Stabilizing...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                console.log('🚀 Joining space...');
-                console.log('   SDK will auto-detect if you need to mint');
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
-                
-                // ✅ Let SDK handle everything automatically
-                // - If user owns NFT: skips minting
-                // - If new user: mints with gas sponsorship
-                await joinSpace(SAVED_SPACE_ID, signer);
-                
-                console.log('✅ Joined successfully!');
-                setHasJoined(true);
-
-            } catch (error: any) {
-                if (error.message?.includes('already a member')) {
-                    console.log('✅ Already a member');
-                    setHasJoined(true);
-                } else {
-                    console.error('❌ Join failed:', error);
-                    alert(`Failed to join: ${error.message}`);
-                }
-            } finally {
+    const joinSpaceNow = async () => {
+        setIsJoining(true);
+        
+        try {
+            const userAddress = wallet.getAccount()?.address;
+            if (!userAddress) {
                 setIsJoining(false);
+                return;
             }
-        };
+            
+            console.log('⏳ Stabilizing...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-        joinSpaceNow();
-    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+            console.log('🚀 Joining space...');
+            console.log('   SDK will auto-detect if you need to mint');
+            const signer = await getEthersV5Signer(wallet, activeChain, client);
+            
+            // ✅ Let SDK handle everything automatically
+            // - If user owns NFT: skips minting
+            // - If new user: mints with gas sponsorship
+            await joinSpace(SAVED_SPACE_ID, signer);
+            
+            console.log('✅ Joined successfully!');
+            setHasJoined(true);
+
+        } catch (error: any) {
+            if (error.message?.includes('already a member')) {
+                console.log('✅ Already a member');
+                setHasJoined(true);
+            } else {
+                console.error('❌ Join failed:', error);
+                alert(`Failed to join: ${error.message}`);
+            }
+        } finally {
+            setIsJoining(false);
+        }
+    };
+
+    joinSpaceNow();
+}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+
+// WITH THIS UPDATED VERSION:
+useEffect(() => {
+    // Wait for BOTH agent connected AND sync agent available
+    if (!isAgentConnected || !syncAgent) {
+        if (!isAgentConnected) {
+            console.log('⏳ Waiting for agent connection...');
+        } else if (!syncAgent) {
+            console.log('⏳ Agent connected, waiting for sync agent...');
+        }
+        return;
+    }
+
+    if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
+
+    const joinSpaceNow = async () => {
+        setIsJoining(true);
+        
+        try {
+            const userAddress = wallet.getAccount()?.address;
+            if (!userAddress) {
+                setIsJoining(false);
+                return;
+            }
+            
+            // ✅ NEW: Check membership status first
+            console.log('🔍 Checking membership status...');
+            const checkRes = await fetch('/api/towns/check-membership', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userAddress }),
+            });
+            
+            const membershipData = await checkRes.json();
+            
+            if (membershipData.success) {
+                const { hasMembership, totalMembers, isUnder100 } = membershipData;
+                
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('📊 Membership Status:');
+                console.log('   Has membership:', hasMembership);
+                console.log('   Total members:', totalMembers);
+                console.log('   Free tier active:', isUnder100);
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                
+                if (!hasMembership && !isUnder100) {
+                    console.warn('⚠️ Over 100 members - new mints may cost gas');
+                }
+            }
+            
+            console.log('⏳ Stabilizing...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log('🚀 Joining space...');
+            const signer = await getEthersV5Signer(wallet, activeChain, client);
+            
+            // ✅ NEW: Let SDK auto-detect + conditionally skip mint
+            const hasMembership = membershipData?.hasMembership || false;
+            
+            await joinSpace(SAVED_SPACE_ID, signer, {
+                skipMintMembership: hasMembership // Only skip if they already own it
+            });
+            
+            console.log('✅ Joined successfully!');
+            setHasJoined(true);
+
+        } catch (error: any) {
+            if (error.message?.includes('already a member')) {
+                console.log('✅ Already a member');
+                setHasJoined(true);
+            } else {
+                console.error('❌ Join failed:', error);
+                alert(`Failed to join: ${error.message}`);
+            }
+        } finally {
+            setIsJoining(false);
+        }
+    };
+
+    joinSpaceNow();
+}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
 
     // ✅ Log when space initializes
     useEffect(() => {
