@@ -52,19 +52,12 @@ if (!baseRpcUrl) {
   throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required to avoid CORS issues');
 }
 
-// ✅ Use Alchemy RPC for Base Chain (Chain ID 8453)
-// Used for: NFT balance checks, contract interactions, blockchain queries
 export const activeChain = {
   ...base,
-  rpc: baseRpcUrl, // Your Alchemy RPC for Base Chain
+  rpc: baseRpcUrl,
 };
 
-// ✅ CORRECT: Use Towns Chain RPC (Chain ID 550)
-// Used for: Towns Protocol chat, spaces, channels, messages
-export const townsChainRpc = 'https://mainnet.rpc.towns.com';
-
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
-logger.log(`Base Chain: Alchemy RPC | Towns Chain: ${townsChainRpc}`);
 
 export const KNEAD_MEMBERSHIP_CONTRACT = {
   address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
