@@ -15,8 +15,6 @@ import { saveTownsAuth, getSavedTownsAuth, clearTownsAuth } from '@/lib/towns/au
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-const JOIN_VERSION = 'v2';
-
 const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
   rpcUrl: townsChainRpc,
 });
@@ -35,7 +33,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ✅ BOT AUTO-CONNECT HOOK
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -228,7 +226,6 @@ function SetupFlow() {
                     console.warn('⚠️ Could not save bearer token:', saveError);
                 }
                 
-                console.log('⛽ Gas sponsorship enabled via EIP-7702');
                 setSetupComplete(true);
 
             } catch (error: any) {
@@ -273,7 +270,7 @@ function SetupFlow() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ LET SDK MINT WITH EIP-7702 (NO SKIP)
+// TOWNS CHAT - ✅ LET SDK AUTO-DETECT NFT OWNERSHIP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -322,65 +319,80 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ Join space - let SDK mint with EIP-7702
-// In TownsChat component, replace the joinSpace effect with this:
+    // ✅ Join space - SDK auto-detects NFT ownership
+    useEffect(() => {
+        // Wait for BOTH agent connected AND sync agent available
+        if (!isAgentConnected || !syncAgent) {
+            if (!isAgentConnected) {
+                console.log('⏳ Waiting for agent connection...');
+            } else if (!syncAgent) {
+                console.log('⏳ Agent connected, waiting for sync agent...');
+            }
+            return;
+        }
 
-useEffect(() => {
-  // Wait for BOTH agent connected AND sync agent available
-  if (!isAgentConnected || !syncAgent) {
-    if (!isAgentConnected) {
-      console.log('⏳ Waiting for agent connection...');
-    } else if (!syncAgent) {
-      console.log('⏳ Agent connected, waiting for sync agent...');
+        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
+
+        const joinSpaceNow = async () => {
+            setIsJoining(true);
+            
+            try {
+                const userAddress = wallet.getAccount()?.address;
+                if (!userAddress) {
+                    setIsJoining(false);
+                    return;
+                }
+                
+                console.log('⏳ Stabilizing...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                console.log('🚀 Joining space...');
+                console.log('   SDK will auto-detect if you need to mint');
+                const signer = await getEthersV5Signer(wallet, activeChain, client);
+                
+                // ✅ Let SDK handle everything automatically
+                // - If user owns NFT: skips minting
+                // - If new user: mints with gas sponsorship
+                await joinSpace(SAVED_SPACE_ID, signer);
+                
+                console.log('✅ Joined successfully!');
+                setHasJoined(true);
+
+            } catch (error: any) {
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ Already a member');
+                    setHasJoined(true);
+                } else {
+                    console.error('❌ Join failed:', error);
+                    alert(`Failed to join: ${error.message}`);
+                }
+            } finally {
+                setIsJoining(false);
+            }
+        };
+
+        joinSpaceNow();
+    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+
+    // ✅ Log when space initializes
+    useEffect(() => {
+        if (hasJoined && space?.initialized) {
+            console.log('✅ Space fully initialized with channels:', space.channelIds);
+        }
+    }, [hasJoined, space?.initialized, space?.channelIds]);
+
+    if (!isAgentConnected || !syncAgent) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        {!isAgentConnected ? 'Connecting to Towns...' : 'Initializing...'}
+                    </p>
+                </div>
+            </div>
+        );
     }
-    return;
-  }
-
-  if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
-
-  const joinSpaceNow = async () => {
-    setIsJoining(true);
-    
-    try {
-      const userAddress = wallet.getAccount()?.address;
-      if (!userAddress) {
-        setIsJoining(false);
-        return;
-      }
-
-      // ❌ REMOVE THIS - localStorage check is wrong
-      // const hasJoinedBefore = localStorage.getItem(...);
-      
-      console.log('⏳ Stabilizing...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      console.log('🚀 Joining space (will use existing NFT)...');
-      const signer = await getEthersV5Signer(wallet, activeChain, client);
-      
-      // ✅ ALWAYS call joinSpace - it connects you to stream nodes
-      // Since you already own the NFT, skip minting
-      await joinSpace(SAVED_SPACE_ID, signer, { 
-        skipMintMembership: true  // You already own it
-      });
-      
-      console.log('✅ Joined successfully!');
-      setHasJoined(true);
-
-    } catch (error: any) {
-      if (error.message?.includes('already a member')) {
-        console.log('✅ Already a member');
-        setHasJoined(true);
-      } else {
-        console.error('❌ Join failed:', error);
-        alert(`Failed to join: ${error.message}`);
-      }
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  joinSpaceNow();
-}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
 
     if (isSpaceLoading || isJoining) {
         return (
@@ -454,7 +466,7 @@ useEffect(() => {
     return <LoadingSpinner />;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
