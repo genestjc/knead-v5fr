@@ -317,10 +317,11 @@ function SetupFlow() {
 function TownsChat() {
     const [spaceId, setSpaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
+    const [isJoining, setIsJoining] = useState(false);
 
     const wallet = useActiveWallet();
-    const { joinSpace } = useJoinSpace();
-    const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
+    const { joinSpace, isPending: isJoinPending, error: joinError } = useJoinSpace();
+    const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId || '');
 
     const currentUser: ChatUser | null = useMemo(() => {
         const address = wallet?.getAccount()?.address;
@@ -338,49 +339,123 @@ function TownsChat() {
         };
     }, [wallet]);
 
+    // Log space status
     useEffect(() => {
         if (space) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('📊 Space Sync Status:');
+            console.log('   Space ID:', SAVED_SPACE_ID);
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
-    }, [space]);
+        
+        if (spaceError) {
+            console.error('❌ Space Error:', spaceError);
+        }
+    }, [space, spaceError]);
 
+    // Log join errors
     useEffect(() => {
-        if (hasJoined || !wallet || !SAVED_SPACE_ID) return;
+        if (joinError) {
+            console.error('❌ Join Error:', joinError);
+        }
+    }, [joinError]);
+
+    // Handle joining
+    useEffect(() => {
+        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID || isJoinPending) return;
 
         const joinSpaceNow = async () => {
+            setIsJoining(true);
+            
             try {
                 const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) return;
+                if (!userAddress) {
+                    setIsJoining(false);
+                    return;
+                }
+
+                console.log('🔍 Checking join status for:', userAddress);
+                console.log('🔍 Space ID:', SAVED_SPACE_ID);
 
                 const hasJoinedBefore = localStorage.getItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 
                 if (hasJoinedBefore) {
-                    console.log('✅ User already joined before (from localStorage v2)');
-                    setSpaceId(SAVED_SPACE_ID);
-                    setHasJoined(true);
-                    return;
+                    console.log('✅ LocalStorage says user joined before');
+                    console.log('⏳ Waiting for space to initialize...');
+                    
+                    // Wait up to 15 seconds for space to initialize
+                    let attempts = 0;
+                    while (attempts < 30) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        if (space?.initialized) {
+                            console.log('✅ Space initialized!');
+                            setHasJoined(true);
+                            setSpaceId(SAVED_SPACE_ID);
+                            setIsJoining(false);
+                            return;
+                        }
+                        
+                        attempts++;
+                        if (attempts % 4 === 0) {
+                            console.log(`⏳ Still waiting... (${attempts / 2}s)`);
+                        }
+                    }
+                    
+                    console.warn('⚠️ Space not initializing after 15s - trying to rejoin with skipMintMembership');
+                    
+                    // Clear the flag and try joining again
+                    localStorage.removeItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
                 }
 
-                console.log('🚀 Joining space for the first time...');
-                console.log('⛽ Gas will be sponsored via EIP-7702');
+                // Join the space (skip minting if they're already a member)
+                console.log('🚀 Joining space...');
+                console.log('   Using skipMintMembership: true');
+                
                 const signer = await getEthersV5Signer(wallet, activeChain, client);
                 
-                await joinSpace(SAVED_SPACE_ID, signer);
+                await joinSpace(SAVED_SPACE_ID, signer, { 
+                    skipMintMembership: true // ✅ Skip the NFT mint - they're already a member
+                });
                 
                 console.log('✅ Join space successful!');
                 localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
+                
+                // Wait for space to initialize
+                console.log('⏳ Waiting for space to initialize...');
+                let attempts = 0;
+                while (attempts < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    if (space?.initialized) {
+                        console.log('✅ Space initialized!');
+                        setSpaceId(SAVED_SPACE_ID);
+                        setHasJoined(true);
+                        setIsJoining(false);
+                        return;
+                    }
+                    
+                    attempts++;
+                }
+                
+                console.warn('⚠️ Space still not initialized - but continuing anyway');
                 setSpaceId(SAVED_SPACE_ID);
                 setHasJoined(true);
 
             } catch (error: any) {
                 const userAddress = wallet.getAccount()?.address;
                 
-                if (error.message?.includes('already a member')) {
+                console.error('❌ Join failed:', error);
+                console.error('   Error message:', error.message);
+                console.error('   Error details:', error);
+                
+                if (error.message?.includes('already a member') || 
+                    error.message?.includes('already joined') ||
+                    error.message?.includes('ALREADY_MEMBER')) {
+                    
                     console.log('✅ Already a member - treating as success');
                     if (userAddress) {
                         localStorage.setItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`, 'true');
@@ -388,29 +463,60 @@ function TownsChat() {
                     setSpaceId(SAVED_SPACE_ID);
                     setHasJoined(true);
                 } else {
-                    console.error('❌ Join failed:', error);
-                    
                     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                         window.KEY_SHARER_ERROR = error.message;
                         window.KEY_SHARER_CONNECTED = false;
                     }
                     
-                    alert(`Failed to join space: ${error.message}`);
+                    alert(
+                        `Failed to join space: ${error.message}\n\n` +
+                        `This may be because:\n` +
+                        `1. Invalid space ID\n` +
+                        `2. Network mismatch\n` +
+                        `3. Space doesn't exist\n\n` +
+                        `Please check your .env configuration and try again.`
+                    );
                 }
+            } finally {
+                setIsJoining(false);
             }
         };
 
         joinSpaceNow();
-    }, [wallet, hasJoined, joinSpace]);
+    }, [wallet, hasJoined, isJoining, isJoinPending, joinSpace, space?.initialized]);
 
-    if (isSpaceLoading) {
+    if (isSpaceLoading || isJoining || isJoinPending) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center max-w-md px-4">
+                    <LoadingSpinner />
+                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
+                        {isJoining || isJoinPending ? 'Joining space...' : 'Loading space data...'}
+                    </p>
+                    {(isJoining || isJoinPending) && (
+                        <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                            This may take 10-30 seconds
+                        </p>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (spaceError) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <LoadingSpinner />
-                    <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        Loading space data...
+                    <p className="font-georgia-pro text-red-500">❌ Space Error</p>
+                    <p className="font-georgia-pro text-sm text-gray-600 mt-2">
+                        {spaceError.message}
                     </p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+                    >
+                        Retry
+                    </button>
                 </div>
             </div>
         );
@@ -421,6 +527,15 @@ function TownsChat() {
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <p className="font-georgia-pro text-red-500">❌ Space not found</p>
+                    <p className="font-georgia-pro text-sm text-gray-600 mt-2">
+                        Check your NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+                    >
+                        Retry
+                    </button>
                 </div>
             </div>
         );
@@ -429,14 +544,26 @@ function TownsChat() {
     if (!space.initialized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="text-center">
+                <div className="text-center max-w-md px-4">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
                         Syncing with stream nodes...
                     </p>
                     <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This may take a few seconds
+                        This can take 10-30 seconds on first connection
                     </p>
+                    <button 
+                        onClick={() => {
+                            const userAddress = wallet?.getAccount()?.address;
+                            if (userAddress && SAVED_SPACE_ID) {
+                                localStorage.removeItem(`joined_${JOIN_VERSION}_${SAVED_SPACE_ID}_${userAddress}`);
+                            }
+                            window.location.reload();
+                        }}
+                        className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm hover:bg-gray-300"
+                    >
+                        Reset & Retry
+                    </button>
                 </div>
             </div>
         );
@@ -448,7 +575,7 @@ function TownsChat() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
+                    <p className="font-georgia-pro text-red-500">❌ No channels found</p>
                     <p className="font-georgia-pro text-sm text-gray-500 mt-2">
                         Space ID: {spaceId?.substring(0, 16)}...
                     </p>
