@@ -146,11 +146,14 @@ export function AdminContextMenu({
   };
 
   const handleDeleteMessage = async () => {
-    console.log('🗑️ Delete message clicked:', {
-      messageId: message.id,
-      channelId,
-      hasAdminRedact: !!adminRedact,
-    });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🗑️ DELETE MESSAGE INITIATED');
+    console.log('   Message ID:', message.id);
+    console.log('   Channel ID:', channelId);
+    console.log('   Space ID:', spaceId);
+    console.log('   Current user:', activeAccount?.address);
+    console.log('   adminRedact available:', !!adminRedact);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (!adminRedact) {
       console.error('❌ adminRedact function not available');
@@ -162,22 +165,26 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
-      console.log('🔄 Calling adminRedact with eventId:', message.id);
+      console.log('🔄 Calling adminRedact({ eventId: "' + message.id + '" })');
       
-      // ✅ FIX: Pass object with eventId property (per Towns docs)
       await adminRedact({ eventId: message.id });
       
       console.log('✅ Message redacted successfully');
       toast.success('Message deleted from Towns Protocol');
       onClose();
     } catch (error: any) {
-      console.error('❌ Failed to delete message:', {
-        error,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        messageId: message.id,
-        channelId
-      });
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
+      console.error('   Error object:', error);
+      console.error('   Error type:', typeof error);
+      console.error('   Error constructor:', error?.constructor?.name);
+      console.error('   Error message:', error?.message);
+      console.error('   Error stack:', error?.stack);
+      console.error('   Error code:', error?.code);
+      console.error('   Error name:', error?.name);
+      console.error('   All error keys:', Object.keys(error || {}));
+      console.error('   Stringified:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       // Better error messages
       if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('Redact')) {
