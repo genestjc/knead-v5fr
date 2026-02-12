@@ -3,11 +3,11 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveWallet } from 'thirdweb/react'; // ✅ Back to useActiveWallet
+import { ethers5Adapter } from "thirdweb/adapters/ethers5"; // ✅ Simpler import
 import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
-import { ethers5Adapter } from "thirdweb/adapters/ethers5";
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { saveTownsAuth, getSavedTownsAuth, clearTownsAuth } from '@/lib/towns/auth-persistence';
@@ -39,8 +39,8 @@ const LoadingSpinner = () => (
 
 function useBotAutoConnect() {
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const account = useActiveAccount();
-  const [botAccount, setBotAccount] = useState<any>(null);
+  const wallet = useActiveWallet();
+  const [botWallet, setBotWallet] = useState<any>(null);
   const [botInitialized, setBotInitialized] = useState(false);
 
   useEffect(() => {
@@ -52,27 +52,25 @@ function useBotAutoConnect() {
       return;
     }
 
-    const initBotAccount = async () => {
+    const initBotWallet = async () => {
       try {
         console.log('🤖 Bot Mode: Creating account from private key...');
         
-        const botPrivateAccount = privateKeyToAccount({
+        const account = privateKeyToAccount({
           client,
           privateKey: window.KEY_SHARER_PRIVATE_KEY!,
         });
         
-        console.log('✅ Bot account created:', botPrivateAccount.address);
+        console.log('✅ Bot account created:', account.address);
         
         const mockWallet = {
-          getAccount: () => botPrivateAccount,
+          getAccount: () => account,
           getChain: () => activeChain,
           disconnect: async () => {},
           switchChain: async () => {},
         };
         
-        console.log('✅ Bot wallet object created');
-        
-        setBotAccount(mockWallet);
+        setBotWallet(mockWallet);
         
         delete window.KEY_SHARER_PRIVATE_KEY;
         console.log('🧹 Private key removed from browser memory');
@@ -80,19 +78,18 @@ function useBotAutoConnect() {
         setBotInitialized(true);
         
       } catch (error: any) {
-        console.error('❌ Bot account creation failed:', error);
-        console.error('   Error message:', error.message);
-        window.KEY_SHARER_ERROR = `Account creation failed: ${error.message}`;
+        console.error('❌ Bot wallet creation failed:', error);
+        window.KEY_SHARER_ERROR = `Wallet creation failed: ${error.message}`;
         window.KEY_SHARER_CONNECTED = false;
         setBotInitialized(true);
       }
     };
 
-    initBotAccount();
+    initBotWallet();
   }, [botInitialized]);
 
   useEffect(() => {
-    if (!botAccount || isAgentConnected) {
+    if (!botWallet || isAgentConnected) {
       return;
     }
 
@@ -100,14 +97,9 @@ function useBotAutoConnect() {
       const initAgent = async () => {
         try {
           console.log('🤖 Bot Mode: Connecting Towns agent...');
-          console.log('   Account address:', botAccount.getAccount()?.address);
           
-          const signer = await ethers5Adapter.signer.toEthers({
-            client,
-            chain: activeChain,
-            account: botAccount.getAccount(),
-          });
-          
+          // ✅ Simple adapter syntax
+          const signer = ethers5Adapter(botWallet);
           console.log('   Signer created:', !!signer);
           
           await connectAgent(signer, { 
@@ -119,8 +111,6 @@ function useBotAutoConnect() {
           
         } catch (error: any) {
           console.error('❌ Bot agent connection failed:', error);
-          console.error('   Error message:', error.message);
-          console.error('   Error stack:', error.stack);
           window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
           window.KEY_SHARER_CONNECTED = false;
         }
@@ -128,25 +118,19 @@ function useBotAutoConnect() {
 
       initAgent();
     }
-  }, [botAccount, isAgentConnected, connectAgent]);
+  }, [botWallet, isAgentConnected, connectAgent]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) {
       return;
     }
 
-    const activeWallet = account || botAccount;
-
-    console.log('🤖 Bot Status:', {
-      hasWallet: !!activeWallet,
-      walletAddress: activeWallet?.address || botAccount?.getAccount?.()?.address,
-      agentConnected: isAgentConnected,
-    });
+    const activeWallet = wallet || botWallet;
 
     if (activeWallet && isAgentConnected) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ BOT SUCCESSFULLY CONNECTED');
-      console.log(`   Wallet: ${activeWallet.address || botAccount?.getAccount?.()?.address}`);
+      console.log(`   Wallet: ${activeWallet.getAccount?.()?.address || 'unknown'}`);
       console.log(`   Time: ${new Date().toISOString()}`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
@@ -157,28 +141,28 @@ function useBotAutoConnect() {
       window.KEY_SHARER_ATTEMPTED = true;
       window.KEY_SHARER_CONNECTED = false;
     }
-  }, [account, botAccount, isAgentConnected]);
+  }, [wallet, botWallet, isAgentConnected]);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETUP FLOW - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER (SIMPLE SYNTAX)
+// ━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
-    const account = useActiveAccount();
+    const wallet = useActiveWallet(); // ✅ Back to useActiveWallet
     const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Connecting...");
     const [isConnecting, setIsConnecting] = useState(false);
 
     useEffect(() => {
-        if (!account || isAgentConnected || setupComplete || isConnecting) return;
+        if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
 
         const runSetup = async () => {
             setIsConnecting(true);
             
             try {
-                const userAddress = account.address;
+                const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) {
                     setIsConnecting(false);
                     return;
@@ -211,17 +195,13 @@ function SetupFlow() {
                     }
                 }
 
-                // ✅ Signature-based auth with ThirdWeb's built-in adapter
+                // ✅ Signature-based auth with ThirdWeb's simple adapter syntax
                 setSetupStep("Please sign the message...");
                 
-                console.log('🔐 Creating ethers v5 signer from ThirdWeb account...');
+                console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
                 
-                // ✅ ONE LINE - works for ALL wallet types (in-app, MetaMask, Coinbase, etc.)
-                const signer = await ethers5Adapter.signer.toEthers({
-                    client,
-                    chain: activeChain,
-                    account,
-                });
+                // ✅ SIMPLE SYNTAX - as recommended by ThirdWeb agent
+                const signer = ethers5Adapter(wallet);
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
@@ -265,7 +245,7 @@ function SetupFlow() {
         };
 
         runSetup();
-    }, [account, isAgentConnected, setupComplete, isConnecting, connect, connectUsingBearerToken]);
+    }, [wallet, isAgentConnected, setupComplete, isConnecting, connect, connectUsingBearerToken]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
@@ -293,7 +273,7 @@ function SetupFlow() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER
+// TOWNS CHAT - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER (SIMPLE SYNTAX)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -301,7 +281,7 @@ function TownsChat() {
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
 
-    const account = useActiveAccount();
+    const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     const { joinSpace } = useJoinSpace();
     const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
@@ -314,19 +294,20 @@ function TownsChat() {
     }
 
     const currentUser: ChatUser | null = useMemo(() => {
-        if (!account?.address) return null;
+        const address = wallet?.getAccount()?.address;
+        if (!address) return null;
         
         return {
-            id: account.address,
-            address: account.address,
-            displayName: `${account.address.slice(0, 6)}...${account.address.slice(-4)}`,
+            id: address,
+            address: address,
+            displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
             role: 'viewer',
             membershipTier: 'freemium',
             isBanned: false,
             createdAt: new Date(),
             updatedAt: new Date(),
         };
-    }, [account]);
+    }, [wallet]);
 
     useEffect(() => {
         if (space) {
@@ -349,13 +330,13 @@ function TownsChat() {
             return;
         }
 
-        if (hasJoined || isJoining || !account || !SAVED_SPACE_ID) return;
+        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             setIsJoining(true);
             
             try {
-                const userAddress = account.address;
+                const userAddress = wallet.getAccount()?.address;
                 if (!userAddress) {
                     setIsJoining(false);
                     return;
@@ -390,11 +371,8 @@ function TownsChat() {
 
                 console.log('🚀 Joining space...');
                 
-                const signer = await ethers5Adapter.signer.toEthers({
-                    client,
-                    chain: activeChain,
-                    account,
-                });
+                // ✅ SIMPLE SYNTAX
+                const signer = ethers5Adapter(wallet);
                 
                 const hasMembership = membershipData?.hasMembership || false;
                 
@@ -419,7 +397,7 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [isAgentConnected, syncAgent, account, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
 
     useEffect(() => {
         if (hasJoined && space?.initialized) {
@@ -518,7 +496,7 @@ function TownsChat() {
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
-    const account = useActiveAccount();
+    const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     
     useBotAutoConnect();
@@ -530,7 +508,7 @@ export default function ChatTestClient() {
     useEffect(() => {
       const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
       
-      if (hasExportIntent && account && isAgentConnected) {
+      if (hasExportIntent && wallet && isAgentConnected) {
         localStorage.removeItem("exportKeyIntent");
         
         setTimeout(() => {
@@ -543,12 +521,12 @@ export default function ChatTestClient() {
           );
         }, 1500);
       }
-    }, [account, isAgentConnected]);
+    }, [wallet, isAgentConnected]);
 
     if (!isMounted) return <LoadingSpinner />;
 
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      if (!account) {
+      if (!wallet) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md">
@@ -568,7 +546,7 @@ export default function ChatTestClient() {
       return <TownsChat />;
     }
 
-    if (!account) {
+    if (!wallet) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center max-w-md px-4">
