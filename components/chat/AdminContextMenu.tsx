@@ -1,8 +1,6 @@
-// components/chat/AdminContextMenu.tsx
-
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
@@ -34,14 +32,57 @@ export function AdminContextMenu({
 }: AdminContextMenuProps) {
   const activeAccount = useActiveAccount();
   const [isProcessing, setIsProcessing] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
   
   const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
+
+  // ✅ MOBILE FIX: Adjust position to prevent off-screen menu
+  useEffect(() => {
+    if (menuRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let newX = position.x;
+      let newY = position.y;
+      
+      // Prevent going off right edge
+      if (newX + menuRect.width > viewportWidth - 10) {
+        newX = viewportWidth - menuRect.width - 10;
+      }
+      
+      // Prevent going off bottom edge
+      if (newY + menuRect.height > viewportHeight - 10) {
+        newY = viewportHeight - menuRect.height - 10;
+      }
+      
+      // Prevent going off left edge
+      if (newX < 10) {
+        newX = 10;
+      }
+      
+      // Prevent going off top edge
+      if (newY < 10) {
+        newY = 10;
+      }
+      
+      setAdjustedPosition({ x: newX, y: newY });
+    }
+  }, [position]);
 
   // Close on click outside
   useEffect(() => {
     const handleClick = () => onClose();
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
+  }, [onClose]);
+
+  // ✅ MOBILE FIX: Also close on touch outside
+  useEffect(() => {
+    const handleTouch = () => onClose();
+    document.addEventListener('touchstart', handleTouch);
+    return () => document.removeEventListener('touchstart', handleTouch);
   }, [onClose]);
 
   // Close on escape key
@@ -54,55 +95,55 @@ export function AdminContextMenu({
   }, [onClose]);
 
   const handleAwardBonus = async (amount: number, bonusType: string) => {
-  if (!activeAccount?.address) {
-    toast.error('Please connect your wallet');
-    return;
-  }
-
-  setIsProcessing(true);
-  try {
-    console.log('🎁 Awarding bonus:', {
-      admin: activeAccount.address,
-      participant: message.sender.id,
-      amount,
-      bonusType,
-      eventId,
-    });
-
-    const response = await fetch('/api/chat/award-bonus', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminAddress: activeAccount.address,
-        eventId,
-        participantAddress: message.sender.id,
-        bonusAmount: amount,
-        bonusType,
-      }),
-    });
-
-    const data = await response.json();
-    
-    console.log('📬 API Response:', data);
-
-    if (data.success) {
-      toast.success(`Awarded ${amount} TOWNS bonus!`, {
-        description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
-      });
-      onClose();
-    } else {
-      console.error('❌ API Error:', data);
-      toast.error(data.error || 'Failed to award bonus', {
-        description: data.details,
-      });
+    if (!activeAccount?.address) {
+      toast.error('Please connect your wallet');
+      return;
     }
-  } catch (error: any) {
-    console.error('❌ Catch Error:', error);
-    toast.error(error.message || 'Failed to award bonus');
-  } finally {
-    setIsProcessing(false);
-  }
-};
+
+    setIsProcessing(true);
+    try {
+      console.log('🎁 Awarding bonus:', {
+        admin: activeAccount.address,
+        participant: message.sender.id,
+        amount,
+        bonusType,
+        eventId,
+      });
+
+      const response = await fetch('/api/chat/award-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminAddress: activeAccount.address,
+          eventId,
+          participantAddress: message.sender.id,
+          bonusAmount: amount,
+          bonusType,
+        }),
+      });
+
+      const data = await response.json();
+      
+      console.log('📬 API Response:', data);
+
+      if (data.success) {
+        toast.success(`Awarded ${amount} TOWNS bonus!`, {
+          description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
+        });
+        onClose();
+      } else {
+        console.error('❌ API Error:', data);
+        toast.error(data.error || 'Failed to award bonus', {
+          description: data.details,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Catch Error:', error);
+      toast.error(error.message || 'Failed to award bonus');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleDeleteMessage = async () => {
     if (!confirm('Delete this message from Towns Protocol?')) return;
@@ -151,16 +192,18 @@ export function AdminContextMenu({
   return (
     <AnimatePresence>
       <motion.div
+        ref={menuRef}
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.1 }}
-        className="fixed z-50 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden min-w-[220px]"
+        className="fixed z-50 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden min-w-[220px] max-w-[90vw]"
         style={{
-          left: position.x,
-          top: position.y,
+          left: adjustedPosition.x,
+          top: adjustedPosition.y,
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()} // ✅ MOBILE FIX: Prevent touch-through
       >
         {/* Header */}
         <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
@@ -184,7 +227,7 @@ export function AdminContextMenu({
               key={option.amount}
               onClick={() => handleAwardBonus(option.amount, option.type)}
               disabled={isProcessing}
-              className="w-full px-3 py-2 text-left text-sm font-georgia-pro hover:bg-blue-50 transition disabled:opacity-50 flex items-center gap-2"
+              className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation" // ✅ MOBILE FIX: Bigger tap target, touch-manipulation
             >
               <span>🎁</span>
               <span>{option.label}</span>
@@ -200,7 +243,7 @@ export function AdminContextMenu({
           <button
             onClick={handleDeleteMessage}
             disabled={isProcessing || isRedacting}
-            className="w-full px-3 py-2 text-left text-sm font-georgia-pro hover:bg-yellow-50 transition disabled:opacity-50 flex items-center gap-2"
+            className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-yellow-50 active:bg-yellow-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
             <span>🗑️</span>
             <span>Delete Message</span>
@@ -209,7 +252,7 @@ export function AdminContextMenu({
           <button
             onClick={handleBanUser}
             disabled={isProcessing}
-            className="w-full px-3 py-2 text-left text-sm font-georgia-pro hover:bg-red-50 text-red-600 transition disabled:opacity-50 flex items-center gap-2"
+            className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-red-50 active:bg-red-100 text-red-600 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
             <span>🚫</span>
             <span>Ban User</span>
