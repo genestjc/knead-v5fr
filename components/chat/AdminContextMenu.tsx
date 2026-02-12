@@ -165,9 +165,10 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
-      console.log('🔄 Calling adminRedact({ eventId: "' + message.id + '" })');
+      console.log('🔄 Calling adminRedact with eventId string:', message.id);
       
-      await adminRedact({ eventId: message.id });
+      // ✅ FIX: Pass eventId as a STRING, not an object
+      await adminRedact(message.id);
       
       console.log('✅ Message redacted successfully');
       toast.success('Message deleted from Towns Protocol');
@@ -176,14 +177,8 @@ export function AdminContextMenu({
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
       console.error('   Error object:', error);
-      console.error('   Error type:', typeof error);
-      console.error('   Error constructor:', error?.constructor?.name);
       console.error('   Error message:', error?.message);
       console.error('   Error stack:', error?.stack);
-      console.error('   Error code:', error?.code);
-      console.error('   Error name:', error?.name);
-      console.error('   All error keys:', Object.keys(error || {}));
-      console.error('   Stringified:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       // Better error messages
