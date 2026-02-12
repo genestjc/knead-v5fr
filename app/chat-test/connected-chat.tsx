@@ -77,10 +77,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   // ✅ NEW: Function to fetch user profiles
   const getProfile = useCallback(async (address: string) => {
-    if (profileCache[address]) {
-      return profileCache[address];
-    }
-    
     try {
       const response = await fetch(`/api/chat/user?address=${address}`);
       const data = await response.json();
@@ -100,7 +96,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     
     return null;
-  }, [profileCache]);
+  }, []);
 
   useEffect(() => {
     async function detectRole() {
@@ -189,12 +185,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         .filter(Boolean)
     );
     
+    // Fire-and-forget profile fetches for all users in timeline
     userAddresses.forEach(address => {
       if (!profileCache[address]) {
         getProfile(address);
       }
     });
-  }, [timeline, profileCache, getProfile]);
+  }, [timeline, getProfile]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
