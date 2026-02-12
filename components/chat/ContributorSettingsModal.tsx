@@ -178,11 +178,12 @@ export function ContributorSettingsModal({
             <div className="flex items-center gap-4">
               <div className="relative">
                 {avatarPreview ? (
-                  <img
-                    src={avatarPreview}
-                    alt="Avatar preview"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
-                  />
+                 <img 
+                  src={avatarPreview.startsWith('ipfs://') 
+                  ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}` 
+                  : avatarPreview
+                   }
+                />
                 ) : (
                   <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                     <User className="w-12 h-12 text-white" />
