@@ -332,23 +332,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const messages = timeline
-    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .map((event: any) => {
-      const userAddress = event.creatorUserId || '';
-      const profile = profileCache[userAddress];
-      
-      return {
-        id: event.eventId || event.id,
-        content: event.content?.body || '',
-        sender: {
-          id: userAddress,
-          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-          avatar: profile?.avatar,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: event.creatorUserId === activeAccount?.address,
-      };
-    }) || [];
+  ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+  .map((event: any) => {
+    const userAddress = event.creatorUserId || '';
+    const profile = profileCache[userAddress];
+    
+    // ✅ CRITICAL: Use eventId (the Towns event hash), NOT id
+    const townEventId = event.eventId || event.hashStr || event.hash || event.id;
+    
+    console.log('📝 Message mapping:', {
+      eventId: event.eventId,
+      hashStr: event.hashStr,
+      hash: event.hash,
+      id: event.id,
+      selectedId: townEventId,
+    });
+    
+    return {
+      id: townEventId, // ✅ Must be the 64-char hex hash
+      content: event.content?.body || '',
+      sender: {
+        id: userAddress,
+        name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+        avatar: profile?.avatar,
+      },
+      timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+      isOwn: event.creatorUserId === activeAccount?.address,
+    };
+  }) || [];
 
   useEffect(() => {
     console.log('💬 Total messages loaded:', messages.length);
