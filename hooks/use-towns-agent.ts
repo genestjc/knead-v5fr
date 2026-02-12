@@ -8,7 +8,14 @@ import {
   useActiveWallet,
   useActiveWalletChain,
 } from 'thirdweb/react';
+import { providers as v5Providers } from 'ethers-v5'; // ✅ Your v5 alias
 
+/**
+ * Hook to automatically connect/disconnect Towns agent when wallet changes
+ * 
+ * CRITICAL: Converts ThirdWeb's ethers v6 signer → ethers v5 for Towns SDK compatibility
+ * Based on official ThirdWeb guidance for v5/v6 compatibility
+ */
 export function useTownsAgent() {
   const { connect, disconnect, isAgentConnected, isAgentConnecting } = useAgentConnection();
   const activeAccount = useActiveAccount();
@@ -38,37 +45,58 @@ export function useTownsAgent() {
         console.log('🔌 CONNECTING TOWNS SYNC AGENT');
         console.log('   Wallet:', address);
         console.log('   Chain:', activeChain.name);
-        console.log('   Source: ThirdWeb wallet → ethers v5');
+        console.log('   Method: ThirdWeb v6 → ethers v5 conversion');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        // ✅ CRITICAL: Get ThirdWeb's provider, but create ethers v5 signer
-        // ThirdWeb's getSigner() returns v6, but Towns needs v5!
+        // ✅ STEP 1: Get v6 signer from ThirdWeb (correct account)
+        const v6Signer = await activeWallet.getSigner();
         
-        // Import ethers v5 (using your alias)
-        const { providers } = await import('ethers-v5');
-        
-        // Get the raw provider from ThirdWeb wallet
-        // This works for MetaMask, WalletConnect, Coinbase, etc.
-        const ethersProvider = await activeWallet.getEthersProvider();
-        
-        // Wrap it in ethers v5 Web3Provider
-        const web3Provider = new providers.Web3Provider(ethersProvider);
-        
-        // Get the v5 signer
-        const signer = web3Provider.getSigner(address);
+        if (!v6Signer) {
+          throw new Error('No signer available from ThirdWeb wallet');
+        }
 
-        console.log('✅ Ethers v5 signer created from ThirdWeb wallet');
-        console.log('   Signer address:', await signer.getAddress());
-        console.log('   Signer type: ethers v5 JsonRpcSigner');
+        console.log('✅ Step 1: Got v6 signer from ThirdWeb');
+        console.log('   v6 Signer address:', await v6Signer.getAddress());
 
+        // ✅ STEP 2: Extract underlying provider from v6 signer
+        // This gets the raw provider (MetaMask, WalletConnect, etc.)
+        const provider = v6Signer.provider?.provider || window.ethereum;
+        
+        if (!provider) {
+          throw new Error('No provider available from v6 signer');
+        }
+
+        console.log('✅ Step 2: Extracted underlying provider');
+
+        // ✅ STEP 3: Create v5 Web3Provider from raw provider
+        const v5Provider = new v5Providers.Web3Provider(provider);
+
+        console.log('✅ Step 3: Created v5 Web3Provider');
+
+        // ✅ STEP 4: Get v5 signer for the correct address
+        const v5Signer = v5Provider.getSigner(await v6Signer.getAddress());
+
+        console.log('✅ Step 4: Created v5 signer');
+        console.log('   v5 Signer address:', await v5Signer.getAddress());
+        console.log('   Addresses match?:', (await v5Signer.getAddress()).toLowerCase() === address.toLowerCase());
+
+        // ✅ VERIFICATION: Ensure addresses match
+        if ((await v5Signer.getAddress()).toLowerCase() !== address.toLowerCase()) {
+          throw new Error(`Address mismatch! v5 Signer: ${await v5Signer.getAddress()}, Expected: ${address}`);
+        }
+
+        // ✅ STEP 5: Connect to Towns with v5 signer
         const townsConfig = townsEnv().makeTownsConfig('omega');
-        await connect(signer, { townsConfig });
+        
+        console.log('🔄 Connecting to Towns Protocol...');
+        await connect(v5Signer, { townsConfig });
 
         hasConnectedRef.current = true;
         previousAddressRef.current = address;
 
-        console.log('✅ Towns sync agent connected successfully');
+        console.log('✅ SUCCESS! Towns sync agent connected');
         console.log('   Delegate key session established');
+        console.log('   v6 → v5 conversion successful');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       } catch (error: any) {
@@ -93,5 +121,22 @@ export function useTownsAgent() {
     };
   }, [activeAccount, activeWallet, activeChain, isAgentConnecting, connect, disconnect]);
 
-  return { isAgentConnected, isAgentConnecting };
+  // ✅ Periodic health check - reconnect if session drops
+  useEffect(() => {
+    if (!isAgentConnected || !activeAccount) return;
+
+    const healthCheckInterval = setInterval(() => {
+      if (!isAgentConnected && activeAccount && activeWallet) {
+        console.warn('⚠️ Towns agent disconnected - triggering reconnect...');
+        hasConnectedRef.current = false;
+      }
+    }, 60 * 1000);
+
+    return () => clearInterval(healthCheckInterval);
+  }, [isAgentConnected, activeAccount, activeWallet]);
+
+  return {
+    isAgentConnected,
+    isAgentConnecting,
+  };
 }
