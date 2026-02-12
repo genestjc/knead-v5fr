@@ -149,7 +149,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // ✅ UPDATED: Fetch live events with better logging
+  // ✅ Fetch live events
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -216,7 +216,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // ✅ NEW: Log permissions changes
+  // ✅ Log permissions changes
   useEffect(() => {
     console.log('🔐 PERMISSIONS UPDATE:', {
       userAddress: activeAccount?.address?.slice(0, 8) + '...',
@@ -240,6 +240,28 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
 
+  // ✅ Log raw timeline data (DEBUG)
+  useEffect(() => {
+    if (timeline && timeline.length > 0) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📋 TIMELINE EVENT STRUCTURE CHECK');
+      console.log('   Total events:', timeline.length);
+      console.log('   First event keys:', Object.keys(timeline[0]));
+      console.log('   First event sample:', timeline[0]);
+      console.log('   ─────────────────────────────────────────');
+      console.log('   eventId:', timeline[0]?.eventId);
+      console.log('   eventId type:', typeof timeline[0]?.eventId);
+      console.log('   eventId length:', timeline[0]?.eventId?.length);
+      console.log('   eventId is hex?:', /^[a-f0-9]+$/.test(timeline[0]?.eventId || ''));
+      console.log('   ─────────────────────────────────────────');
+      console.log('   hashStr:', timeline[0]?.hashStr);
+      console.log('   hash:', timeline[0]?.hash);
+      console.log('   id:', timeline[0]?.id);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+  }, [timeline]);
+
+  // ✅ Fetch user profiles for messages
   useEffect(() => {
     if (!timeline) return;
     
@@ -331,35 +353,40 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  // ✅ SINGLE messages mapping (no duplicates)
   const messages = timeline
-  ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-  .map((event: any) => {
-    const userAddress = event.creatorUserId || '';
-    const profile = profileCache[userAddress];
-    
-    // ✅ CRITICAL: Use eventId (the Towns event hash), NOT id
-    const townEventId = event.eventId || event.hashStr || event.hash || event.id;
-    
-    console.log('📝 Message mapping:', {
-      eventId: event.eventId,
-      hashStr: event.hashStr,
-      hash: event.hash,
-      id: event.id,
-      selectedId: townEventId,
-    });
-    
-    return {
-      id: townEventId, // ✅ Must be the 64-char hex hash
-      content: event.content?.body || '',
-      sender: {
-        id: userAddress,
-        name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-        avatar: profile?.avatar,
-      },
-      timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-      isOwn: event.creatorUserId === activeAccount?.address,
-    };
-  }) || [];
+    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+    .map((event: any) => {
+      const userAddress = event.creatorUserId || '';
+      const profile = profileCache[userAddress];
+      
+      // ✅ CRITICAL: Use eventId (the Towns event hash)
+      const townEventId = event.eventId || event.hashStr || event.hash || event.id;
+      
+      // ✅ Log each message mapping (DEBUG)
+      console.log('📝 Mapping message:', {
+        hasEventId: !!event.eventId,
+        hasHashStr: !!event.hashStr,
+        hasHash: !!event.hash,
+        hasId: !!event.id,
+        selectedId: townEventId,
+        selectedIdLength: townEventId?.length,
+        selectedIdIsHex: /^[a-f0-9]+$/.test(townEventId || ''),
+        content: event.content?.body?.substring(0, 30) + '...',
+      });
+      
+      return {
+        id: townEventId, // ✅ Must be the 64-char hex hash
+        content: event.content?.body || '',
+        sender: {
+          id: userAddress,
+          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+          avatar: profile?.avatar,
+        },
+        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+        isOwn: event.creatorUserId === activeAccount?.address,
+      };
+    }) || [];
 
   useEffect(() => {
     console.log('💬 Total messages loaded:', messages.length);
@@ -478,7 +505,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  {/* ✅ NEW: Participant debug banner */}
                   {userRole === 'participant' && activeEvent && (
                     <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                       <div className="flex items-center justify-between">
@@ -586,7 +612,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  {/* ✅ NEW: Participant debug banner (mobile) */}
                   {userRole === 'participant' && activeEvent && (
                     <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                       <div className="flex flex-col gap-2">
@@ -687,7 +712,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
               )}
 
-              {/* ✅ NEW: Participant debug banner (non-video mode) */}
               {userRole === 'participant' && activeEvent && (
                 <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                   <div className="flex items-center justify-between">
