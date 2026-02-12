@@ -11,10 +11,8 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   
-  // ✅ UPDATED: Allow camera and microphone for Daily.co video calls
   response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
   
-  // HSTS - only in production
   if (process.env.NODE_ENV === 'production') {
     response.headers.set(
       "Strict-Transport-Security",
@@ -22,7 +20,6 @@ export function middleware(request: NextRequest) {
     );
   }
   
-  // ✅ FIX: Use unsafe-none ONLY for /chat-test
   const pathname = request.nextUrl.pathname;
   if (pathname.startsWith('/chat-test')) {
     response.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
@@ -101,7 +98,9 @@ export function middleware(request: NextRequest) {
       https://*.daily.co
       *.towns.com;
     connect-src 'self'
+  https://metamask-sdk.api.cx.metamask.io
   https://mm-sdk-analytics.api.cx.metamask.io
+  https://cca-lite.coinbase.com
   https://devnet.rpc.river.build
   https://mainnet.rpc.river.build
   https://*.figment.io
@@ -134,7 +133,7 @@ export function middleware(request: NextRequest) {
   https://api.thirdweb.com
   https://*.thirdweb.com
   https://mainnet.base.org
-  https://base-mainnet.g.alchemy.com/v2/w8-f4Y2PxFDqBK33ltv9s
+  https://base-mainnet.g.alchemy.com
   https://*.alchemy.com
   https://base.llamarpc.com
   https://*.supabase.co
