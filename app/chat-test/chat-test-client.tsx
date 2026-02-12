@@ -8,6 +8,8 @@ import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getEthersV5Signer } from '@/lib/ethers-signer-adapter';
+import { useEthersSigner } from '@/lib/viem-to-ethers';
+import { createUniversalSigner } from '@/lib/universal-signer-adapter';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { saveTownsAuth, getSavedTownsAuth, clearTownsAuth } from '@/lib/towns/auth-persistence';
@@ -164,6 +166,7 @@ function SetupFlow() {
     const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Connecting...");
+    const wagmiSigner = useEthersSigner({ chainId: activeChain.id });
 
     useEffect(() => {
         if (!wallet || isAgentConnected || setupComplete) return;
@@ -199,9 +202,9 @@ function SetupFlow() {
                     }
                 }
 
-                // ✅ Signature-based auth
+                // ✅ Signature-based auth with universal signer
                 setSetupStep("Please sign the message...");
-                const signer = await getEthersV5Signer(wallet, activeChain, client);
+                const signer = await createUniversalSigner(wallet, wagmiSigner, activeChain, client);
                 
                 console.log('🔐 Requesting signature for Towns authentication...');
                 const agent = await connect(signer, { 
@@ -242,7 +245,7 @@ function SetupFlow() {
         };
 
         runSetup();
-    }, [wallet, isAgentConnected, setupComplete, connect, connectUsingBearerToken]);
+    }, [wallet, isAgentConnected, setupComplete, connect, connectUsingBearerToken, wagmiSigner]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
@@ -282,6 +285,7 @@ function TownsChat() {
     const { isAgentConnected } = useAgentConnection();
     const { joinSpace } = useJoinSpace();
     const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
+    const wagmiSigner = useEthersSigner({ chainId: activeChain.id });
     
     // ✅ Get sync agent to verify it's ready
     let syncAgent;
@@ -371,7 +375,7 @@ useEffect(() => {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             console.log('🚀 Joining space...');
-            const signer = await getEthersV5Signer(wallet, activeChain, client);
+            const signer = await createUniversalSigner(wallet, wagmiSigner, activeChain, client);
             
             // ✅ NEW: Let SDK auto-detect + conditionally skip mint
             const hasMembership = membershipData?.hasMembership || false;
@@ -397,7 +401,7 @@ useEffect(() => {
     };
 
     joinSpaceNow();
-}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+}, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace, wagmiSigner]);
 
     // ✅ Log when space initializes
     useEffect(() => {
