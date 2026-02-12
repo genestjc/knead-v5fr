@@ -11,7 +11,6 @@ import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
-import { clearTownsAuth } from "@/lib/towns/auth-persistence";
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
@@ -468,7 +467,7 @@ export function WalletSummary({
     });
   };
 
-  const handleSignOut = async () => {
+ const handleSignOut = async () => {
   if (isSigningOut) return;
   
   try {
@@ -477,7 +476,13 @@ export function WalletSummary({
     
     // ✅ CLEAR TOWNS BEARER TOKEN
     console.log('🧹 Clearing Towns authentication...');
-    clearTownsAuth();
+    try {
+      localStorage.removeItem('knead_towns_bearer_token');
+      localStorage.removeItem('knead_towns_token_expiry');
+      console.log('✅ Cleared Towns authentication');
+    } catch (error) {
+      console.error('❌ Failed to clear Towns auth:', error);
+    }
     
     try {
       await disconnect();
