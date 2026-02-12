@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
+import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -14,6 +14,7 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
+import { useTownsAgent } from '@/hooks/use-towns-agent'; // ✅ NEW
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
@@ -39,12 +40,38 @@ const LoadingSpinner = () => (
 );
 
 export default function ConnectedChat(props: ConnectedChatProps) {
-  const { isAgentConnected } = useAgentConnection();
+  // ✅ CHANGED: Use useTownsAgent hook for proper v5 signer connection
+  const { isAgentConnected, isAgentConnecting } = useTownsAgent();
   
+  // ✅ Show connecting state
+  if (isAgentConnecting) {
+    return (
+      <ChatLayout>
+        <div className="text-center py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro text-gray-500">Connecting to Towns Protocol...</p>
+          <p className="font-georgia-pro text-xs text-gray-400 mt-2">Establishing secure session...</p>
+        </div>
+      </ChatLayout>
+    );
+  }
+  
+  // ✅ Show not connected state
   if (!isAgentConnected) {
     return (
       <ChatLayout>
-        <LoadingSpinner />
+        <div className="text-center py-10">
+          <p className="font-georgia-pro text-lg text-red-500">❌ Not connected to Towns Protocol</p>
+          <p className="font-georgia-pro text-sm text-gray-600 mt-2">
+            Please connect your wallet to use the chat
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
+          >
+            Retry Connection
+          </button>
+        </div>
       </ChatLayout>
     );
   }
@@ -105,7 +132,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ Load message history on mount
+  // Load message history on mount
   useEffect(() => {
     if (!channelId || hasLoadedHistory || isLoadingHistory) return;
     
@@ -149,7 +176,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // ✅ Fetch live events
+  // Fetch live events
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -216,7 +243,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // ✅ Log permissions changes
+  // Log permissions changes
   useEffect(() => {
     console.log('🔐 PERMISSIONS UPDATE:', {
       userAddress: activeAccount?.address?.slice(0, 8) + '...',
@@ -240,7 +267,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
 
-  // ✅ Log raw timeline data (DEBUG)
+  // Log raw timeline data (DEBUG)
   useEffect(() => {
     if (timeline && timeline.length > 0) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -261,7 +288,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [timeline]);
 
-  // ✅ Fetch user profiles for messages
+  // Fetch user profiles for messages
   useEffect(() => {
     if (!timeline) return;
     
@@ -353,17 +380,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ SINGLE messages mapping (no duplicates)
+  // SINGLE messages mapping (no duplicates)
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
       
-      // ✅ CRITICAL: Use eventId (the Towns event hash)
+      // CRITICAL: Use eventId (the Towns event hash)
       const townEventId = event.eventId || event.hashStr || event.hash || event.id;
       
-      // ✅ Log each message mapping (DEBUG)
+      // Log each message mapping (DEBUG)
       console.log('📝 Mapping message:', {
         hasEventId: !!event.eventId,
         hasHashStr: !!event.hashStr,
@@ -376,7 +403,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       });
       
       return {
-        id: townEventId, // ✅ Must be the 64-char hex hash
+        id: townEventId, // Must be the 64-char hex hash
         content: event.content?.body || '',
         sender: {
           id: userAddress,
