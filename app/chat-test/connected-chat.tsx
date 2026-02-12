@@ -79,7 +79,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   
-  // ✅ ADD: Load message history
   const { scrollback, isPending: isLoadingHistory, data: scrollbackData } = useScrollback(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -119,7 +118,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       setHasLoadedHistory(true);
     }).catch((error) => {
       console.error('❌ Failed to load message history:', error);
-      setHasLoadedHistory(true); // Set to true even on error to prevent infinite retries
+      setHasLoadedHistory(true);
     });
   }, [channelId, hasLoadedHistory, isLoadingHistory, scrollback]);
 
@@ -150,11 +149,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
+  // ✅ UPDATED: Fetch live events with better logging
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
         const res = await fetch('/api/events?status=live', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
         const data = await res.json();
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🎪 LIVE EVENT CHECK');
+        console.log('   Success:', data.success);
+        console.log('   Events found:', data.data?.length || 0);
+        if (data.data?.length > 0) {
+          console.log('   Event:', data.data[0].title);
+          console.log('   Status:', data.data[0].status);
+          console.log('   ID:', data.data[0].id);
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
         if (data.success && data.data.length > 0) {
           const liveEvent = data.data[0];
@@ -193,7 +204,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const supabase = createSupabaseClient();
     const channel = supabase
       .channel('chat_live_events')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_events' }, () => fetchLiveEvent())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_events' }, () => {
+        console.log('🔄 Event changed, refetching...');
+        fetchLiveEvent();
+      })
       .subscribe();
     
     return () => {
@@ -201,6 +215,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       supabase.removeChannel(channel);
     };
   }, [activeAccount?.address]);
+
+  // ✅ NEW: Log permissions changes
+  useEffect(() => {
+    console.log('🔐 PERMISSIONS UPDATE:', {
+      userAddress: activeAccount?.address?.slice(0, 8) + '...',
+      permissions,
+      activeEvent: activeEvent?.id,
+      eventIsLive: !!activeEvent,
+    });
+  }, [permissions, activeAccount?.address, activeEvent]);
 
   useEffect(() => {
     if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
@@ -326,7 +350,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       };
     }) || [];
 
-  // ✅ Log message count
   useEffect(() => {
     console.log('💬 Total messages loaded:', messages.length);
     console.log('📊 History loaded:', hasLoadedHistory);
@@ -444,6 +467,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
+                  {/* ✅ NEW: Participant debug banner */}
+                  {userRole === 'participant' && activeEvent && (
+                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
+                            {permissions?.canPost 
+                              ? '✅ You can send messages during this live event!' 
+                              : '⏳ Event is live, waiting for permissions update...'}
+                          </p>
+                          {!permissions?.canPost && (
+                            <p className="text-xs text-yellow-600 mt-1">
+                              This usually takes 5-10 seconds. If stuck, click Refresh Access below.
+                            </p>
+                          )}
+                        </div>
+                        {!permissions?.canPost && (
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 ml-3 whitespace-nowrap"
+                          >
+                            Refresh Access
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex-1 overflow-y-auto pb-16">
                     {renderMessages()}
                   </div>
@@ -524,6 +575,32 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
+                  {/* ✅ NEW: Participant debug banner (mobile) */}
+                  {userRole === 'participant' && activeEvent && (
+                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <div className="flex flex-col gap-2">
+                        <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
+                          {permissions?.canPost 
+                            ? '✅ You can send messages!' 
+                            : '⏳ Waiting for permissions...'}
+                        </p>
+                        {!permissions?.canPost && (
+                          <>
+                            <p className="text-xs text-yellow-600">
+                              Usually takes 5-10 seconds.
+                            </p>
+                            <button
+                              onClick={() => window.location.reload()}
+                              className="px-3 py-1.5 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 self-start"
+                            >
+                              Refresh Access
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex-1 overflow-y-auto pb-16">
                     {renderMessages()}
                   </div>
@@ -595,19 +672,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
               </div>
 
-              {permissions?.canPost && userRole === 'participant' && (
-                <div className="bg-green-50 border-b border-green-200 px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-600">🎙️</span>
-                    <p className="text-sm text-green-800 font-medium">
-                      Event is live! You can now ask questions and participate.
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {activeEvent && (
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
+              )}
+
+              {/* ✅ NEW: Participant debug banner (non-video mode) */}
+              {userRole === 'participant' && activeEvent && (
+                <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
+                        {permissions?.canPost 
+                          ? '✅ You can send messages during this live event!' 
+                          : '⏳ Event is live, waiting for permissions update...'}
+                      </p>
+                      {!permissions?.canPost && (
+                        <p className="text-xs text-yellow-600 mt-1">
+                          This usually takes 5-10 seconds. If stuck, click Refresh Access.
+                        </p>
+                      )}
+                    </div>
+                    {!permissions?.canPost && (
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 ml-3 whitespace-nowrap"
+                      >
+                        Refresh Access
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
 
               <div className="flex-1 overflow-y-auto pb-16">
