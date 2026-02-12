@@ -3,102 +3,94 @@
 import { useEffect, useRef } from 'react';
 import { useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
-import {
-  useActiveAccount,
-  useActiveWallet,
-  useActiveWalletChain,
-} from 'thirdweb/react';
-import { providers as v5Providers } from 'ethers-v5'; // ✅ Your v5 alias
+import { useEthersSigner } from '@/lib/viem-to-ethers';
+import { useAccount } from 'wagmi';
+import { base } from 'wagmi/chains';
+
+// ✅ Create config outside component to avoid re-creation (Towns bot suggestion)
+const townsConfig = townsEnv().makeTownsConfig('omega');
 
 /**
  * Hook to automatically connect/disconnect Towns agent when wallet changes
  * 
- * CRITICAL: Converts ThirdWeb's ethers v6 signer → ethers v5 for Towns SDK compatibility
- * Based on official ThirdWeb guidance for v5/v6 compatibility
+ * Uses Wagmi → ethers v5 adapter (officially recommended by Towns)
+ * Includes safeguards against race conditions and duplicate connections
  */
 export function useTownsAgent() {
   const { connect, disconnect, isAgentConnected, isAgentConnecting } = useAgentConnection();
-  const activeAccount = useActiveAccount();
-  const activeWallet = useActiveWallet();
-  const activeChain = useActiveWalletChain();
-
+  
+  // ✅ Wagmi hooks (recommended by Towns)
+  const { address, isConnected } = useAccount();
+  const signer = useEthersSigner({ chainId: base.id });
+  
   const hasConnectedRef = useRef(false);
   const previousAddressRef = useRef<string | undefined>();
+  const isConnectingRef = useRef(false); // ✅ Lock to prevent race conditions
 
   useEffect(() => {
     async function connectAgent() {
-      if (!activeAccount || !activeWallet || !activeChain) return;
+      // ✅ Early returns for invalid states
+      if (!isConnected || !address) {
+        return;
+      }
 
-      const address = activeAccount.address;
+      // ✅ ThirdWeb bot suggestion: Check for undefined signer
+      if (!signer) {
+        console.warn('⚠️ Wagmi signer not ready yet, waiting...');
+        return;
+      }
 
-      if (hasConnectedRef.current && previousAddressRef.current === address) return;
-      if (isAgentConnecting) return;
+      // ✅ Skip if already connected to the same address
+      if (hasConnectedRef.current && previousAddressRef.current === address) {
+        return;
+      }
 
+      // ✅ Towns bot suggestion: Prevent duplicate calls during connection
+      if (isAgentConnecting || isConnectingRef.current) {
+        console.log('⏳ Connection already in progress, skipping...');
+        return;
+      }
+
+      // ✅ Handle wallet address change
       if (previousAddressRef.current && previousAddressRef.current !== address) {
         console.log('🔄 Wallet changed, disconnecting old session...');
         disconnect?.();
         hasConnectedRef.current = false;
       }
 
+      // ✅ Set lock before starting connection
+      isConnectingRef.current = true;
+
       try {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('🔌 CONNECTING TOWNS SYNC AGENT');
         console.log('   Wallet:', address);
-        console.log('   Chain:', activeChain.name);
-        console.log('   Method: ThirdWeb v6 → ethers v5 conversion');
+        console.log('   Chain: Base (omega/mainnet)');
+        console.log('   Method: Wagmi → ethers v5 (official)');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        // ✅ STEP 1: Get v6 signer from ThirdWeb (correct account)
-        const v6Signer = await activeWallet.getSigner();
-        
-        if (!v6Signer) {
-          throw new Error('No signer available from ThirdWeb wallet');
+        // ✅ Verify signer address matches (safety check)
+        const signerAddress = await signer.getAddress();
+        console.log('✅ Signer verification:');
+        console.log('   Wagmi address:', address);
+        console.log('   Signer address:', signerAddress);
+        console.log('   Match:', signerAddress.toLowerCase() === address.toLowerCase());
+
+        if (signerAddress.toLowerCase() !== address.toLowerCase()) {
+          throw new Error(`Signer mismatch! Expected ${address}, got ${signerAddress}`);
         }
 
-        console.log('✅ Step 1: Got v6 signer from ThirdWeb');
-        console.log('   v6 Signer address:', await v6Signer.getAddress());
-
-        // ✅ STEP 2: Extract underlying provider from v6 signer
-        // This gets the raw provider (MetaMask, WalletConnect, etc.)
-        const provider = v6Signer.provider?.provider || window.ethereum;
+        // ✅ Connect to Towns (config created outside component)
+        await connect(signer, { townsConfig });
         
-        if (!provider) {
-          throw new Error('No provider available from v6 signer');
-        }
-
-        console.log('✅ Step 2: Extracted underlying provider');
-
-        // ✅ STEP 3: Create v5 Web3Provider from raw provider
-        const v5Provider = new v5Providers.Web3Provider(provider);
-
-        console.log('✅ Step 3: Created v5 Web3Provider');
-
-        // ✅ STEP 4: Get v5 signer for the correct address
-        const v5Signer = v5Provider.getSigner(await v6Signer.getAddress());
-
-        console.log('✅ Step 4: Created v5 signer');
-        console.log('   v5 Signer address:', await v5Signer.getAddress());
-        console.log('   Addresses match?:', (await v5Signer.getAddress()).toLowerCase() === address.toLowerCase());
-
-        // ✅ VERIFICATION: Ensure addresses match
-        if ((await v5Signer.getAddress()).toLowerCase() !== address.toLowerCase()) {
-          throw new Error(`Address mismatch! v5 Signer: ${await v5Signer.getAddress()}, Expected: ${address}`);
-        }
-
-        // ✅ STEP 5: Connect to Towns with v5 signer
-        const townsConfig = townsEnv().makeTownsConfig('omega');
-        
-        console.log('🔄 Connecting to Towns Protocol...');
-        await connect(v5Signer, { townsConfig });
-
         hasConnectedRef.current = true;
         previousAddressRef.current = address;
-
+        
         console.log('✅ SUCCESS! Towns sync agent connected');
         console.log('   Delegate key session established');
-        console.log('   v6 → v5 conversion successful');
+        console.log('   Ready for all Towns operations');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
+        
       } catch (error: any) {
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('❌ FAILED TO CONNECT TOWNS AGENT');
@@ -106,34 +98,40 @@ export function useTownsAgent() {
         console.error('   Stack:', error.stack);
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         hasConnectedRef.current = false;
+      } finally {
+        // ✅ Always release lock
+        isConnectingRef.current = false;
       }
     }
 
     connectAgent();
 
+    // ✅ Cleanup on wallet disconnect
     return () => {
-      if (!activeAccount && hasConnectedRef.current) {
+      if (!isConnected && hasConnectedRef.current) {
         console.log('🔌 Wallet disconnected - disconnecting Towns agent');
         disconnect?.();
         hasConnectedRef.current = false;
         previousAddressRef.current = undefined;
+        isConnectingRef.current = false;
       }
     };
-  }, [activeAccount, activeWallet, activeChain, isAgentConnecting, connect, disconnect]);
+  }, [isConnected, address, signer, isAgentConnecting, connect, disconnect]);
 
-  // ✅ Periodic health check - reconnect if session drops
+  // ✅ Health check (optional, but good for production)
   useEffect(() => {
-    if (!isAgentConnected || !activeAccount) return;
+    if (!isAgentConnected || !isConnected) return;
 
     const healthCheckInterval = setInterval(() => {
-      if (!isAgentConnected && activeAccount && activeWallet) {
-        console.warn('⚠️ Towns agent disconnected - triggering reconnect...');
+      if (!isAgentConnected && isConnected && address && signer) {
+        console.warn('⚠️ Towns agent disconnected unexpectedly - triggering reconnect...');
         hasConnectedRef.current = false;
+        isConnectingRef.current = false;
       }
-    }, 60 * 1000);
+    }, 60 * 1000); // Check every 60 seconds
 
     return () => clearInterval(healthCheckInterval);
-  }, [isAgentConnected, activeAccount, activeWallet]);
+  }, [isAgentConnected, isConnected, address, signer]);
 
   return {
     isAgentConnected,
