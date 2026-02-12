@@ -30,6 +30,14 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
+// Helper function to convert IPFS URIs to gateway URLs
+const convertIpfsToGatewayUrl = (uri: string): string => {
+  if (uri.startsWith('ipfs://')) {
+    return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
+  }
+  return uri;
+};
+
 export function MessageBubble({ 
   message, 
   isOwn, 
@@ -124,7 +132,7 @@ export function MessageBubble({
             <div className="flex-shrink-0">
               {message.sender.avatar ? (
                 <img
-                  src={message.sender.avatar}
+                  src={convertIpfsToGatewayUrl(message.sender.avatar)}
                   alt={message.sender.name}
                   className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
                 />

@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -23,6 +23,12 @@ interface ConnectedChatProps {
   currentUser: ChatUser;
   spaceId: string;
   defaultChannelId: string;
+}
+
+interface UserProfile {
+  alias: string | null;
+  avatar: string | null;
+  displayName: string;
 }
 
 const LoadingSpinner = () => (
@@ -57,6 +63,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // ✅ NEW: Profile cache state
+  const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
+  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -71,6 +80,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ✅ NEW: Function to fetch user profiles
+  const getProfile = useCallback(async (address: string) => {
+    try {
+      const response = await fetch(`/api/chat/user?address=${address}`);
+      const data = await response.json();
+      
+      if (data.success && data.user) {
+        const profile = {
+          alias: data.user.alias,
+          avatar: data.user.avatar,
+          displayName: data.user.displayName,
+        };
+        
+        setProfileCache(prev => ({ ...prev, [address]: profile }));
+        return profile;
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    }
+    
+    return null;
+  }, []);
 
   useEffect(() => {
     async function detectRole() {
@@ -147,6 +179,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
+
+  // ✅ NEW: Fetch profiles for users in timeline
+  useEffect(() => {
+    if (!timeline) return;
+    
+    const userAddresses = new Set(
+      timeline
+        ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+        .map((event: any) => event.creatorUserId)
+        .filter(Boolean)
+    );
+    
+    // Fire-and-forget profile fetches for all users in timeline
+    userAddresses.forEach(address => {
+      if (!profileCache[address]) {
+        getProfile(address);
+      }
+    });
+  }, [timeline, getProfile]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,13 +277,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
+      const userAddress = event.creatorUserId || '';
+      const profile = profileCache[userAddress];
+      
       return {
         id: event.eventId || event.id,
         content: event.content?.body || '',
         sender: {
-          id: event.creatorUserId || '',
-          name: event.creatorDisplayName || 'Anonymous',
-          avatar: undefined,
+          id: userAddress,
+          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+          avatar: profile?.avatar,
         },
         timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
         isOwn: event.creatorUserId === activeAccount?.address,
