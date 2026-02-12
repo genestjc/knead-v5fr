@@ -11,14 +11,32 @@ interface FileMessageDisplayProps {
   isCurrentUser: boolean;
 }
 
+/**
+ * Convert IPFS URI to HTTP gateway URL for fallback links
+ * Uses ThirdWeb's CDN gateway (same as MediaRenderer uses internally)
+ */
+function ipfsToGatewayUrl(ipfsUri: string): string {
+  if (!ipfsUri) return '';
+  
+  // If already an HTTP URL, return as-is
+  if (ipfsUri.startsWith('http://') || ipfsUri.startsWith('https://')) {
+    return ipfsUri;
+  }
+  
+  // ✅ Use thirdweb's CDN gateway (most reliable and performant)
+  const cid = ipfsUri.replace('ipfs://', '');
+  return `https://ipfs.thirdwebcdn.com/ipfs/${cid}`;
+}
+
 export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMessageDisplayProps) {
   const [hasError, setHasError] = useState(false);
   const isImage = isImageFile(fileName);
+  
+  // Gateway URL for fallback links only
+  const gatewayUrl = ipfsToGatewayUrl(ipfsUri);
 
-  // If MediaRenderer fails, fall back to link
+  // If MediaRenderer failed, show download link
   if (hasError) {
-    const gatewayUrl = `https://gateway.thirdweb.com/ipfs/${ipfsUri.replace('ipfs://', '')}`;
-    
     return (
       <a
         href={gatewayUrl}
@@ -48,12 +66,14 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
   if (isImage) {
     return (
       <div className="mt-2">
+        {/* ✅ Pass ipfs:// URI directly - MediaRenderer handles gateway conversion */}
         <MediaRenderer
           client={client}
-          src={ipfsUri}
+          src={ipfsUri} // ✅ Pass raw ipfs:// URI
           alt={fileName}
           className="max-w-full max-h-64 rounded-lg object-contain"
           style={{ maxWidth: '100%', maxHeight: '16rem' }}
+          onError={() => setHasError(true)} // ✅ Trigger fallback on error
         />
         <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
           {fileName}
@@ -62,9 +82,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
     );
   }
 
-  // Non-image files
-  const gatewayUrl = `https://gateway.thirdweb.com/ipfs/${ipfsUri.replace('ipfs://', '')}`;
-
+  // Non-image files: Direct download link
   return (
     <a
       href={gatewayUrl}
