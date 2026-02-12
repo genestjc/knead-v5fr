@@ -151,6 +151,7 @@ export function AdminContextMenu({
     console.log('   Message ID:', message.id);
     console.log('   Message ID type:', typeof message.id);
     console.log('   Message ID length:', message.id?.length);
+    console.log('   Message ID hex check:', /^[a-f0-9]+$/.test(message.id || ''));
     console.log('   Channel ID:', channelId);
     console.log('   Space ID:', spaceId);
     console.log('   Current user:', activeAccount?.address);
@@ -172,65 +173,58 @@ export function AdminContextMenu({
 
     // ✅ Validate it looks like a Towns event ID (64 character hex hash)
     if (message.id.length !== 64 || !/^[a-f0-9]+$/.test(message.id)) {
-      console.warn('⚠️ Message ID does not look like a Towns event ID:', message.id);
-      console.warn('   Expected: 64-character hex hash');
-      console.warn('   Got:', `${message.id.length} characters`);
+      console.error('⚠️ Message ID does not look like a Towns event ID');
+      console.error('   Expected: 64-character hex hash');
+      console.error('   Got:', message.id);
+      console.error('   Length:', message.id.length);
+      toast.error(`Invalid event ID format. Expected 64-char hex, got ${message.id.length} chars.`);
+      return;
     }
 
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
     setIsProcessing(true);
     try {
-      console.log('🔄 Attempting to delete with event ID:', message.id);
+      console.log('🔄 Calling adminRedact with eventId (string):', message.id);
       
-      // ✅ TRY METHOD 1: Pass as string (per type definition)
-      try {
-        console.log('   Method 1: Calling adminRedact(eventId) with string...');
-        await adminRedact(message.id);
-        console.log('✅ Method 1 succeeded! Message redacted.');
-        toast.success('Message deleted from Towns Protocol');
-        onClose();
-        return;
-      } catch (error1: any) {
-        console.warn('⚠️ Method 1 failed:', error1.message);
-        
-        // ✅ TRY METHOD 2: Pass as object (per example code)
-        try {
-          console.log('   Method 2: Calling adminRedact({ eventId }) with object...');
-          await adminRedact({ eventId: message.id } as any);
-          console.log('✅ Method 2 succeeded! Message redacted.');
-          toast.success('Message deleted from Towns Protocol');
-          onClose();
-          return;
-        } catch (error2: any) {
-          console.error('❌ Method 2 also failed:', error2.message);
-          throw error2; // Re-throw to be caught by outer catch
-        }
-      }
+      // ✅ CORRECT: Pass eventId as string (per type definition)
+      const result = await adminRedact(message.id);
+      
+      console.log('✅ adminRedact succeeded!', result);
+      toast.success('Message deleted from Towns Protocol');
+      onClose();
       
     } catch (error: any) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ BOTH METHODS FAILED - FULL ERROR DETAILS:');
-      console.error('   Error object:', error);
-      console.error('   Error type:', typeof error);
-      console.error('   Error constructor:', error?.constructor?.name);
-      console.error('   Error message:', error?.message);
-      console.error('   Error stack:', error?.stack);
-      console.error('   Error code:', error?.code);
-      console.error('   Error name:', error?.name);
-      console.error('   All error keys:', Object.keys(error || {}));
+      console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
+      console.error('   Error:', error);
+      console.error('   Message:', error?.message);
+      console.error('   Stack:', error?.stack);
+      console.error('   Code:', error?.code);
+      console.error('   Name:', error?.name);
       console.error('   Stringified:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
-      // Better error messages
-      if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('Redact')) {
-        toast.error('You need admin/moderator permissions in this Towns space');
-      } else if (error.message?.includes('not found')) {
+      // ✅ Parse specific error types
+      const errorMsg = error?.message?.toLowerCase() || '';
+      
+      if (errorMsg.includes('permission') || 
+          errorMsg.includes('unauthorized') || 
+          errorMsg.includes('not allowed') ||
+          errorMsg.includes('forbidden')) {
+        toast.error('❌ Permission Denied', {
+          description: '⚠️ Your wallet does not have Permission.Redact. Run the script in Step 2 to add this permission.',
+        });
+      } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
         toast.error('Message not found or already deleted');
-      } else if (error.message?.includes('startsWith')) {
-        toast.error('SDK version mismatch. Please report this error to support.');
+      } else if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
+        toast.error('Invalid event ID format', {
+          description: 'The message ID is not a valid Towns event hash.',
+        });
       } else {
-        toast.error(error.message || 'Failed to delete message');
+        toast.error('Failed to delete message', {
+          description: errorMsg.substring(0, 100) || 'Unknown error',
+        });
       }
     } finally {
       setIsProcessing(false);
