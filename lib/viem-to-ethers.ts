@@ -7,7 +7,7 @@
  * Source: https://wagmi.sh/react/guides/ethers#usage-1
  */
 
-import { providers } from 'ethers'; // ✅ v5 - note 'providers' not 'BrowserProvider'
+import { providers } from 'ethers-v5'; // ✅ Use the v5 alias!
 import type { Account, Chain, Client, Transport } from 'viem';
 import { type Config, useConnectorClient } from 'wagmi';
 
