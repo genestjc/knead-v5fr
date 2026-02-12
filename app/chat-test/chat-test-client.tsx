@@ -4,7 +4,7 @@ import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
-import { ethers5Adapter } from "thirdweb/adapters/ethers5";
+import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
@@ -34,7 +34,7 @@ const LoadingSpinner = () => (
 );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ✅ BOT AUTO-CONNECT HOOK
+// ✅ BOT AUTO-CONNECT HOOK (for automated message client/node)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function useBotAutoConnect() {
@@ -98,12 +98,12 @@ function useBotAutoConnect() {
         try {
           console.log('🤖 Bot Mode: Connecting Towns agent...');
           
-          // ✅ CORRECT SYNTAX
-          const signer = await ethers5Adapter.signer.toEthers({
+          // ✅ Custom ethers v5 signer
+          const signer = await createTownsSigner(
+            botWallet.getAccount()!,
             client,
-            chain: activeChain,
-            account: botWallet.getAccount()!,
-          });
+            activeChain
+          );
           console.log('   Signer created:', !!signer);
           
           await connectAgent(signer, { 
@@ -148,8 +148,8 @@ function useBotAutoConnect() {
   }, [wallet, botWallet, isAgentConnected]);
 }
 
-// ━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ CORRECT ETHERS5 ADAPTER SYNTAX
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETUP FLOW - ✅ CUSTOM ETHERS V5 SIGNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
@@ -199,17 +199,13 @@ function SetupFlow() {
                     }
                 }
 
-                // ✅ Signature-based auth with correct adapter syntax
+                // ✅ Signature-based auth with custom ethers v5 signer
                 setSetupStep("Please sign the message...");
                 
                 console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
                 
-                // ✅ CORRECT SYNTAX per ThirdWeb docs
-                const signer = await ethers5Adapter.signer.toEthers({
-                    client,
-                    chain: activeChain,
-                    account,
-                });
+                // ✅ Custom signer using ethers-v5 explicitly
+                const signer = await createTownsSigner(account, client, activeChain);
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
@@ -280,8 +276,8 @@ function SetupFlow() {
     );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ CORRECT ETHERS5 ADAPTER SYNTAX
+// ━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOWNS CHAT - ✅ CUSTOM ETHERS V5 SIGNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -367,7 +363,7 @@ function TownsChat() {
                     console.log('   Has membership:', hasMembership);
                     console.log('   Total members:', totalMembers);
                     console.log('   Free tier active:', isUnder100);
-                    console.log('━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━');
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                     
                     if (!hasMembership && !isUnder100) {
                         console.warn('⚠️ Over 100 members - new mints may cost gas');
@@ -379,12 +375,8 @@ function TownsChat() {
 
                 console.log('🚀 Joining space...');
                 
-                // ✅ CORRECT SYNTAX
-                const signer = await ethers5Adapter.signer.toEthers({
-                    client,
-                    chain: activeChain,
-                    account,
-                });
+                // ✅ Custom signer using ethers-v5
+                const signer = await createTownsSigner(account, client, activeChain);
                 
                 const hasMembership = membershipData?.hasMembership || false;
                 
