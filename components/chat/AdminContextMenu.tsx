@@ -146,15 +146,49 @@ export function AdminContextMenu({
   };
 
   const handleDeleteMessage = async () => {
+    console.log('🗑️ Delete message clicked:', {
+      messageId: message.id,
+      channelId,
+      hasAdminRedact: !!adminRedact,
+    });
+
+    if (!adminRedact) {
+      console.error('❌ adminRedact function not available');
+      toast.error('Delete function not available. Check console for details.');
+      return;
+    }
+
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
+    setIsProcessing(true);
     try {
-      await adminRedact(message.id);
+      console.log('🔄 Calling adminRedact with eventId:', message.id);
+      
+      // ✅ FIX: Pass object with eventId property (per Towns docs)
+      await adminRedact({ eventId: message.id });
+      
+      console.log('✅ Message redacted successfully');
       toast.success('Message deleted from Towns Protocol');
       onClose();
     } catch (error: any) {
-      console.error('Failed to delete message:', error);
-      toast.error(error.message || 'Failed to delete message');
+      console.error('❌ Failed to delete message:', {
+        error,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        messageId: message.id,
+        channelId
+      });
+      
+      // Better error messages
+      if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('Redact')) {
+        toast.error('You need admin/moderator permissions in this Towns space');
+      } else if (error.message?.includes('not found')) {
+        toast.error('Message not found or already deleted');
+      } else {
+        toast.error(error.message || 'Failed to delete message');
+      }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -203,7 +237,7 @@ export function AdminContextMenu({
           top: adjustedPosition.y,
         }}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()} // ✅ MOBILE FIX: Prevent touch-through
+        onTouchStart={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
@@ -227,7 +261,7 @@ export function AdminContextMenu({
               key={option.amount}
               onClick={() => handleAwardBonus(option.amount, option.type)}
               disabled={isProcessing}
-              className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation" // ✅ MOBILE FIX: Bigger tap target, touch-manipulation
+              className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
             >
               <span>🎁</span>
               <span>{option.label}</span>
