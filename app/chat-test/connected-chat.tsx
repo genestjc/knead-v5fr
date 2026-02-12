@@ -25,6 +25,12 @@ interface ConnectedChatProps {
   defaultChannelId: string;
 }
 
+interface UserProfile {
+  alias: string | null;
+  avatar: string | null;
+  displayName: string;
+}
+
 const LoadingSpinner = () => (
     <div className="text-center py-10">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
@@ -58,7 +64,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // ✅ NEW: Profile cache state
-  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+  const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   
   const activeAccount = useActiveAccount();
 
