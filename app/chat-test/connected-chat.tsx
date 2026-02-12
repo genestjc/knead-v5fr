@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -58,12 +58,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [dailyToken, setDailyToken] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
-  const [isAdmin, setIsAdmin] = useState(false); // ✅ NEW: Admin detection
+  const [isAdmin, setIsAdmin] = useState(false);
   
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
+  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
   const activeAccount = useActiveAccount();
 
@@ -77,6 +78,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
+  
+  // ✅ ADD: Load message history
+  const { scrollback, isPending: isLoadingHistory, data: scrollbackData } = useScrollback(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -102,20 +106,41 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ UPDATED: Detect role AND admin status
+  // ✅ Load message history on mount
+  useEffect(() => {
+    if (!channelId || hasLoadedHistory || isLoadingHistory) return;
+    
+    console.log('📜 Loading message history for channel:', channelId);
+    
+    scrollback().then((result) => {
+      console.log('✅ Message history loaded');
+      console.log('   At beginning:', result.terminus);
+      console.log('   From miniblock:', result.fromInclusiveMiniblockNum.toString());
+      setHasLoadedHistory(true);
+    }).catch((error) => {
+      console.error('❌ Failed to load message history:', error);
+      setHasLoadedHistory(true); // Set to true even on error to prevent infinite retries
+    });
+  }, [channelId, hasLoadedHistory, isLoadingHistory, scrollback]);
+
+  // Detect role AND admin status
   useEffect(() => {
     async function detectRole() {
       if (activeAccount?.address) {
         const roleInfo = await getUserRole(activeAccount.address);
         setUserRole(roleInfo.role);
         
-        // ✅ Check if user is admin in Supabase
+        // Check if user is admin in Supabase
         try {
           const response = await fetch(`/api/chat/user?address=${activeAccount.address}`);
           const data = await response.json();
           if (data.success && data.user) {
-            setIsAdmin(data.user.role === 'admin');
-            console.log('👮 Admin status:', data.user.role === 'admin');
+            const isUserAdmin = data.user.role === 'admin' || data.user.role === 'master-admin';
+            setIsAdmin(isUserAdmin);
+            console.log('👮 Admin status:', isUserAdmin);
+            console.log('👤 User role from DB:', data.user.role);
+          } else {
+            console.log('⚠️ User not found in database:', activeAccount.address);
           }
         } catch (error) {
           console.error('Failed to check admin status:', error);
@@ -206,7 +231,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         getProfile(address);
       }
     });
-  }, [timeline, getProfile]);
+  }, [timeline, getProfile, profileCache]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,6 +326,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       };
     }) || [];
 
+  // ✅ Log message count
+  useEffect(() => {
+    console.log('💬 Total messages loaded:', messages.length);
+    console.log('📊 History loaded:', hasLoadedHistory);
+    console.log('⏳ Loading history:', isLoadingHistory);
+  }, [messages.length, hasLoadedHistory, isLoadingHistory]);
+
   if (isSpaceLoading || isTimelineLoading) {
     return (
       <ChatLayout>
@@ -329,6 +361,54 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </ChatLayout>
     );
   }
+
+  const renderMessages = () => {
+    if (isLoadingHistory && messages.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+            <p className="font-georgia-pro text-gray-500">Loading message history...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (messages.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-gray-500 py-8">
+            <p className="font-georgia-pro text-lg">No messages yet.</p>
+            <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-4">
+        {isLoadingHistory && (
+          <div className="text-center py-2">
+            <p className="font-georgia-pro text-xs text-gray-400">Loading history...</p>
+          </div>
+        )}
+        {messages.map((message: any) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            isOwn={message.isOwn || false}
+            streamId={channelId}
+            canAwardTokens={canAwardTokens}
+            isAdmin={isAdmin}
+            channelId={channelId}
+            spaceId={spaceId}
+            eventId={activeEvent?.id}
+          />
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+    );
+  };
 
   return (
     <>
@@ -365,33 +445,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   </div>
 
                   <div className="flex-1 overflow-y-auto pb-16">
-                    {isTimelineLoading ? (
-                      <LoadingSpinner />
-                    ) : messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center text-gray-500 py-8">
-                          <p className="font-georgia-pro text-lg">No messages yet.</p>
-                          <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-4">
-                        {messages.map((message: any) => (
-                          <MessageBubble
-                            key={message.id}
-                            message={message}
-                            isOwn={message.isOwn || false}
-                            streamId={channelId}
-                            canAwardTokens={canAwardTokens}
-                            isAdmin={isAdmin}
-                            channelId={channelId}
-                            spaceId={spaceId}
-                            eventId={activeEvent?.id}
-                          />
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
+                    {renderMessages()}
                   </div>
 
                   <div className="border-t border-gray-200 p-4 bg-white">
@@ -471,33 +525,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   </div>
 
                   <div className="flex-1 overflow-y-auto pb-16">
-                    {isTimelineLoading ? (
-                      <LoadingSpinner />
-                    ) : messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center text-gray-500 py-8">
-                          <p className="font-georgia-pro text-lg">No messages yet.</p>
-                          <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-4">
-                        {messages.map((message: any) => (
-                          <MessageBubble
-                            key={message.id}
-                            message={message}
-                            isOwn={message.isOwn || false}
-                            streamId={channelId}
-                            canAwardTokens={canAwardTokens}
-                            isAdmin={isAdmin}
-                            channelId={channelId}
-                            spaceId={spaceId}
-                            eventId={activeEvent?.id}
-                          />
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
+                    {renderMessages()}
                   </div>
 
                   <div className="border-t border-gray-200 p-4 bg-white">
@@ -583,33 +611,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               )}
 
               <div className="flex-1 overflow-y-auto pb-16">
-                {isTimelineLoading ? (
-                  <LoadingSpinner />
-                ) : messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-gray-500 py-8">
-                      <p className="font-georgia-pro text-lg">No messages yet.</p>
-                      <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-4">
-                    {messages.map((message: any) => (
-                      <MessageBubble
-                        key={message.id}
-                        message={message}
-                        isOwn={message.isOwn || false}
-                        streamId={channelId}
-                        canAwardTokens={canAwardTokens}
-                        isAdmin={isAdmin}
-                        channelId={channelId}
-                        spaceId={spaceId}
-                        eventId={activeEvent?.id}
-                      />
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
+                {renderMessages()}
               </div>
 
               <div className="border-t border-gray-200 p-4 bg-white">
