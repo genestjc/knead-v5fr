@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAgentConnection, useSpace, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -76,7 +76,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ✅ NEW: Function to fetch user profiles
-  const getProfile = async (address: string) => {
+  const getProfile = useCallback(async (address: string) => {
     if (profileCache[address]) {
       return profileCache[address];
     }
@@ -100,7 +100,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
     
     return null;
-  };
+  }, [profileCache]);
 
   useEffect(() => {
     async function detectRole() {
@@ -194,7 +194,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         getProfile(address);
       }
     });
-  }, [timeline, profileCache]);
+  }, [timeline, profileCache, getProfile]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
