@@ -57,6 +57,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // ✅ NEW: Profile cache state
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -71,6 +74,33 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ✅ NEW: Function to fetch user profiles
+  const getProfile = async (address: string) => {
+    if (profileCache[address]) {
+      return profileCache[address];
+    }
+    
+    try {
+      const response = await fetch(`/api/chat/user?address=${address}`);
+      const data = await response.json();
+      
+      if (data.success && data.user) {
+        const profile = {
+          alias: data.user.alias,
+          avatar: data.user.avatar,
+          displayName: data.user.displayName,
+        };
+        
+        setProfileCache(prev => ({ ...prev, [address]: profile }));
+        return profile;
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     async function detectRole() {
@@ -147,6 +177,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
+
+  // ✅ NEW: Fetch profiles for users in timeline
+  useEffect(() => {
+    if (!timeline) return;
+    
+    const userAddresses = new Set(
+      timeline
+        ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+        .map((event: any) => event.creatorUserId)
+        .filter(Boolean)
+    );
+    
+    userAddresses.forEach(address => {
+      if (!profileCache[address]) {
+        getProfile(address);
+      }
+    });
+  }, [timeline, profileCache]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,13 +274,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
+      const userAddress = event.creatorUserId || '';
+      const profile = profileCache[userAddress];
+      
       return {
         id: event.eventId || event.id,
         content: event.content?.body || '',
         sender: {
-          id: event.creatorUserId || '',
-          name: event.creatorDisplayName || 'Anonymous',
-          avatar: undefined,
+          id: userAddress,
+          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+          avatar: profile?.avatar,
         },
         timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
         isOwn: event.creatorUserId === activeAccount?.address,

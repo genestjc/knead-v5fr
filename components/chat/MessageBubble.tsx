@@ -124,7 +124,10 @@ export function MessageBubble({
             <div className="flex-shrink-0">
               {message.sender.avatar ? (
                 <img
-                  src={message.sender.avatar}
+                  src={message.sender.avatar?.startsWith('ipfs://') 
+                    ? `https://ipfs.thirdwebcdn.com/ipfs/${message.sender.avatar.replace('ipfs://', '')}` 
+                    : message.sender.avatar
+                  }
                   alt={message.sender.name}
                   className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
                 />
