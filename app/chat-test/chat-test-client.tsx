@@ -5,18 +5,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
-import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
+import { client, activeChain } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
 
-const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega', {
-  rpcUrl: townsChainRpc,
-});
+// ✅ Towns SDK handles RPC URLs automatically based on environment
+const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -173,6 +171,7 @@ function SetupFlow() {
                 setSetupStep("Please sign the message...");
                 
                 console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
+                console.log('🌐 Using omega (mainnet) environment');
                 
                 const signer = await createTownsSigner(account, client, activeChain);
                 
@@ -269,7 +268,7 @@ function TownsChat() {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
@@ -444,7 +443,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
-// ━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
