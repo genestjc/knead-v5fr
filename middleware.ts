@@ -101,6 +101,7 @@ export function middleware(request: NextRequest) {
       https://*.daily.co
       *.towns.com;
     connect-src 'self'
+  https://mm-sdk-analytics.api.cx.metamask.io
   https://devnet.rpc.river.build
   https://mainnet.rpc.river.build
   https://*.figment.io
