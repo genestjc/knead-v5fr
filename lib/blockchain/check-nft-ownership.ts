@@ -19,8 +19,8 @@ export interface UserRoleInfo {
   role: UserRole;
   hasKneadMonthly: boolean;
   hasContributor: boolean;
-  hasEventPass: boolean; // ✅ NEW
-  eventId?: string; // ✅ NEW
+  hasEventPass: boolean;
+  eventId?: string;
   contributorTokenId?: number; // 1, 2, or 3
 }
 
@@ -98,7 +98,7 @@ export async function isContributor(address: string): Promise<{
 }
 
 /**
- * ✅ NEW: Check if user has an active Event Pass
+ * ✅ UPDATED: Check if user has an active Event Pass
  */
 export async function hasEventPass(address: string): Promise<{
   hasPass: boolean;
@@ -107,8 +107,9 @@ export async function hasEventPass(address: string): Promise<{
   try {
     const eventPassContract = process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT;
     
-    if (!eventPassContract) {
-      console.warn("NEXT_PUBLIC_EVENT_PASS_CONTRACT is not set");
+    // ✅ If Event Pass contract not configured, skip check silently
+    if (!eventPassContract || eventPassContract === 'undefined') {
+      // Don't log warning - this is optional feature
       return { hasPass: false };
     }
 
@@ -118,32 +119,38 @@ export async function hasEventPass(address: string): Promise<{
       address: eventPassContract,
     });
 
-    // Check if user has active pass
-    const hasPass = await readContract({
-      contract,
-      method: "function hasActivePass(address user) view returns (bool)",
-      params: [address],
-    });
-
-    if (!hasPass) {
-      return { hasPass: false };
-    }
-
-    // Get event ID if they have a pass
+    // ✅ Try to check if user has active pass
     try {
-      const eventId = await readContract({
+      const hasPass = await readContract({
         contract,
-        method: "function getUserEventId(address user) view returns (string)",
+        method: "function hasActivePass(address user) view returns (bool)",
         params: [address],
       });
-      
-      return { hasPass: true, eventId };
-    } catch (e) {
-      // User has pass but error getting event ID
-      return { hasPass: true };
+
+      if (!hasPass) {
+        return { hasPass: false };
+      }
+
+      // ✅ Try to get event ID if they have a pass
+      try {
+        const eventId = await readContract({
+          contract,
+          method: "function getUserEventId(address user) view returns (string)",
+          params: [address],
+        });
+        
+        return { hasPass: true, eventId };
+      } catch (e) {
+        // User has pass but can't get event ID - that's OK
+        return { hasPass: true };
+      }
+    } catch (contractError: any) {
+      // ✅ Contract method doesn't exist or other error - silently fail
+      console.log('[Event Pass] Contract check skipped:', contractError.message);
+      return { hasPass: false };
     }
   } catch (error) {
-    console.error("Error checking Event Pass:", error);
+    // ✅ Don't log error - Event Pass is optional
     return { hasPass: false };
   }
 }
@@ -159,7 +166,7 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
     const [hasMonthly, contributorCheck, eventPassCheck] = await Promise.all([
       hasKneadMonthly(address),
       isContributor(address),
-      hasEventPass(address), // ✅ NEW
+      hasEventPass(address),
     ]);
 
     // Determine role based on priority
@@ -176,8 +183,8 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
       role,
       hasKneadMonthly: hasMonthly,
       hasContributor: contributorCheck.isContributor,
-      hasEventPass: eventPassCheck.hasPass, // ✅ NEW
-      eventId: eventPassCheck.eventId, // ✅ NEW
+      hasEventPass: eventPassCheck.hasPass,
+      eventId: eventPassCheck.eventId,
       contributorTokenId: contributorCheck.tokenId,
     };
   } catch (error) {
