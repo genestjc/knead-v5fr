@@ -1,7 +1,5 @@
-import { createThirdwebClient, getNativeBalance } from "thirdweb";
+import { createThirdwebClient } from "thirdweb";
 import { base } from "thirdweb/chains";
-import { balanceOf } from "thirdweb/extensions/erc1155";
-import { getContract } from "thirdweb";
 import { logger } from "./lib/logger";
 
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
@@ -52,14 +50,13 @@ if (!baseRpcUrl) {
   throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required to avoid CORS issues');
 }
 
+// ✅ Base chain for Base network operations (NFTs, tokens, etc.)
 export const activeChain = {
   ...base,
   rpc: baseRpcUrl,
 };
 
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
-
-export const townsChainRpc = baseRpcUrl || base.rpc;
 
 export const KNEAD_MEMBERSHIP_CONTRACT = {
   address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
