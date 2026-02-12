@@ -10,7 +10,6 @@ import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { saveTownsAuth, getSavedTownsAuth, clearTownsAuth } from '@/lib/towns/auth-persistence';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 const SAVED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
@@ -98,7 +97,6 @@ function useBotAutoConnect() {
         try {
           console.log('🤖 Bot Mode: Connecting Towns agent...');
           
-          // ✅ Custom ethers v5 signer
           const signer = await createTownsSigner(
             botWallet.getAccount()!,
             client,
@@ -149,12 +147,12 @@ function useBotAutoConnect() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ CUSTOM ETHERS V5 SIGNER
+// SETUP FLOW - ✅ CLEAN (NO BEARER TOKEN CACHING)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
-    const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
+    const { connect, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Connecting...");
     const [isConnecting, setIsConnecting] = useState(false);
@@ -172,64 +170,22 @@ function SetupFlow() {
                     return;
                 }
 
-                // ✅ Try bearer token first (fast reconnect)
-                const savedToken = getSavedTownsAuth();
-                
-                if (savedToken) {
-                    setSetupStep("Reconnecting...");
-                    console.log('🔄 Attempting to reconnect with bearer token...');
-                    
-                    try {
-                        await connectUsingBearerToken(savedToken, { 
-                            townsConfig: TOWNS_CONFIG,
-                            onTokenExpired: () => {
-                                console.log('⚠️ Token expired');
-                                clearTownsAuth();
-                            }
-                        });
-                        
-                        console.log('✅ Reconnected with saved session - no signature needed!');
-                        setSetupComplete(true);
-                        setIsConnecting(false);
-                        return;
-                        
-                    } catch (tokenError: any) {
-                        console.warn('⚠️ Saved token failed, will request new signature:', tokenError.message);
-                        clearTownsAuth();
-                    }
-                }
-
-                // ✅ Signature-based auth with custom ethers v5 signer
                 setSetupStep("Please sign the message...");
                 
                 console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
                 
-                // ✅ Custom signer using ethers-v5 explicitly
                 const signer = await createTownsSigner(account, client, activeChain);
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
-                const agent = await connect(signer, { 
+                await connect(signer, { 
                     townsConfig: TOWNS_CONFIG,
                     onTokenExpired: () => {
                         console.log('⚠️ Token expired');
-                        clearTownsAuth();
                     }
                 });
                 
                 console.log('✅ Towns agent connected');
-                
-                // ✅ Save bearer token for next time
-                try {
-                    const syncAgent = agent as any;
-                    if (syncAgent?.auth?.token || syncAgent?.authToken || syncAgent?.token) {
-                        const token = syncAgent.auth?.token || syncAgent.authToken || syncAgent.token;
-                        saveTownsAuth(token);
-                        console.log('💾 Saved bearer token for future sessions');
-                    }
-                } catch (saveError) {
-                    console.warn('⚠️ Could not save bearer token:', saveError);
-                }
                 
                 setSetupComplete(true);
 
@@ -249,14 +205,12 @@ function SetupFlow() {
         };
 
         runSetup();
-    }, [wallet, isAgentConnected, setupComplete, isConnecting, connect, connectUsingBearerToken]);
+    }, [wallet, isAgentConnected, setupComplete, isConnecting, connect]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md px-4">
-                <h2 className="font-adonis text-3xl mb-4">
-                    {setupStep.includes("Reconnecting") ? "Welcome Back" : "Connecting to Chat"}
-                </h2>
+                <h2 className="font-adonis text-3xl mb-4">Connecting to Chat</h2>
                 <LoadingSpinner />
                 <p className="font-georgia-pro text-sm text-gray-600 mt-4">
                     {setupStep}
@@ -266,17 +220,12 @@ function SetupFlow() {
                         📝 Check your wallet for the signature request
                     </p>
                 )}
-                {setupStep.includes("Reconnecting") && (
-                    <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        ⚡ No signature needed - using saved session
-                    </p>
-                )}
             </div>
         </div>
     );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TOWNS CHAT - ✅ CUSTOM ETHERS V5 SIGNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -320,7 +269,7 @@ function TownsChat() {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
@@ -375,7 +324,6 @@ function TownsChat() {
 
                 console.log('🚀 Joining space...');
                 
-                // ✅ Custom signer using ethers-v5
                 const signer = await createTownsSigner(account, client, activeChain);
                 
                 const hasMembership = membershipData?.hasMembership || false;
@@ -496,7 +444,7 @@ function TownsChat() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function ChatTestClient() {
     const [isMounted, setIsMounted] = useState(false);
