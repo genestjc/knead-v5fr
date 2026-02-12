@@ -45,6 +45,25 @@ function getRewardsContract() {
  * @param eventId - Optional event ID for event-specific bonuses
  * @returns Transaction hash
  */
+export async function getContributorPoolBalance(): Promise<number> {
+  try {
+    const engineWalletAddress = process.env.SERVER_WALLET_ADDRESS || process.env.ENGINE_SERVER_WALLET_ADDRESS;
+    
+    if (!engineWalletAddress) {
+      throw new Error('SERVER_WALLET_ADDRESS not set in environment variables');
+    }
+    
+    // Get the Engine wallet's participant stats to find claimable amount
+    const stats = await getParticipantStats(engineWalletAddress);
+    
+    return stats.claimable;
+  } catch (error) {
+    console.error('Error fetching contributor pool balance:', error);
+    throw new Error(
+      `Failed to fetch pool balance: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
 export async function awardTownsViaEngine(
   participantAddress: string,
   amount: number,
