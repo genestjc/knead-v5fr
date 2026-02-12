@@ -7,7 +7,8 @@
  * Source: https://wagmi.sh/react/guides/ethers#usage-1
  */
 
-import { providers } from 'ethers-v5'; // ✅ Use the v5 alias!
+import { useMemo } from 'react';
+import { providers } from 'ethers-v5';
 import type { Account, Chain, Client, Transport } from 'viem';
 import { type Config, useConnectorClient } from 'wagmi';
 
@@ -20,15 +21,21 @@ export function clientToSigner(client: Client<Transport, Chain, Account>) {
     ensAddress: chain.contracts?.ensRegistry?.address,
   };
   
-  // ✅ Use ethers v5 Web3Provider
   const provider = new providers.Web3Provider(transport, network);
-  
-  // ✅ Use ethers v5 getSigner()
   return provider.getSigner(account.address);
 }
 
-/** Hook to convert the connected wagmi Client to an ethers.js v5 Signer. */
+/** 
+ * Hook to convert the connected Wagmi client to an ethers.js v5 Signer
+ * 
+ * ✅ Memoized to ensure stable reference (ThirdWeb bot suggestion)
+ */
 export function useEthersSigner({ chainId }: { chainId?: number } = {}) {
   const { data: client } = useConnectorClient<Config>({ chainId });
-  return client ? clientToSigner(client) : undefined;
+  
+  // ✅ Memoize signer to prevent unnecessary re-renders
+  return useMemo(
+    () => (client ? clientToSigner(client) : undefined),
+    [client]
+  );
 }
