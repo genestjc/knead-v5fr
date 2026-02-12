@@ -3,8 +3,8 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
-import { useActiveWallet } from 'thirdweb/react'; // ✅ Back to useActiveWallet
-import { ethers5Adapter } from "thirdweb/adapters/ethers5"; // ✅ Simpler import
+import { useActiveWallet } from 'thirdweb/react';
+import { ethers5Adapter } from "thirdweb/adapters/ethers5";
 import { client, activeChain, townsChainRpc } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
@@ -98,8 +98,12 @@ function useBotAutoConnect() {
         try {
           console.log('🤖 Bot Mode: Connecting Towns agent...');
           
-          // ✅ Simple adapter syntax
-          const signer = ethers5Adapter(botWallet);
+          // ✅ CORRECT SYNTAX
+          const signer = await ethers5Adapter.signer.toEthers({
+            client,
+            chain: activeChain,
+            account: botWallet.getAccount()!,
+          });
           console.log('   Signer created:', !!signer);
           
           await connectAgent(signer, { 
@@ -144,12 +148,12 @@ function useBotAutoConnect() {
   }, [wallet, botWallet, isAgentConnected]);
 }
 
+// ━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETUP FLOW - ✅ CORRECT ETHERS5 ADAPTER SYNTAX
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP FLOW - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER (SIMPLE SYNTAX)
-// ━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
-    const wallet = useActiveWallet(); // ✅ Back to useActiveWallet
+    const wallet = useActiveWallet();
     const { connect, connectUsingBearerToken, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
     const [setupStep, setSetupStep] = useState("Connecting...");
@@ -162,8 +166,8 @@ function SetupFlow() {
             setIsConnecting(true);
             
             try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) {
+                const account = wallet.getAccount();
+                if (!account) {
                     setIsConnecting(false);
                     return;
                 }
@@ -195,13 +199,17 @@ function SetupFlow() {
                     }
                 }
 
-                // ✅ Signature-based auth with ThirdWeb's simple adapter syntax
+                // ✅ Signature-based auth with correct adapter syntax
                 setSetupStep("Please sign the message...");
                 
                 console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
                 
-                // ✅ SIMPLE SYNTAX - as recommended by ThirdWeb agent
-                const signer = ethers5Adapter(wallet);
+                // ✅ CORRECT SYNTAX per ThirdWeb docs
+                const signer = await ethers5Adapter.signer.toEthers({
+                    client,
+                    chain: activeChain,
+                    account,
+                });
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
@@ -273,7 +281,7 @@ function SetupFlow() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ SIMPLIFIED WITH THIRDWEB ADAPTER (SIMPLE SYNTAX)
+// TOWNS CHAT - ✅ CORRECT ETHERS5 ADAPTER SYNTAX
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat() {
@@ -336,8 +344,8 @@ function TownsChat() {
             setIsJoining(true);
             
             try {
-                const userAddress = wallet.getAccount()?.address;
-                if (!userAddress) {
+                const account = wallet.getAccount();
+                if (!account) {
                     setIsJoining(false);
                     return;
                 }
@@ -346,7 +354,7 @@ function TownsChat() {
                 const checkRes = await fetch('/api/towns/check-membership', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress }),
+                    body: JSON.stringify({ userAddress: account.address }),
                 });
                 
                 const membershipData = await checkRes.json();
@@ -359,7 +367,7 @@ function TownsChat() {
                     console.log('   Has membership:', hasMembership);
                     console.log('   Total members:', totalMembers);
                     console.log('   Free tier active:', isUnder100);
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    console.log('━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━');
                     
                     if (!hasMembership && !isUnder100) {
                         console.warn('⚠️ Over 100 members - new mints may cost gas');
@@ -371,8 +379,12 @@ function TownsChat() {
 
                 console.log('🚀 Joining space...');
                 
-                // ✅ SIMPLE SYNTAX
-                const signer = ethers5Adapter(wallet);
+                // ✅ CORRECT SYNTAX
+                const signer = await ethers5Adapter.signer.toEthers({
+                    client,
+                    chain: activeChain,
+                    account,
+                });
                 
                 const hasMembership = membershipData?.hasMembership || false;
                 
