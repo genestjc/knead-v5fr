@@ -146,14 +146,16 @@ export function AdminContextMenu({
   };
 
   const handleDeleteMessage = async () => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🗑️ DELETE MESSAGE INITIATED');
     console.log('   Message ID:', message.id);
+    console.log('   Message ID type:', typeof message.id);
+    console.log('   Message ID length:', message.id?.length);
     console.log('   Channel ID:', channelId);
     console.log('   Space ID:', spaceId);
     console.log('   Current user:', activeAccount?.address);
     console.log('   adminRedact available:', !!adminRedact);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (!adminRedact) {
       console.error('❌ adminRedact function not available');
@@ -161,31 +163,72 @@ export function AdminContextMenu({
       return;
     }
 
+    // ✅ Validate message.id is a string
+    if (!message.id || typeof message.id !== 'string') {
+      console.error('❌ Invalid message ID:', message.id);
+      toast.error('Invalid message ID. Cannot delete.');
+      return;
+    }
+
+    // ✅ Validate it looks like a Towns event ID (64 character hex hash)
+    if (message.id.length !== 64 || !/^[a-f0-9]+$/.test(message.id)) {
+      console.warn('⚠️ Message ID does not look like a Towns event ID:', message.id);
+      console.warn('   Expected: 64-character hex hash');
+      console.warn('   Got:', `${message.id.length} characters`);
+    }
+
     if (!confirm('Delete this message from Towns Protocol?')) return;
 
     setIsProcessing(true);
     try {
-      console.log('🔄 Calling adminRedact with eventId string:', message.id);
+      console.log('🔄 Attempting to delete with event ID:', message.id);
       
-      // ✅ FIX: Pass eventId as a STRING, not an object
-      await adminRedact(message.id);
+      // ✅ TRY METHOD 1: Pass as string (per type definition)
+      try {
+        console.log('   Method 1: Calling adminRedact(eventId) with string...');
+        await adminRedact(message.id);
+        console.log('✅ Method 1 succeeded! Message redacted.');
+        toast.success('Message deleted from Towns Protocol');
+        onClose();
+        return;
+      } catch (error1: any) {
+        console.warn('⚠️ Method 1 failed:', error1.message);
+        
+        // ✅ TRY METHOD 2: Pass as object (per example code)
+        try {
+          console.log('   Method 2: Calling adminRedact({ eventId }) with object...');
+          await adminRedact({ eventId: message.id } as any);
+          console.log('✅ Method 2 succeeded! Message redacted.');
+          toast.success('Message deleted from Towns Protocol');
+          onClose();
+          return;
+        } catch (error2: any) {
+          console.error('❌ Method 2 also failed:', error2.message);
+          throw error2; // Re-throw to be caught by outer catch
+        }
+      }
       
-      console.log('✅ Message redacted successfully');
-      toast.success('Message deleted from Towns Protocol');
-      onClose();
     } catch (error: any) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ BOTH METHODS FAILED - FULL ERROR DETAILS:');
       console.error('   Error object:', error);
+      console.error('   Error type:', typeof error);
+      console.error('   Error constructor:', error?.constructor?.name);
       console.error('   Error message:', error?.message);
       console.error('   Error stack:', error?.stack);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('   Error code:', error?.code);
+      console.error('   Error name:', error?.name);
+      console.error('   All error keys:', Object.keys(error || {}));
+      console.error('   Stringified:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       // Better error messages
       if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('Redact')) {
         toast.error('You need admin/moderator permissions in this Towns space');
       } else if (error.message?.includes('not found')) {
         toast.error('Message not found or already deleted');
+      } else if (error.message?.includes('startsWith')) {
+        toast.error('SDK version mismatch. Please report this error to support.');
       } else {
         toast.error(error.message || 'Failed to delete message');
       }
