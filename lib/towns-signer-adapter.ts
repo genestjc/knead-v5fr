@@ -1,7 +1,7 @@
 import type { Account } from "thirdweb/wallets";
 import type { ThirdwebClient } from "thirdweb";
 import type { Chain } from "thirdweb/chains";
-import { ethers } from "ethers-v5";
+import { ethers } from 'ethers';
 
 export async function createTownsSigner(
   account: Account,
