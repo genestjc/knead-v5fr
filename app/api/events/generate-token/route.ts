@@ -6,9 +6,13 @@ export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
-    const { roomName, walletAddress, isHost } = await req.json();
+    // ✅ REMOVED isHost from destructuring - API will determine it
+    const { roomName, walletAddress } = await req.json();
 
-    console.log('🎫 [generate-token] Request:', { roomName, walletAddress: walletAddress?.substring(0, 8), isHost });
+    console.log('🎫 [generate-token] Request:', { 
+      roomName, 
+      walletAddress: walletAddress?.substring(0, 8) + '...' 
+    });
 
     if (!roomName || !walletAddress) {
       return NextResponse.json(
@@ -25,7 +29,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STEP 1: Get event from database
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -41,13 +44,7 @@ export async function POST(req: NextRequest) {
 
     const { data: event, error: eventError } = await supabase
       .from('chat_events')
-      .select(`
-        id,
-        title,
-        host_id,
-        guest_ids,
-        status
-      `)
+      .select('id, title, host_id, guest_ids, status')
       .eq('daily_room_name', roomName)
       .single();
 
@@ -66,14 +63,14 @@ export async function POST(req: NextRequest) {
       guest_count: event.guest_ids?.length || 0,
     });
 
-    // ✅ STEP 2: Get host wallet address
+    // ✅ STEP 2: Get host wallet address from UUID
     const { data: hostUser, error: hostError } = await supabase
       .from('chat_users')
-      .select('address')
+      .select('id, address')
       .eq('id', event.host_id)
       .single();
 
-    if (hostError) {
+    if (hostError || !hostUser) {
       console.error('❌ [generate-token] Host not found:', hostError);
       return NextResponse.json(
         { success: false, error: 'Host not found' },
@@ -81,11 +78,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('👤 [generate-token] Host address:', hostUser.address.substring(0, 8) + '...');
+    console.log('👤 [generate-token] Host details:');
+    console.log('   Host UUID:', event.host_id);
+    console.log('   Host wallet:', hostUser.address.substring(0, 8) + '...');
 
-    // ✅ STEP 3: Check if user is host
+    // ✅ STEP 3: Determine if user is host (compare wallet addresses)
     const isUserHost = hostUser.address.toLowerCase() === walletAddress.toLowerCase();
-    console.log('🔐 [generate-token] Is user host?', isUserHost);
+    
+    console.log('🔐 [generate-token] Authorization check:');
+    console.log('   User wallet:', walletAddress);
+    console.log('   Host wallet:', hostUser.address);
+    console.log('   Is host?:', isUserHost);
 
     // ✅ STEP 4: Check if user is in guest list
     let isUserGuest = false;
@@ -98,19 +101,29 @@ export async function POST(req: NextRequest) {
       if (guestError) {
         console.error('❌ [generate-token] Error fetching guests:', guestError);
       } else {
-        console.log('👥 [generate-token] Guest addresses:', guestUsers?.map(g => g.address.substring(0, 8) + '...'));
+        console.log('👥 [generate-token] Checking guest list:');
+        console.log('   Guest wallets:', guestUsers?.map(g => g.address.substring(0, 8) + '...'));
         
         isUserGuest = guestUsers?.some(
           (guest) => guest.address.toLowerCase() === walletAddress.toLowerCase()
         ) || false;
+        
+        console.log('   User is guest?:', isUserGuest);
       }
+    } else {
+      console.log('👥 [generate-token] No guest list or user is host');
     }
-
-    console.log('🔐 [generate-token] Is user guest?', isUserGuest);
 
     // ✅ STEP 5: Reject unauthorized users
     if (!isUserHost && !isUserGuest) {
-      console.log('🚫 [generate-token] UNAUTHORIZED - User not host or guest');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🚫 AUTHORIZATION FAILED');
+      console.log('   User:', walletAddress);
+      console.log('   Is host?:', isUserHost);
+      console.log('   Is guest?:', isUserGuest);
+      console.log('   Guest list has', event.guest_ids?.length || 0, 'entries');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       return NextResponse.json(
         { 
           success: false, 
@@ -125,19 +138,17 @@ export async function POST(req: NextRequest) {
       properties: {
         room_name: roomName,
         user_name: walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4),
-        is_owner: isUserHost, // ✅ Use actual host check
+        is_owner: isUserHost, // ✅ API-determined, not from request
         enable_screenshare: isUserHost,
         start_video_off: false,
         start_audio_off: false,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
       },
     };
 
-    console.log('🎫 [generate-token] Generating token with payload:', {
-      ...tokenPayload,
-      user: walletAddress.substring(0, 8) + '...',
-      role: isUserHost ? 'HOST' : 'GUEST',
-    });
+    console.log('🎫 [generate-token] Generating Daily.co token:');
+    console.log('   Role:', isUserHost ? 'HOST (is_owner: true)' : 'GUEST (is_owner: false)');
+    console.log('   Can screenshare?:', isUserHost);
 
     const response = await fetch('https://api.daily.co/v1/meeting-tokens', {
       method: 'POST',
@@ -158,7 +169,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('✅ [generate-token] Token generated successfully for', isUserHost ? 'HOST' : 'GUEST');
+    console.log('✅ [generate-token] Token generated successfully');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return NextResponse.json({
       success: true,
