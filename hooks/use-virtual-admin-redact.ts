@@ -89,9 +89,9 @@ export function useVirtualAdminRedact(fallbackChannelId?: string): UseVirtualAdm
           console.log(`   ✅ Message found and deleted from channel ${i + 1}`);
           found = true;
           break; // Success! Stop searching
-        } catch (error: any) {
-          console.log(`   ℹ️ Message not in channel ${i + 1} (${error.message})`);
-          lastError = error;
+        } catch (error) {
+          console.log(`   ℹ️ Message not in channel ${i + 1} (${error instanceof Error ? error.message : 'Unknown error'})`);
+          lastError = error instanceof Error ? error : new Error('Unknown error');
           // Continue to next channel
         }
       }

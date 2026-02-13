@@ -15,7 +15,7 @@ import { useTimeline } from '@towns-protocol/react-sdk';
 import { getAllChannelIds, isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
 
 export interface UseRoleBasedTimelineResult {
-  data: any[] | undefined;
+  data: unknown[] | undefined;
   isLoading: boolean;
   error: Error | null;
 }
@@ -80,9 +80,9 @@ export function useRoleBasedTimeline(fallbackChannelId?: string): UseRoleBasedTi
 
     // Sort by timestamp (newest first in most chat UIs, but check your implementation)
     // Assuming timestamp is a number or Date-like object
-    const sorted = allEvents.sort((a: any, b: any) => {
-      const timeA = a.timestamp || a.createdAt || 0;
-      const timeB = b.timestamp || b.createdAt || 0;
+    const sorted = allEvents.sort((a: unknown, b: unknown) => {
+      const timeA = (a as { timestamp?: number; createdAt?: number }).timestamp || (a as { timestamp?: number; createdAt?: number }).createdAt || 0;
+      const timeB = (b as { timestamp?: number; createdAt?: number }).timestamp || (b as { timestamp?: number; createdAt?: number }).createdAt || 0;
       return timeA - timeB; // Ascending order (oldest first)
     });
 

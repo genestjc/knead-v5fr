@@ -64,9 +64,9 @@ export default function AdminSetupPage() {
         console.error('❌ Failed to create channels:', data.error);
         setError(data.error || 'Failed to create channels');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('❌ Error:', err);
-      setError(err.message || 'Unknown error occurred');
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
     } finally {
       setIsCreating(false);
     }
@@ -114,7 +114,7 @@ export default function AdminSetupPage() {
           <h2 className="font-adonis text-2xl mb-4">Instructions</h2>
           <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
             <li>Make sure <code className="bg-gray-200 px-2 py-1 rounded">ADMIN_PRIVATE_KEY</code> is set in Vercel environment variables</li>
-            <li>Click "Create Channels" button below</li>
+            <li>Click &quot;Create Channels&quot; button below</li>
             <li>Copy the channel IDs that appear</li>
             <li>Add them as environment variables in Vercel (both Preview and Production)</li>
             <li>Redeploy the app to use the new channels</li>

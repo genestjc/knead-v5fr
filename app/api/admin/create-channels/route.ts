@@ -28,7 +28,7 @@ interface CreateChannelsResponse {
   };
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse<CreateChannelsResponse>> {
+export async function POST(): Promise<NextResponse<CreateChannelsResponse>> {
   try {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🏗️ CREATING VIRTUAL SHARDING CHANNELS');
@@ -49,7 +49,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateChannel
       return NextResponse.json<CreateChannelsResponse>({
         success: false,
         error: 'Channels already exist. Check environment variables.',
-        channels: existingChannels as any,
+        channels: existingChannels as {
+          contributors: string;
+          participantsA: string;
+          participantsB: string;
+          files: string;
+        },
       }, { status: 400 });
     }
 
@@ -125,9 +130,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateChannel
         createdChannels.push(channelId);
         
         console.log(`   ✅ ${name}: ${channelId}`);
-      } catch (error: any) {
-        console.error(`   ❌ Failed to create ${name}:`, error.message);
-        throw new Error(`Failed to create channel ${name}: ${error.message}`);
+      } catch (error) {
+        console.error(`   ❌ Failed to create ${name}:`, error instanceof Error ? error.message : 'Unknown error');
+        throw new Error(`Failed to create channel ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
@@ -157,21 +162,23 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateChannel
       channels: channelIds,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('❌ ERROR CREATING CHANNELS');
-    console.error('   Error:', error.message);
-    console.error('   Stack:', error.stack);
+    console.error('   Error:', error instanceof Error ? error.message : 'Unknown error');
+    if (error instanceof Error && error.stack) {
+      console.error('   Stack:', error.stack);
+    }
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return NextResponse.json<CreateChannelsResponse>({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     }, { status: 500 });
   }
 }
 
 // Also support GET for easy browser testing
-export async function GET(req: NextRequest): Promise<NextResponse<CreateChannelsResponse>> {
-  return POST(req);
+export async function GET(): Promise<NextResponse<CreateChannelsResponse>> {
+  return POST({} as NextRequest);
 }

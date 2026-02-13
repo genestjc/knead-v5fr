@@ -34,7 +34,7 @@ export function getChannelConfig(): ChannelConfig {
 
   // Validate all channels are configured
   const missingChannels = Object.entries(config)
-    .filter(([_, value]) => !value)
+    .filter(([, value]) => !value)
     .map(([key]) => key);
 
   if (missingChannels.length > 0) {
