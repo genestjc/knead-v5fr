@@ -206,16 +206,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             return;
           }
           
+          // ✅ Generate video token if video is enabled
           if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
-            const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
-            
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('🎫 GENERATING VIDEO TOKEN');
             console.log('   Room Name:', liveEvent.dailyRoomName);
             console.log('   Your Address:', activeAccount.address);
-            console.log('   Host Address:', liveEvent.host?.id);
-            console.log('   Is Host?:', isHost);
+            console.log('   Host UUID:', liveEvent.host?.id);
+            console.log('   Host Address:', liveEvent.host?.address);
             console.log('   Guest IDs:', liveEvent.guestIds);
+            console.log('   Guest Count:', liveEvent.guests?.length || 0);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             
             const tokenRes = await fetch('/api/events/generate-token', {
@@ -224,7 +224,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               body: JSON.stringify({
                 roomName: liveEvent.dailyRoomName,
                 walletAddress: activeAccount.address,
-                isHost: isHost,
               }),
             });
             
@@ -239,7 +238,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               console.error('   Sent data:', {
                 roomName: liveEvent.dailyRoomName,
                 walletAddress: activeAccount.address,
-                isHost: isHost,
               });
               console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
               
@@ -262,6 +260,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             }
           }
         } else {
+          // ✅ No live events found
           setActiveEvent(null);
           setDailyToken(null);
         }
