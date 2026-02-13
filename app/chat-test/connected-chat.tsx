@@ -33,11 +33,37 @@ interface UserProfile {
 }
 
 const LoadingSpinner = () => (
-    <div className="text-center py-10">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-        <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
-    </div>
+  <div className="text-center py-10">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+    <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
+  </div>
 );
+
+// ✅ DEBUG BANNER (only shows in development)
+function PermissionDebugBanner({ 
+  permissions, 
+  userRole, 
+  activeEvent 
+}: { 
+  permissions: any; 
+  userRole: string; 
+  activeEvent: any 
+}) {
+  if (process.env.NODE_ENV !== 'development') return null;
+  
+  return (
+    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
+      <div className="flex items-center justify-between text-xs font-mono">
+        <div className="flex gap-4">
+          <span>Role: <strong>{userRole}</strong></span>
+          <span>Can post: <strong>{permissions?.canPost ? '✅' : '❌'}</strong></span>
+          <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
+        </div>
+        <span className="text-gray-600">{permissions?.reason}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function ConnectedChat(props: ConnectedChatProps) {
   const { isAgentConnected, isAgentConnecting } = useTownsAgent();
@@ -173,7 +199,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // ✅ FETCH LIVE EVENTS WITH IMPROVED LOGGING
+  // Fetch live events
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -190,9 +216,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         if (data.data?.length > 0) {
           console.log('   Event:', data.data[0].title);
           console.log('   Status:', data.data[0].status);
-          console.log('   ID:', data.data[0].id);
-          console.log('   Daily Room:', data.data[0].dailyRoomName);
-          console.log('   Host ID:', data.data[0].host?.id);
         }
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
@@ -200,24 +223,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           const liveEvent = data.data[0];
           setActiveEvent(liveEvent);
           
-          // ✅ Check wallet before generating token
           if (!activeAccount?.address) {
             console.warn('⚠️ Wallet not connected yet, skipping token generation');
             return;
           }
           
-          // ✅ ONLY generate token if video is enabled!
           if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
             const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
-            
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('🎫 GENERATING VIDEO TOKEN');
-            console.log('   Room Name:', liveEvent.dailyRoomName);
-            console.log('   Your Address:', activeAccount.address);
-            console.log('   Host Address:', liveEvent.host?.address);
-            console.log('   Is Host?:', isHost);
-            console.log('   Guest Count:', liveEvent.guests?.length || 0);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             
             const tokenRes = await fetch('/api/events/generate-token', {
               method: 'POST',
@@ -229,34 +241,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               }),
             });
             
-            console.log('📋 Token response status:', tokenRes.status);
-            
-            if (!tokenRes.ok) {
-              const errorData = await tokenRes.json();
-              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.error('❌ TOKEN GENERATION FAILED');
-              console.error('   Status:', tokenRes.status);
-              console.error('   Error:', errorData.error);
-              console.error('   Sent data:', {
-                roomName: liveEvent.dailyRoomName,
-                walletAddress: activeAccount.address,
-                isHost: isHost,
-              });
-              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              return;
-            }
-            
-            const tokenData = await tokenRes.json();
-            
-            if (tokenData.success) {
-              console.log('✅ Video token generated successfully');
-              setDailyToken(tokenData.data.token);
-            } else {
-              console.error('❌ Token data indicates failure:', tokenData);
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.success) {
+                console.log('✅ Video token generated successfully');
+                setDailyToken(tokenData.data.token);
+              }
             }
           }
         } else {
-          // ✅ No live events found
           setActiveEvent(null);
           setDailyToken(null);
         }
@@ -265,7 +258,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
     
-    // ✅ Only fetch if wallet is connected
     if (activeAccount?.address) {
       fetchLiveEvent();
       const interval = setInterval(fetchLiveEvent, 30000);
@@ -314,27 +306,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
 
-  // Log raw timeline data (DEBUG)
-  useEffect(() => {
-    if (timeline && timeline.length > 0) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📋 TIMELINE EVENT STRUCTURE CHECK');
-      console.log('   Total events:', timeline.length);
-      console.log('   First event keys:', Object.keys(timeline[0]));
-      console.log('   First event sample:', timeline[0]);
-      console.log('   ─────────────────────────────────────────');
-      console.log('   eventId:', timeline[0]?.eventId);
-      console.log('   eventId type:', typeof timeline[0]?.eventId);
-      console.log('   eventId length:', timeline[0]?.eventId?.length);
-      console.log('   eventId is hex?:', /^[a-f0-9]+$/.test(timeline[0]?.eventId || ''));
-      console.log('   ─────────────────────────────────────────');
-      console.log('   hashStr:', timeline[0]?.hashStr);
-      console.log('   hash:', timeline[0]?.hash);
-      console.log('   id:', timeline[0]?.id);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
-  }, [timeline]);
-
   // Fetch user profiles for messages
   useEffect(() => {
     if (!timeline) return;
@@ -356,13 +327,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isFreemiumUser && !hasTimeLeft) {
-      alert('⏱️ Your free viewing time has expired. Upgrade to Knead Monthly to continue.');
-      return;
-    }
-    
-    if (userRole === 'freemium') {
-      alert('👀 Freemium users can only view messages. Upgrade to Knead Monthly to participate.');
+    // App-side permission check
+    if (!permissions?.canPost) {
+      if (userRole === 'freemium') {
+        alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
+      } else if (userRole === 'participant' && !activeEvent) {
+        alert('💬 Participants can chat during live events only. Check back when an event starts!');
+      } else {
+        alert(`Cannot send message: ${permissions?.reason || 'Unknown reason'}`);
+      }
       return;
     }
     
@@ -371,9 +344,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     try {
-      console.log('📤 Sending message:', messageInput);
-      setRetryCount(0);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📤 SENDING MESSAGE');
+      console.log('   Channel ID:', channelId);
+      console.log('   User tier:', userRole);
+      console.log('   Event active:', !!activeEvent);
+      console.log('   Can post:', permissions?.canPost);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
+      setRetryCount(0);
       await sendMessage(messageInput);
       
       console.log('✅ Message sent successfully');
@@ -383,6 +362,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       
       if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
         alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
+      } else if (error.message?.includes('not entitled') || error.message?.includes('permission')) {
+        alert('❌ You do not have permission to send messages in this channel.\n\nThis is a Towns Protocol permission issue - contact support.');
       } else if (error.message?.includes('already a member')) {
         console.log('ℹ️ Already a member, ignoring error');
       } else {
@@ -395,13 +376,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (isFreemiumUser && !hasTimeLeft) {
-      alert('⏱️ Your free viewing time has expired. Upgrade to Knead Monthly to continue.');
-      return;
-    }
-    
-    if (userRole === 'freemium') {
-      alert('👀 Freemium users can only view messages. Upgrade to Knead Monthly to participate.');
+    if (!permissions?.canPost) {
+      if (userRole === 'freemium') {
+        alert('👀 Freemium users can only watch.');
+      } else {
+        alert('💬 Participants can upload files during events only.');
+      }
       return;
     }
 
@@ -427,7 +407,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // SINGLE messages mapping (no duplicates)
+  // Map timeline events to messages
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
@@ -448,12 +428,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         isOwn: event.creatorUserId === activeAccount?.address,
       };
     }) || [];
-
-  useEffect(() => {
-    console.log('💬 Total messages loaded:', messages.length);
-    console.log('📊 History loaded:', hasLoadedHistory);
-    console.log('⏳ Loading history:', isLoadingHistory);
-  }, [messages.length, hasLoadedHistory, isLoadingHistory]);
 
   if (isSpaceLoading || isTimelineLoading) {
     return (
@@ -536,8 +510,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     <>
       <DailyProvider>
         <ChatLayout>
+          {/* ✅ Debug banner (development only) */}
+          <PermissionDebugBanner 
+            permissions={permissions}
+            userRole={userRole}
+            activeEvent={activeEvent}
+          />
+
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
+              {/* Desktop: Video + Chat Split View */}
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
                 <div className="border-b border-gray-200">
                   <EventVideoStage 
@@ -577,7 +559,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                           </p>
                           {!permissions?.canPost && (
                             <p className="text-xs text-yellow-600 mt-1">
-                              This usually takes 5-10 seconds. If stuck, click Refresh Access below.
+                              This usually takes 5-10 seconds. If stuck, click Refresh Access.
                             </p>
                           )}
                         </div>
@@ -645,6 +627,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
               </div>
 
+              {/* Mobile: Video + Chat Stacked */}
               <div className="lg:hidden flex flex-col h-screen">
                 <div className="border-b border-gray-200">
                   <EventVideoStage 
@@ -751,6 +734,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             </>
           ) : (
+            /* Chat Only View (No Video) */
             <div className="h-full flex flex-col bg-white">
               <div className="bg-gray-50 px-4 py-2 border-b">
                 <div className="flex items-center justify-between">
