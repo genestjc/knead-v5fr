@@ -49,7 +49,7 @@ export function middleware(request: NextRequest) {
       https://accounts.google.com
       https://apis.google.com
       https://c.daily.co
-      *.towns.com
+      https://*.towns.com
       blob:;
     style-src 'self' 'unsafe-inline'
       https://fonts.googleapis.com
@@ -96,67 +96,63 @@ export function middleware(request: NextRequest) {
       https://accounts.google.com
       https://accounts.youtube.com
       https://*.daily.co
-      *.towns.com;
+      https://*.towns.com;
     connect-src 'self'
-  https://metamask-sdk.api.cx.metamask.io
-  https://mm-sdk-analytics.api.cx.metamask.io
-  https://cca-lite.coinbase.com
-  https://devnet.rpc.river.build
-  https://mainnet.rpc.river.build
-  https://*.figment.io
-  https://*.towns.com
-  https://*.towns-u4.com
-  https://*.river.lgns.net
-  https://*.nansen.ai
-  https://esm.sh
-  https://unpkg.com
-  https://cdn.jsdelivr.net
-  wss://*.figment.io
-  wss://*.towns.com
-  wss://*.towns-u4.com
-  wss://*.river.lgns.net
-  wss://*.nansen.ai
-  https://api.stripe.com
-  https://checkout.stripe.com
-  https://c.thirdweb.com
-  https://embedded-wallet.thirdweb.com
-  https://social.thirdweb.com
-  https://1.rpc.thirdweb.com
-  https://8453.rpc.thirdweb.com
-  https://*.ipfscdn.io
-  https://ipfs.io
-  https://use.typekit.net
-  https://fonts.googleapis.com
-  https://cdn.sanity.io
-  https://*.sanity.io
-  https://api.sanity.io
-  https://api.thirdweb.com
-  https://*.thirdweb.com
-  https://mainnet.base.org
-  https://base-mainnet.g.alchemy.com
-  https://*.alchemy.com
-  https://base.llamarpc.com
-  https://*.supabase.co
-  wss://*.supabase.co
-  https://accounts.google.com
-  https://apis.google.com
-  https://c.daily.co
-  https://*.daily.co
-  wss://*.daily.co
-  wss://*.pluot.blue
-  ws://localhost:*
-  wss://*.sanity.io;
+      https://metamask-sdk.api.cx.metamask.io
+      https://mm-sdk-analytics.api.cx.metamask.io
+      https://cca-lite.coinbase.com
+      https://*.river.build
+      https://devnet.rpc.river.build
+      https://mainnet.rpc.river.build
+      https://*.figment.io
+      https://*.towns.com
+      https://*.towns-u4.com
+      https://*.river.lgns.net
+      https://*.nansen.ai
+      https://esm.sh
+      https://unpkg.com
+      https://cdn.jsdelivr.net
+      wss://*.river.build
+      wss://*.figment.io
+      wss://*.towns.com
+      wss://*.towns-u4.com
+      wss://*.river.lgns.net
+      wss://*.nansen.ai
+      https://api.stripe.com
+      https://checkout.stripe.com
+      https://c.thirdweb.com
+      https://embedded-wallet.thirdweb.com
+      https://social.thirdweb.com
+      https://1.rpc.thirdweb.com
+      https://8453.rpc.thirdweb.com
+      https://*.ipfscdn.io
+      https://ipfs.io
+      https://use.typekit.net
+      https://fonts.googleapis.com
+      https://cdn.sanity.io
+      https://*.sanity.io
+      https://api.sanity.io
+      https://api.thirdweb.com
+      https://*.thirdweb.com
+      https://mainnet.base.org
+      https://base-mainnet.g.alchemy.com
+      https://*.alchemy.com
+      https://base.llamarpc.com
+      https://*.supabase.co
+      wss://*.supabase.co
+      https://accounts.google.com
+      https://apis.google.com
+      https://c.daily.co
+      https://*.daily.co
+      wss://*.daily.co
+      wss://*.pluot.blue
+      ws://localhost:*
+      wss://*.sanity.io;
     worker-src 'self' blob:;
     media-src 'self' https://*.daily.co blob:;
-    upgrade-insecure-requests;
-  `
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  `.replace(/\s{2,}/g, ' ').trim();
   
-  response.headers.set(
-    "Content-Security-Policy",
-    cspHeader,
-  );
+  response.headers.set("Content-Security-Policy", cspHeader);
 
   return response;
 }
