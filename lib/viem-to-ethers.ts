@@ -8,8 +8,7 @@
  */
 
 import { useMemo } from 'react';
-import { providers } from 'ethers-v5';
-import type { Account, Chain, Client, Transport } from 'viem';
+import { providers } from 'ethers';
 import { type Config, useConnectorClient } from 'wagmi';
 
 export function clientToSigner(client: Client<Transport, Chain, Account>) {
