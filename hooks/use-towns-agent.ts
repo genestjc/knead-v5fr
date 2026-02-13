@@ -7,7 +7,6 @@ import { useActiveAccount } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
 
-// ✅ Create config outside component to avoid re-creation
 const townsConfig = townsEnv().makeTownsConfig('omega');
 
 /**
@@ -28,33 +27,31 @@ export function useTownsAgent() {
 
   useEffect(() => {
     async function connectAgent() {
-      // ✅ Early returns for invalid states
+      // Early returns
       if (!activeAccount) {
-        console.log('⏳ [Towns] Waiting for active account...');
         return;
       }
 
       const address = activeAccount.address;
 
-      // ✅ Skip if already connected to the same address
+      // Skip if already connected to the same address
       if (hasConnectedRef.current && previousAddressRef.current === address) {
         return;
       }
 
-      // ✅ Prevent duplicate calls during connection
+      // Prevent duplicate calls during connection
       if (isAgentConnecting || isConnectingRef.current) {
-        console.log('⏳ [Towns] Connection already in progress, skipping...');
+        console.log('⏳ Connection already in progress, skipping...');
         return;
       }
 
-      // ✅ Handle wallet address change
+      // Handle wallet address change
       if (previousAddressRef.current && previousAddressRef.current !== address) {
-        console.log('🔄 [Towns] Wallet changed, disconnecting old session...');
+        console.log('🔄 Wallet changed, disconnecting old session...');
         disconnect?.();
         hasConnectedRef.current = false;
       }
 
-      // ✅ Set lock before starting connection
       isConnectingRef.current = true;
 
       try {
@@ -66,11 +63,10 @@ export function useTownsAgent() {
         console.log('   Supports: MetaMask, Coinbase, Social Login');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        // ✅ Create ethers v5 signer from ThirdWeb account
-        console.log('🔑 Creating ethers v5 signer...');
+        // Create ethers v5 signer from ThirdWeb account
         const signer = await createTownsSigner(activeAccount, client, activeChain);
         
-        // ✅ Verify signer address matches (safety check)
+        // Verify signer address matches
         const signerAddress = await signer.getAddress();
         console.log('✅ Signer verification:');
         console.log('   ThirdWeb address:', address);
@@ -81,8 +77,7 @@ export function useTownsAgent() {
           throw new Error(`Signer mismatch! Expected ${address}, got ${signerAddress}`);
         }
 
-        // ✅ Connect to Towns Protocol
-        console.log('🌐 Connecting to Towns Protocol...');
+        // Connect to Towns Protocol
         await connect(signer, { townsConfig });
         
         hasConnectedRef.current = true;
@@ -97,36 +92,19 @@ export function useTownsAgent() {
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('❌ FAILED TO CONNECT TOWNS AGENT');
         console.error('   Error:', error.message);
-        console.error('   Error name:', error.name);
-        
-        // ✅ Better error diagnosis
-        if (error.message?.includes('signMessage')) {
-          console.error('   → Issue: Wallet signature failed');
-          console.error('   → Check: User may have rejected signature request');
-        } else if (error.message?.includes('network')) {
-          console.error('   → Issue: Network connectivity problem');
-          console.error('   → Check: Internet connection or RPC endpoint');
-        } else if (error.message?.includes('mismatch')) {
-          console.error('   → Issue: Address mismatch between ThirdWeb and signer');
-          console.error('   → Check: Wallet switching during connection');
-        }
-        
         console.error('   Stack:', error.stack);
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
         hasConnectedRef.current = false;
       } finally {
-        // ✅ Always release lock
         isConnectingRef.current = false;
       }
     }
 
     connectAgent();
 
-    // ✅ Cleanup on wallet disconnect
     return () => {
       if (!activeAccount && hasConnectedRef.current) {
-        console.log('🔌 [Towns] Wallet disconnected - disconnecting Towns agent');
+        console.log('🔌 Wallet disconnected - disconnecting Towns agent');
         disconnect?.();
         hasConnectedRef.current = false;
         previousAddressRef.current = undefined;
@@ -135,17 +113,17 @@ export function useTownsAgent() {
     };
   }, [activeAccount, isAgentConnecting, connect, disconnect]);
 
-  // ✅ Health check (monitors connection stability)
+  // Health check
   useEffect(() => {
     if (!isAgentConnected || !activeAccount) return;
 
     const healthCheckInterval = setInterval(() => {
       if (!isAgentConnected && activeAccount) {
-        console.warn('⚠️ [Towns] Agent disconnected unexpectedly - triggering reconnect...');
+        console.warn('⚠️ Towns agent disconnected unexpectedly - triggering reconnect...');
         hasConnectedRef.current = false;
         isConnectingRef.current = false;
       }
-    }, 60 * 1000); // Check every 60 seconds
+    }, 60 * 1000);
 
     return () => clearInterval(healthCheckInterval);
   }, [isAgentConnected, activeAccount]);
