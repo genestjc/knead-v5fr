@@ -10,8 +10,8 @@ export const revalidate = 0;
  * 
  * Enforces app-side business logic:
  * - Freemium: Watch only (never post)
- * - Participant: Post during events only
- * - Contributor: Always post
+ * - Participant: Post during events only  
+ * - Contributor: Always post + DM + tip
  * 
  * Note: Towns Protocol permissions (on-chain) are separate.
  * Everyone has Read+Write on-chain. This API enforces YOUR rules.
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     console.log('   Role from NFTs:', role);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 2: Check for active event
+    // STEP 2: Check for active event in Supabase
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const supabase = createSupabaseClient();
     const { data: activeEvents, error: eventError } = await supabase
@@ -75,12 +75,12 @@ export async function GET(request: NextRequest) {
       // ✅ Participants can ONLY post during active events
       canPost = isEventActive;
       reason = isEventActive 
-        ? 'Participant - event active'
+        ? 'Participant - event active, you can chat!'
         : 'Participants can only chat during live events';
     } else {
       // ✅ Freemium can NEVER post (watch only)
       canPost = false;
-      reason = 'Freemium users can only watch';
+      reason = 'Freemium users can only watch. Upgrade to Knead Monthly to chat during events!';
     }
 
     console.log('   Can post:', canPost);
