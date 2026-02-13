@@ -145,39 +145,27 @@ export function AdminContextMenu({
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🗑️ DELETE MESSAGE - PRE-FLIGHT CHECK');
     console.log('   Message ID:', message.id);
-    console.log('   Message ID type:', typeof message.id);
-    console.log('   Message ID length:', message.id?.length);
-    console.log('   Message ID hex check:', /^[a-f0-9]+$/.test(message.id || ''));
-    console.log('   Channel ID:', channelId);
-    console.log('   Space ID:', spaceId);
     console.log('   Admin address:', activeAccount?.address);
-    console.log('   adminRedact available:', !!adminRedact);
+    console.log('   Channel ID:', channelId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // ✅ Validate adminRedact function exists
     if (!adminRedact) {
       console.error('❌ adminRedact function not available');
-      console.error('   This means the Towns SDK hook failed to initialize');
       toast.error('Delete function not available', {
-        description: 'Try refreshing the page to reconnect to Towns Protocol',
+        description: 'Try refreshing the page to reconnect',
       });
       return;
     }
 
-    // ✅ Validate message.id
     if (!message.id || typeof message.id !== 'string') {
       console.error('❌ Invalid message ID:', message.id);
-      toast.error('Invalid message ID. Cannot delete.');
+      toast.error('Invalid message ID');
       return;
     }
 
-    // ✅ Validate it looks like a Towns event ID (64 character hex hash)
     if (message.id.length !== 64 || !/^[a-f0-9]+$/.test(message.id)) {
-      console.error('⚠️ Message ID does not look like a Towns event ID');
-      console.error('   Expected: 64-character hex hash');
-      console.error('   Got:', message.id);
-      console.error('   Length:', message.id.length);
-      toast.error(`Invalid event ID format. Expected 64-char hex, got ${message.id.length} chars.`);
+      console.error('⚠️ Invalid event ID format');
+      toast.error(`Invalid event ID format`);
       return;
     }
 
@@ -185,9 +173,12 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
+      // ✅ CRITICAL: Wait a moment for stream to sync
+      console.log('⏳ Waiting for stream sync...');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+      
       console.log('🔄 Calling adminRedact...');
       console.log('   Event ID:', message.id);
-      console.log('   Timestamp:', new Date().toISOString());
       
       const result = await adminRedact(message.id);
       
@@ -200,88 +191,26 @@ export function AdminContextMenu({
       console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
       console.error('   Error:', error);
       console.error('   Message:', error?.message);
-      console.error('   Name:', error?.name);
       console.error('   Code:', error?.code);
-      console.error('   Stack:', error?.stack);
       
-      // Stringify with all properties
-      try {
-        console.error('   Full Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-      } catch (e) {
-        console.error('   (Could not stringify error)');
-      }
-      
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      // ✅ Parse specific error types
       const errorMsg = error?.message?.toLowerCase() || '';
-      const errorName = error?.name || '';
       const errorCode = error?.code;
       
-      // ✅ ConnectError = Authentication/Network issue
-      if (errorName === 'ConnectError' || errorMsg.includes('connecterror')) {
+      // ✅ Check for BAD_PREV_MINIBLOCK_HASH (sync issue)
+      if (errorCode === 24 || errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('🔴 DIAGNOSIS: CONNECTION/AUTHENTICATION ERROR');
-        console.error('   Error Name:', errorName);
-        console.error('   Error Code:', errorCode);
+        console.error('🔴 DIAGNOSIS: STREAM SYNC ERROR');
+        console.error('   Error Code: 24 (BAD_PREV_MINIBLOCK_HASH)');
+        console.error('   Root Cause: Local stream is behind Towns nodes');
+        console.error('   Solution: Wait a moment and try again');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
-        if (errorMsg.includes('forwarding disabled')) {
-          console.error('   Root Cause: "Forwarding disabled by request header"');
-          console.error('   Translation: Towns nodes rejected your authentication');
-          console.error('   Likely Reason: Delegate signature expired or invalid');
-          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          
-          toast.error('🔐 Authentication Expired', {
-            description: (
-              <div className="space-y-1">
-                <p className="font-semibold">Your Towns session has expired.</p>
-                <p className="text-xs">Refresh the page to reconnect and try again.</p>
-              </div>
-            ),
-            duration: 8000,
-          });
-        } else if (errorMsg.includes('unavailable') || errorCode === 14) {
-          console.error('   Root Cause: Service unavailable (gRPC code 14)');
-          console.error('   Translation: Towns nodes refused the connection');
-          console.error('   Likely Reason: Invalid authentication credentials');
-          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          
-          toast.error('🔐 Connection Refused', {
-            description: (
-              <div className="space-y-1">
-                <p className="font-semibold">Towns Protocol rejected your request.</p>
-                <p className="text-xs">This usually means your session expired.</p>
-                <p className="text-xs mt-2"><strong>Solution:</strong> Refresh the page to create a new session.</p>
-              </div>
-            ),
-            duration: 10000,
-          });
-        } else {
-          console.error('   Root Cause: Unknown connection error');
-          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          
-          toast.error('🌐 Connection Error', {
-            description: 'Network issue communicating with Towns Protocol. Try refreshing the page.',
-            duration: 6000,
-          });
-        }
-        return;
-      }
-      
-      // ✅ Permission errors
-      if (errorMsg.includes('permission') || 
-          errorMsg.includes('unauthorized') || 
-          errorMsg.includes('not allowed') ||
-          errorMsg.includes('forbidden')) {
-        console.error('🔴 DIAGNOSIS: PERMISSION ERROR');
-        console.error('   Admin does not have Redact permission on-chain');
-        console.error('   Action: Check Space smart contract permissions');
-        
-        toast.error('❌ Permission Denied', {
+        toast.error('⏱️ Stream Syncing', {
           description: (
             <div className="space-y-1">
-              <p className="font-semibold">You don't have permission to delete messages.</p>
-              <p className="text-xs">Contact the space owner to grant you Redact permission.</p>
+              <p className="font-semibold">Channel is still syncing with Towns nodes.</p>
+              <p className="text-xs">Wait 5-10 seconds and try again.</p>
+              <p className="text-xs mt-2"><strong>Tip:</strong> This happens when the channel just loaded.</p>
             </div>
           ),
           duration: 8000,
@@ -289,26 +218,48 @@ export function AdminContextMenu({
         return;
       }
       
-      // ✅ Message not found
-      if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
-        toast.error('Message not found or already deleted');
+      // ✅ Check for BAD_EVENT_SIGNATURE (should be rare now)
+      if (errorCode === 22 || errorMsg.includes('bad_event_signature')) {
+        console.error('🔴 DIAGNOSIS: SIGNATURE ERROR (unexpected)');
+        toast.error('🔐 Signature Error', {
+          description: 'Unexpected signature error. Refresh the page and try again.',
+          duration: 8000,
+        });
         return;
       }
       
-      // ✅ Invalid event ID
-      if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
-        toast.error('Invalid event ID format', {
-          description: 'The message ID is not a valid Towns event hash.',
+      // ✅ ConnectError
+      if (error?.name === 'ConnectError' || errorMsg.includes('connecterror')) {
+        if (errorMsg.includes('forwarding disabled')) {
+          toast.error('🔐 Session Expired', {
+            description: 'Refresh the page to reconnect.',
+            duration: 8000,
+          });
+        } else {
+          toast.error('🌐 Connection Error', {
+            description: 'Network issue. Try refreshing.',
+            duration: 6000,
+          });
+        }
+        return;
+      }
+      
+      // ✅ Permission errors
+      if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+        toast.error('❌ Permission Denied', {
+          description: 'You don\'t have permission to delete messages.',
+          duration: 8000,
         });
         return;
       }
       
       // ✅ Generic fallback
       toast.error('Failed to delete message', {
-        description: errorMsg.substring(0, 150) || 'Unknown error. Check console for details.',
+        description: errorMsg.substring(0, 150) || 'Check console for details.',
         duration: 6000,
       });
       
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } finally {
       setIsProcessing(false);
     }
