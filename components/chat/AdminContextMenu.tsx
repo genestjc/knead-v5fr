@@ -37,7 +37,7 @@ export function AdminContextMenu({
   
   const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
 
-  // ✅ MOBILE FIX: Adjust position to prevent off-screen menu
+  // Adjust position to prevent off-screen menu
   useEffect(() => {
     if (menuRef.current) {
       const menuRect = menuRef.current.getBoundingClientRect();
@@ -47,22 +47,18 @@ export function AdminContextMenu({
       let newX = position.x;
       let newY = position.y;
       
-      // Prevent going off right edge
       if (newX + menuRect.width > viewportWidth - 10) {
         newX = viewportWidth - menuRect.width - 10;
       }
       
-      // Prevent going off bottom edge
       if (newY + menuRect.height > viewportHeight - 10) {
         newY = viewportHeight - menuRect.height - 10;
       }
       
-      // Prevent going off left edge
       if (newX < 10) {
         newX = 10;
       }
       
-      // Prevent going off top edge
       if (newY < 10) {
         newY = 10;
       }
@@ -78,7 +74,7 @@ export function AdminContextMenu({
     return () => document.removeEventListener('click', handleClick);
   }, [onClose]);
 
-  // ✅ MOBILE FIX: Also close on touch outside
+  // Close on touch outside
   useEffect(() => {
     const handleTouch = () => onClose();
     document.addEventListener('touchstart', handleTouch);
@@ -147,24 +143,28 @@ export function AdminContextMenu({
 
   const handleDeleteMessage = async () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🗑️ DELETE MESSAGE INITIATED');
+    console.log('🗑️ DELETE MESSAGE - PRE-FLIGHT CHECK');
     console.log('   Message ID:', message.id);
     console.log('   Message ID type:', typeof message.id);
     console.log('   Message ID length:', message.id?.length);
     console.log('   Message ID hex check:', /^[a-f0-9]+$/.test(message.id || ''));
     console.log('   Channel ID:', channelId);
     console.log('   Space ID:', spaceId);
-    console.log('   Current user:', activeAccount?.address);
+    console.log('   Admin address:', activeAccount?.address);
     console.log('   adminRedact available:', !!adminRedact);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
+    // ✅ Validate adminRedact function exists
     if (!adminRedact) {
       console.error('❌ adminRedact function not available');
-      toast.error('Delete function not available. Check console for details.');
+      console.error('   This means the Towns SDK hook failed to initialize');
+      toast.error('Delete function not available', {
+        description: 'Try refreshing the page to reconnect to Towns Protocol',
+      });
       return;
     }
 
-    // ✅ Validate message.id is a string
+    // ✅ Validate message.id
     if (!message.id || typeof message.id !== 'string') {
       console.error('❌ Invalid message ID:', message.id);
       toast.error('Invalid message ID. Cannot delete.');
@@ -185,9 +185,10 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
-      console.log('🔄 Calling adminRedact with eventId (string):', message.id);
+      console.log('🔄 Calling adminRedact...');
+      console.log('   Event ID:', message.id);
+      console.log('   Timestamp:', new Date().toISOString());
       
-      // ✅ CORRECT: Pass eventId as string (per type definition)
       const result = await adminRedact(message.id);
       
       console.log('✅ adminRedact succeeded!', result);
@@ -199,33 +200,115 @@ export function AdminContextMenu({
       console.error('❌ REDACT FAILED - FULL ERROR DETAILS:');
       console.error('   Error:', error);
       console.error('   Message:', error?.message);
-      console.error('   Stack:', error?.stack);
-      console.error('   Code:', error?.code);
       console.error('   Name:', error?.name);
-      console.error('   Stringified:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.error('   Code:', error?.code);
+      console.error('   Stack:', error?.stack);
+      
+      // Stringify with all properties
+      try {
+        console.error('   Full Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      } catch (e) {
+        console.error('   (Could not stringify error)');
+      }
+      
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       // ✅ Parse specific error types
       const errorMsg = error?.message?.toLowerCase() || '';
+      const errorName = error?.name || '';
+      const errorCode = error?.code;
       
+      // ✅ ConnectError = Authentication/Network issue
+      if (errorName === 'ConnectError' || errorMsg.includes('connecterror')) {
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('🔴 DIAGNOSIS: CONNECTION/AUTHENTICATION ERROR');
+        console.error('   Error Name:', errorName);
+        console.error('   Error Code:', errorCode);
+        
+        if (errorMsg.includes('forwarding disabled')) {
+          console.error('   Root Cause: "Forwarding disabled by request header"');
+          console.error('   Translation: Towns nodes rejected your authentication');
+          console.error('   Likely Reason: Delegate signature expired or invalid');
+          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          toast.error('🔐 Authentication Expired', {
+            description: (
+              <div className="space-y-1">
+                <p className="font-semibold">Your Towns session has expired.</p>
+                <p className="text-xs">Refresh the page to reconnect and try again.</p>
+              </div>
+            ),
+            duration: 8000,
+          });
+        } else if (errorMsg.includes('unavailable') || errorCode === 14) {
+          console.error('   Root Cause: Service unavailable (gRPC code 14)');
+          console.error('   Translation: Towns nodes refused the connection');
+          console.error('   Likely Reason: Invalid authentication credentials');
+          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          toast.error('🔐 Connection Refused', {
+            description: (
+              <div className="space-y-1">
+                <p className="font-semibold">Towns Protocol rejected your request.</p>
+                <p className="text-xs">This usually means your session expired.</p>
+                <p className="text-xs mt-2"><strong>Solution:</strong> Refresh the page to create a new session.</p>
+              </div>
+            ),
+            duration: 10000,
+          });
+        } else {
+          console.error('   Root Cause: Unknown connection error');
+          console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          toast.error('🌐 Connection Error', {
+            description: 'Network issue communicating with Towns Protocol. Try refreshing the page.',
+            duration: 6000,
+          });
+        }
+        return;
+      }
+      
+      // ✅ Permission errors
       if (errorMsg.includes('permission') || 
           errorMsg.includes('unauthorized') || 
           errorMsg.includes('not allowed') ||
           errorMsg.includes('forbidden')) {
+        console.error('🔴 DIAGNOSIS: PERMISSION ERROR');
+        console.error('   Admin does not have Redact permission on-chain');
+        console.error('   Action: Check Space smart contract permissions');
+        
         toast.error('❌ Permission Denied', {
-          description: '⚠️ Your wallet does not have Permission.Redact. Run the script in Step 2 to add this permission.',
+          description: (
+            <div className="space-y-1">
+              <p className="font-semibold">You don't have permission to delete messages.</p>
+              <p className="text-xs">Contact the space owner to grant you Redact permission.</p>
+            </div>
+          ),
+          duration: 8000,
         });
-      } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+        return;
+      }
+      
+      // ✅ Message not found
+      if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
         toast.error('Message not found or already deleted');
-      } else if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
+        return;
+      }
+      
+      // ✅ Invalid event ID
+      if (errorMsg.includes('invalid') || errorMsg.includes('malformed')) {
         toast.error('Invalid event ID format', {
           description: 'The message ID is not a valid Towns event hash.',
         });
-      } else {
-        toast.error('Failed to delete message', {
-          description: errorMsg.substring(0, 100) || 'Unknown error',
-        });
+        return;
       }
+      
+      // ✅ Generic fallback
+      toast.error('Failed to delete message', {
+        description: errorMsg.substring(0, 150) || 'Unknown error. Check console for details.',
+        duration: 6000,
+      });
+      
     } finally {
       setIsProcessing(false);
     }
