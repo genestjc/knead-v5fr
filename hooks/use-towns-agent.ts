@@ -77,14 +77,38 @@ export function useTownsAgent() {
           throw new Error(`Signer mismatch! Expected ${address}, got ${signerAddress}`);
         }
 
-        // Connect to Towns Protocol
-        await connect(signer, { townsConfig });
+        // ✅ Connect to Towns Protocol with token expiry handler
+        console.log('🔐 Creating delegate key session...');
+        await connect(signer, { 
+          townsConfig,
+          onTokenExpired: () => {
+            console.log('━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('⚠️ TOWNS DELEGATE TOKEN EXPIRED');
+            console.log('   Your session has expired');
+            console.log('   Admin functions (delete, etc.) will fail');
+            console.log('   Action: Refresh the page to reconnect');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            
+            // Reset connection state
+            hasConnectedRef.current = false;
+            isConnectingRef.current = false;
+            
+            // Show user alert
+            alert(
+              '⚠️ Your Towns session has expired.\n\n' +
+              'Admin functions (like deleting messages) will not work until you reconnect.\n\n' +
+              'Please refresh the page to create a new session.'
+            );
+          }
+        });
         
         hasConnectedRef.current = true;
         previousAddressRef.current = address;
         
         console.log('✅ SUCCESS! Towns sync agent connected');
         console.log('   Delegate key session established');
+        console.log('   Session valid for: 30 days');
+        console.log('   Connected at:', new Date().toISOString());
         console.log('   Ready for all Towns operations');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
@@ -92,6 +116,20 @@ export function useTownsAgent() {
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('❌ FAILED TO CONNECT TOWNS AGENT');
         console.error('   Error:', error.message);
+        console.error('   Error name:', error.name);
+        
+        // Better error diagnosis
+        if (error.message?.includes('signMessage')) {
+          console.error('   → Issue: Wallet signature failed');
+          console.error('   → Action: User may have rejected signature request');
+        } else if (error.message?.includes('network')) {
+          console.error('   → Issue: Network connectivity problem');
+          console.error('   → Action: Check internet connection or RPC endpoint');
+        } else if (error.message?.includes('mismatch')) {
+          console.error('   → Issue: Address mismatch between ThirdWeb and signer');
+          console.error('   → Action: Wallet may have switched during connection');
+        }
+        
         console.error('   Stack:', error.stack);
         console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         hasConnectedRef.current = false;
