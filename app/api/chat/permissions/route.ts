@@ -1,8 +1,21 @@
-// app/api/chat/permissions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+/**
+ * Permission Check API
+ * 
+ * Enforces app-side business logic:
+ * - Freemium: Watch only (never post)
+ * - Participant: Post during events only
+ * - Contributor: Always post
+ * 
+ * Note: Towns Protocol permissions (on-chain) are separate.
+ * Everyone has Read+Write on-chain. This API enforces YOUR rules.
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -17,13 +30,17 @@ export async function GET(request: NextRequest) {
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔐 PERMISSION CHECK');
-    console.log('   Address:', userAddress);
+    console.log('   Address:', userAddress.slice(0, 8) + '...' + userAddress.slice(-6));
 
-    // Get user role from blockchain NFTs
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 1: Get user role from blockchain NFTs
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const { role } = await getUserRole(userAddress);
-    console.log('   Role:', role);
+    console.log('   Role from NFTs:', role);
 
-    // Check for active event
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 2: Check for active event
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const supabase = createSupabaseClient();
     const { data: activeEvents, error: eventError } = await supabase
       .from('chat_events')
@@ -36,24 +53,32 @@ export async function GET(request: NextRequest) {
     }
 
     const isEventActive = activeEvents && activeEvents.length > 0;
+    const activeEventId = activeEvents?.[0]?.id;
+    
     console.log('   Event active:', isEventActive);
+    if (isEventActive) {
+      console.log('   Event ID:', activeEventId);
+      console.log('   Event title:', activeEvents?.[0]?.title);
+    }
 
-    // ✅ ENFORCE YOUR RULES:
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 3: Enforce YOUR business rules
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     let canPost = false;
     let reason = '';
 
     if (role === 'contributor') {
-      // Contributors can ALWAYS post
+      // ✅ Contributors can ALWAYS post + DM + tip
       canPost = true;
       reason = 'Contributor - full access';
     } else if (role === 'participant') {
-      // Participants can ONLY post during active events
+      // ✅ Participants can ONLY post during active events
       canPost = isEventActive;
       reason = isEventActive 
         ? 'Participant - event active'
         : 'Participants can only chat during live events';
     } else {
-      // Freemium can NEVER post
+      // ✅ Freemium can NEVER post (watch only)
       canPost = false;
       reason = 'Freemium users can only watch';
     }
@@ -67,11 +92,12 @@ export async function GET(request: NextRequest) {
       data: {
         role,
         canPost,
-        canView: true, // Everyone can view
+        canView: true, // Everyone can view messages
         canTip: role === 'contributor', // Only contributors can tip
         canDM: role === 'contributor', // Only contributors can DM
         reason,
         isEventActive,
+        activeEventId: activeEventId || null,
       },
     });
 
