@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
+import { useSpace, useSendMessage, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -19,6 +19,8 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { Paperclip } from 'lucide-react';
+import { useRoleBasedTimeline } from '@/hooks/use-role-based-timeline';
+import { getRoleBasedChannelId, isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -126,8 +128,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useTimeline(channelId);
-  const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
+  // Use role-based timeline (merges all 4 channels or falls back to single channel)
+  const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useRoleBasedTimeline(channelId);
+  
+  // Dynamic channel selection for sending messages
+  const [currentSendChannel, setCurrentSendChannel] = useState(channelId);
+  const { sendMessage: sendToChannel, isPending: isSending, error: sendError } = useSendMessage(currentSendChannel);
   
   const { scrollback, isPending: isLoadingHistory, data: scrollbackData } = useScrollback(channelId);
 
@@ -344,18 +350,32 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     try {
+      // Determine which channel to send to based on role and content
+      const targetChannel = isVirtualShardingEnabled() && activeAccount?.address
+        ? getRoleBasedChannelId(activeAccount.address, userRole, false)
+        : channelId;
+
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('📤 SENDING MESSAGE');
-      console.log('   Channel ID:', channelId);
-      console.log('   User tier:', userRole);
+      console.log('   Target Channel:', targetChannel);
+      console.log('   User Role:', userRole);
+      console.log('   User Address:', activeAccount?.address);
+      console.log('   Sharding Enabled:', isVirtualShardingEnabled());
       console.log('   Event active:', !!activeEvent);
       console.log('   Can post:', permissions?.canPost);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
-      setRetryCount(0);
-      await sendMessage(messageInput);
+      // Update the send channel before sending
+      if (targetChannel !== currentSendChannel) {
+        setCurrentSendChannel(targetChannel);
+        // Wait a tick for the useSendMessage hook to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
-      console.log('✅ Message sent successfully');
+      setRetryCount(0);
+      await sendToChannel(messageInput);
+      
+      console.log('✅ Message sent successfully to', targetChannel);
       setMessageInput('');
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
@@ -391,10 +411,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const ipfsUri = await uploadToIPFS(file);
       console.log('✅ File uploaded:', ipfsUri);
       
-      const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      await sendMessage(fileMessage);
+      // All files go to the files channel
+      const targetChannel = isVirtualShardingEnabled() && activeAccount?.address
+        ? getRoleBasedChannelId(activeAccount.address, userRole, true) // hasFile = true
+        : channelId;
+
+      console.log('📁 Sending file message to channel:', targetChannel);
       
-      console.log('✅ File message sent');
+      // Update send channel if needed
+      if (targetChannel !== currentSendChannel) {
+        setCurrentSendChannel(targetChannel);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
+      await sendToChannel(fileMessage);
+      
+      console.log('✅ File message sent to', targetChannel);
       
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
