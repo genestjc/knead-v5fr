@@ -10,7 +10,7 @@
  * This is a one-time setup endpoint. Should be run once during deployment.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { connectTowns, townsEnv } from '@towns-protocol/sdk';
 
@@ -176,9 +176,4 @@ export async function POST(): Promise<NextResponse<CreateChannelsResponse>> {
       error: error instanceof Error ? error.message : 'Internal server error',
     }, { status: 500 });
   }
-}
-
-// Also support GET for easy browser testing
-export async function GET(): Promise<NextResponse<CreateChannelsResponse>> {
-  return POST({} as NextRequest);
 }

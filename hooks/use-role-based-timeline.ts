@@ -21,6 +21,14 @@ export interface UseRoleBasedTimelineResult {
 }
 
 /**
+ * Helper to extract timestamp from event object
+ */
+function getEventTimestamp(event: unknown): number {
+  const e = event as { timestamp?: number; createdAt?: number };
+  return e.timestamp ?? e.createdAt ?? 0;
+}
+
+/**
  * Hook that subscribes to all channels and returns a merged timeline
  * 
  * If virtual sharding is not enabled, falls back to single channel behavior
@@ -78,12 +86,9 @@ export function useRoleBasedTimeline(fallbackChannelId?: string): UseRoleBasedTi
       ...(timeline4.data || []),
     ];
 
-    // Sort by timestamp (newest first in most chat UIs, but check your implementation)
-    // Assuming timestamp is a number or Date-like object
+    // Sort by timestamp (ascending order - oldest first)
     const sorted = allEvents.sort((a: unknown, b: unknown) => {
-      const timeA = (a as { timestamp?: number; createdAt?: number }).timestamp || (a as { timestamp?: number; createdAt?: number }).createdAt || 0;
-      const timeB = (b as { timestamp?: number; createdAt?: number }).timestamp || (b as { timestamp?: number; createdAt?: number }).createdAt || 0;
-      return timeA - timeB; // Ascending order (oldest first)
+      return getEventTimestamp(a) - getEventTimestamp(b);
     });
 
     console.log(`📊 Merged timeline: ${allEvents.length} events from ${channelIds.length} channels`);

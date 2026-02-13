@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSpace, useSendMessage, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -20,7 +20,7 @@ import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { Paperclip } from 'lucide-react';
 import { useRoleBasedTimeline } from '@/hooks/use-role-based-timeline';
-import { getRoleBasedChannelId, isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
+import { isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -131,9 +131,63 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   // Use role-based timeline (merges all 4 channels or falls back to single channel)
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useRoleBasedTimeline(channelId);
   
-  // Dynamic channel selection for sending messages
-  const [currentSendChannel, setCurrentSendChannel] = useState(channelId);
-  const { sendMessage: sendToChannel, isPending: isSending, error: sendError } = useSendMessage(currentSendChannel);
+  // Get all channel IDs for sending
+  const channelConfig = useMemo(() => {
+    if (!isVirtualShardingEnabled()) {
+      return { fallback: channelId };
+    }
+    return {
+      contributors: process.env.NEXT_PUBLIC_CHANNEL_CONTRIBUTORS || '',
+      participantsA: process.env.NEXT_PUBLIC_CHANNEL_PARTICIPANTS_A || '',
+      participantsB: process.env.NEXT_PUBLIC_CHANNEL_PARTICIPANTS_B || '',
+      files: process.env.NEXT_PUBLIC_CHANNEL_FILES || '',
+    };
+  }, [channelId]);
+  
+  // Create send hooks for each channel
+  const sendToContributors = useSendMessage(channelConfig.contributors || channelId);
+  const sendToParticipantsA = useSendMessage(channelConfig.participantsA || channelId);
+  const sendToParticipantsB = useSendMessage(channelConfig.participantsB || channelId);
+  const sendToFiles = useSendMessage(channelConfig.files || channelId);
+  const sendToFallback = useSendMessage(channelId);
+  
+  // Helper to get the right send function
+  const getSendFunction = useCallback((hasFile: boolean) => {
+    if (!isVirtualShardingEnabled() || !activeAccount?.address) {
+      return sendToFallback.sendMessage;
+    }
+    
+    if (hasFile) return sendToFiles.sendMessage;
+    
+    if (userRole === 'contributor') return sendToContributors.sendMessage;
+    
+    // Shard participants
+    const lastChar = activeAccount.address.slice(-1).toLowerCase();
+    const isGroupA = ['0', '1', '2', '3', '4', '5', '6', '7'].includes(lastChar);
+    return isGroupA ? sendToParticipantsA.sendMessage : sendToParticipantsB.sendMessage;
+  }, [
+    activeAccount?.address,
+    userRole,
+    sendToContributors.sendMessage,
+    sendToParticipantsA.sendMessage,
+    sendToParticipantsB.sendMessage,
+    sendToFiles.sendMessage,
+    sendToFallback.sendMessage,
+  ]);
+  
+  const isSending = 
+    sendToContributors.isPending ||
+    sendToParticipantsA.isPending ||
+    sendToParticipantsB.isPending ||
+    sendToFiles.isPending ||
+    sendToFallback.isPending;
+  
+  const sendError = 
+    sendToContributors.error ||
+    sendToParticipantsA.error ||
+    sendToParticipantsB.error ||
+    sendToFiles.error ||
+    sendToFallback.error;
   
   const { scrollback, isPending: isLoadingHistory, data: scrollbackData } = useScrollback(channelId);
 
@@ -350,14 +404,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     try {
-      // Determine which channel to send to based on role and content
-      const targetChannel = isVirtualShardingEnabled() && activeAccount?.address
-        ? getRoleBasedChannelId(activeAccount.address, userRole, false)
-        : channelId;
-
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('📤 SENDING MESSAGE');
-      console.log('   Target Channel:', targetChannel);
       console.log('   User Role:', userRole);
       console.log('   User Address:', activeAccount?.address);
       console.log('   Sharding Enabled:', isVirtualShardingEnabled());
@@ -365,17 +413,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('   Can post:', permissions?.canPost);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
-      // Update the send channel before sending
-      if (targetChannel !== currentSendChannel) {
-        setCurrentSendChannel(targetChannel);
-        // Wait a tick for the useSendMessage hook to update
-        await new Promise(resolve => setTimeout(resolve, 100));
+      setRetryCount(0);
+      
+      // Get the appropriate send function for this message
+      const sendMessage = getSendFunction(false);
+      if (!sendMessage) {
+        throw new Error('Send function not available');
       }
       
-      setRetryCount(0);
-      await sendToChannel(messageInput);
+      await sendMessage(messageInput);
       
-      console.log('✅ Message sent successfully to', targetChannel);
+      console.log('✅ Message sent successfully');
       setMessageInput('');
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
@@ -411,30 +459,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const ipfsUri = await uploadToIPFS(file);
       console.log('✅ File uploaded:', ipfsUri);
       
-      // All files go to the files channel
-      const targetChannel = isVirtualShardingEnabled() && activeAccount?.address
-        ? getRoleBasedChannelId(activeAccount.address, userRole, true) // hasFile = true
-        : channelId;
-
-      console.log('📁 Sending file message to channel:', targetChannel);
+      console.log('📁 Sending file message...');
       
-      // Update send channel if needed
-      if (targetChannel !== currentSendChannel) {
-        setCurrentSendChannel(targetChannel);
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Get the appropriate send function for file messages
+      const sendMessage = getSendFunction(true); // hasFile = true
+      if (!sendMessage) {
+        throw new Error('Send function not available');
       }
       
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      await sendToChannel(fileMessage);
+      await sendMessage(fileMessage);
       
-      console.log('✅ File message sent to', targetChannel);
+      console.log('✅ File message sent');
       
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ File upload failed:', error);
-      alert(error.message || 'Failed to upload file. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to upload file. Please try again.');
     } finally {
       setIsUploading(false);
     }

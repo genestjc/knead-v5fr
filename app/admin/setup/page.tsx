@@ -121,6 +121,15 @@ export default function AdminSetupPage() {
           </ol>
         </div>
 
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-6 mb-6">
+          <h2 className="font-adonis text-xl mb-2 text-yellow-800">⚠️ Security Notice</h2>
+          <p className="font-georgia-pro text-sm text-yellow-800">
+            The <code className="bg-yellow-100 px-2 py-1 rounded">ADMIN_PRIVATE_KEY</code> must be kept strictly confidential. 
+            Only use it in secure Vercel environment variables. Never commit it to source control or share it publicly.
+            After creating channels, you can remove this key from Vercel as it&apos;s only needed for one-time setup.
+          </p>
+        </div>
+
         {!channelIds && !error && (
           <button
             onClick={handleCreateChannels}
