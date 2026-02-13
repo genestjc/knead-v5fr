@@ -14,7 +14,7 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
-import { useTownsAgent } from '@/hooks/use-towns-agent'; // ✅ NEW
+import { useTownsAgent } from '@/hooks/use-towns-agent';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
@@ -40,10 +40,8 @@ const LoadingSpinner = () => (
 );
 
 export default function ConnectedChat(props: ConnectedChatProps) {
-  // ✅ CHANGED: Use useTownsAgent hook for proper v5 signer connection
   const { isAgentConnected, isAgentConnecting } = useTownsAgent();
   
-  // ✅ Show connecting state
   if (isAgentConnecting) {
     return (
       <ChatLayout>
@@ -56,7 +54,6 @@ export default function ConnectedChat(props: ConnectedChatProps) {
     );
   }
   
-  // ✅ Show not connected state
   if (!isAgentConnected) {
     return (
       <ChatLayout>
@@ -176,11 +173,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // Fetch live events
+  // ✅ FETCH LIVE EVENTS WITH IMPROVED LOGGING
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
-        const res = await fetch('/api/events?status=live', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+        const res = await fetch('/api/events?status=live', { 
+          cache: 'no-store', 
+          headers: { 'Cache-Control': 'no-cache' } 
+        });
         const data = await res.json();
         
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -191,6 +191,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           console.log('   Event:', data.data[0].title);
           console.log('   Status:', data.data[0].status);
           console.log('   ID:', data.data[0].id);
+          console.log('   Daily Room:', data.data[0].dailyRoomName);
+          console.log('   Host ID:', data.data[0].host?.id);
         }
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
@@ -198,8 +200,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           const liveEvent = data.data[0];
           setActiveEvent(liveEvent);
           
-          if (liveEvent.videoEnabled && liveEvent.dailyRoomName && activeAccount?.address) {
+          // ✅ Check wallet before generating token
+          if (!activeAccount?.address) {
+            console.warn('⚠️ Wallet not connected yet, skipping token generation');
+            return;
+          }
+          
+          if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
             const isHost = activeAccount.address.toLowerCase() === liveEvent.host?.id?.toLowerCase();
+            
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🎫 GENERATING VIDEO TOKEN');
+            console.log('   Room Name:', liveEvent.dailyRoomName);
+            console.log('   Your Address:', activeAccount.address);
+            console.log('   Host Address:', liveEvent.host?.id);
+            console.log('   Is Host?:', isHost);
+            console.log('   Guest IDs:', liveEvent.guestIds);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             
             const tokenRes = await fetch('/api/events/generate-token', {
               method: 'POST',
@@ -211,9 +228,37 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               }),
             });
             
+            console.log('📋 Token response status:', tokenRes.status);
+            
+            if (!tokenRes.ok) {
+              const errorData = await tokenRes.json();
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.error('❌ TOKEN GENERATION FAILED');
+              console.error('   Status:', tokenRes.status);
+              console.error('   Error:', errorData.error);
+              console.error('   Sent data:', {
+                roomName: liveEvent.dailyRoomName,
+                walletAddress: activeAccount.address,
+                isHost: isHost,
+              });
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              
+              if (tokenRes.status === 403) {
+                console.warn('🚫 You are not authorized to join this event');
+                console.warn('   Make sure you are either:');
+                console.warn('   1. The event host');
+                console.warn('   2. An invited guest');
+              }
+              return;
+            }
+            
             const tokenData = await tokenRes.json();
+            
             if (tokenData.success) {
+              console.log('✅ Video token generated successfully');
               setDailyToken(tokenData.data.token);
+            } else {
+              console.error('❌ Token data indicates failure:', tokenData);
             }
           }
         } else {
@@ -225,22 +270,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
     
-    fetchLiveEvent();
-    const interval = setInterval(fetchLiveEvent, 30000);
-    
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel('chat_live_events')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_events' }, () => {
-        console.log('🔄 Event changed, refetching...');
-        fetchLiveEvent();
-      })
-      .subscribe();
-    
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
+    // ✅ Only fetch if wallet is connected
+    if (activeAccount?.address) {
+      fetchLiveEvent();
+      const interval = setInterval(fetchLiveEvent, 30000);
+      
+      const supabase = createSupabaseClient();
+      const channel = supabase
+        .channel('chat_live_events')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'chat_events' 
+        }, () => {
+          console.log('🔄 Event changed, refetching...');
+          fetchLiveEvent();
+        })
+        .subscribe();
+      
+      return () => {
+        clearInterval(interval);
+        supabase.removeChannel(channel);
+      };
+    }
   }, [activeAccount?.address]);
 
   // Log permissions changes
@@ -387,23 +439,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
       
-      // CRITICAL: Use eventId (the Towns event hash)
       const townEventId = event.eventId || event.hashStr || event.hash || event.id;
       
-      // Log each message mapping (DEBUG)
-      console.log('📝 Mapping message:', {
-        hasEventId: !!event.eventId,
-        hasHashStr: !!event.hashStr,
-        hasHash: !!event.hash,
-        hasId: !!event.id,
-        selectedId: townEventId,
-        selectedIdLength: townEventId?.length,
-        selectedIdIsHex: /^[a-f0-9]+$/.test(townEventId || ''),
-        content: event.content?.body?.substring(0, 30) + '...',
-      });
-      
       return {
-        id: townEventId, // Must be the 64-char hex hash
+        id: townEventId,
         content: event.content?.body || '',
         sender: {
           id: userAddress,
