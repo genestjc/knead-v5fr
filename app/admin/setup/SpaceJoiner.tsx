@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useJoinSpace } from '@towns-protocol/react-sdk';
-import { ethers } from 'ethers';
+import { useActiveAccount } from 'thirdweb/react';
+import { createTownsSigner } from '@/lib/towns-signer-adapter';
+import { client, activeChain } from '@/thirdweb-client';
 import { ChannelCreator } from './ChannelCreator';
 
 interface SpaceJoinerProps {
@@ -11,32 +13,35 @@ interface SpaceJoinerProps {
 }
 
 export function SpaceJoiner({ spaceId, rpcUrl }: SpaceJoinerProps) {
+  const account = useActiveAccount();
   const [isJoining, setIsJoining] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ NOW safe to call - only rendered when agent is connected
-  const { joinSpace } = useJoinSpace(spaceId);
+  // ✅ Call without spaceId parameter (pass to joinSpace function instead)
+  const { joinSpace } = useJoinSpace();
 
   // Auto-join on mount
   useEffect(() => {
     const join = async () => {
-      if (hasJoined || isJoining || !joinSpace) return;
+      if (hasJoined || isJoining || !joinSpace || !account) return;
       
       setIsJoining(true);
       setError(null);
 
       try {
-        if (typeof window === 'undefined' || !window.ethereum) {
-          throw new Error('MetaMask not found');
-        }
-
         console.log('🏠 Joining space:', spaceId);
+        console.log('👤 User:', account.address);
         
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
+        // ✅ Use createTownsSigner like your chat does
+        const signer = await createTownsSigner(account, client, activeChain);
+        console.log('✅ Signer created');
         
-        await joinSpace(signer);
+        // ✅ Pass spaceId as first argument, signer as second
+        // ✅ Use skipMintMembership option
+        await joinSpace(spaceId, signer, {
+          skipMintMembership: false, // Mint if not a member
+        });
         
         console.log('✅ Joined space successfully');
         setHasJoined(true);
@@ -44,7 +49,7 @@ export function SpaceJoiner({ spaceId, rpcUrl }: SpaceJoinerProps) {
         const errorMsg = err?.message || String(err);
         
         // If already a member, that's fine
-        if (errorMsg.includes('already') || errorMsg.includes('member')) {
+        if (errorMsg.includes('already a member') || errorMsg.includes('already')) {
           console.log('✅ Already a member of the space');
           setHasJoined(true);
         } else {
@@ -57,7 +62,7 @@ export function SpaceJoiner({ spaceId, rpcUrl }: SpaceJoinerProps) {
     };
 
     join();
-  }, [hasJoined, isJoining, joinSpace, spaceId]);
+  }, [hasJoined, isJoining, joinSpace, spaceId, account]);
 
   // Show loading or error
   if (!hasJoined) {
@@ -71,14 +76,20 @@ export function SpaceJoiner({ spaceId, rpcUrl }: SpaceJoinerProps) {
         {error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <h3 className="font-adonis text-xl text-red-600 mb-2">Error Joining Space</h3>
-            <p className="font-georgia-pro text-sm text-red-800">{error}</p>
+            <p className="font-georgia-pro text-sm text-red-800 mb-4">{error}</p>
+            <details className="mb-4">
+              <summary className="cursor-pointer text-sm text-gray-600">Technical Details</summary>
+              <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto">
+                {JSON.stringify({ error, spaceId, userAddress: account?.address }, null, 2)}
+              </pre>
+            </details>
             <button
               onClick={() => {
                 setError(null);
                 setIsJoining(false);
                 setHasJoined(false);
               }}
-              className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
+              className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
             >
               Retry
             </button>
@@ -91,6 +102,9 @@ export function SpaceJoiner({ spaceId, rpcUrl }: SpaceJoinerProps) {
                 Joining space as member...
               </span>
             </div>
+            <p className="text-xs text-gray-600 mt-2">
+              User: {account?.address?.slice(0, 10)}...
+            </p>
           </div>
         )}
       </div>
