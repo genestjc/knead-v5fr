@@ -22,10 +22,11 @@ export interface UseRoleBasedTimelineResult {
 
 /**
  * Helper to extract timestamp from event object
+ * Uses documented TimelineEvent property
  */
 function getEventTimestamp(event: unknown): number {
-  const e = event as { timestamp?: number; createdAt?: number };
-  return e.timestamp ?? e.createdAt ?? 0;
+  const e = event as { createdAtEpochMs?: number };
+  return e.createdAtEpochMs ?? 0;
 }
 
 /**
@@ -37,24 +38,25 @@ export function useRoleBasedTimeline(fallbackChannelId?: string): UseRoleBasedTi
   const isShardingEnabled = isVirtualShardingEnabled();
   const channelIds = getAllChannelIds();
 
-  // Subscribe to all channels (or fallback to single channel)
-  const timeline1 = useTimeline(isShardingEnabled ? channelIds[0] : fallbackChannelId || '');
-  const timeline2 = useTimeline(isShardingEnabled ? channelIds[1] : '');
-  const timeline3 = useTimeline(isShardingEnabled ? channelIds[2] : '');
-  const timeline4 = useTimeline(isShardingEnabled ? channelIds[3] : '');
+  // Subscribe to timelines
+  // Note: When sharding disabled, only timeline1 is used (see early return below)
+  const timeline1 = useTimeline(fallbackChannelId || channelIds[0]);
+  const timeline2 = useTimeline(channelIds[1] || channelIds[0]);
+  const timeline3 = useTimeline(channelIds[2] || channelIds[0]);
+  const timeline4 = useTimeline(channelIds[3] || channelIds[0]);
 
   // Merge and sort timelines
   const mergedTimeline = useMemo(() => {
-    // If sharding not enabled, return single timeline
+    // If sharding not enabled, return single timeline (no duplicates)
     if (!isShardingEnabled) {
       return {
         data: timeline1.data,
         isLoading: timeline1.isLoading,
-        error: timeline1.error,
+        error: timeline1.error || null,
       };
     }
 
-    // Check if any timeline is still loading
+    // Check loading status
     const isLoading = 
       timeline1.isLoading || 
       timeline2.isLoading || 
@@ -91,10 +93,19 @@ export function useRoleBasedTimeline(fallbackChannelId?: string): UseRoleBasedTi
       return getEventTimestamp(a) - getEventTimestamp(b);
     });
 
-    console.log(`📊 Merged timeline: ${allEvents.length} events from ${channelIds.length} channels`);
+    // ✅ Deduplicate by eventId (handles any duplicate subscriptions)
+    const seen = new Set<string>();
+    const deduped = sorted.filter((e: any) => {
+      if (!e.eventId) return true; // Keep events without eventId (shouldn't happen)
+      if (seen.has(e.eventId)) return false;
+      seen.add(e.eventId);
+      return true;
+    });
+
+    console.log(`📊 Merged timeline: ${deduped.length} unique events from ${channelIds.length} channels (${allEvents.length} total before dedup)`);
 
     return {
-      data: sorted,
+      data: deduped,
       isLoading: false,
       error: null,
     };
