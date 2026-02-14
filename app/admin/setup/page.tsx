@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useActiveAccount, ConnectButton } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
+import { useCreateChannel, useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
-import { connectTowns } from '@towns-protocol/react-sdk';
 import { ethers } from 'ethers';
 
 export const dynamic = 'force-dynamic';
@@ -55,13 +55,48 @@ export default function AdminSetupPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
+  const [isConnectingTowns, setIsConnectingTowns] = useState(false);
   
   const client = getClient();
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
+  const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
+
+  // Towns connection
+  const townsConfig = townsEnv().makeTownsConfig('omega');
+  const { connect, isAgentConnected } = useAgentConnection();
+  
+  // Use the Towns SDK hook for creating channels
+  const { createChannel } = useCreateChannel(spaceId);
+
+  // Auto-connect to Towns when wallet is connected
+  useEffect(() => {
+    const connectToTowns = async () => {
+      if (account && !isAgentConnected && !isConnectingTowns && window.ethereum) {
+        setIsConnectingTowns(true);
+        try {
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          await connect(signer, { townsConfig });
+          console.log('✅ Connected to Towns Protocol');
+        } catch (err) {
+          console.error('Failed to connect to Towns:', err);
+        } finally {
+          setIsConnectingTowns(false);
+        }
+      }
+    };
+
+    connectToTowns();
+  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig]);
 
   const handleCreateChannels = async () => {
     if (!account) {
       setError('Please connect your wallet first');
+      return;
+    }
+
+    if (!isAgentConnected) {
+      setError('Not connected to Towns Protocol. Please wait...');
       return;
     }
 
@@ -77,30 +112,9 @@ export default function AdminSetupPage() {
     try {
       console.log('🏗️ Creating channels with MetaMask...');
       
-      // Convert to ethers signer
+      // Get ethers signer from MetaMask
       const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const ethersSigner = provider.getSigner();
-
-      // Connect to Towns
-      const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
-      const townsConfig = townsEnv().makeTownsConfig('omega', {
-        rpcUrl: BASE_RPC_URL,
-      });
-      
-      const agent = await connectTowns(ethersSigner, { 
-        townsConfig,
-      });
-
-      // Join space
-      const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
-      const space = await agent.spaces.getSpace(spaceId);
-      
-      // Check if already a member, if not join
-      const isMember = await space.isMember(account.address);
-      if (!isMember) {
-        console.log('Joining space...');
-        await space.joinSpace(ethersSigner);
-      }
+      const signer = provider.getSigner();
 
       // Create all 4 channels
       const channels: Record<string, string> = {};
@@ -108,11 +122,11 @@ export default function AdminSetupPage() {
       for (const def of CHANNEL_DEFINITIONS) {
         console.log(`Creating channel: ${def.name}`);
         
-        // MetaMask will prompt for signature
-        const channelId = await space.createChannel(
+        // Use the hook's createChannel function
+        const channelId = await createChannel(
           def.name,
-          def.description,
-          ethersSigner
+          signer,
+          { topic: def.description }
         );
         
         channels[def.key] = channelId;
@@ -121,9 +135,6 @@ export default function AdminSetupPage() {
         // Wait 2 seconds between creates
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
-
-      // Disconnect
-      agent.stop();
 
       setChannelIds(channels as ChannelIds);
       console.log('✅ All channels created:', channels);
@@ -178,11 +189,37 @@ export default function AdminSetupPage() {
           <h2 className="font-adonis text-2xl mb-4">Instructions</h2>
           <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
             <li>Connect your Space Owner wallet (the one with the Space NFT)</li>
+            <li>Wait for Towns Protocol connection</li>
             <li>Click &quot;Create Channels&quot; button below</li>
-            <li>Approve transactions in MetaMask (4-5 signatures required)</li>
+            <li>Approve transactions in MetaMask (4 signatures required)</li>
             <li>Copy the channel IDs that appear</li>
             <li>Add them as environment variables in Vercel</li>
           </ol>
+        </div>
+
+        {/* Connection Status */}
+        <div className={`border rounded-lg p-4 mb-6 ${
+          isAgentConnected 
+            ? 'bg-green-50 border-green-300' 
+            : 'bg-yellow-50 border-yellow-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            {isAgentConnected ? (
+              <>
+                <span className="text-green-600 text-xl">✅</span>
+                <span className="font-georgia-pro text-green-800">
+                  Connected to Towns Protocol
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="animate-spin text-yellow-600 text-xl">⏳</span>
+                <span className="font-georgia-pro text-yellow-800">
+                  Connecting to Towns Protocol...
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-6">
@@ -196,7 +233,7 @@ export default function AdminSetupPage() {
         {!channelIds && !error && (
           <button
             onClick={handleCreateChannels}
-            disabled={isCreating}
+            disabled={isCreating || !isAgentConnected}
             className="w-full bg-black text-white font-georgia-pro text-lg py-4 rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
           >
             {isCreating ? (
@@ -204,6 +241,8 @@ export default function AdminSetupPage() {
                 <span className="animate-spin">⏳</span>
                 Creating Channels... (Check MetaMask)
               </span>
+            ) : !isAgentConnected ? (
+              '⏳ Waiting for Towns Connection...'
             ) : (
               '🏗️ Create Channels with MetaMask'
             )}
