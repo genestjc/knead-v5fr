@@ -1,11 +1,14 @@
 'use client';
 
+export const dynamic = 'force-dynamic'; // ← Add this!
+
 import { useState, useEffect } from 'react';
-import { useSpace } from '@towns-protocol/react-sdk';
+import { useSpace, useAgentConnection } from '@towns-protocol/react-sdk';
 import { useActiveAccount } from 'thirdweb/react';
 
 export default function ListChannelsPage() {
   const account = useActiveAccount();
+  const { isAgentConnected } = useAgentConnection();
   const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
   
   const { data: space, isLoading, error } = useSpace(spaceId);
@@ -27,10 +30,34 @@ export default function ListChannelsPage() {
     }
   }, [space]);
 
+  // Wait for wallet connection
   if (!account) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="font-georgia-pro">Please connect your wallet</p>
+        <div className="text-center">
+          <p className="font-georgia-pro text-lg mb-4">Please connect your wallet</p>
+          <a 
+            href="/chat-test"
+            className="text-blue-600 hover:underline font-georgia-pro"
+          >
+            Go to Chat to connect →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Wait for Towns agent connection
+  if (!isAgentConnected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro mb-2">Connecting to Towns Protocol...</p>
+          <p className="font-georgia-pro text-sm text-gray-500">
+            If this takes too long, <a href="/chat-test" className="text-blue-600 underline">go to chat first</a> to establish connection
+          </p>
+        </div>
       </div>
     );
   }
@@ -50,7 +77,13 @@ export default function ListChannelsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <p className="font-georgia-pro text-red-600">Error: {error.message}</p>
+          <p className="font-georgia-pro text-red-600 mb-4">Error: {error.message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -61,7 +94,7 @@ export default function ListChannelsPage() {
       <div className="max-w-6xl mx-auto">
         <h1 className="font-adonis text-4xl mb-2">Channel ID Inspector</h1>
         <p className="font-georgia-pro text-gray-600 mb-8">
-          Space: {spaceId}
+          Space: {spaceId?.slice(0, 20)}...
         </p>
 
         {/* Raw Data */}
@@ -71,7 +104,7 @@ export default function ListChannelsPage() {
             <summary className="cursor-pointer text-sm text-gray-600 mb-2">
               Click to expand full space object
             </summary>
-            <pre className="text-xs overflow-auto bg-white p-4 rounded border">
+            <pre className="text-xs overflow-auto bg-white p-4 rounded border max-h-96">
               {JSON.stringify(space, null, 2)}
             </pre>
           </details>
