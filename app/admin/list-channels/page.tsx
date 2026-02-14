@@ -1,6 +1,6 @@
 import dynamic from 'next/dynamic';
 
-const ListChannelsContent = dynamic(() => import('./list-channels-content'), {
+const StandaloneChannelInspector = dynamic(() => import('./standalone-inspector'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -13,5 +13,5 @@ const ListChannelsContent = dynamic(() => import('./list-channels-content'), {
 });
 
 export default function ListChannelsPage() {
-  return <ListChannelsContent />;
+  return <StandaloneChannelInspector />;
 }
