@@ -29,8 +29,8 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// ✅ ADD THIS - Set to when virtual sharding launched
-const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime(); // Adjust time as needed
+// ✅ Virtual sharding cutoff timestamp
+const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -65,6 +65,42 @@ function PermissionDebugBanner({
           <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
         </div>
         <span className="text-gray-600">{permissions?.reason}</span>
+      </div>
+    </div>
+  );
+}
+
+// ✅ RETRY MESSAGE BANNER
+function RetryMessageBanner({ 
+  message, 
+  onRetry, 
+  onCancel 
+}: { 
+  message: string; 
+  onRetry: () => void; 
+  onCancel: () => void; 
+}) {
+  return (
+    <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-red-800">❌ Message failed to send</p>
+          <p className="text-xs text-red-600 truncate mt-1">"{message}"</p>
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            onClick={onRetry}
+            className="px-3 py-1.5 bg-red-600 text-white rounded-full text-sm hover:bg-red-700 whitespace-nowrap"
+          >
+            Retry
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-full text-sm hover:bg-gray-300 whitespace-nowrap"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -111,9 +147,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
   
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,10 +167,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  // Use role-based timeline (merges all 4 channels or falls back to single channel)
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useRoleBasedTimeline(channelId);
   
-  // Get all channel IDs for sending
   const channelConfig = useMemo(() => {
     if (!isVirtualShardingEnabled()) {
       return { fallback: channelId };
@@ -147,14 +181,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [channelId]);
   
-  // Create send hooks for each channel
   const sendToContributors = useSendMessage(channelConfig.contributors || channelId);
   const sendToParticipantsA = useSendMessage(channelConfig.participantsA || channelId);
   const sendToParticipantsB = useSendMessage(channelConfig.participantsB || channelId);
   const sendToFiles = useSendMessage(channelConfig.files || channelId);
   const sendToFallback = useSendMessage(channelId);
   
-  // Helper to get the right send function
   const getSendFunction = useCallback((hasFile: boolean) => {
     if (!isVirtualShardingEnabled() || !activeAccount?.address) {
       return sendToFallback.sendMessage;
@@ -164,7 +196,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     if (userRole === 'contributor') return sendToContributors.sendMessage;
     
-    // Shard participants
     const lastChar = activeAccount.address.slice(-1).toLowerCase();
     const isGroupA = ['0', '1', '2', '3', '4', '5', '6', '7'].includes(lastChar);
     return isGroupA ? sendToParticipantsA.sendMessage : sendToParticipantsB.sendMessage;
@@ -218,7 +249,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // Load message history on mount
   useEffect(() => {
     if (!channelId || hasLoadedHistory || isLoadingHistory) return;
     
@@ -235,14 +265,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [channelId, hasLoadedHistory, isLoadingHistory, scrollback]);
 
-  // Detect role AND admin status
   useEffect(() => {
     async function detectRole() {
       if (activeAccount?.address) {
         const roleInfo = await getUserRole(activeAccount.address);
         setUserRole(roleInfo.role);
         
-        // Check if user is admin in Supabase
         try {
           const response = await fetch(`/api/chat/user?address=${activeAccount.address}`);
           const data = await response.json();
@@ -262,7 +290,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // Fetch live events
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -345,7 +372,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [activeAccount?.address]);
 
-  // Log permissions changes
   useEffect(() => {
     console.log('🔐 PERMISSIONS UPDATE:', {
       userAddress: activeAccount?.address?.slice(0, 8) + '...',
@@ -356,20 +382,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, [permissions, activeAccount?.address, activeEvent]);
 
   useEffect(() => {
-    if (sendError?.message?.includes('BAD_PREV_MINIBLOCK_HASH') && retryCount < 3) {
-      console.log(`⚠️ Miniblock hash error, will retry in 2 seconds (attempt ${retryCount + 1}/3)`);
-      const timer = setTimeout(() => {
-        setRetryCount(retryCount + 1);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [sendError, retryCount]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [timeline]);
 
-  // Fetch user profiles for messages
   useEffect(() => {
     if (!timeline) return;
     
@@ -387,10 +402,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [timeline, getProfile, profileCache]);
 
+  // ✅ Helper: Send message with timeout
+  const sendWithTimeout = async (sendFn: any, message: string, timeoutMs = 15000) => {
+    return Promise.race([
+      sendFn(message),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Message send timed out after 15 seconds')), timeoutMs)
+      )
+    ]);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // App-side permission check
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
         alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
@@ -406,39 +430,51 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
+    const messageToSend = messageInput.trim();
+    
     try {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('📤 SENDING MESSAGE');
       console.log('   User Role:', userRole);
-      console.log('   User Address:', activeAccount?.address);
       console.log('   Sharding Enabled:', isVirtualShardingEnabled());
-      console.log('   Event active:', !!activeEvent);
-      console.log('   Can post:', permissions?.canPost);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
-      setRetryCount(0);
+      // ✅ Clear input immediately (optimistic UI)
+      setMessageInput('');
+      setFailedMessage(null);
       
-      // Get the appropriate send function for this message
       const sendMessage = getSendFunction(false);
       if (!sendMessage) {
         throw new Error('Send function not available');
       }
       
-      await sendMessage(messageInput);
+      // ✅ Send with 15-second timeout
+      await sendWithTimeout(sendMessage, messageToSend);
       
       console.log('✅ Message sent successfully');
-      setMessageInput('');
+      
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
       
-      if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
+      // ✅ Restore message to input for retry
+      setMessageInput(messageToSend);
+      setFailedMessage(messageToSend);
+      
+      // ✅ User-friendly error messages
+      if (error.message?.includes('timed out')) {
+        alert('⏱️ Message send timed out. The network may be slow. Please try again.');
+      } else if (error.message?.includes('deadline_exceeded')) {
+        alert('⏳ Network timeout. Your message was not delivered. Please try sending again.');
+      } else if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
         alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
+      } else if (error.message?.includes('QUORUM_FAILED')) {
+        alert('❌ Network error - message not delivered. Please check your connection and try again.');
       } else if (error.message?.includes('not entitled') || error.message?.includes('permission')) {
-        alert('❌ You do not have permission to send messages in this channel.\n\nThis is a Towns Protocol permission issue - contact support.');
+        alert('❌ You do not have permission to send messages.\n\nContact support if this seems wrong.');
       } else if (error.message?.includes('already a member')) {
         console.log('ℹ️ Already a member, ignoring error');
       } else {
-        alert(`Failed to send message: ${error.message}`);
+        alert(`Failed to send: ${error.message}\n\nYour message was not delivered.`);
       }
     }
   };
@@ -464,14 +500,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       
       console.log('📁 Sending file message...');
       
-      // Get the appropriate send function for file messages
-      const sendMessage = getSendFunction(true); // hasFile = true
+      const sendMessage = getSendFunction(true);
       if (!sendMessage) {
         throw new Error('Send function not available');
       }
       
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      await sendMessage(fileMessage);
+      await sendWithTimeout(sendMessage, fileMessage);
       
       console.log('✅ File message sent');
       
@@ -486,15 +521,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // Map timeline events to messages
-    const messages = timeline
+  const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     ?.filter((event: any) => {
-    // ✅ Only show messages after virtual sharding launch
-    const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-    return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-  })
-  .map((event: any) => {
+      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+    })
+    .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
       
@@ -594,16 +627,26 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     <>
       <DailyProvider>
         <ChatLayout>
-          {/* ✅ Debug banner (development only) */}
           <PermissionDebugBanner 
             permissions={permissions}
             userRole={userRole}
             activeEvent={activeEvent}
           />
 
+          {/* ✅ Retry banner for failed messages */}
+          {failedMessage && (
+            <RetryMessageBanner
+              message={failedMessage}
+              onRetry={() => handleSendMessage({ preventDefault: () => {} } as any)}
+              onCancel={() => {
+                setFailedMessage(null);
+                setMessageInput('');
+              }}
+            />
+          )}
+
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
-              {/* Desktop: Video + Chat Split View */}
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
                 <div className="border-b border-gray-200">
                   <EventVideoStage 
@@ -711,7 +754,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
               </div>
 
-              {/* Mobile: Video + Chat Stacked */}
               <div className="lg:hidden flex flex-col h-screen">
                 <div className="border-b border-gray-200">
                   <EventVideoStage 
@@ -818,7 +860,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             </>
           ) : (
-            /* Chat Only View (No Video) */
             <div className="h-full flex flex-col bg-white">
               <div className="bg-gray-50 px-4 py-2 border-b">
                 <div className="flex items-center justify-between">
