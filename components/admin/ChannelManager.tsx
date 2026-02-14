@@ -1,8 +1,8 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 
-const ChannelManagerContent = dynamic(() => import('./ChannelManagerContent'), {
+const ChannelManagerContent = dynamicImport(() => import('./ChannelManagerContent'), {
   ssr: false,
   loading: () => (
     <div className="p-8 text-center">
