@@ -6,6 +6,7 @@ import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
+import { TOWNS_RPC_CONFIG } from '@/thirdweb-client';
 import { townsEnv } from '@towns-protocol/sdk';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
@@ -14,7 +15,12 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 
 // ✅ Towns SDK handles RPC URLs automatically based on environment
-const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+const TOWNS_CONFIG = {
+  ...townsEnv().makeTownsConfig('omega'),
+  // Add RPC configuration if Towns SDK supports it
+  rpcUrl: TOWNS_RPC_CONFIG.rpc,
+  fallbackRpcUrls: TOWNS_RPC_CONFIG.fallbackRpcs,
+};
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
