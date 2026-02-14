@@ -42,20 +42,29 @@ export default function AdminSetupContent() {
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
   const [isConnectingTowns, setIsConnectingTowns] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
   const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
 
-  // Towns connection
-  const townsConfig = townsEnv().makeTownsConfig('omega');
-  const { connect, isAgentConnected } = useAgentConnection();
-  
-  // Use the Towns SDK hook for creating channels
-  const { createChannel } = useCreateChannel(spaceId);
+  // Wait for client-side mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Only use Towns hooks after mounted
+  const townsConfig = isMounted ? townsEnv().makeTownsConfig('omega') : null;
+  const agentConnection = isMounted ? useAgentConnection() : { connect: null, isAgentConnected: false };
+  const channelHook = isMounted ? useCreateChannel(spaceId) : { createChannel: null };
+
+  const { connect, isAgentConnected } = agentConnection;
+  const { createChannel } = channelHook;
 
   // Auto-connect to Towns when wallet is connected
   useEffect(() => {
+    if (!isMounted || !townsConfig) return;
+
     const connectToTowns = async () => {
-      if (account && !isAgentConnected && !isConnectingTowns && typeof window !== 'undefined' && window.ethereum) {
+      if (account && !isAgentConnected && !isConnectingTowns && typeof window !== 'undefined' && window.ethereum && connect) {
         setIsConnectingTowns(true);
         try {
           const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -71,7 +80,7 @@ export default function AdminSetupContent() {
     };
 
     connectToTowns();
-  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig]);
+  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig, isMounted]);
 
   const handleCreateChannels = async () => {
     if (!account) {
@@ -81,6 +90,11 @@ export default function AdminSetupContent() {
 
     if (!isAgentConnected) {
       setError('Not connected to Towns Protocol. Please wait...');
+      return;
+    }
+
+    if (!createChannel) {
+      setError('Channel creation not ready. Please refresh the page.');
       return;
     }
 
@@ -130,6 +144,18 @@ export default function AdminSetupContent() {
       setIsCreating(false);
     }
   };
+
+  // Show loading until mounted
+  if (!isMounted) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-center p-12">
+          <span className="animate-spin text-4xl">⏳</span>
+          <span className="ml-4 font-georgia-pro text-lg">Initializing...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
