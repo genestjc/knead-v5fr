@@ -1,15 +1,12 @@
-/**
- * Admin Setup Page for Virtual Sharding
- * 
- * Simple UI for creating the 4 channels needed for virtual sharding.
- * Shows channel IDs in copy-paste friendly format for Vercel env vars.
- */
-
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, ConnectButton } from 'thirdweb/react';
+import { useActiveAccount, ConnectButton, useSigner } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
+import { townsEnv } from '@towns-protocol/sdk';
+import { connectTowns } from '@towns-protocol/react-sdk';
+import { ethers } from 'ethers';
+import { base } from 'thirdweb/chains';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +28,32 @@ interface ChannelIds {
   files: string;
 }
 
+const CHANNEL_DEFINITIONS = [
+  {
+    name: 'knead-contributors',
+    description: 'All contributor messages (text only)',
+    key: 'contributors',
+  },
+  {
+    name: 'knead-participants-a',
+    description: 'Participant messages during events (shard A: address 0-7)',
+    key: 'participantsA',
+  },
+  {
+    name: 'knead-participants-b',
+    description: 'Participant messages during events (shard B: address 8-f)',
+    key: 'participantsB',
+  },
+  {
+    name: 'knead-files',
+    description: 'All file uploads and IPFS content',
+    key: 'files',
+  },
+];
+
 export default function AdminSetupPage() {
   const account = useActiveAccount();
+  const signer = useSigner({ client: getClient(), chain: base });
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
@@ -41,29 +62,69 @@ export default function AdminSetupPage() {
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
 
   const handleCreateChannels = async () => {
+    if (!account || !signer) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
     setIsCreating(true);
     setError(null);
     setChannelIds(null);
 
     try {
-      console.log('🏗️ Creating channels...');
+      console.log('🏗️ Creating channels with MetaMask...');
       
-      const response = await fetch('/api/admin/create-channels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      // Convert ThirdWeb signer to ethers signer
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const ethersSigner = provider.getSigner();
+
+      // Connect to Towns
+      const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
+      const townsConfig = townsEnv().makeTownsConfig('omega', {
+        rpcUrl: BASE_RPC_URL,
+      });
+      
+      const agent = await connectTowns(ethersSigner, { 
+        townsConfig,
       });
 
-      const data = await response.json();
-
-      if (data.success && data.channels) {
-        console.log('✅ Channels created:', data.channels);
-        setChannelIds(data.channels);
-      } else {
-        console.error('❌ Failed to create channels:', data.error);
-        setError(data.error || 'Failed to create channels');
+      // Join space
+      const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
+      const space = await agent.spaces.getSpace(spaceId);
+      
+      // Check if already a member, if not join
+      const isMember = await space.isMember(account.address);
+      if (!isMember) {
+        console.log('Joining space...');
+        await space.joinSpace(ethersSigner);
       }
+
+      // Create all 4 channels
+      const channels: Record<string, string> = {};
+
+      for (const def of CHANNEL_DEFINITIONS) {
+        console.log(`Creating channel: ${def.name}`);
+        
+        // MetaMask will prompt for signature
+        const channelId = await space.createChannel(
+          def.name,
+          def.description,
+          ethersSigner
+        );
+        
+        channels[def.key] = channelId;
+        console.log(`✅ Created ${def.name}: ${channelId}`);
+        
+        // Wait 2 seconds between creates
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+      // Disconnect
+      agent.stop();
+
+      setChannelIds(channels as ChannelIds);
+      console.log('✅ All channels created:', channels);
+
     } catch (err) {
       console.error('❌ Error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
@@ -78,7 +139,7 @@ export default function AdminSetupPage() {
         <div className="text-center">
           <h1 className="font-adonis text-4xl mb-4">Admin Setup</h1>
           <p className="font-georgia-pro text-lg text-gray-600 mb-6">
-            Connect your admin wallet to continue
+            Connect your Space Owner wallet to continue
           </p>
           <ConnectButton client={client} theme="light" />
         </div>
@@ -92,7 +153,7 @@ export default function AdminSetupPage() {
         <div className="text-center">
           <h1 className="font-adonis text-4xl mb-4 text-red-600">Access Denied</h1>
           <p className="font-georgia-pro text-lg text-gray-600">
-            Only the master admin can access this page.
+            Only the Space Owner wallet can access this page.
           </p>
           <p className="font-mono text-sm text-gray-400 mt-4">
             Connected: {account.address}
@@ -113,20 +174,19 @@ export default function AdminSetupPage() {
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
           <h2 className="font-adonis text-2xl mb-4">Instructions</h2>
           <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
-            <li>Make sure <code className="bg-gray-200 px-2 py-1 rounded">ADMIN_PRIVATE_KEY</code> is set in Vercel environment variables</li>
-            <li>Click &quot;Create Channels&quot; button below</li>
+            <li>Connect your Space Owner wallet (the one with the Space NFT)</li>
+            <li>Click "Create Channels" button below</li>
+            <li>Approve transactions in MetaMask (4-5 signatures required)</li>
             <li>Copy the channel IDs that appear</li>
-            <li>Add them as environment variables in Vercel (both Preview and Production)</li>
-            <li>Redeploy the app to use the new channels</li>
+            <li>Add them as environment variables in Vercel</li>
           </ol>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-6 mb-6">
-          <h2 className="font-adonis text-xl mb-2 text-yellow-800">⚠️ Security Notice</h2>
-          <p className="font-georgia-pro text-sm text-yellow-800">
-            The <code className="bg-yellow-100 px-2 py-1 rounded">ADMIN_PRIVATE_KEY</code> must be kept strictly confidential. 
-            Only use it in secure Vercel environment variables. Never commit it to source control or share it publicly.
-            After creating channels, you can remove this key from Vercel as it&apos;s only needed for one-time setup.
+        <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-6">
+          <h2 className="font-adonis text-xl mb-2 text-blue-800">🔐 Secure & Simple</h2>
+          <p className="font-georgia-pro text-sm text-blue-800">
+            Your private key never leaves MetaMask. You'll sign each transaction directly in your wallet.
+            This is the old-school Web3 way - your keys, your control! 🗝️
           </p>
         </div>
 
@@ -139,10 +199,10 @@ export default function AdminSetupPage() {
             {isCreating ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="animate-spin">⏳</span>
-                Creating Channels...
+                Creating Channels... (Check MetaMask)
               </span>
             ) : (
-              '🏗️ Create Channels'
+              '🏗️ Create Channels with MetaMask'
             )}
           </button>
         )}
@@ -217,9 +277,8 @@ export default function AdminSetupPage() {
               <ol className="font-georgia-pro text-sm space-y-1 list-decimal list-inside">
                 <li>Go to Vercel → Your Project → Settings → Environment Variables</li>
                 <li>Add all 4 variables above to both Preview and Production</li>
-                <li>Trigger a redeploy (or merge this PR)</li>
-                <li>The app will now use the 4-channel system</li>
-                <li>Optional: Remove ADMIN_PRIVATE_KEY from Vercel (no longer needed)</li>
+                <li>Trigger a redeploy</li>
+                <li>The app will now use the 4-channel system! 🎉</li>
               </ol>
             </div>
           </div>
