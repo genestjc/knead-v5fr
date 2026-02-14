@@ -47,15 +47,10 @@ export async function POST(request: NextRequest) {
 
     // Connect to Towns
     const townsConfig = townsEnv().makeTownsConfig('omega');
-    const riverConnection = makeRiverConnection(
-      signer,
-      townsConfig.river,
-      undefined,
-      { environmentId: 'omega' }
-    );
-
-    await riverConnection.connect();
-
+    const connection = await connectTowns(signer, {
+    environment: 'omega',
+    });
+    
     // Join space
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
     const space = await riverConnection.joinSpace(spaceId);
