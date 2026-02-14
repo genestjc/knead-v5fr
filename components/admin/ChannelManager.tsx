@@ -1,21 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { useCreateChannel, useAgentConnection } from '@towns-protocol/react-sdk';
 import { townsEnv } from '@towns-protocol/sdk';
-import { connectTowns } from '@towns-protocol/react-sdk';
 import { ethers } from 'ethers';
 
-interface ChannelManagerProps {
-  adminAddress: string;
-}
-
-export function ChannelManager({ adminAddress }: ChannelManagerProps) {
+export default function ChannelManagerContent() {
   const account = useActiveAccount();
   const [channelName, setChannelName] = useState('');
   const [channelDescription, setChannelDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [result, setResult] = useState<{ success: boolean; channelId?: string; error?: string } | null>(null);
+  const [isConnectingTowns, setIsConnectingTowns] = useState(false);
+
+  const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
+  const townsConfig = townsEnv().makeTownsConfig('omega');
+  const { connect, isAgentConnected } = useAgentConnection();
+  const { createChannel } = useCreateChannel(spaceId);
+
+  // Auto-connect to Towns
+  useEffect(() => {
+    const connectToTowns = async () => {
+      if (account && !isAgentConnected && !isConnectingTowns && typeof window !== 'undefined' && window.ethereum) {
+        setIsConnectingTowns(true);
+        try {
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          await connect(signer, { townsConfig });
+          console.log('✅ Connected to Towns Protocol');
+        } catch (err) {
+          console.error('Failed to connect to Towns:', err);
+        } finally {
+          setIsConnectingTowns(false);
+        }
+      }
+    };
+
+    connectToTowns();
+  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig]);
 
   const handleCreateChannel = async () => {
     if (!channelName.trim()) {
@@ -23,13 +46,13 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
       return;
     }
 
-    if (!account) {
-      alert('Please connect your wallet');
+    if (!account || !isAgentConnected) {
+      alert('Please connect wallet and wait for Towns connection');
       return;
     }
 
     if (typeof window === 'undefined' || !window.ethereum) {
-      alert('MetaMask not detected. Please install MetaMask.');
+      alert('MetaMask not detected');
       return;
     }
 
@@ -38,53 +61,20 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
 
     try {
       console.log('🏗️ Creating channel with MetaMask...');
-
-      // Convert to ethers signer
       const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const ethersSigner = provider.getSigner();
+      const signer = provider.getSigner();
 
-      // Connect to Towns
-      const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
-      const townsConfig = townsEnv().makeTownsConfig('omega', {
-        rpcUrl: BASE_RPC_URL,
-      });
-      
-      const agent = await connectTowns(ethersSigner, { 
-        townsConfig,
-      });
-
-      // Join space
-      const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
-      const space = await agent.spaces.getSpace(spaceId);
-      
-      // Check if already a member
-      const isMember = await space.isMember(account.address);
-      if (!isMember) {
-        console.log('Joining space...');
-        await space.joinSpace(ethersSigner);
-      }
-
-      // Create the channel (MetaMask will prompt)
-      const channelId = await space.createChannel(
+      const channelId = await createChannel(
         channelName,
-        channelDescription || '',
-        ethersSigner
+        signer,
+        { topic: channelDescription || '' }
       );
 
       console.log(`✅ Created ${channelName}: ${channelId}`);
 
-      // Disconnect
-      agent.stop();
-
-      setResult({
-        success: true,
-        channelId,
-      });
-
-      // Clear form on success
+      setResult({ success: true, channelId });
       setChannelName('');
       setChannelDescription('');
-
     } catch (error) {
       console.error('Error creating channel:', error);
       setResult({
@@ -104,6 +94,29 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
           Create new channels for sharding or organizing conversations
         </p>
       </div>
+
+      {/* Connection Status */}
+      {account && (
+        <div className={`border rounded-lg p-3 ${
+          isAgentConnected 
+            ? 'bg-green-50 border-green-300' 
+            : 'bg-yellow-50 border-yellow-300'
+        }`}>
+          <div className="flex items-center gap-2 text-sm">
+            {isAgentConnected ? (
+              <>
+                <span className="text-green-600">✅</span>
+                <span className="font-georgia-pro text-green-800">Towns Connected</span>
+              </>
+            ) : (
+              <>
+                <span className="animate-spin text-yellow-600">⏳</span>
+                <span className="font-georgia-pro text-yellow-800">Connecting...</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -152,7 +165,7 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
 
           <button
             onClick={handleCreateChannel}
-            disabled={isCreating || !channelName.trim()}
+            disabled={isCreating || !isAgentConnected || !account || !channelName.trim()}
             className="w-full bg-black text-white font-georgia-pro py-3 rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
           >
             {isCreating ? '⏳ Creating... (Check MetaMask)' : '🏗️ Create Channel with MetaMask'}
