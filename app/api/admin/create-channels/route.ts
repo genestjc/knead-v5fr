@@ -1,6 +1,7 @@
 // app/api/admin/create-channels/route.ts (PLURAL - creates 4)
 import { NextRequest, NextResponse } from 'next/server';
-import { townsEnv, connectTowns } from '@towns-protocol/sdk';
+import { townsEnv } from '@towns-protocol/sdk';
+import { connectTowns } from '@towns-protocol/react-sdk';
 import { createThirdwebClient } from 'thirdweb';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import { base } from 'thirdweb/chains';
