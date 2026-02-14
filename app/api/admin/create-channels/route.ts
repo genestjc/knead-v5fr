@@ -60,19 +60,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Connect to Towns
-    const townsConfig = townsEnv().makeTownsConfig('omega');
-    const riverConnection = makeRiverConnection(
-      signer,
-      townsConfig.river,
-      undefined,
-      { environmentId: 'omega' }
-    );
+    const connection = await connectTowns(signer, {
+    environment: 'omega',
+    });
 
     await riverConnection.connect();
 
-    // Join space
+ 
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
-    const space = await riverConnection.joinSpace(spaceId);
+    const space = await connection.joinSpace(spaceId);
     await space.waitFor(() => space.initialized);
 
     // Create all 4 channels
