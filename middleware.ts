@@ -10,7 +10,6 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  
   response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
   
   if (process.env.NODE_ENV === 'production') {
@@ -101,6 +100,11 @@ export function middleware(request: NextRequest) {
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
       https://cca-lite.coinbase.com
+      https://relay.walletconnect.org
+      https://rpc.walletconnect.com
+      https://*.walletconnect.com
+      https://*.walletconnect.org
+      wss://relay.walletconnect.org
       https://*.river.build
       https://devnet.rpc.river.build
       https://mainnet.rpc.river.build
