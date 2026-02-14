@@ -22,6 +22,16 @@ import { Paperclip } from 'lucide-react';
 import { useRoleBasedTimeline } from '@/hooks/use-role-based-timeline';
 import { isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
 
+const LoadingSpinner = () => (
+  <div className="text-center py-10">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+    <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
+  </div>
+);
+
+// ✅ ADD THIS - Set to when virtual sharding launched
+const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime(); // Adjust time as needed
+
 interface ConnectedChatProps {
   currentUser: ChatUser;
   spaceId: string;
@@ -33,13 +43,6 @@ interface UserProfile {
   avatar: string | null;
   displayName: string;
 }
-
-const LoadingSpinner = () => (
-  <div className="text-center py-10">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-    <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
-  </div>
-);
 
 // ✅ DEBUG BANNER (only shows in development)
 function PermissionDebugBanner({ 
@@ -484,9 +487,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   // Map timeline events to messages
-  const messages = timeline
+    const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .map((event: any) => {
+    ?.filter((event: any) => {
+    // ✅ Only show messages after virtual sharding launch
+    const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+    return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+  })
+  .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
       
