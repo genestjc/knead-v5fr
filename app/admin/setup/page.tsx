@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, ConnectButton, useSigner } from 'thirdweb/react';
+import { useActiveAccount, ConnectButton } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
 import { townsEnv } from '@towns-protocol/sdk';
 import { connectTowns } from '@towns-protocol/react-sdk';
 import { ethers } from 'ethers';
-import { base } from 'thirdweb/chains';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +52,6 @@ const CHANNEL_DEFINITIONS = [
 
 export default function AdminSetupPage() {
   const account = useActiveAccount();
-  const signer = useSigner({ client: getClient(), chain: base });
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
@@ -62,8 +60,13 @@ export default function AdminSetupPage() {
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
 
   const handleCreateChannels = async () => {
-    if (!account || !signer) {
+    if (!account) {
       setError('Please connect your wallet first');
+      return;
+    }
+
+    if (typeof window === 'undefined' || !window.ethereum) {
+      setError('MetaMask not detected. Please install MetaMask.');
       return;
     }
 
@@ -74,7 +77,7 @@ export default function AdminSetupPage() {
     try {
       console.log('🏗️ Creating channels with MetaMask...');
       
-      // Convert ThirdWeb signer to ethers signer
+      // Convert to ethers signer
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const ethersSigner = provider.getSigner();
 
@@ -175,7 +178,7 @@ export default function AdminSetupPage() {
           <h2 className="font-adonis text-2xl mb-4">Instructions</h2>
           <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
             <li>Connect your Space Owner wallet (the one with the Space NFT)</li>
-            <li>Click "Create Channels" button below</li>
+            <li>Click &quot;Create Channels&quot; button below</li>
             <li>Approve transactions in MetaMask (4-5 signatures required)</li>
             <li>Copy the channel IDs that appear</li>
             <li>Add them as environment variables in Vercel</li>
@@ -185,7 +188,7 @@ export default function AdminSetupPage() {
         <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-6">
           <h2 className="font-adonis text-xl mb-2 text-blue-800">🔐 Secure & Simple</h2>
           <p className="font-georgia-pro text-sm text-blue-800">
-            Your private key never leaves MetaMask. You'll sign each transaction directly in your wallet.
+            Your private key never leaves MetaMask. You&apos;ll sign each transaction directly in your wallet.
             This is the old-school Web3 way - your keys, your control! 🗝️
           </p>
         </div>
