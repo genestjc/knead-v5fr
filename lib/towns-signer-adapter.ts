@@ -10,6 +10,7 @@ import type { Signer } from "ethers"; // ethers v5 type
  * ✅ Uses official ThirdWeb adapter (not custom implementation)
  * ✅ Produces signatures compatible with ethers.utils.verifyMessage()
  * ✅ Required for Towns Protocol SDK integration
+ * ✅ ThirdWeb adapter handles RPC internally - no need to override
  */
 export async function createTownsSigner(
   account: Account,
@@ -21,10 +22,12 @@ export async function createTownsSigner(
   console.log('   Method: ThirdWeb Official Adapter');
   console.log('   Account:', account.address);
   console.log('   Chain:', chain.name, `(${chain.id})`);
+  console.log('   RPC:', typeof chain.rpc === 'string' ? chain.rpc.substring(0, 50) + '...' : 'default');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
     // ✅ Use official ThirdWeb adapter for ethers v5
+    // The adapter internally handles RPC connection, retries, and rate limiting
     const ethersSigner = await ethers5Adapter.signer.toEthers({
       client,
       chain,
@@ -50,6 +53,7 @@ export async function createTownsSigner(
     }
 
     console.log('✅ Ethers v5 signer ready for Towns Protocol');
+    console.log('   Multi-RPC configuration active via ThirdWeb chain config');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return ethersSigner;
@@ -57,7 +61,16 @@ export async function createTownsSigner(
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('❌ FAILED TO CREATE SIGNER');
     console.error('   Error:', error.message);
-    console.error('   Stack:', error.stack);
+    console.error('   Account:', account.address);
+    console.error('   Chain:', chain.id);
+    
+    // If it's a rate limit error, log helpful info
+    if (error.message?.includes('429')) {
+      console.error('   ⚠️ This is a rate limit error from the RPC provider');
+      console.error('   ⚠️ Multi-RPC failover should handle this automatically');
+      console.error('   ⚠️ Check thirdweb-client.ts RPC configuration');
+    }
+    
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     throw error;
   }
