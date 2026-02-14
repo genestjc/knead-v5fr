@@ -2,12 +2,12 @@
 
 import { useActiveAccount, ConnectButton } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 
 export const dynamic = 'force-dynamic';
 
 // Dynamically import with ssr: false to prevent prerendering
-const AdminSetupContent = dynamic(() => import('./AdminSetupContent'), {
+const AdminSetupContent = dynamicImport(() => import('./AdminSetupContent'), {
   ssr: false,
   loading: () => (
     <div className="max-w-4xl mx-auto">
