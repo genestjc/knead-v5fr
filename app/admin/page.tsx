@@ -6,11 +6,11 @@ import { createThirdwebClient } from 'thirdweb';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
 import { UserManager } from '@/components/admin/UserManager';
+import { ChannelManager } from '@/components/admin/ChannelManager'; // ✅ ADD THIS IMPORT
 
-// ✅ ADD THIS LINE - Prevents static generation
+// ✅ Prevents static generation
 export const dynamic = 'force-dynamic';
 
-// Create client inside component or use lazy initialization
 let cachedClient: ReturnType<typeof createThirdwebClient> | null = null;
 
 function getClient() {
@@ -24,10 +24,11 @@ function getClient() {
 
 export default function AdminPage() {
   const account = useActiveAccount();
-  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users'>('events');
+  // ✅ FIX: Add 'channels' to the type union
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'channels'>('events');
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
-  const client = getClient(); // ✅ Get client inside component
+  const client = getClient();
 
   if (!account) {
     return (
@@ -131,6 +132,18 @@ export default function AdminPage() {
             >
               👥 Users & Moderation
             </button>
+
+            {/* ✅ ADD THIS BUTTON INSIDE THE NAV */}
+            <button 
+              onClick={() => setActiveTab('channels')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'channels' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📡 Channels
+            </button>
           </nav>
         </div>
       </div>
@@ -141,6 +154,8 @@ export default function AdminPage() {
             {activeTab === 'events' && <EventsManager adminAddress={account.address} />}
             {activeTab === 'contributors' && <ContributorManager adminAddress={account.address} />}
             {activeTab === 'users' && <UserManager adminAddress={account.address} />}
+            {/* ✅ ADD THIS LINE */}
+            {activeTab === 'channels' && <ChannelManager adminAddress={account.address} />}
           </>
         )}
       </main>
