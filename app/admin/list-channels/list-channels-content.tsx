@@ -1,14 +1,55 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSpace, useAgentConnection } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveAccount } from 'thirdweb/react';
+import { useTownsAgent } from '@/hooks/use-towns-agent';
 
 export default function ListChannelsContent() {
   const account = useActiveAccount();
   const { isAgentConnected } = useAgentConnection();
+  const { isAgentConnected: isTownsAgentConnected, isAgentConnecting } = useTownsAgent();
+  
+  // Don't render main content until fully connected
+  if (!account) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <p className="font-georgia-pro text-lg mb-4">Please connect your wallet</p>
+          <a 
+            href="/chat-test"
+            className="text-blue-600 hover:underline font-georgia-pro"
+          >
+            Go to Chat to connect →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAgentConnecting || !isAgentConnected || !isTownsAgentConnected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="font-georgia-pro mb-2">Connecting to Towns Protocol...</p>
+          <p className="font-georgia-pro text-sm text-gray-500">
+            If this takes too long, <a href="/chat-test" className="text-blue-600 underline">go to chat first</a> to establish connection
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Only render SpaceInspector when FULLY connected
+  return <SpaceInspector />;
+}
+
+// ✅ Separate component that only renders when agent is connected
+function SpaceInspector() {
   const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
   
+  // ✅ NOW safe to call useSpace - only rendered when agent is connected
   const { data: space, isLoading, error } = useSpace(spaceId);
   const [channels, setChannels] = useState<any[]>([]);
 
@@ -27,38 +68,6 @@ export default function ListChannelsContent() {
       setChannels(channelList);
     }
   }, [space]);
-
-  // Wait for wallet connection
-  if (!account) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <p className="font-georgia-pro text-lg mb-4">Please connect your wallet</p>
-          <a 
-            href="/chat-test"
-            className="text-blue-600 hover:underline font-georgia-pro"
-          >
-            Go to Chat to connect →
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // Wait for Towns agent connection
-  if (!isAgentConnected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro mb-2">Connecting to Towns Protocol...</p>
-          <p className="font-georgia-pro text-sm text-gray-500">
-            If this takes too long, <a href="/chat-test" className="text-blue-600 underline">go to chat first</a> to establish connection
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -156,93 +165,37 @@ export default function ListChannelsContent() {
         {channels.length >= 4 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-6">
             <h2 className="font-adonis text-2xl mb-4 text-green-800">
-              📝 Assignment Suggestion
+              📝 Suggested Channel Assignment
             </h2>
             <p className="font-georgia-pro text-sm text-green-800 mb-4">
-              Since you have {channels.length} channels, here's a suggested mapping.
-              You can pick ANY 4 channels and assign them to your env vars:
+              Pick any 4 channels and assign them to your env vars:
             </p>
 
             <div className="space-y-3">
-              <div className="bg-white p-4 rounded border border-green-300">
-                <p className="font-mono text-xs text-gray-600 mb-1">
-                  NEXT_PUBLIC_CHANNEL_CONTRIBUTORS
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-gray-100 p-2 rounded break-all">
-                    {channels[0]?.id || 'N/A'}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`NEXT_PUBLIC_CHANNEL_CONTRIBUTORS=${channels[0]?.id}`);
-                      alert('Copied env var!');
-                    }}
-                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    📋
-                  </button>
+              {[
+                { key: 'NEXT_PUBLIC_CHANNEL_CONTRIBUTORS', idx: 0 },
+                { key: 'NEXT_PUBLIC_CHANNEL_PARTICIPANTS_A', idx: 1 },
+                { key: 'NEXT_PUBLIC_CHANNEL_PARTICIPANTS_B', idx: 2 },
+                { key: 'NEXT_PUBLIC_CHANNEL_FILES', idx: 3 },
+              ].map(({ key, idx }) => (
+                <div key={key} className="bg-white p-4 rounded border border-green-300">
+                  <p className="font-mono text-xs text-gray-600 mb-1">{key}</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-gray-100 p-2 rounded break-all">
+                      {channels[idx]?.id || 'N/A'}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${key}=${channels[idx]?.id}`);
+                        alert('Copied env var!');
+                      }}
+                      className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                    >
+                      📋
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="bg-white p-4 rounded border border-green-300">
-                <p className="font-mono text-xs text-gray-600 mb-1">
-                  NEXT_PUBLIC_CHANNEL_PARTICIPANTS_A
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-gray-100 p-2 rounded break-all">
-                    {channels[1]?.id || 'N/A'}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`NEXT_PUBLIC_CHANNEL_PARTICIPANTS_A=${channels[1]?.id}`);
-                      alert('Copied env var!');
-                    }}
-                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    📋
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded border border-green-300">
-                <p className="font-mono text-xs text-gray-600 mb-1">
-                  NEXT_PUBLIC_CHANNEL_PARTICIPANTS_B
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-gray-100 p-2 rounded break-all">
-                    {channels[2]?.id || 'N/A'}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`NEXT_PUBLIC_CHANNEL_PARTICIPANTS_B=${channels[2]?.id}`);
-                      alert('Copied env var!');
-                    }}
-                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    📋
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded border border-green-300">
-                <p className="font-mono text-xs text-gray-600 mb-1">
-                  NEXT_PUBLIC_CHANNEL_FILES
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-gray-100 p-2 rounded break-all">
-                    {channels[3]?.id || 'N/A'}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`NEXT_PUBLIC_CHANNEL_FILES=${channels[3]?.id}`);
-                      alert('Copied env var!');
-                    }}
-                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    📋
-                  </button>
-                </div>
-              </div>
+              ))}
 
               {/* Copy All Button */}
               <button
@@ -264,7 +217,7 @@ export default function ListChannelsContent() {
                 <li>Go to Vercel → Settings → Environment Variables</li>
                 <li>Add all 4 to Preview and Production</li>
                 <li>Trigger a redeploy</li>
-                <li>Enable virtual sharding in code (set isVirtualShardingEnabled to true)</li>
+                <li>Enable virtual sharding (set isVirtualShardingEnabled to true)</li>
               </ol>
             </div>
           </div>
