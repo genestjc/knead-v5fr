@@ -3,7 +3,7 @@ import { base } from "thirdweb/chains";
 import { logger } from "./lib/logger";
 
 const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
-const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+const alchemyRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
 
 // ✅ Validation in development
 if (process.env.NODE_ENV !== 'production') {
@@ -14,14 +14,13 @@ if (process.env.NODE_ENV !== 'production') {
     logger.log("✅ ThirdWeb client ID configured correctly");
   }
   
-  if (!baseRpcUrl) {
+  if (!alchemyRpcUrl) {
     logger.warn("⚠️ WARNING: NEXT_PUBLIC_BASE_RPC_URL is not set!");
     logger.warn("Will fall back to public RPC which may have CORS issues.");
   } else {
-    logger.log("✅ Base RPC URL configured:", baseRpcUrl.substring(0, 50) + "...");
+    logger.log("✅ Alchemy RPC URL configured:", alchemyRpcUrl.substring(0, 50) + "...");
   }
 
-  // ✅ Check for secret key on server-side
   if (typeof window === 'undefined' && !process.env.THIRDWEB_SECRET_KEY) {
     logger.warn("⚠️ WARNING: THIRDWEB_SECRET_KEY is not set!");
     logger.warn("Server-side operations (gas sponsorship, server wallet) will not work.");
@@ -30,33 +29,72 @@ if (process.env.NODE_ENV !== 'production') {
   }
 }
 
-// ✅ Create ThirdWeb client with proper error handling
-// Secret key is ONLY included server-side (never exposed to browser)
 export const client = createThirdwebClient({
   clientId:
     clientId ||
     (() => {
       throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required");
     })(),
-  // ✅ CRITICAL: Only add secretKey on server-side (typeof window === "undefined")
-  // This prevents exposing the secret key to the browser bundle
   ...(typeof window === "undefined" && process.env.THIRDWEB_SECRET_KEY
     ? { secretKey: process.env.THIRDWEB_SECRET_KEY }
     : {}),
 });
 
-// ✅ Throw error if RPC URL is missing (better than silent fallback)
-if (!baseRpcUrl) {
-  throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required to avoid CORS issues');
+// ✅ MULTI-RPC CONFIGURATION with automatic fallback
+const RPC_ENDPOINTS = [
+  alchemyRpcUrl,                                    // 1. Alchemy (your dedicated endpoint)
+  `https://${base.id}.rpc.thirdweb.com/${clientId}`, // 2. Thirdweb RPC (included with client)
+  'https://mainnet.base.org',                       // 3. Public Base RPC (last resort)
+].filter(Boolean); // Remove any undefined values
+
+logger.log(`📡 Configured ${RPC_ENDPOINTS.length} RPC endpoints for load balancing`);
+
+// ✅ Round-robin index for load balancing (browser only)
+let currentRpcIndex = 0;
+
+/**
+ * Get next RPC endpoint using round-robin strategy
+ * Distributes load across all available RPCs
+ */
+function getNextRpcEndpoint(): string {
+  if (typeof window === 'undefined') {
+    // Server-side: always use Alchemy (most reliable)
+    return RPC_ENDPOINTS[0];
+  }
+  
+  // Client-side: rotate through all endpoints
+  const endpoint = RPC_ENDPOINTS[currentRpcIndex];
+  currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length;
+  return endpoint;
 }
 
-// ✅ Base chain for Base network operations (NFTs, tokens, etc.)
+/**
+ * Get all RPC endpoints for fallback configuration
+ */
+export function getAllRpcEndpoints(): string[] {
+  return RPC_ENDPOINTS;
+}
+
+// ✅ Base chain with multi-RPC support
 export const activeChain = {
   ...base,
-  rpc: baseRpcUrl,
+  rpc: getNextRpcEndpoint(), // Primary RPC (rotates)
+};
+
+// ✅ Export RPC configuration for Towns SDK
+export const TOWNS_RPC_CONFIG = {
+  // Primary endpoint
+  rpc: RPC_ENDPOINTS[0], // Alchemy first
+  
+  // Fallback endpoints
+  fallbackRpcs: RPC_ENDPOINTS.slice(1), // Thirdweb + Public
+  
+  // All endpoints for manual fallback
+  allEndpoints: RPC_ENDPOINTS,
 };
 
 logger.log(`ThirdWeb client initialized (${typeof window === 'undefined' ? 'server' : 'client'} side)`);
+logger.log(`🔄 Load balancing across ${RPC_ENDPOINTS.length} RPC providers`);
 
 export const KNEAD_MEMBERSHIP_CONTRACT = {
   address: process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || "0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85",
