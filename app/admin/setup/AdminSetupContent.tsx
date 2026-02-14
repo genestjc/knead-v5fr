@@ -13,11 +13,22 @@ export default function AdminSetupContent() {
   
   const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
   
-  // ✅ USE YOUR ALCHEMY RPC
-  const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
-  const townsConfig = townsEnv().makeTownsConfig('omega', {
-    rpcUrl: BASE_RPC_URL,  // ← Your Alchemy endpoint
-  });
+  // ✅ VERIFY YOUR ALCHEMY RPC
+  const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+  
+  // Log to console what RPC we're using
+  useEffect(() => {
+    console.log('🔗 RPC URL:', BASE_RPC_URL);
+    if (!BASE_RPC_URL || BASE_RPC_URL.includes('mainnet.base.org')) {
+      console.warn('⚠️ WARNING: Using public RPC! This WILL rate limit!');
+    } else if (BASE_RPC_URL.includes('alchemy.com')) {
+      console.log('✅ Using Alchemy RPC - good!');
+    }
+  }, [BASE_RPC_URL]);
+  
+  const townsConfig = BASE_RPC_URL 
+    ? townsEnv().makeTownsConfig('omega', { rpcUrl: BASE_RPC_URL })
+    : townsEnv().makeTownsConfig('omega');
   
   const { connect, isAgentConnected } = useAgentConnection();
 
@@ -30,7 +41,7 @@ export default function AdminSetupContent() {
           const provider = new ethers.providers.Web3Provider(window.ethereum);
           const signer = provider.getSigner();
           
-          console.log('🔗 Connecting to Towns with RPC:', BASE_RPC_URL);
+          console.log('🔗 Connecting to Towns with config:', townsConfig);
           
           await connect(signer, { townsConfig });
           console.log('✅ Connected to Towns Protocol');
@@ -43,7 +54,7 @@ export default function AdminSetupContent() {
     };
 
     connectToTowns();
-  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig, BASE_RPC_URL]);
+  }, [account, isAgentConnected, isConnectingTowns, connect, townsConfig]);
 
   // Show loading until connected
   if (!isAgentConnected) {
@@ -61,14 +72,19 @@ export default function AdminSetupContent() {
               {account ? 'Connecting to Towns Protocol...' : 'Please connect your wallet first'}
             </span>
           </div>
-          <p className="text-xs font-mono text-gray-600 mt-2">
-            RPC: {BASE_RPC_URL.substring(0, 50)}...
-          </p>
+          
+          {/* Show RPC info */}
+          <div className="mt-4 text-xs font-mono">
+            <p className="text-gray-600">RPC Endpoint:</p>
+            <p className={BASE_RPC_URL?.includes('alchemy') ? 'text-green-700' : 'text-red-700'}>
+              {BASE_RPC_URL || '❌ Not set - will use public RPC (SLOW!)'}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   // ✅ Only render ChannelCreator AFTER agent is connected
-  return <ChannelCreator spaceId={spaceId} />;
+  return <ChannelCreator spaceId={spaceId} rpcUrl={BASE_RPC_URL} />;
 }
