@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
-import { useAdminRedact } from '@towns-protocol/react-sdk';
+import { useVirtualAdminRedact } from '@/hooks/use-virtual-admin-redact';
 
 interface AdminContextMenuProps {
   message: {
@@ -35,7 +35,7 @@ export function AdminContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   
-  const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
+  const { virtualAdminRedact, isPending: isRedacting } = useVirtualAdminRedact(channelId);
 
   // Adjust position to prevent off-screen menu
   useEffect(() => {
@@ -149,8 +149,8 @@ export function AdminContextMenu({
     console.log('   Channel ID:', channelId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    if (!adminRedact) {
-      console.error('❌ adminRedact function not available');
+    if (!virtualAdminRedact) {
+      console.error('❌ virtualAdminRedact function not available');
       toast.error('Delete function not available', {
         description: 'Try refreshing the page to reconnect',
       });
@@ -177,12 +177,12 @@ export function AdminContextMenu({
       console.log('⏳ Waiting for stream sync...');
       await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
       
-      console.log('🔄 Calling adminRedact...');
+      console.log('🔄 Calling virtualAdminRedact...');
       console.log('   Event ID:', message.id);
       
-      const result = await adminRedact(message.id);
+      await virtualAdminRedact(message.id);
       
-      console.log('✅ adminRedact succeeded!', result);
+      console.log('✅ virtualAdminRedact succeeded!');
       toast.success('Message deleted from Towns Protocol');
       onClose();
       
