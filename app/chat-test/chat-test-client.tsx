@@ -14,13 +14,26 @@ import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 
-// ✅ Towns SDK handles RPC URLs automatically based on environment
-const TOWNS_CONFIG = {
-  ...townsEnv().makeTownsConfig('omega'),
-  // Add RPC configuration if Towns SDK supports it
-  rpcUrl: TOWNS_RPC_CONFIG.rpc,
-  fallbackRpcUrls: TOWNS_RPC_CONFIG.fallbackRpcs,
-};
+// ✅ Configure RPC URL for Towns SDK (client-side)
+const BASE_RPC = process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL 
+  || process.env.NEXT_PUBLIC_BASE_RPC_URL 
+  || TOWNS_RPC_CONFIG.rpc;
+
+console.log('🔧 Configuring Towns SDK with RPC:', BASE_RPC?.substring(0, 50) + '...');
+
+// ✅ Pass RPC URL to Towns SDK via environment override
+const townsEnvWithRpc = townsEnv({
+  env: {
+    BASE_MAINNET_RPC_URL: BASE_RPC,
+  }
+});
+
+const TOWNS_CONFIG = townsEnvWithRpc.makeTownsConfig('omega');
+
+console.log('✅ Towns Config created');
+console.log('   Environment:', TOWNS_CONFIG.environmentId);
+console.log('   Base RPC:', TOWNS_CONFIG.base?.rpcUrl?.substring(0, 50) + '...');
+console.log('   River RPC:', TOWNS_CONFIG.river?.rpcUrl?.substring(0, 50) + '...');
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
