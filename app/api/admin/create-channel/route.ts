@@ -47,14 +47,19 @@ export async function POST(request: NextRequest) {
 
     // Connect to Towns
     const townsConfig = townsEnv().makeTownsConfig('omega');
-    const connection = await connectTowns(signer, {
-    environment: 'omega',
+    const agent = await connectTowns(signer, { 
+      townsConfig,
     });
-    
+
     // Join space
     const spaceId = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
-    const space = await riverConnection.joinSpace(spaceId);
-    await space.waitFor(() => space.initialized);
+    const space = await agent.spaces.getSpace(spaceId);
+    
+    // Check if already a member, if not join
+    const isMember = await space.isMember(signer.getAddress());
+    if (!isMember) {
+      await space.joinSpace(signer);
+    }
 
     // Create the channel
     const channelId = await space.createChannel(
@@ -64,7 +69,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Disconnect
-    await riverConnection.disconnect();
+    agent.stop();
 
     return NextResponse.json({
       success: true,
