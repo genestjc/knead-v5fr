@@ -37,17 +37,56 @@ const CHANNEL_DEFINITIONS = [
 
 interface ChannelCreatorProps {
   spaceId: string;
+  rpcUrl?: string;
 }
 
-export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
+export function ChannelCreator({ spaceId, rpcUrl }: ChannelCreatorProps) {
   const account = useActiveAccount();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [currentChannel, setCurrentChannel] = useState('');
+  const [logs, setLogs] = useState<string[]>([]);
 
   const { createChannel } = useCreateChannel(spaceId);
+
+  const addLog = (message: string) => {
+    console.log(message);
+    setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
+
+  // Exponential backoff retry
+  const createWithRetry = async (def: typeof CHANNEL_DEFINITIONS[0], signer: ethers.Signer, maxRetries = 3) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        addLog(`Attempt ${attempt + 1}/${maxRetries}: Creating ${def.name}...`);
+        
+        const channelId = await createChannel(
+          def.name,
+          signer,
+          { topic: def.description }
+        );
+        
+        addLog(`✅ Success: ${def.name} → ${channelId}`);
+        return channelId;
+        
+      } catch (err: any) {
+        const errorMsg = err?.message || String(err);
+        addLog(`❌ Attempt ${attempt + 1} failed: ${errorMsg}`);
+        
+        if (attempt < maxRetries - 1) {
+          // Exponential backoff: 15s, 30s, 45s
+          const waitTime = (attempt + 1) * 15000;
+          addLog(`⏳ Waiting ${waitTime / 1000}s before retry...`);
+          await new Promise(r => setTimeout(r, waitTime));
+        } else {
+          throw new Error(`Failed after ${maxRetries} attempts: ${errorMsg}`);
+        }
+      }
+    }
+    throw new Error('Should not reach here');
+  };
 
   const handleCreateChannels = async () => {
     if (!account) {
@@ -69,9 +108,11 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
     setError(null);
     setChannelIds(null);
     setCurrentStep(0);
+    setLogs([]);
 
     try {
-      console.log('🏗️ Creating channels with MetaMask...');
+      addLog('🏗️ Starting channel creation...');
+      addLog(`🔗 RPC: ${rpcUrl || 'Default (public)'}`);
       
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const signer = provider.getSigner();
@@ -83,53 +124,28 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
         
         setCurrentStep(i + 1);
         setCurrentChannel(def.name);
-        console.log(`[${i + 1}/${CHANNEL_DEFINITIONS.length}] Creating channel: ${def.name}`);
         
-        try {
-          const channelId = await createChannel(
-            def.name,
-            signer,
-            { topic: def.description }
-          );
-          
-          channels[def.key] = channelId;
-          console.log(`✅ Created ${def.name}: ${channelId}`);
-          
-          // ✅ LONGER DELAY - Give Towns Protocol time to process
-          if (i < CHANNEL_DEFINITIONS.length - 1) {
-            console.log(`⏳ Waiting 10 seconds before next channel...`);
-            await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
-          }
-          
-        } catch (channelError) {
-          console.error(`❌ Failed to create ${def.name}:`, channelError);
-          
-          // Retry once after 15 seconds
-          console.log(`⏳ Retrying ${def.name} in 15 seconds...`);
-          await new Promise(resolve => setTimeout(resolve, 15000));
-          
-          const channelId = await createChannel(
-            def.name,
-            signer,
-            { topic: def.description }
-          );
-          
-          channels[def.key] = channelId;
-          console.log(`✅ Created ${def.name} (retry): ${channelId}`);
-          
-          if (i < CHANNEL_DEFINITIONS.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 10000));
-          }
+        addLog(`\n[${i + 1}/${CHANNEL_DEFINITIONS.length}] Starting: ${def.name}`);
+        
+        // Create with retry
+        const channelId = await createWithRetry(def, signer);
+        channels[def.key] = channelId;
+        
+        // Wait between channels (except after last one)
+        if (i < CHANNEL_DEFINITIONS.length - 1) {
+          addLog(`⏳ Waiting 20 seconds before next channel...`);
+          await new Promise(resolve => setTimeout(resolve, 20000)); // 20 seconds
         }
       }
 
       setChannelIds(channels as ChannelIds);
       setCurrentChannel('');
-      console.log('✅ All channels created:', channels);
+      addLog('\n✅ All channels created successfully!');
 
-    } catch (err) {
-      console.error('❌ Error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+    } catch (err: any) {
+      const errorMsg = err?.message || String(err);
+      addLog(`\n❌ FATAL ERROR: ${errorMsg}`);
+      setError(errorMsg);
       setCurrentChannel('');
     } finally {
       setIsCreating(false);
@@ -148,19 +164,35 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
         <h2 className="font-adonis text-2xl mb-4">Instructions</h2>
         <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
           <li>Click &quot;Create Channels&quot; button below</li>
-          <li>Approve transactions in MetaMask (4 signatures required)</li>
-          <li><strong>Wait patiently</strong> - takes ~60 seconds total (10 sec delay between each)</li>
+          <li>Approve each MetaMask signature (may retry if RPC fails)</li>
+          <li><strong>Be patient</strong> - can take 2-3 minutes with retries</li>
           <li>Copy the channel IDs that appear</li>
           <li>Add them as environment variables in Vercel</li>
         </ol>
       </div>
 
+      {/* RPC Warning */}
+      {(!rpcUrl || rpcUrl.includes('mainnet.base.org')) && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4 mb-6">
+          <h3 className="font-adonis text-lg text-red-700 mb-2">⚠️ RPC Warning</h3>
+          <p className="font-georgia-pro text-sm text-red-800">
+            You&apos;re using a public RPC which has strict rate limits. This will likely fail!
+            Set <code className="bg-red-100 px-1">NEXT_PUBLIC_BASE_RPC_URL</code> to your Alchemy endpoint.
+          </p>
+        </div>
+      )}
+
       <div className="bg-green-50 border border-green-300 rounded-lg p-4 mb-6">
         <div className="flex items-center gap-2">
           <span className="text-green-600 text-xl">✅</span>
-          <span className="font-georgia-pro text-green-800">
-            Connected to Towns Protocol - Ready to create channels!
-          </span>
+          <div>
+            <span className="font-georgia-pro text-green-800">
+              Connected to Towns Protocol - Ready to create channels!
+            </span>
+            <p className="text-xs font-mono text-gray-600 mt-1">
+              RPC: {rpcUrl?.includes('alchemy') ? '✅ Alchemy' : '⚠️ Public (may fail)'}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -178,16 +210,20 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
           </div>
           
           {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
             <div 
               className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
               style={{ width: `${(currentStep / CHANNEL_DEFINITIONS.length) * 100}%` }}
             />
           </div>
           
-          <p className="text-xs text-gray-600 mt-2">
-            ⏱️ This takes time - each channel needs 10 seconds to process. Please don&apos;t close this tab!
-          </p>
+          {/* Live Logs */}
+          <div className="bg-white border border-gray-300 rounded p-3 max-h-40 overflow-y-auto">
+            <p className="text-xs font-mono text-gray-500 mb-2">Live Progress:</p>
+            {logs.map((log, i) => (
+              <p key={i} className="text-xs font-mono text-gray-700">{log}</p>
+            ))}
+          </div>
         </div>
       )}
 
@@ -195,7 +231,6 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
         <h2 className="font-adonis text-xl mb-2 text-blue-800">🔐 Secure & Simple</h2>
         <p className="font-georgia-pro text-sm text-blue-800">
           Your private key never leaves MetaMask. You&apos;ll sign each transaction directly in your wallet.
-          This is the old-school Web3 way - your keys, your control! 🗝️
         </p>
       </div>
 
@@ -211,7 +246,7 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
               Creating... ({currentStep}/{CHANNEL_DEFINITIONS.length})
             </span>
           ) : (
-            '🏗️ Create All 4 Channels (Takes ~60 seconds)'
+            '🏗️ Create All 4 Channels (2-3 minutes)'
           )}
         </button>
       )}
@@ -219,15 +254,23 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h2 className="font-adonis text-2xl text-red-600 mb-2">Error</h2>
-          <p className="font-georgia-pro text-red-800">{error}</p>
-          <p className="font-mono text-xs text-gray-600 mt-2">
-            Failed at: {currentChannel || 'Unknown'}
-          </p>
+          <p className="font-georgia-pro text-red-800 mb-4">{error}</p>
+          
+          {/* Show logs */}
+          <details className="mb-4">
+            <summary className="cursor-pointer text-sm font-georgia-pro text-gray-600">View full log</summary>
+            <div className="bg-white border border-gray-300 rounded p-3 mt-2 max-h-60 overflow-y-auto">
+              {logs.map((log, i) => (
+                <p key={i} className="text-xs font-mono text-gray-700">{log}</p>
+              ))}
+            </div>
+          </details>
+          
           <button
             onClick={handleCreateChannels}
-            className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
+            className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
           >
-            Retry
+            Retry All Channels
           </button>
         </div>
       )}
