@@ -44,8 +44,9 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelIds, setChannelIds] = useState<ChannelIds | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [currentChannel, setCurrentChannel] = useState('');
 
-  // ✅ NOW safe to call - only rendered when agent is connected
   const { createChannel } = useCreateChannel(spaceId);
 
   const handleCreateChannels = async () => {
@@ -67,6 +68,7 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
     setIsCreating(true);
     setError(null);
     setChannelIds(null);
+    setCurrentStep(0);
 
     try {
       console.log('🏗️ Creating channels with MetaMask...');
@@ -76,29 +78,62 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
 
       const channels: Record<string, string> = {};
 
-      for (const def of CHANNEL_DEFINITIONS) {
-        console.log(`Creating channel: ${def.name}`);
+      for (let i = 0; i < CHANNEL_DEFINITIONS.length; i++) {
+        const def = CHANNEL_DEFINITIONS[i];
         
-        const channelId = await createChannel(
-          def.name,
-          signer,
-          { topic: def.description }
-        );
+        setCurrentStep(i + 1);
+        setCurrentChannel(def.name);
+        console.log(`[${i + 1}/${CHANNEL_DEFINITIONS.length}] Creating channel: ${def.name}`);
         
-        channels[def.key] = channelId;
-        console.log(`✅ Created ${def.name}: ${channelId}`);
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+          const channelId = await createChannel(
+            def.name,
+            signer,
+            { topic: def.description }
+          );
+          
+          channels[def.key] = channelId;
+          console.log(`✅ Created ${def.name}: ${channelId}`);
+          
+          // ✅ LONGER DELAY - Give Towns Protocol time to process
+          if (i < CHANNEL_DEFINITIONS.length - 1) {
+            console.log(`⏳ Waiting 10 seconds before next channel...`);
+            await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
+          }
+          
+        } catch (channelError) {
+          console.error(`❌ Failed to create ${def.name}:`, channelError);
+          
+          // Retry once after 15 seconds
+          console.log(`⏳ Retrying ${def.name} in 15 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 15000));
+          
+          const channelId = await createChannel(
+            def.name,
+            signer,
+            { topic: def.description }
+          );
+          
+          channels[def.key] = channelId;
+          console.log(`✅ Created ${def.name} (retry): ${channelId}`);
+          
+          if (i < CHANNEL_DEFINITIONS.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
+          }
+        }
       }
 
       setChannelIds(channels as ChannelIds);
+      setCurrentChannel('');
       console.log('✅ All channels created:', channels);
 
     } catch (err) {
       console.error('❌ Error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      setCurrentChannel('');
     } finally {
       setIsCreating(false);
+      setCurrentStep(0);
     }
   };
 
@@ -114,6 +149,7 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
         <ol className="font-georgia-pro space-y-2 list-decimal list-inside">
           <li>Click &quot;Create Channels&quot; button below</li>
           <li>Approve transactions in MetaMask (4 signatures required)</li>
+          <li><strong>Wait patiently</strong> - takes ~60 seconds total (10 sec delay between each)</li>
           <li>Copy the channel IDs that appear</li>
           <li>Add them as environment variables in Vercel</li>
         </ol>
@@ -127,6 +163,33 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
           </span>
         </div>
       </div>
+
+      {/* Progress Indicator */}
+      {isCreating && (
+        <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="animate-spin text-2xl">⏳</span>
+            <div>
+              <p className="font-adonis text-lg">
+                Creating Channel {currentStep} of {CHANNEL_DEFINITIONS.length}
+              </p>
+              <p className="font-mono text-sm text-gray-600">{currentChannel}</p>
+            </div>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+              style={{ width: `${(currentStep / CHANNEL_DEFINITIONS.length) * 100}%` }}
+            />
+          </div>
+          
+          <p className="text-xs text-gray-600 mt-2">
+            ⏱️ This takes time - each channel needs 10 seconds to process. Please don&apos;t close this tab!
+          </p>
+        </div>
+      )}
 
       <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-6">
         <h2 className="font-adonis text-xl mb-2 text-blue-800">🔐 Secure & Simple</h2>
@@ -145,10 +208,10 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
           {isCreating ? (
             <span className="flex items-center justify-center gap-2">
               <span className="animate-spin">⏳</span>
-              Creating Channels... (Check MetaMask)
+              Creating... ({currentStep}/{CHANNEL_DEFINITIONS.length})
             </span>
           ) : (
-            '🏗️ Create Channels with MetaMask'
+            '🏗️ Create All 4 Channels (Takes ~60 seconds)'
           )}
         </button>
       )}
@@ -157,6 +220,9 @@ export function ChannelCreator({ spaceId }: ChannelCreatorProps) {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h2 className="font-adonis text-2xl text-red-600 mb-2">Error</h2>
           <p className="font-georgia-pro text-red-800">{error}</p>
+          <p className="font-mono text-xs text-gray-600 mt-2">
+            Failed at: {currentChannel || 'Unknown'}
+          </p>
           <button
             onClick={handleCreateChannels}
             className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
