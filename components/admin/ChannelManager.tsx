@@ -1,31 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, useSigner } from 'thirdweb/react';
-import { createThirdwebClient } from 'thirdweb';
+import { useActiveAccount } from 'thirdweb/react';
 import { townsEnv } from '@towns-protocol/sdk';
 import { connectTowns } from '@towns-protocol/react-sdk';
 import { ethers } from 'ethers';
-import { base } from 'thirdweb/chains';
 
 interface ChannelManagerProps {
   adminAddress: string;
 }
 
-let cachedClient: ReturnType<typeof createThirdwebClient> | null = null;
-
-function getClient() {
-  if (!cachedClient) {
-    cachedClient = createThirdwebClient({
-      clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
-    });
-  }
-  return cachedClient;
-}
-
 export function ChannelManager({ adminAddress }: ChannelManagerProps) {
   const account = useActiveAccount();
-  const signer = useSigner({ client: getClient(), chain: base });
   const [channelName, setChannelName] = useState('');
   const [channelDescription, setChannelDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -37,8 +23,13 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
       return;
     }
 
-    if (!account || !signer) {
+    if (!account) {
       alert('Please connect your wallet');
+      return;
+    }
+
+    if (typeof window === 'undefined' || !window.ethereum) {
+      alert('MetaMask not detected. Please install MetaMask.');
       return;
     }
 
@@ -119,7 +110,7 @@ export function ChannelManager({ adminAddress }: ChannelManagerProps) {
         <h3 className="font-adonis text-lg mb-2">ℹ️ How This Works</h3>
         <ol className="font-georgia-pro text-sm space-y-1 list-decimal list-inside text-gray-700">
           <li>Fill in the channel details below</li>
-          <li>Click "Create Channel"</li>
+          <li>Click &quot;Create Channel&quot;</li>
           <li>Approve the transaction in MetaMask</li>
           <li>Copy the channel ID and add it to your code/env vars</li>
           <li>Redeploy to use the new channel</li>
