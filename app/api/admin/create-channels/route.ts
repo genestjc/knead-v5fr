@@ -44,14 +44,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate private key format
+    if (adminPrivateKey.length !== 64 && adminPrivateKey.length !== 66) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'ADMIN_PRIVATE_KEY must be 64 hex characters (with or without 0x prefix)' 
+        },
+        { status: 400 }
+      );
+    }
+
     // Create ThirdWeb client and signer
     const client = createThirdwebClient({
       clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
     });
 
+    // Ensure 0x prefix
+    const formattedPrivateKey = adminPrivateKey.startsWith('0x') 
+      ? adminPrivateKey 
+      : `0x${adminPrivateKey}`;
+
     const account = privateKeyToAccount({
       client,
-      privateKey: adminPrivateKey,
+      privateKey: formattedPrivateKey as `0x${string}`,
     });
 
     const signer = await ethers5Adapter.signer.toEthers({
