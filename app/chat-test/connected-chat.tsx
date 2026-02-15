@@ -198,20 +198,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, []);
 
   // ✅ NEW: Callback to handle resolved wallet addresses
-  const handleWalletResolved = useCallback((userId: string, walletAddress: string | null) => {
-    setUserWallets((prev) => ({ ...prev, [userId]: walletAddress }));
-    
-    // Fetch profile for this wallet address
-    if (walletAddress) {
-      // Check inside the callback to avoid dependency issues
-      setProfileCache((prevCache) => {
-        if (!prevCache[walletAddress]) {
-          getProfile(walletAddress);
-        }
-        return prevCache;
-      });
-    }
-  }, [getProfile]);
+  // ✅ CORRECT:
+const handleWalletResolved = useCallback((userId: string, walletAddress: string | null) => {
+  setUserWallets((prev) => ({ ...prev, [userId]: walletAddress }));
+  
+  // Fetch profile for this wallet address if not already cached
+  if (walletAddress && !profileCache[walletAddress]) {
+    getProfile(walletAddress);
+  }
+}, [getProfile, profileCache]);
 
   // ✅ NEW: Extract unique userIds from events
   const uniqueUserIds = useMemo(() => {
@@ -439,33 +434,45 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   // ✅ UPDATED: Process timeline events into messages with resolved wallet addresses
-  const messages = useMemo(() => {
-    return (events || [])
-      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-      .filter((event: any) => {
-        const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-        return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-      })
-      .map((event: any) => {
-        const userId = event.creatorUserId || '';
-        const walletAddress = userWallets[userId]; // Resolved wallet address
-        const profile = walletAddress ? profileCache[walletAddress] : null;
-        
-        return {
-          id: event.eventId,
-          content: event.content?.body || '',
-          sender: {
-            id: userId,
-            walletAddress: walletAddress || undefined,
-            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-            avatar: profile?.avatar,
-          },
-          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-        };
-      })
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }, [events, userWallets, profileCache, activeAccount?.address]);
+  // In the messages mapping, add console logging:
+const messages = useMemo(() => {
+  return (events || [])
+    .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+    .filter((event: any) => {
+      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+    })
+    .map((event: any) => {
+      // ✅ ADD THIS LOGGING:
+      console.log('📨 Event structure:', {
+        eventId: event.eventId,
+        creatorUserId: event.creatorUserId,
+        creatorAddress: event.creatorAddress,
+        userId: event.userId,
+        sender: event.sender,
+        creatorDisplayName: event.creatorDisplayName,
+        content: event.content?.body?.substring(0, 50),
+      });
+      
+      const userId = event.creatorUserId || '';
+      const walletAddress = userWallets[userId];
+      const profile = walletAddress ? profileCache[walletAddress] : null;
+      
+      return {
+        id: event.eventId,
+        content: event.content?.body || '',
+        sender: {
+          id: userId,
+          walletAddress: walletAddress || undefined,
+          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+          avatar: profile?.avatar,
+        },
+        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+        isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+      };
+    })
+    .sort((a, b) => a.timestamp - b.timestamp);
+}, [events, userWallets, profileCache, activeAccount?.address]);
 
   if (isSpaceLoading) {
     return (
