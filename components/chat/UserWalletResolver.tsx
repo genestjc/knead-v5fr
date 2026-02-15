@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMember } from '@towns-protocol/react-sdk';
 
 interface UserWalletResolverProps {
@@ -10,8 +10,11 @@ interface UserWalletResolverProps {
 }
 
 /**
- * Invisible component that resolves a userId to wallet address
- * Calls onResolved when complete
+ * Invisible component that resolves Towns userId to wallet address
+ * Uses multi-tier fallback:
+ * 1. Towns SDK (member.ensAddress)
+ * 2. Direct check (if userId is 0x... format)
+ * 3. Supabase fallback (stored wallet addresses)
  */
 export function UserWalletResolver({
   spaceId,
@@ -19,13 +22,72 @@ export function UserWalletResolver({
   onResolved,
 }: UserWalletResolverProps) {
   const { data: member, isLoading } = useMember({ streamId: spaceId, userId });
+  const [hasResolved, setHasResolved] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && member) {
-      const walletAddress = member.ensAddress || null;
-      onResolved(userId, walletAddress);
-    }
-  }, [isLoading, member, userId, onResolved]);
+    if (isLoading || hasResolved) return;
+
+    const resolveWallet = async () => {
+      // ✅ STEP 1: Try Towns SDK first (member.ensAddress)
+      if (member?.ensAddress) {
+        console.log('✅ Resolved via Towns SDK:', { 
+          userId: userId.length > 13 ? userId.slice(0, 10) + '...' : userId, 
+          wallet: member.ensAddress.length > 13 ? member.ensAddress.slice(0, 10) + '...' : member.ensAddress 
+        });
+        onResolved(userId, member.ensAddress);
+        setHasResolved(true);
+        return;
+      }
+
+      // ✅ STEP 2: Fallback - Check if userId IS the wallet address (0x... format)
+      if (typeof userId === 'string' && userId.startsWith('0x') && userId.length === 42) {
+        console.log('✅ userId is already a wallet address:', userId.length > 13 ? userId.slice(0, 10) + '...' : userId);
+        onResolved(userId, userId);
+        setHasResolved(true);
+        return;
+      }
+
+      // ✅ STEP 3: Fallback - Query Supabase for stored wallet
+      try {
+        console.log('🔍 Trying Supabase fallback for userId:', userId.length > 13 ? userId.slice(0, 10) + '...' : userId);
+        const response = await fetch(`/api/towns/resolve-wallet`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success && data.walletAddress) {
+          console.log('✅ Resolved via Supabase:', {
+            userId: userId.length > 13 ? userId.slice(0, 10) + '...' : userId,
+            wallet: data.walletAddress.length > 13 ? data.walletAddress.slice(0, 10) + '...' : data.walletAddress,
+          });
+          onResolved(userId, data.walletAddress);
+          setHasResolved(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed Supabase fallback:', error);
+      }
+
+      // ❌ All resolution methods failed
+      console.warn('⚠️ Could not resolve wallet for userId:', userId.length > 13 ? userId.slice(0, 10) + '...' : userId);
+      onResolved(userId, null);
+      setHasResolved(true);
+    };
+
+    // ✅ Call async function properly in useEffect with error handling
+    (async () => {
+      try {
+        await resolveWallet();
+      } catch (err) {
+        console.error('Wallet resolution failed:', err);
+        onResolved(userId, null);
+        setHasResolved(true);
+      }
+    })();
+  }, [isLoading, member, userId, hasResolved, onResolved]);
 
   return null; // Invisible component
 }
