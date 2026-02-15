@@ -20,12 +20,24 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Try to find user by userId or address (userId might be the address)
-    const { data: user, error } = await supabase
+    // Try to find user by user_id first
+    let { data: user, error } = await supabase
       .from('chat_users')
       .select('address')
-      .or(`user_id.eq.${userId},address.ilike.${userId}`)
+      .eq('user_id', userId)
       .single();
+
+    // If not found by user_id, try exact match by address (userId might be the address)
+    if (error || !user) {
+      const result = await supabase
+        .from('chat_users')
+        .select('address')
+        .eq('address', userId.toLowerCase())
+        .single();
+      
+      user = result.data;
+      error = result.error;
+    }
 
     if (error || !user) {
       console.warn('⚠️ No wallet found in Supabase for userId:', userId);

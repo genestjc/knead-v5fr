@@ -31,8 +31,8 @@ export function UserWalletResolver({
       // ✅ STEP 1: Try Towns SDK first (member.ensAddress)
       if (member?.ensAddress) {
         console.log('✅ Resolved via Towns SDK:', { 
-          userId: userId.substring(0, 10) + '...', 
-          wallet: member.ensAddress.substring(0, 10) + '...' 
+          userId: userId.slice(0, 10) + '...', 
+          wallet: member.ensAddress.slice(0, 10) + '...' 
         });
         onResolved(userId, member.ensAddress);
         setHasResolved(true);
@@ -41,7 +41,7 @@ export function UserWalletResolver({
 
       // ✅ STEP 2: Fallback - Check if userId IS the wallet address (0x... format)
       if (userId.startsWith('0x') && userId.length === 42) {
-        console.log('✅ userId is already a wallet address:', userId.substring(0, 10) + '...');
+        console.log('✅ userId is already a wallet address:', userId.slice(0, 10) + '...');
         onResolved(userId, userId);
         setHasResolved(true);
         return;
@@ -49,7 +49,7 @@ export function UserWalletResolver({
 
       // ✅ STEP 3: Fallback - Query Supabase for stored wallet
       try {
-        console.log('🔍 Trying Supabase fallback for userId:', userId.substring(0, 10) + '...');
+        console.log('🔍 Trying Supabase fallback for userId:', userId.slice(0, 10) + '...');
         const response = await fetch(`/api/towns/resolve-wallet`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -60,8 +60,8 @@ export function UserWalletResolver({
         
         if (data.success && data.walletAddress) {
           console.log('✅ Resolved via Supabase:', {
-            userId: userId.substring(0, 10) + '...',
-            wallet: data.walletAddress.substring(0, 10) + '...',
+            userId: userId.slice(0, 10) + '...',
+            wallet: data.walletAddress.slice(0, 10) + '...',
           });
           onResolved(userId, data.walletAddress);
           setHasResolved(true);
@@ -72,12 +72,13 @@ export function UserWalletResolver({
       }
 
       // ❌ All resolution methods failed
-      console.warn('⚠️ Could not resolve wallet for userId:', userId.substring(0, 10) + '...');
+      console.warn('⚠️ Could not resolve wallet for userId:', userId.slice(0, 10) + '...');
       onResolved(userId, null);
       setHasResolved(true);
     };
 
-    resolveWallet();
+    // ✅ Call async function properly in useEffect
+    void resolveWallet();
   }, [isLoading, member, userId, onResolved, hasResolved]);
 
   return null; // Invisible component

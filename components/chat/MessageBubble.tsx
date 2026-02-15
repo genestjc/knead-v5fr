@@ -74,13 +74,13 @@ export function MessageBubble({
     if (!message.sender.walletAddress) {
       console.error('❌ No wallet address for sender:', message.sender.id, message.sender.name);
       
-      // ✅ Better error message
+      // ✅ Better error message using toast
       const errorMsg = 
         message.sender.name === 'Anonymous' 
-          ? '⚠️ Cannot tip this user\n\nReason: Their wallet address is not available.\n\nThis user may need to:\n1. Send a message in chat first\n2. Connect their wallet to Towns Protocol\n3. Set up their Towns profile'
-          : `⚠️ Cannot tip ${message.sender.name}\n\nTheir wallet address is not configured yet.`;
+          ? '⚠️ Cannot tip this user: Their wallet address is not available. They may need to configure their wallet in Towns Protocol.'
+          : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
       
-      alert(errorMsg);
+      toast.error(errorMsg, { duration: 5000 });
       return;
     }
     
