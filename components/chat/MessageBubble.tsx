@@ -33,22 +33,66 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// ✅ Simple bread loaf SVG icon (black silhouette)
-function BreadIcon({ className = "w-4 h-4" }: { className?: string }) {
+// ✅ NEW: Bread Loaf Counter Badge (icon + counter combined)
+function BreadCounterBadge({ 
+  totalTips, 
+  isActive, 
+  isReacting 
+}: { 
+  totalTips: number; 
+  isActive: boolean; 
+  isReacting: boolean;
+}) {
+  const strokeColor = isActive 
+    ? totalTips > 0 ? '#b45309' : '#4b5563'  // amber-700 : gray-600
+    : '#9ca3af';  // gray-400
+
+  const textColor = isActive
+    ? totalTips > 0 ? 'text-amber-700' : 'text-gray-700'
+    : 'text-gray-400';
+
   return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="currentColor" 
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Simple bread loaf silhouette */}
-      <path d="M4 9c0-2.2 1.8-4 4-4h8c2.2 0 4 1.8 4 4v1H4V9z"/>
-      <path d="M4 11h16v8c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2v-8z"/>
-      <circle cx="8" cy="15" r="0.8" opacity="0.6"/>
-      <circle cx="12" cy="16" r="0.8" opacity="0.6"/>
-      <circle cx="16" cy="15" r="0.8" opacity="0.6"/>
-    </svg>
+    <div className="relative inline-flex items-center justify-center">
+      {/* Bread loaf outline SVG */}
+      <svg 
+        width="85" 
+        height="50" 
+        viewBox="0 0 85 50" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        className="absolute inset-0"
+      >
+        {/* Rounded top of loaf */}
+        <path 
+          d="M15 15 C15 8, 20 5, 28 5 L57 5 C65 5, 70 8, 70 15 L70 20 L15 20 Z" 
+          stroke={strokeColor}
+          strokeWidth="2.5"
+          fill="white"
+        />
+        {/* Body of loaf */}
+        <path 
+          d="M15 20 L15 42 C15 44, 17 45, 20 45 L65 45 C68 45, 70 44, 70 42 L70 20 Z" 
+          stroke={strokeColor}
+          strokeWidth="2.5"
+          fill="white"
+        />
+        {/* Decorative dots */}
+        <circle cx="30" cy="32" r="1.5" fill={strokeColor} opacity="0.5"/>
+        <circle cx="42" cy="35" r="1.5" fill={strokeColor} opacity="0.5"/>
+        <circle cx="55" cy="32" r="1.5" fill={strokeColor} opacity="0.5"/>
+      </svg>
+
+      {/* Counter text inside bread */}
+      <div className={`relative z-10 font-georgia-pro text-xs font-semibold ${textColor} px-2 py-1 text-center`}>
+        {isReacting ? (
+          <span className="text-xs">⏳</span>
+        ) : (
+          <span className="whitespace-nowrap">
+            {totalTips > 0 ? totalTips : '0'} TOWNS
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -73,6 +117,9 @@ export function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
+  
+  // ✅ Track local tips (optimistic update)
+  const [localTips, setLocalTips] = useState(0);
   
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
   
@@ -101,13 +148,25 @@ export function MessageBubble({
       return;
     }
     
-    await awardTokensOnLike(
-      message.id,
-      message.sender.walletAddress,
-      10,
-      '❤️',
-      eventId
-    );
+    // ✅ Optimistically update the tip counter
+    setLocalTips(prev => prev + 10);
+    
+    try {
+      await awardTokensOnLike(
+        message.id,
+        message.sender.walletAddress,
+        10,
+        '❤️',
+        eventId
+      );
+      
+      toast.success('🍞 Tipped 10 TOWNS!');
+    } catch (error: any) {
+      // ✅ Revert on error
+      setLocalTips(prev => prev - 10);
+      console.error('❌ Tip failed:', error);
+      toast.error('Failed to send tip. Please try again.');
+    }
   };
 
   const handleSelfDelete = async () => {
@@ -166,7 +225,8 @@ export function MessageBubble({
   const fileName = fileMatch?.[1];
   const ipfsUri = fileMatch?.[2];
 
-  const totalTips = message.townsAwarded || 0;
+  // ✅ Combine server tips + local optimistic tips
+  const totalTips = (message.townsAwarded || 0) + localTips;
 
   return (
     <>
@@ -229,7 +289,7 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* ✅ NEW: Combined Bread Icon Button (tip counter + action in one) */}
+            {/* ✅ NEW: Bread Loaf Counter Badge Button */}
             {!isOwn && streamId && (
               <div className="relative mt-1.5">
                 <button
@@ -239,38 +299,24 @@ export function MessageBubble({
                   onTouchStart={() => !canAwardTokens && setShowTooltip(true)}
                   onTouchEnd={() => setTimeout(() => setShowTooltip(false), 2000)}
                   disabled={!canAwardTokens || isReacting}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition shadow-sm ${
+                  className={`transition-transform ${
                     canAwardTokens
-                      ? 'bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 cursor-pointer hover:scale-105'
-                      : 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-70'
+                      ? 'cursor-pointer hover:scale-105 active:scale-95'
+                      : 'cursor-not-allowed opacity-60'
                   }`}
-                  aria-label={canAwardTokens ? "Tip 10 TOWNS" : "Tipping is only available to Contributors"}
+                  aria-label={canAwardTokens ? `Tip 10 TOWNS (currently ${totalTips} TOWNS)` : "Tipping is only available to Contributors"}
                 >
-                  {isReacting ? (
-                    <>
-                      <span className="text-sm">⏳</span>
-                      <span className="font-georgia-pro text-xs font-medium text-gray-600">
-                        Sending...
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <BreadIcon className={`w-4 h-4 transition ${
-                        canAwardTokens 
-                          ? totalTips > 0 ? 'text-amber-700' : 'text-gray-600'
-                          : 'text-gray-400'
-                      }`} />
-                      <span className={`font-georgia-pro text-xs font-medium transition ${
-                        canAwardTokens
-                          ? totalTips > 0 ? 'text-amber-700' : 'text-gray-600'
-                          : 'text-gray-400'
-                      }`}>
-                        {totalTips > 0 ? totalTips.toFixed(1) : '0'} TOWNS
-                      </span>
-                      {!canAwardTokens && (
-                        <span className="text-xs opacity-60">🔒</span>
-                      )}
-                    </>
+                  <BreadCounterBadge 
+                    totalTips={totalTips}
+                    isActive={canAwardTokens}
+                    isReacting={isReacting}
+                  />
+                  
+                  {/* Lock icon overlay for non-contributors */}
+                  {!canAwardTokens && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="text-sm opacity-60">🔒</span>
+                    </div>
                   )}
                 </button>
                 
