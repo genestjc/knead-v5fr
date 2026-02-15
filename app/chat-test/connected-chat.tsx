@@ -182,7 +182,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           alias: data.user.alias,
           avatar: data.user.avatar,
           displayName: data.user.displayName,
-          walletAddress: data.user.walletAddress || address, // ✅ Add this - fallback to address param
+          walletAddress: data.user.walletAddress || null, // ✅ Use null if not available (no fallback to avoid userId)
         };
         
         setProfileCache(prev => ({ ...prev, [address]: profile }));

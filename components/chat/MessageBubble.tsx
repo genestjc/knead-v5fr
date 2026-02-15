@@ -72,8 +72,8 @@ export function MessageBubble({
 
   const handleLike = async () => {
     if (!message.sender.walletAddress) {
-      console.error('❌ No wallet address for sender:', message.sender.id);
-      alert('Cannot tip: Wallet address not resolved for this user. They may need to set their ENS address.');
+      console.error('❌ No wallet address for sender:', message.sender.id, message.sender.name);
+      alert(`Cannot tip: Wallet address not available for ${message.sender.name}. They may need to configure their wallet in their Towns Protocol profile.`);
       return;
     }
     
