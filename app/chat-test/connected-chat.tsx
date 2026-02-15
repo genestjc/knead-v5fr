@@ -178,6 +178,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         window.KEY_SHARER_CHANNEL_ID = channelId;
         console.log('🔑 Key sharer: Channel sync confirmed — key fulfillment active');
       }
+    } else if (window.KEY_SHARER_AUTO_MODE) {
+      // Reset sync status when events unavailable or channel changes
+      window.KEY_SHARER_CHANNEL_SYNCED = false;
+      window.KEY_SHARER_CHANNEL_ID = undefined;
     }
   }, [events, channelId]);
   
