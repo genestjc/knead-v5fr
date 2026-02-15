@@ -167,6 +167,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
   
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (events && channelId) {
+      console.log(`🔑 Channel ${channelId} synced — ${events.length} events loaded`);
+      
+      if (window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_CHANNEL_SYNCED = true;
+        window.KEY_SHARER_CHANNEL_ID = channelId;
+        console.log('🔑 Key sharer: Channel sync confirmed — key fulfillment active');
+      }
+    }
+  }, [events, channelId]);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const getProfile = useCallback(async (walletAddress: string) => {

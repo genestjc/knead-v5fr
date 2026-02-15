@@ -12,6 +12,19 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 
+declare global {
+  interface Window {
+    KEY_SHARER_PRIVATE_KEY?: string;
+    KEY_SHARER_AUTO_MODE?: boolean;
+    KEY_SHARER_CONNECTED?: boolean;
+    KEY_SHARER_ATTEMPTED?: boolean;
+    KEY_SHARER_ERROR?: string;
+    KEY_SHARER_SPACE_JOINED?: boolean;
+    KEY_SHARER_CHANNEL_SYNCED?: boolean;
+    KEY_SHARER_CHANNEL_ID?: string;
+  }
+}
+
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 
 // ✅ Configure RPC URL for Towns SDK (client-side)
@@ -353,10 +366,20 @@ function TownsChat() {
                 console.log('✅ Joined successfully!');
                 setHasJoined(true);
 
+                if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                  console.log('🔑 Key sharer fully joined space');
+                  window.KEY_SHARER_SPACE_JOINED = true;
+                }
+
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member');
                     setHasJoined(true);
+
+                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                      console.log('🔑 Key sharer fully joined space');
+                      window.KEY_SHARER_SPACE_JOINED = true;
+                    }
                 } else {
                     console.error('❌ Join failed:', error);
                     alert(`Failed to join: ${error.message}`);

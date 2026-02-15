@@ -5,6 +5,9 @@ declare global {
     KEY_SHARER_CONNECTED?: boolean;
     KEY_SHARER_ATTEMPTED?: boolean;
     KEY_SHARER_ERROR?: string;
+    KEY_SHARER_SPACE_JOINED?: boolean;
+    KEY_SHARER_CHANNEL_SYNCED?: boolean;
+    KEY_SHARER_CHANNEL_ID?: string;
   }
 }
 
