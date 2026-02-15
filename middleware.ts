@@ -105,6 +105,8 @@ export function middleware(request: NextRequest) {
       https://*.walletconnect.com
       https://*.walletconnect.org
       wss://relay.walletconnect.org
+      https://api.web3modal.org     
+      https://api.web3modal.com
       https://*.river.build
       https://devnet.rpc.river.build
       https://mainnet.rpc.river.build
