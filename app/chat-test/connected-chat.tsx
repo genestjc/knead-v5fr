@@ -444,6 +444,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [timeline, getProfile, profileCache]);
 
+  // ✅ LOG PERMISSION STATE ON EVERY UPDATE
+  useEffect(() => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 PERMISSION STATE DEBUG:');
+    console.log('   permissions object:', permissions);
+    console.log('   permissions.canPost:', permissions?.canPost);
+    console.log('   permissions.role:', permissions?.role);
+    console.log('   permissions.reason:', permissions?.reason);
+    console.log('   userRole (local state):', userRole);
+    console.log('   isAdmin:', isAdmin);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }, [permissions, userRole, isAdmin]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -720,18 +733,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             activeEvent={activeEvent}
           />
 
-          <div className="bg-purple-50 border-b border-purple-200 px-4 py-2">
-            <div className="text-xs font-mono">
-              <p><strong>🔍 Permission State Debug:</strong></p>
-              <p>permissions object: {permissions ? JSON.stringify(permissions) : 'null'}</p>
-              <p>permissions.canPost: {String(permissions?.canPost)}</p>
-              <p>permissions.role: {permissions?.role || 'undefined'}</p>
-              <p>permissions.reason: {permissions?.reason || 'undefined'}</p>
-              <p>userRole (local state): {userRole}</p>
-              <p>isAdmin: {String(isAdmin)}</p>
-            </div>
-          </div>
-
           {failedMessage && (
             <RetryMessageBanner
               message={failedMessage}
@@ -756,7 +757,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
                 
                 <div className="flex flex-col overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b">
+                  <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
                     <div className="flex items-center justify-between">
                       <p className="font-georgia-pro text-sm text-gray-600">
                         <strong>{space?.metadata?.name || 'Knead Space'}</strong>
@@ -773,18 +774,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto pb-16">
+                  <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
 
-                  <div className="border-t border-gray-200 p-4 bg-white">
+                  <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
                     {renderChatInput()}
                   </div>
                 </div>
               </div>
 
               <div className="lg:hidden flex flex-col h-screen">
-                <div className="border-b border-gray-200">
+                <div className="border-b border-gray-200 flex-shrink-0">
                   <EventVideoStage 
                     event={activeEvent} 
                     currentUserAddress={activeAccount?.address || ''}
@@ -793,8 +794,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   />
                 </div>
 
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
                     <div className="flex items-center justify-between">
                       <p className="font-georgia-pro text-sm text-gray-600">
                         <strong>{space?.metadata?.name || 'Knead Space'}</strong>
@@ -811,19 +812,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto pb-16">
+                  <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
 
-                  <div className="border-t border-gray-200 p-4 bg-white">
+                  <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
                     {renderChatInput()}
                   </div>
                 </div>
               </div>
             </>
           ) : (
-            <div className="h-full flex flex-col bg-white">
-              <div className="bg-gray-50 px-4 py-2 border-b">
+            <div className="flex flex-col h-screen bg-white">
+              <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <p className="font-georgia-pro text-sm text-gray-600">
                     <strong>{space?.metadata?.name || 'Knead Space'}</strong>
@@ -841,14 +842,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
 
               {activeEvent && (
-                <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
+                <div className="flex-shrink-0">
+                  <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
+                </div>
               )}
 
-              <div className="flex-1 overflow-y-auto pb-16">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 {renderMessages()}
               </div>
 
-              <div className="border-t border-gray-200 p-4 bg-white">
+              <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
                 {renderChatInput()}
               </div>
             </div>
