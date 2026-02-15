@@ -360,7 +360,7 @@ function TownsChat() {
                 const hasMembership = membershipData?.hasMembership || false;
                 
                 await joinSpace(SAVED_SPACE_ID, signer, {
-                    skipMintMembership: hasMembership
+                    skipMintMembership: true
                 });
                 
                 console.log('✅ Joined successfully!');
