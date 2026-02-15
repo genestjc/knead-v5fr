@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
-import { useVirtualAdminRedact } from '@/hooks/use-virtual-admin-redact';
+import { useAdminRedact } from '@towns-protocol/react-sdk';
 
 interface AdminContextMenuProps {
   message: {
@@ -35,7 +35,8 @@ export function AdminContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   
-  const { virtualAdminRedact, isPending: isRedacting } = useVirtualAdminRedact(channelId);
+  // ✅ CORRECT: Use useAdminRedact for admin message deletion
+  const { adminRedact, isPending: isRedacting, error: redactError } = useAdminRedact(channelId);
 
   // Adjust position to prevent off-screen menu
   useEffect(() => {
@@ -149,8 +150,8 @@ export function AdminContextMenu({
     console.log('   Channel ID:', channelId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    if (!virtualAdminRedact) {
-      console.error('❌ virtualAdminRedact function not available');
+    if (!adminRedact) {
+      console.error('❌ adminRedact function not available');
       toast.error('Delete function not available', {
         description: 'Try refreshing the page to reconnect',
       });
@@ -173,16 +174,13 @@ export function AdminContextMenu({
 
     setIsProcessing(true);
     try {
-      // ✅ CRITICAL: Wait a moment for stream to sync
-      console.log('⏳ Waiting for stream sync...');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-      
-      console.log('🔄 Calling virtualAdminRedact...');
+      console.log('🔄 Calling adminRedact...');
       console.log('   Event ID:', message.id);
       
-      await virtualAdminRedact(message.id);
+      // ✅ CORRECT: Use adminRedact from useAdminRedact hook
+      await adminRedact(message.id);
       
-      console.log('✅ virtualAdminRedact succeeded!');
+      console.log('✅ Message redacted successfully!');
       toast.success('Message deleted from Towns Protocol');
       onClose();
       
@@ -218,9 +216,9 @@ export function AdminContextMenu({
         return;
       }
       
-      // ✅ Check for BAD_EVENT_SIGNATURE (should be rare now)
+      // ✅ Check for BAD_EVENT_SIGNATURE
       if (errorCode === 22 || errorMsg.includes('bad_event_signature')) {
-        console.error('🔴 DIAGNOSIS: SIGNATURE ERROR (unexpected)');
+        console.error('🔴 DIAGNOSIS: SIGNATURE ERROR');
         toast.error('🔐 Signature Error', {
           description: 'Unexpected signature error. Refresh the page and try again.',
           duration: 8000,
@@ -245,7 +243,7 @@ export function AdminContextMenu({
       }
       
       // ✅ Permission errors
-      if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+      if (errorMsg.includes('permission') || errorMsg.includes('unauthorized') || errorMsg.includes('not entitled')) {
         toast.error('❌ Permission Denied', {
           description: 'You don\'t have permission to delete messages.',
           duration: 8000,
@@ -353,7 +351,7 @@ export function AdminContextMenu({
             className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-yellow-50 active:bg-yellow-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
             <span>🗑️</span>
-            <span>Delete Message</span>
+            <span>{isRedacting ? 'Deleting...' : 'Delete Message'}</span>
           </button>
           
           <button
