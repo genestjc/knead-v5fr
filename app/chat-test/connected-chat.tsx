@@ -444,7 +444,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [timeline, getProfile, profileCache]);
 
-  // ✅ LOG PERMISSION STATE ON EVERY UPDATE
   useEffect(() => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔍 PERMISSION STATE DEBUG:');
@@ -516,7 +515,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       
       console.log('⏳ Calling sendMessage...');
       
-      const result = await sendMessage(messageToSend);
+      // ✅ ADD TIMEOUT BACK - Towns can hang
+      const result = await Promise.race([
+        sendMessage(messageToSend),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Towns Protocol timeout after 30 seconds')), 30000)
+        )
+      ]);
       
       console.timeEnd('Send Duration');
       console.log('✅ MESSAGE SENT SUCCESSFULLY!');
@@ -535,7 +540,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       setMessageInput(messageToSend);
       setFailedMessage(messageToSend);
       
-      alert(`❌ Send failed: ${error.message}`);
+      if (error.message?.includes('timeout')) {
+        alert('⏱️ Message send timed out after 30 seconds.\n\nThe Towns network may be experiencing issues. Please try again in a minute.');
+      } else {
+        alert(`❌ Send failed: ${error.message}`);
+      }
     }
   };
 
@@ -566,7 +575,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
       
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      const result = await sendMessage(fileMessage);
+      
+      const result = await Promise.race([
+        sendMessage(fileMessage),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('File upload timeout after 30 seconds')), 30000)
+        )
+      ]);
       
       console.log('✅ File message sent:', result);
       
