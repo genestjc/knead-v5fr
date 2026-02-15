@@ -447,7 +447,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // ✅ LOG PERMISSION STATE
     console.log('🔍 PRE-SEND CHECK:', {
       canPost: permissions?.canPost,
       reason: permissions?.reason,
@@ -456,7 +455,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       permissions,
     });
     
-    // ✅ TEMPORARILY COMMENTED OUT FOR TESTING
+    // ✅ PERMISSION CHECK COMMENTED OUT FOR TESTING
     /*
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
@@ -490,7 +489,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('   Channel ID:', channelId);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
-      console.time('Send Duration'); // ✅ Measure time
+      console.time('Send Duration');
       
       setMessageInput('');
       setFailedMessage(null);
@@ -504,7 +503,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       
       console.log('⏳ Calling sendMessage...');
       
-      // ✅ NO TIMEOUT WRAPPER - See real error
       const result = await sendMessage(messageToSend);
       
       console.timeEnd('Send Duration');
@@ -677,12 +675,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         type="file"
         onChange={handleFileSelect}
         className="hidden"
-        disabled={!permissions?.canPost || isUploading}
+        disabled={isUploading}
       />
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={!permissions?.canPost || isUploading}
+        disabled={isUploading}
         className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
         title="Attach file"
       >
@@ -695,13 +693,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         onChange={(e) => setMessageInput(e.target.value)}
         placeholder={
           isUploading ? "Uploading..." :
-          !permissions?.canPost && userRole === 'participant' ? "💬 Messaging available during live events only" :
-          !permissions?.canPost && userRole === 'freemium' ? "🔒 Upgrade to Premium to participate in events" :
-          channelId ? "Message..." : "Loading..."
+          channelId ? "Type a message..." : "Loading..."
         }
-        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
-          permissions?.canPost ? 'focus:ring-[#007AFF] border-gray-300' : 'bg-gray-100 border-gray-200 cursor-not-allowed'
-        }`}
+        className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] border-gray-300 font-georgia-pro"
         disabled={isSending || isUploading || !channelId}
       />
       <button 
@@ -726,7 +720,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             activeEvent={activeEvent}
           />
 
-          {/* ✅ DEBUG BANNER - Shows permission state */}
           <div className="bg-purple-50 border-b border-purple-200 px-4 py-2">
             <div className="text-xs font-mono">
               <p><strong>🔍 Permission State Debug:</strong></p>
@@ -780,33 +773,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  {userRole === 'participant' && activeEvent && (
-                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
-                            {permissions?.canPost 
-                              ? '✅ You can send messages during this live event!' 
-                              : '⏳ Event is live, waiting for permissions update...'}
-                          </p>
-                          {!permissions?.canPost && (
-                            <p className="text-xs text-yellow-600 mt-1">
-                              This usually takes 5-10 seconds. If stuck, click Refresh Access.
-                            </p>
-                          )}
-                        </div>
-                        {!permissions?.canPost && (
-                          <button
-                            onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 ml-3 whitespace-nowrap"
-                          >
-                            Refresh Access
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex-1 overflow-y-auto pb-16">
                     {renderMessages()}
                   </div>
@@ -845,31 +811,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                     </div>
                   </div>
 
-                  {userRole === 'participant' && activeEvent && (
-                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                      <div className="flex flex-col gap-2">
-                        <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
-                          {permissions?.canPost 
-                            ? '✅ You can send messages!' 
-                            : '⏳ Waiting for permissions...'}
-                        </p>
-                        {!permissions?.canPost && (
-                          <>
-                            <p className="text-xs text-yellow-600">
-                              Usually takes 5-10 seconds.
-                            </p>
-                            <button
-                              onClick={() => window.location.reload()}
-                              className="px-3 py-1.5 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 self-start"
-                            >
-                              Refresh Access
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex-1 overflow-y-auto pb-16">
                     {renderMessages()}
                   </div>
@@ -901,33 +842,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
               {activeEvent && (
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
-              )}
-
-              {userRole === 'participant' && activeEvent && (
-                <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
-                        {permissions?.canPost 
-                          ? '✅ You can send messages during this live event!' 
-                          : '⏳ Event is live, waiting for permissions update...'}
-                      </p>
-                      {!permissions?.canPost && (
-                        <p className="text-xs text-yellow-600 mt-1">
-                          This usually takes 5-10 seconds. If stuck, click Refresh Access.
-                        </p>
-                      )}
-                    </div>
-                    {!permissions?.canPost && (
-                      <button
-                        onClick={() => window.location.reload()}
-                        className="px-4 py-2 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 ml-3 whitespace-nowrap"
-                      >
-                        Refresh Access
-                      </button>
-                    )}
-                  </div>
-                </div>
               )}
 
               <div className="flex-1 overflow-y-auto pb-16">
