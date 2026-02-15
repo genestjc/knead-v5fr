@@ -47,6 +47,7 @@ export function middleware(request: NextRequest) {
       https://*.web3modal.org
       https://*.web3modal.com
       wss://relay.walletconnect.org
+      wss://*.pusher.com
       https://mainnet.rpc.river.build
       https://*.figment.io
       https://*.towns.com
