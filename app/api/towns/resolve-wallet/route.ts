@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
+
+/**
+ * Fallback wallet resolver
+ * Queries Supabase for wallet addresses when Towns SDK can't resolve userId
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const { userId } = await req.json();
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Missing userId parameter' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔍 Resolving userId via Supabase:', userId);
+
+    const supabase = getSupabaseAdmin();
+
+    // Try to find user by userId or address (userId might be the address)
+    const { data: user, error } = await supabase
+      .from('chat_users')
+      .select('address')
+      .or(`user_id.eq.${userId},address.ilike.${userId}`)
+      .single();
+
+    if (error || !user) {
+      console.warn('⚠️ No wallet found in Supabase for userId:', userId);
+      return NextResponse.json({
+        success: true,
+        userId,
+        walletAddress: null,
+      });
+    }
+
+    console.log('✅ Resolved via Supabase:', { userId, walletAddress: user.address });
+
+    return NextResponse.json({
+      success: true,
+      userId,
+      walletAddress: user.address,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Failed to resolve wallet:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to resolve wallet' },
+      { status: 500 }
+    );
+  }
+}
