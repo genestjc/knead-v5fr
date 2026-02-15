@@ -6,23 +6,34 @@ export function middleware(request: NextRequest) {
   
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com https://js.stripe.com;
-    style-src 'self' 'unsafe-inline' https://use.typekit.net;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' 
+      https://vercel.live 
+      https://va.vercel-scripts.com 
+      https://js.stripe.com;
+    style-src 'self' 'unsafe-inline' 
+      https://use.typekit.net 
+      https://p.typekit.net;
     img-src 'self' blob: data: 
       https://*.thirdweb.com 
+      https://*.thirdwebcdn.com
       https://*.ipfs.dweb.link 
       https://*.ipfscdn.io
       https://ipfs.io 
       https://gateway.ipfs.io
-      https://*.thirdwebcdn.com
+      https://cdn.sanity.io
       https://vercel.com;
-    font-src 'self' data: https://use.typekit.net;
+    font-src 'self' data: 
+      https://use.typekit.net 
+      https://p.typekit.net;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
-    frame-src 'self' https://embedded-wallet.thirdweb.com https://vercel.live https://js.stripe.com https://checkout.stripe.com;
-    upgrade-insecure-requests;
+    frame-src 'self' 
+      https://embedded-wallet.thirdweb.com 
+      https://vercel.live 
+      https://js.stripe.com 
+      https://checkout.stripe.com;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
@@ -61,18 +72,21 @@ export function middleware(request: NextRequest) {
       https://gateway.ipfs.io
       https://*.ipfs.dweb.link
       https://use.typekit.net
+      https://p.typekit.net
       https://fonts.googleapis.com
       https://cdn.sanity.io
       https://*.sanity.io
       https://api.sanity.io
       https://api.thirdweb.com
       https://*.thirdweb.com
+      https://*.thirdwebcdn.com
       https://*.alchemy.com
       https://base-mainnet.g.alchemy.com
       https://mainnet.base.org
       https://base.llamarpc.com
       https://*.supabase.co
       wss://*.supabase.co
+      wss://*.sanity.io
       https://accounts.google.com
       https://apis.google.com
       https://c.daily.co
@@ -80,8 +94,8 @@ export function middleware(request: NextRequest) {
       wss://*.daily.co
       wss://*.pluot.blue
       wss://localhost:*
-      wss://*.sanity.io
       https://vercel.live
+      https://vercel.com
       https://va.vercel-scripts.com;
   `.replace(/\s{2,}/g, ' ').trim();
 
