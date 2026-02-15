@@ -12,8 +12,8 @@ interface ChatMessage {
   id: string;
   content: string;
   sender: {
-    id: string;          // Towns userId
-    walletAddress?: string; // Ethereum address for tipping
+    id: string;
+    walletAddress?: string;
     name: string;
     avatar?: string;
   };
@@ -33,7 +33,25 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// Helper function to convert IPFS URIs to gateway URLs
+// ✅ Simple bread loaf SVG icon (black silhouette)
+function BreadIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="currentColor" 
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Simple bread loaf silhouette */}
+      <path d="M4 9c0-2.2 1.8-4 4-4h8c2.2 0 4 1.8 4 4v1H4V9z"/>
+      <path d="M4 11h16v8c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2v-8z"/>
+      <circle cx="8" cy="15" r="0.8" opacity="0.6"/>
+      <circle cx="12" cy="16" r="0.8" opacity="0.6"/>
+      <circle cx="16" cy="15" r="0.8" opacity="0.6"/>
+    </svg>
+  );
+}
+
 const convertIpfsToGatewayUrl = (uri: string): string => {
   if (uri.startsWith('ipfs://')) {
     return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
@@ -54,8 +72,8 @@ export function MessageBubble({
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [showTooltip, setShowTooltip] = useState(false);
   
-  // ✅ NEW: Self-delete for own messages
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
   
   const formatTime = (timestamp: number | string): string => {
@@ -74,10 +92,9 @@ export function MessageBubble({
     if (!message.sender.walletAddress) {
       console.error('❌ No wallet address for sender:', message.sender.id, message.sender.name);
       
-      // ✅ Better error message using toast
       const errorMsg = 
         message.sender.name === 'Anonymous' 
-          ? '⚠️ Cannot tip this user: Their wallet address is not available. They may need to configure their wallet in Towns Protocol.'
+          ? '⚠️ Cannot tip this user: Their wallet address is not available.'
           : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
       
       toast.error(errorMsg, { duration: 5000 });
@@ -86,14 +103,13 @@ export function MessageBubble({
     
     await awardTokensOnLike(
       message.id,
-      message.sender.walletAddress,  // ✅ Use wallet address, not userId
+      message.sender.walletAddress,
       10,
       '❤️',
       eventId
     );
   };
 
-  // ✅ NEW: Handle self-delete
   const handleSelfDelete = async () => {
     if (!confirm('Delete your message?')) return;
 
@@ -150,6 +166,8 @@ export function MessageBubble({
   const fileName = fileMatch?.[1];
   const ipfsUri = fileMatch?.[2];
 
+  const totalTips = message.townsAwarded || 0;
+
   return (
     <>
       <motion.div
@@ -201,17 +219,9 @@ export function MessageBubble({
                   {message.content}
                 </p>
               )}
-
-              {message.townsAwarded && message.townsAwarded > 0 && (
-                <div className="mt-2 flex items-center gap-1 text-xs opacity-90">
-                  <span className="font-semibold">
-                    +{message.townsAwarded.toFixed(2)} $TOWNS
-                  </span>
-                  <span>🪙</span>
-                </div>
-              )}
             </div>
 
+            {/* Timestamp */}
             <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
               <span className="font-georgia-pro">
                 {!isOwn && `${message.sender.name} • `}
@@ -219,7 +229,62 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* ✅ NEW: Self-delete button (shows on hover for own messages) */}
+            {/* ✅ NEW: Combined Bread Icon Button (tip counter + action in one) */}
+            {!isOwn && streamId && (
+              <div className="relative mt-1.5">
+                <button
+                  onClick={canAwardTokens ? handleLike : undefined}
+                  onMouseEnter={() => !canAwardTokens && setShowTooltip(true)}
+                  onMouseLeave={() => setShowTooltip(false)}
+                  onTouchStart={() => !canAwardTokens && setShowTooltip(true)}
+                  onTouchEnd={() => setTimeout(() => setShowTooltip(false), 2000)}
+                  disabled={!canAwardTokens || isReacting}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition shadow-sm ${
+                    canAwardTokens
+                      ? 'bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 cursor-pointer hover:scale-105'
+                      : 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-70'
+                  }`}
+                  aria-label={canAwardTokens ? "Tip 10 TOWNS" : "Tipping is only available to Contributors"}
+                >
+                  {isReacting ? (
+                    <>
+                      <span className="text-sm">⏳</span>
+                      <span className="font-georgia-pro text-xs font-medium text-gray-600">
+                        Sending...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <BreadIcon className={`w-4 h-4 transition ${
+                        canAwardTokens 
+                          ? totalTips > 0 ? 'text-amber-700' : 'text-gray-600'
+                          : 'text-gray-400'
+                      }`} />
+                      <span className={`font-georgia-pro text-xs font-medium transition ${
+                        canAwardTokens
+                          ? totalTips > 0 ? 'text-amber-700' : 'text-gray-600'
+                          : 'text-gray-400'
+                      }`}>
+                        {totalTips > 0 ? totalTips.toFixed(1) : '0'} TOWNS
+                      </span>
+                      {!canAwardTokens && (
+                        <span className="text-xs opacity-60">🔒</span>
+                      )}
+                    </>
+                  )}
+                </button>
+                
+                {/* Tooltip for non-contributors */}
+                {showTooltip && !canAwardTokens && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg">
+                    Tipping is only available to Contributors
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Self-delete button (shows on hover for own messages) */}
             {isOwn && channelId && (
               <button
                 onClick={handleSelfDelete}
@@ -231,22 +296,6 @@ export function MessageBubble({
                   <span className="text-xs">⏳</span>
                 ) : (
                   <span className="text-xs">🗑️</span>
-                )}
-              </button>
-            )}
-
-            {/* Tip button (for other users' messages) */}
-            {!isOwn && canAwardTokens && streamId && (
-              <button
-                onClick={handleLike}
-                disabled={isReacting}
-                className="mt-2 px-3 py-1 text-xs rounded-full bg-white border border-gray-300 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm"
-                aria-label="Tip 10 TOWNS"
-              >
-                {isReacting ? (
-                  <>⏳ Sending...</>
-                ) : (
-                  <>❤️ Tip 10 TOWNS</>
                 )}
               </button>
             )}
