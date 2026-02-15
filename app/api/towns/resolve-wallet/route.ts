@@ -16,6 +16,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate userId is a string
+    if (typeof userId !== 'string') {
+      return NextResponse.json(
+        { error: 'Invalid userId type - must be a string' },
+        { status: 400 }
+      );
+    }
+
     console.log('🔍 Resolving userId via Supabase:', userId);
 
     const supabase = getSupabaseAdmin();
@@ -29,8 +37,7 @@ export async function POST(req: NextRequest) {
 
     // If not found by user_id, try exact match by address (userId might be the address)
     if (error || !user) {
-      // Validate userId is a string before calling toLowerCase
-      const addressToMatch = typeof userId === 'string' ? userId.toLowerCase() : userId;
+      const addressToMatch = userId.toLowerCase();
       
       const result = await supabase
         .from('chat_users')

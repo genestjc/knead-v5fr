@@ -40,7 +40,7 @@ export function UserWalletResolver({
       }
 
       // ✅ STEP 2: Fallback - Check if userId IS the wallet address (0x... format)
-      if (userId.startsWith('0x') && userId.length === 42) {
+      if (typeof userId === 'string' && userId.startsWith('0x') && userId.length === 42) {
         console.log('✅ userId is already a wallet address:', userId.length > 13 ? userId.slice(0, 10) + '...' : userId);
         onResolved(userId, userId);
         setHasResolved(true);
@@ -87,7 +87,7 @@ export function UserWalletResolver({
         setHasResolved(true);
       }
     })();
-  }, [isLoading, member, userId, hasResolved]);
+  }, [isLoading, member, userId, hasResolved, onResolved]);
 
   return null; // Invisible component
 }
