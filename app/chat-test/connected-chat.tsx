@@ -436,42 +436,81 @@ const handleWalletResolved = useCallback((userId: string, walletAddress: string 
   // ✅ UPDATED: Process timeline events into messages with resolved wallet addresses
   // In the messages mapping, add console logging:
 const messages = useMemo(() => {
-  return (events || [])
-    .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .filter((event: any) => {
-      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-    })
-    .map((event: any) => {
-      // ✅ ADD THIS LOGGING:
-      console.log('📨 Event structure:', {
-        eventId: event.eventId,
-        creatorUserId: event.creatorUserId,
-        creatorAddress: event.creatorAddress,
-        userId: event.userId,
-        sender: event.sender,
-        creatorDisplayName: event.creatorDisplayName,
-        content: event.content?.body?.substring(0, 50),
-      });
-      
-      const userId = event.creatorUserId || '';
-      const walletAddress = userWallets[userId];
-      const profile = walletAddress ? profileCache[walletAddress] : null;
-      
-      return {
-        id: event.eventId,
-        content: event.content?.body || '',
-        sender: {
-          id: userId,
-          walletAddress: walletAddress || undefined,
-          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-          avatar: profile?.avatar,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-      };
-    })
-    .sort((a, b) => a.timestamp - b.timestamp);
+  console.log('🔍 Processing events:', {
+    totalEvents: events?.length || 0,
+    hasEvents: !!events,
+    events: events,
+  });
+
+  if (!events || events.length === 0) {
+    console.log('⚠️ No events to process');
+    return [];
+  }
+
+  const filteredMessages = events.filter((event: any) => {
+    const isMessage = event.content?.kind === RiverTimelineEvent.ChannelMessage;
+    console.log('🔍 Event type check:', {
+      eventId: event.eventId?.substring(0, 10),
+      kind: event.content?.kind,
+      isMessage,
+    });
+    return isMessage;
+  });
+
+  console.log('✅ Filtered to messages:', filteredMessages.length);
+
+  const recentMessages = filteredMessages.filter((event: any) => {
+    const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+    const isRecent = messageTime >= VIRTUAL_SHARDING_CUTOFF;
+    console.log('📅 Time check:', {
+      eventId: event.eventId?.substring(0, 10),
+      messageTime: new Date(messageTime).toISOString(),
+      cutoff: new Date(VIRTUAL_SHARDING_CUTOFF).toISOString(),
+      isRecent,
+    });
+    return isRecent;
+  });
+
+  console.log('✅ Recent messages:', recentMessages.length);
+
+  return recentMessages.map((event: any) => {
+    // ✅ DETAILED LOGGING OF EACH EVENT:
+    console.log('📨 Event structure:', {
+      eventId: event.eventId,
+      creatorUserId: event.creatorUserId,
+      creatorAddress: event.creatorAddress,
+      userId: event.userId,
+      sender: event.sender,
+      creatorDisplayName: event.creatorDisplayName,
+      content: event.content?.body?.substring(0, 50),
+      allEventKeys: Object.keys(event),
+    });
+    
+    const userId = event.creatorUserId || '';
+    const walletAddress = userWallets[userId];
+    
+    console.log('💰 Wallet resolution:', {
+      userId,
+      walletAddress,
+      hasWallet: !!walletAddress,
+      userWalletsCache: userWallets,
+    });
+    
+    const profile = walletAddress ? profileCache[walletAddress] : null;
+    
+    return {
+      id: event.eventId,
+      content: event.content?.body || '',
+      sender: {
+        id: userId,
+        walletAddress: walletAddress || undefined,
+        name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+        avatar: profile?.avatar,
+      },
+      timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+      isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+    };
+  }).sort((a, b) => a.timestamp - b.timestamp);
 }, [events, userWallets, profileCache, activeAccount?.address]);
 
   if (isSpaceLoading) {
