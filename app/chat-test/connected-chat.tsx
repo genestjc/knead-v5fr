@@ -252,6 +252,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
+  // ✅ DEBUG: Log all available channels in the space
+  useEffect(() => {
+    if (space) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📊 SPACE CHANNELS DEBUG:');
+      console.log('   Space ID:', spaceId);
+      console.log('   Channel count:', space.channelIds?.length || 0);
+      space.channelIds?.forEach((id, index) => {
+        console.log(`   Channel ${index}:`, id);
+      });
+      console.log('   Current fallback channel:', channelId);
+      console.log('   Sharding enabled:', isVirtualShardingEnabled());
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+  }, [space, spaceId, channelId]);
+
   useEffect(() => {
     const isAnyScrollbackPending = 
       scrollbackContributors.isPending || 
@@ -280,9 +296,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           });
         } else {
           const result = await scrollbackFallback.scrollback();
-          console.log('✅ Message history loaded');
-          console.log('   At beginning:', result.terminus);
-          console.log('   From miniblock:', result.fromInclusiveMiniblockNum.toString());
+          console.log('✅ Message history loaded from fallback channel');
         }
         
         setHasLoadedHistory(true);
@@ -319,10 +333,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           if (data.success && data.user) {
             const isUserAdmin = data.user.role === 'admin' || data.user.role === 'master-admin';
             setIsAdmin(isUserAdmin);
-            console.log('👮 Admin status:', isUserAdmin);
-            console.log('👤 User role from DB:', data.user.role);
-          } else {
-            console.log('⚠️ User not found in database:', activeAccount.address);
           }
         } catch (error) {
           console.error('Failed to check admin status:', error);
@@ -341,22 +351,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         });
         const data = await res.json();
         
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🎪 LIVE EVENT CHECK');
-        console.log('   Success:', data.success);
-        console.log('   Events found:', data.data?.length || 0);
-        if (data.data?.length > 0) {
-          console.log('   Event:', data.data[0].title);
-          console.log('   Status:', data.data[0].status);
-        }
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
         if (data.success && data.data.length > 0) {
           const liveEvent = data.data[0];
           setActiveEvent(liveEvent);
           
           if (!activeAccount?.address) {
-            console.warn('⚠️ Wallet not connected yet, skipping token generation');
             return;
           }
           
@@ -376,7 +375,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             if (tokenRes.ok) {
               const tokenData = await tokenRes.json();
               if (tokenData.success) {
-                console.log('✅ Video token generated successfully');
                 setDailyToken(tokenData.data.token);
               }
             }
@@ -402,7 +400,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           schema: 'public', 
           table: 'chat_events' 
         }, () => {
-          console.log('🔄 Event changed, refetching...');
           fetchLiveEvent();
         })
         .subscribe();
@@ -413,15 +410,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       };
     }
   }, [activeAccount?.address]);
-
-  useEffect(() => {
-    console.log('🔐 PERMISSIONS UPDATE:', {
-      userAddress: activeAccount?.address?.slice(0, 8) + '...',
-      permissions,
-      activeEvent: activeEvent?.id,
-      eventIsLive: !!activeEvent,
-    });
-  }, [permissions, activeAccount?.address, activeEvent]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -444,31 +432,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [timeline, getProfile, profileCache]);
 
-  useEffect(() => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔍 PERMISSION STATE DEBUG:');
-    console.log('   permissions object:', permissions);
-    console.log('   permissions.canPost:', permissions?.canPost);
-    console.log('   permissions.role:', permissions?.role);
-    console.log('   permissions.reason:', permissions?.reason);
-    console.log('   userRole (local state):', userRole);
-    console.log('   isAdmin:', isAdmin);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }, [permissions, userRole, isAdmin]);
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('🔍 PRE-SEND CHECK:', {
-      canPost: permissions?.canPost,
-      reason: permissions?.reason,
-      role: permissions?.role,
-      userRole,
-      permissions,
-    });
-    
-    // ✅ PERMISSION CHECK COMMENTED OUT FOR TESTING
-    /*
+    // ✅ PERMISSION CHECK RE-ENABLED
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
         alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
@@ -479,71 +446,52 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
       return;
     }
-    */
     
     if (!messageInput.trim() || isSending || !channelId) {
-      console.log('❌ Basic validation failed:', {
-        hasMessage: !!messageInput.trim(),
-        isSending,
-        hasChannelId: !!channelId,
-      });
       return;
     }
 
     const messageToSend = messageInput.trim();
     
     try {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📤 ATTEMPTING TO SEND MESSAGE');
-      console.log('   Message:', messageToSend);
-      console.log('   User Role:', userRole);
-      console.log('   Sharding Enabled:', isVirtualShardingEnabled());
-      console.log('   Channel ID:', channelId);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      console.time('Send Duration');
+      console.log('📤 Sending message...');
       
       setMessageInput('');
       setFailedMessage(null);
       
       const sendMessage = getSendFunction(false);
-      console.log('   Send function exists:', !!sendMessage);
       
       if (!sendMessage) {
         throw new Error('Send function not available');
       }
       
-      console.log('⏳ Calling sendMessage...');
-      
-      // ✅ ADD TIMEOUT BACK - Towns can hang
       const result = await Promise.race([
         sendMessage(messageToSend),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Towns Protocol timeout after 30 seconds')), 30000)
+          setTimeout(() => reject(new Error('Message send timed out after 30 seconds')), 30000)
         )
       ]);
       
-      console.timeEnd('Send Duration');
-      console.log('✅ MESSAGE SENT SUCCESSFULLY!');
-      console.log('   Result:', result);
-      
-      alert('✅ Message sent! Check if it appears in the chat.');
+      console.log('✅ Message sent successfully');
       
     } catch (error: any) {
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ SEND FAILED');
-      console.error('   Error name:', error.name);
-      console.error('   Error message:', error.message);
-      console.error('   Error stack:', error.stack);
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ Failed to send message:', error.message);
       
       setMessageInput(messageToSend);
       setFailedMessage(messageToSend);
       
-      if (error.message?.includes('timeout')) {
-        alert('⏱️ Message send timed out after 30 seconds.\n\nThe Towns network may be experiencing issues. Please try again in a minute.');
+      if (error.message?.includes('timed out')) {
+        alert('⏱️ Message send timed out.\n\nThe Towns network may be experiencing issues. Please try again.');
+      } else if (error.message?.includes('deadline_exceeded')) {
+        alert('⏳ Network timeout. Your message was not delivered. Please try sending again.');
+      } else if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
+        alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
+      } else if (error.message?.includes('QUORUM_FAILED')) {
+        alert('❌ Network error - message not delivered. Please check your connection and try again.');
+      } else if (error.message?.includes('not entitled') || error.message?.includes('permission')) {
+        alert('❌ You do not have permission to send messages. Contact support.');
       } else {
-        alert(`❌ Send failed: ${error.message}`);
+        alert(`Failed to send: ${error.message}`);
       }
     }
   };
@@ -567,8 +515,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const ipfsUri = await uploadToIPFS(file);
       console.log('✅ File uploaded:', ipfsUri);
       
-      console.log('📁 Sending file message...');
-      
       const sendMessage = getSendFunction(true);
       if (!sendMessage) {
         throw new Error('Send function not available');
@@ -579,11 +525,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const result = await Promise.race([
         sendMessage(fileMessage),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('File upload timeout after 30 seconds')), 30000)
+          setTimeout(() => reject(new Error('File upload timeout')), 30000)
         )
       ]);
       
-      console.log('✅ File message sent:', result);
+      console.log('✅ File message sent');
       
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -703,12 +649,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         type="file"
         onChange={handleFileSelect}
         className="hidden"
-        disabled={isUploading}
+        disabled={!permissions?.canPost || isUploading}
       />
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={isUploading}
+        disabled={!permissions?.canPost || isUploading}
         className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
         title="Attach file"
       >
@@ -721,14 +667,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         onChange={(e) => setMessageInput(e.target.value)}
         placeholder={
           isUploading ? "Uploading..." :
+          !permissions?.canPost && userRole === 'participant' ? "💬 Messaging available during live events only" :
+          !permissions?.canPost && userRole === 'freemium' ? "🔒 Upgrade to Premium to participate in events" :
           channelId ? "Type a message..." : "Loading..."
         }
-        className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-[#007AFF] border-gray-300 font-georgia-pro"
-        disabled={isSending || isUploading || !channelId}
+        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+          permissions?.canPost ? 'focus:ring-[#007AFF] border-gray-300' : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+        }`}
+        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
       />
       <button 
         type="submit" 
-        disabled={!messageInput.trim() || isSending || isUploading || !channelId} 
+        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
         className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
