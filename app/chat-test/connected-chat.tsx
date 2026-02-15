@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSpace, useSendMessage, useScrollback, useChannel } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -19,8 +19,6 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { Paperclip } from 'lucide-react';
-import { useRoleBasedTimeline } from '@/hooks/use-role-based-timeline';
-import { isVirtualShardingEnabled } from '@/lib/role-based-channel-router';
 
 const LoadingSpinner = () => (
   <div className="text-center py-10">
@@ -28,8 +26,6 @@ const LoadingSpinner = () => (
     <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
   </div>
 );
-
-const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -166,68 +162,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const { data: channelData } = useChannel(spaceId, channelId);
   
-  const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useRoleBasedTimeline(channelId);
+  // ✅ SINGLE CHANNEL - No sharding
+  const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
+  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
   
-  const channelConfig = useMemo(() => {
-    if (!isVirtualShardingEnabled()) {
-      return { fallback: channelId };
-    }
-    return {
-      contributors: process.env.NEXT_PUBLIC_CHANNEL_CONTRIBUTORS || '',
-      participantsA: process.env.NEXT_PUBLIC_CHANNEL_PARTICIPANTS_A || '',
-      participantsB: process.env.NEXT_PUBLIC_CHANNEL_PARTICIPANTS_B || '',
-      files: process.env.NEXT_PUBLIC_CHANNEL_FILES || '',
-    };
-  }, [channelId]);
-  
-  const sendToContributors = useSendMessage(channelConfig.contributors || channelId);
-  const sendToParticipantsA = useSendMessage(channelConfig.participantsA || channelId);
-  const sendToParticipantsB = useSendMessage(channelConfig.participantsB || channelId);
-  const sendToFiles = useSendMessage(channelConfig.files || channelId);
-  const sendToFallback = useSendMessage(channelId);
-  
-  const scrollbackFallback = useScrollback(channelId);
-  const scrollbackContributors = useScrollback(channelConfig.contributors || channelId);
-  const scrollbackParticipantsA = useScrollback(channelConfig.participantsA || channelId);
-  const scrollbackParticipantsB = useScrollback(channelConfig.participantsB || channelId);
-  const scrollbackFiles = useScrollback(channelConfig.files || channelId);
-  
-  const getSendFunction = useCallback((hasFile: boolean) => {
-    if (!isVirtualShardingEnabled() || !activeAccount?.address) {
-      return sendToFallback.sendMessage;
-    }
-    
-    if (hasFile) return sendToFiles.sendMessage;
-    
-    if (userRole === 'contributor') return sendToContributors.sendMessage;
-    
-    const lastChar = activeAccount.address.slice(-1).toLowerCase();
-    const isGroupA = ['0', '1', '2', '3', '4', '5', '6', '7'].includes(lastChar);
-    return isGroupA ? sendToParticipantsA.sendMessage : sendToParticipantsB.sendMessage;
-  }, [
-    activeAccount?.address,
-    userRole,
-    sendToContributors.sendMessage,
-    sendToParticipantsA.sendMessage,
-    sendToParticipantsB.sendMessage,
-    sendToFiles.sendMessage,
-    sendToFallback.sendMessage,
-  ]);
-  
-  const isSending = 
-    sendToContributors.isPending ||
-    sendToParticipantsA.isPending ||
-    sendToParticipantsB.isPending ||
-    sendToFiles.isPending ||
-    sendToFallback.isPending;
-  
-  const sendError = 
-    sendToContributors.error ||
-    sendToParticipantsA.error ||
-    sendToParticipantsB.error ||
-    sendToFiles.error ||
-    sendToFallback.error;
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const getProfile = useCallback(async (address: string) => {
@@ -252,53 +190,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ DEBUG: Log all available channels in the space
+  // Load message history
   useEffect(() => {
-    if (space) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📊 SPACE CHANNELS DEBUG:');
-      console.log('   Space ID:', spaceId);
-      console.log('   Channel count:', space.channelIds?.length || 0);
-      space.channelIds?.forEach((id, index) => {
-        console.log(`   Channel ${index}:`, id);
-      });
-      console.log('   Current fallback channel:', channelId);
-      console.log('   Sharding enabled:', isVirtualShardingEnabled());
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
-  }, [space, spaceId, channelId]);
-
-  useEffect(() => {
-    const isAnyScrollbackPending = 
-      scrollbackContributors.isPending || 
-      scrollbackParticipantsA.isPending || 
-      scrollbackParticipantsB.isPending || 
-      scrollbackFiles.isPending || 
-      scrollbackFallback.isPending;
-    
-    if (hasLoadedHistory || isAnyScrollbackPending) return;
+    if (hasLoadedHistory || isScrollbackPending) return;
     
     console.log('📜 Loading message history...');
     
-    const loadAllHistory = async () => {
+    const loadHistory = async () => {
       try {
-        if (isVirtualShardingEnabled()) {
-          const results = await Promise.all([
-            scrollbackContributors.scrollback(),
-            scrollbackParticipantsA.scrollback(),
-            scrollbackParticipantsB.scrollback(),
-            scrollbackFiles.scrollback(),
-          ]);
-          
-          console.log('✅ Message history loaded from all shards');
-          results.forEach((result, idx) => {
-            console.log(`   Shard ${idx + 1}: At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum.toString()}`);
-          });
-        } else {
-          const result = await scrollbackFallback.scrollback();
-          console.log('✅ Message history loaded from fallback channel');
-        }
-        
+        const result = await scrollback();
+        console.log('✅ Message history loaded');
+        console.log(`   At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum.toString()}`);
         setHasLoadedHistory(true);
       } catch (error) {
         console.error('❌ Failed to load message history:', error);
@@ -306,20 +208,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     };
     
-    loadAllHistory();
-  }, [
-    hasLoadedHistory,
-    scrollbackFallback,
-    scrollbackContributors,
-    scrollbackParticipantsA,
-    scrollbackParticipantsB,
-    scrollbackFiles,
-    scrollbackFallback.isPending,
-    scrollbackContributors.isPending,
-    scrollbackParticipantsA.isPending,
-    scrollbackParticipantsB.isPending,
-    scrollbackFiles.isPending,
-  ]);
+    loadHistory();
+  }, [hasLoadedHistory, scrollback, isScrollbackPending]);
 
   useEffect(() => {
     async function detectRole() {
@@ -413,9 +303,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [timeline]);
+  }, [channelData?.timeline]);
 
   useEffect(() => {
+    const timeline = channelData?.timeline;
     if (!timeline) return;
     
     const userAddresses = new Set(
@@ -430,12 +321,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         getProfile(address);
       }
     });
-  }, [timeline, getProfile, profileCache]);
+  }, [channelData?.timeline, getProfile, profileCache]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // ✅ PERMISSION CHECK RE-ENABLED
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
         alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
@@ -459,13 +349,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       setMessageInput('');
       setFailedMessage(null);
       
-      const sendMessage = getSendFunction(false);
-      
-      if (!sendMessage) {
-        throw new Error('Send function not available');
-      }
-      
-      const result = await Promise.race([
+      await Promise.race([
         sendMessage(messageToSend),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Message send timed out after 30 seconds')), 30000)
@@ -515,14 +399,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const ipfsUri = await uploadToIPFS(file);
       console.log('✅ File uploaded:', ipfsUri);
       
-      const sendMessage = getSendFunction(true);
-      if (!sendMessage) {
-        throw new Error('Send function not available');
-      }
-      
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
       
-      const result = await Promise.race([
+      await Promise.race([
         sendMessage(fileMessage),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('File upload timeout')), 30000)
@@ -542,12 +421,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  const timeline = channelData?.timeline;
   const messages = timeline
     ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    ?.filter((event: any) => {
-      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-    })
     .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
@@ -565,7 +441,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       };
     }) || [];
 
-  if (isSpaceLoading || isTimelineLoading) {
+  if (isSpaceLoading) {
     return (
       <ChatLayout>
         <LoadingSpinner />
@@ -573,14 +449,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   }
 
-  if (spaceError || timelineError) {
+  if (spaceError) {
     return (
       <ChatLayout>
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-red-500 py-8">
             <p className="font-georgia-pro text-lg">❌ Error loading chat</p>
             <p className="font-georgia-pro text-sm mt-2">
-              {spaceError?.message || timelineError?.message || 'Unknown error'}
+              {spaceError?.message || 'Unknown error'}
             </p>
             <button 
               onClick={() => window.location.reload()} 
@@ -595,7 +471,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   const renderMessages = () => {
-    if (scrollbackFallback.isPending && messages.length === 0) {
+    if (isScrollbackPending && messages.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
@@ -619,7 +495,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return (
       <div className="py-4">
-        {scrollbackFallback.isPending && (
+        {isScrollbackPending && (
           <div className="text-center py-2">
             <p className="font-georgia-pro text-xs text-gray-400">Loading history...</p>
           </div>
