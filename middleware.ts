@@ -7,13 +7,20 @@ export function middleware(request: NextRequest) {
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com;
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://*.thirdweb.com https://*.ipfs.dweb.link https://ipfs.io https://gateway.ipfs.io;
+    style-src 'self' 'unsafe-inline' https://use.typekit.net;
+    img-src 'self' blob: data: 
+      https://*.thirdweb.com 
+      https://*.ipfs.dweb.link 
+      https://*.ipfscdn.io
+      https://ipfs.io 
+      https://gateway.ipfs.io
+      https://*.thirdwebcdn.com;
     font-src 'self' data:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
+    frame-src 'self' https://embedded-wallet.thirdweb.com https://vercel.live;
     upgrade-insecure-requests;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
@@ -50,6 +57,8 @@ export function middleware(request: NextRequest) {
       https://8453.rpc.thirdweb.com
       https://*.ipfscdn.io
       https://ipfs.io
+      https://gateway.ipfs.io
+      https://*.ipfs.dweb.link
       https://use.typekit.net
       https://fonts.googleapis.com
       https://cdn.sanity.io
