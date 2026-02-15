@@ -34,6 +34,7 @@ interface MessageBubbleProps {
 }
 
 // ✅ UPDATED: Bread Loaf Counter Badge (rounder top, no dots, centered text)
+// ✅ UPDATED: Bread Loaf Counter Badge (thinner lines, centered text)
 function BreadCounterBadge({ 
   totalTips, 
   isActive, 
@@ -52,8 +53,8 @@ function BreadCounterBadge({
     : 'text-gray-400';
 
   return (
-    <div className="relative inline-flex items-center justify-center">
-      {/* Bread loaf outline SVG - sandwich loaf with rounder top */}
+    <div className="relative inline-flex items-center justify-center w-[110px] h-[55px]">
+      {/* Bread loaf outline SVG - thinner lines */}
       <svg 
         width="110" 
         height="55" 
@@ -62,57 +63,57 @@ function BreadCounterBadge({
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* ✅ Rounder dome top */}
+        {/* ✅ Rounder dome top - THINNER stroke */}
         <path 
           d="M20 22 C20 10, 28 5, 40 5 L70 5 C82 5, 90 10, 90 22" 
           stroke={strokeColor}
-          strokeWidth="2.5"
+          strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Left side with smoother curve */}
+        {/* ✅ Left side - THINNER stroke */}
         <path 
           d="M20 22 C18 24, 17 26, 17 28 L17 44 C17 46, 19 48, 22 48" 
           stroke={strokeColor}
-          strokeWidth="2.5"
+          strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Right side with smoother curve */}
+        {/* ✅ Right side - THINNER stroke */}
         <path 
           d="M90 22 C92 24, 93 26, 93 28 L93 44 C93 46, 91 48, 88 48" 
           stroke={strokeColor}
-          strokeWidth="2.5"
+          strokeWidth="1.8"
           fill="white"
         />
         
-        {/* Bottom edge */}
+        {/* Bottom edge - THINNER stroke */}
         <path 
           d="M22 48 L88 48" 
           stroke={strokeColor}
-          strokeWidth="2.5"
+          strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Depth shadow lines at top corners (more subtle) */}
+        {/* ✅ Depth shadow lines at top corners */}
         <path 
           d="M22 23 C21 25, 20 27, 20 29" 
           stroke={strokeColor}
-          strokeWidth="1"
+          strokeWidth="0.8"
           opacity="0.25"
         />
         <path 
           d="M88 23 C89 25, 90 27, 90 29" 
           stroke={strokeColor}
-          strokeWidth="1"
+          strokeWidth="0.8"
           opacity="0.25"
         />
       </svg>
 
-      {/* ✅ Counter text positioned where dots were (centered in loaf body) */}
-      <div className={`relative z-10 font-georgia-pro text-xs font-semibold ${textColor} text-center`} style={{ marginTop: '6px' }}>
+      {/* ✅ Counter text - TRULY CENTERED with thinner font */}
+      <div className={`relative z-10 font-georgia-pro text-xs font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
         {isReacting ? (
-          <span className="text-xs">⏳</span>
+          <span>⏳</span>
         ) : (
           <span className="whitespace-nowrap">
             {totalTips > 0 ? totalTips : '0'} $TOWNS
