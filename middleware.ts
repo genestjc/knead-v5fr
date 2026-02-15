@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com https://js.stripe.com;
     style-src 'self' 'unsafe-inline' https://use.typekit.net;
     img-src 'self' blob: data: 
       https://*.thirdweb.com 
@@ -14,13 +14,14 @@ export function middleware(request: NextRequest) {
       https://*.ipfscdn.io
       https://ipfs.io 
       https://gateway.ipfs.io
-      https://*.thirdwebcdn.com;
-    font-src 'self' data:;
+      https://*.thirdwebcdn.com
+      https://vercel.com;
+    font-src 'self' data: https://use.typekit.net;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
-    frame-src 'self' https://embedded-wallet.thirdweb.com https://vercel.live;
+    frame-src 'self' https://embedded-wallet.thirdweb.com https://vercel.live https://js.stripe.com https://checkout.stripe.com;
     upgrade-insecure-requests;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
@@ -68,6 +69,7 @@ export function middleware(request: NextRequest) {
       https://*.thirdweb.com
       https://*.alchemy.com
       https://base-mainnet.g.alchemy.com
+      https://mainnet.base.org
       https://base.llamarpc.com
       https://*.supabase.co
       wss://*.supabase.co
@@ -78,7 +80,9 @@ export function middleware(request: NextRequest) {
       wss://*.daily.co
       wss://*.pluot.blue
       wss://localhost:*
-      wss://*.sanity.io;
+      wss://*.sanity.io
+      https://vercel.live
+      https://va.vercel-scripts.com;
   `.replace(/\s{2,}/g, ' ').trim();
 
   const requestHeaders = new Headers(request.headers);
