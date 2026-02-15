@@ -12,7 +12,8 @@ interface ChatMessage {
   id: string;
   content: string;
   sender: {
-    id: string;
+    id: string;          // Towns userId
+    walletAddress?: string; // Ethereum address for tipping
     name: string;
     avatar?: string;
   };
@@ -70,15 +71,15 @@ export function MessageBubble({
   };
 
   const handleLike = async () => {
-    if (!message.sender.id) {
-      console.error('❌ Message sender ID is missing!', message);
-      alert('Cannot tip: Sender information is missing');
+    if (!message.sender.walletAddress) {
+      console.error('❌ No wallet address for sender:', message.sender.id);
+      alert('Cannot tip: Wallet address not resolved for this user. They may need to set their ENS address.');
       return;
     }
     
     await awardTokensOnLike(
       message.id,
-      message.sender.id,
+      message.sender.walletAddress,  // ✅ Use wallet address, not userId
       10,
       '❤️',
       eventId
