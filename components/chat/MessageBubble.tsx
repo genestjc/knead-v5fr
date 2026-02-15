@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
+import { useRedact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { toast } from 'sonner';
 
 interface ChatMessage {
   id: string;
@@ -52,6 +54,9 @@ export function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   
+  // ✅ NEW: Self-delete for own messages
+  const { redact, isPending: isDeleting } = useRedact(channelId || '');
+  
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number' 
       ? new Date(timestamp) 
@@ -78,6 +83,29 @@ export function MessageBubble({
       '❤️',
       eventId
     );
+  };
+
+  // ✅ NEW: Handle self-delete
+  const handleSelfDelete = async () => {
+    if (!confirm('Delete your message?')) return;
+
+    try {
+      console.log('🗑️ User deleting own message:', message.id);
+      await redact(message.id);
+      toast.success('Message deleted');
+    } catch (error: any) {
+      console.error('❌ Failed to delete message:', error);
+      
+      const errorMsg = error?.message?.toLowerCase() || '';
+      
+      if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
+        toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
+      } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+        toast.error('❌ Permission denied');
+      } else {
+        toast.error('Failed to delete message');
+      }
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -120,14 +148,13 @@ export function MessageBubble({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4`}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group`}
         onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* ✅ NEW: Flex container with avatar */}
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%]`}>
-          {/* ✅ Avatar (only for other users, not your own messages) */}
+          {/* Avatar (only for other users) */}
           {!isOwn && (
             <div className="flex-shrink-0">
               {message.sender.avatar ? (
@@ -145,7 +172,7 @@ export function MessageBubble({
           )}
 
           {/* Message content */}
-          <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+          <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
             <div
               className={`
                 rounded-[18px] px-4 py-2 
@@ -184,6 +211,23 @@ export function MessageBubble({
               </span>
             </div>
 
+            {/* ✅ NEW: Self-delete button (shows on hover for own messages) */}
+            {isOwn && channelId && (
+              <button
+                onClick={handleSelfDelete}
+                disabled={isDeleting}
+                className="absolute -left-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded-full disabled:opacity-50"
+                title="Delete message"
+              >
+                {isDeleting ? (
+                  <span className="text-xs">⏳</span>
+                ) : (
+                  <span className="text-xs">🗑️</span>
+                )}
+              </button>
+            )}
+
+            {/* Tip button (for other users' messages) */}
             {!isOwn && canAwardTokens && streamId && (
               <button
                 onClick={handleLike}
@@ -202,6 +246,7 @@ export function MessageBubble({
         </div>
       </motion.div>
 
+      {/* Admin context menu */}
       {showContextMenu && isAdmin && channelId && spaceId && (
         <AdminContextMenu
           message={message}
