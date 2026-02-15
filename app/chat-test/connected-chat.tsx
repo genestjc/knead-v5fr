@@ -1,7 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -9,6 +9,7 @@ import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import { UserWalletResolver } from '@/components/chat/UserWalletResolver';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -39,7 +40,7 @@ interface UserProfile {
   alias: string | null;
   avatar: string | null;
   displayName: string;
-  walletAddress: string | null;  // ✅ Add this
+  walletAddress: string | null;
 }
 
 function PermissionDebugBanner({ 
@@ -153,6 +154,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
+  // ✅ NEW: Track resolved wallet addresses for userIds
+  const [userWallets, setUserWallets] = useState<Record<string, string | null>>({});
+  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -163,18 +167,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  // ✅ CORRECT: Use useTimeline for messages
   const { data: events } = useTimeline(channelId);
-  
-  // ✅ Single channel hooks
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const getProfile = useCallback(async (address: string) => {
+  // ✅ UPDATED: getProfile now accepts wallet addresses only
+  const getProfile = useCallback(async (walletAddress: string) => {
     try {
-      const response = await fetch(`/api/chat/user?address=${address}`);
+      const response = await fetch(`/api/chat/user?address=${walletAddress}`);
       const data = await response.json();
       
       if (data.success && data.user) {
@@ -182,10 +184,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           alias: data.user.alias,
           avatar: data.user.avatar,
           displayName: data.user.displayName,
-          walletAddress: data.user.walletAddress || null, // ✅ Use null if not available (no fallback to avoid userId)
+          walletAddress: walletAddress, // Store the wallet address we queried with
         };
         
-        setProfileCache(prev => ({ ...prev, [address]: profile }));
+        setProfileCache(prev => ({ ...prev, [walletAddress]: profile }));
         return profile;
       }
     } catch (error) {
@@ -195,7 +197,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ Load scrollback on mount (optional - for older history)
+  // ✅ NEW: Callback to handle resolved wallet addresses
+  const handleWalletResolved = useCallback((userId: string, walletAddress: string | null) => {
+    setUserWallets((prev) => ({ ...prev, [userId]: walletAddress }));
+    
+    // Fetch profile for this wallet address
+    if (walletAddress && !profileCache[walletAddress]) {
+      getProfile(walletAddress);
+    }
+  }, [getProfile, profileCache]);
+
+  // ✅ NEW: Extract unique userIds from events
+  const uniqueUserIds = useMemo(() => {
+    if (!events || events.length === 0) return [];
+    
+    const userIds = new Set<string>();
+    events.forEach((event: any) => {
+      if (event.content?.kind === RiverTimelineEvent.ChannelMessage && event.creatorUserId) {
+        userIds.add(event.creatorUserId);
+      }
+    });
+    
+    return Array.from(userIds);
+  }, [events]);
+
   useEffect(() => {
     if (hasLoadedHistory || isScrollbackPending || !channelId) return;
     
@@ -309,23 +334,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [events]);
 
-  useEffect(() => {
-    if (!events || events.length === 0) return;
-    
-    const userAddresses = new Set(
-      events
-        .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-        .map((event: any) => event.creatorUserId)
-        .filter(Boolean)
-    );
-    
-    userAddresses.forEach(address => {
-      if (!profileCache[address]) {
-        getProfile(address);
-      }
-    });
-  }, [events, getProfile, profileCache]);
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -424,31 +432,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ Process timeline events into messages
-  const messages = (events || [])
-    .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-    .filter((event: any) => {
-      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-    })
-    .map((event: any) => {
-      const userAddress = event.creatorUserId || '';
-      const profile = profileCache[userAddress];
-      
-      return {
-        id: event.eventId,
-        content: event.content?.body || '',
-        sender: {
-          id: userAddress,
-          walletAddress: profile?.walletAddress || undefined,  // ✅ Add this
-          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-          avatar: profile?.avatar,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: event.creatorUserId === activeAccount?.address,
-      };
-    })
-    .sort((a, b) => a.timestamp - b.timestamp);
+  // ✅ UPDATED: Process timeline events into messages with resolved wallet addresses
+  const messages = useMemo(() => {
+    return (events || [])
+      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .filter((event: any) => {
+        const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+        return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+      })
+      .map((event: any) => {
+        const userId = event.creatorUserId || '';
+        const walletAddress = userWallets[userId]; // Resolved wallet address
+        const profile = walletAddress ? profileCache[walletAddress] : null;
+        
+        return {
+          id: event.eventId,
+          content: event.content?.body || '',
+          sender: {
+            id: userId,
+            walletAddress: walletAddress || undefined,
+            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+            avatar: profile?.avatar,
+          },
+          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+        };
+      })
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [events, userWallets, profileCache, activeAccount?.address]);
 
   if (isSpaceLoading) {
     return (
@@ -575,6 +586,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   return (
     <>
+      {/* ✅ NEW: Render invisible wallet resolvers for each unique userId */}
+      {uniqueUserIds.map((userId) => (
+        !userWallets[userId] && (
+          <UserWalletResolver
+            key={userId}
+            spaceId={spaceId}
+            userId={userId}
+            onResolved={handleWalletResolved}
+          />
+        )
+      ))}
+
       <DailyProvider>
         <ChatLayout>
           <PermissionDebugBanner 
@@ -655,7 +678,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                         userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'contributor' && '�� Contributor'}
                         {userRole === 'participant' && '💬 Participant'}
                         {userRole === 'freemium' && '👀 Freemium'}
                       </span>
