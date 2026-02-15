@@ -23,12 +23,20 @@ export function getAllChannelIds(): string[] {
  * Returns true only if all channel IDs are configured
  */
 export function isVirtualShardingEnabled(): boolean {
-  return false; // ✅ TEMPORARILY DISABLED FOR TESTING
+  const channelIds = getAllChannelIds();
+  const allDefined = channelIds.every(id => id && id.length > 0);
   
-  // Original logic - re-enable once channels are verified to work:
-  // const channelIds = getAllChannelIds();
-  // return channelIds.every(id => id && id.length > 0);
+  console.log('🔍 Sharding Check:', {
+    contributors: !!channelIds.contributors,
+    participantsA: !!channelIds.participantsA,
+    participantsB: !!channelIds.participantsB,
+    files: !!channelIds.files,
+    allDefined,
+  });
+  
+  return allDefined; // ✅ Enable when all 4 channels are defined
 }
+
 
 /**
  * Get the appropriate channel ID for a user based on their role and address
