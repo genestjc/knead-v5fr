@@ -2,8 +2,9 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSpace, useSendMessage, useScrollback, useChannel } from '@towns-protocol/react-sdk';
+import { useSpace, useSendMessage, useScrollback, useObservable } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import type { StreamTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
@@ -150,6 +151,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
+  // ✅ NEW: Timeline events state
+  const [timelineEvents, setTimelineEvents] = useState<StreamTimelineEvent[]>([]);
+  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -160,11 +164,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  const { data: channelData } = useChannel(spaceId, channelId);
-  
-  // ✅ SINGLE CHANNEL - No sharding
+  // ✅ Single channel hooks
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+  const observable = useObservable(channelId);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -190,17 +193,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // Load message history
+  // ✅ Load scrollback history
   useEffect(() => {
-    if (hasLoadedHistory || isScrollbackPending) return;
+    if (hasLoadedHistory || isScrollbackPending || !channelId) return;
     
     console.log('📜 Loading message history...');
     
     const loadHistory = async () => {
       try {
         const result = await scrollback();
-        console.log('✅ Message history loaded');
-        console.log(`   At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum.toString()}`);
+        
+        if (result && Array.isArray(result.events)) {
+          console.log(`✅ Loaded ${result.events.length} historical messages`);
+          setTimelineEvents(result.events);
+        }
+        
+        console.log(`   At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum?.toString()}`);
         setHasLoadedHistory(true);
       } catch (error) {
         console.error('❌ Failed to load message history:', error);
@@ -209,7 +217,39 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
     
     loadHistory();
-  }, [hasLoadedHistory, scrollback, isScrollbackPending]);
+  }, [hasLoadedHistory, scrollback, isScrollbackPending, channelId]);
+
+  // ✅ Subscribe to real-time messages
+  useEffect(() => {
+    if (!observable) return;
+
+    console.log('📡 Subscribing to real-time messages...');
+
+    const subscription = observable.subscribe({
+      next: (event: StreamTimelineEvent) => {
+        console.log('📨 New event received:', event);
+        
+        setTimelineEvents(prev => {
+          // Prevent duplicates
+          const exists = prev.some(e => e.eventId === event.eventId);
+          if (exists) return prev;
+          
+          return [...prev, event];
+        });
+      },
+      error: (err: any) => {
+        console.error('❌ Observable error:', err);
+      },
+      complete: () => {
+        console.log('📡 Observable completed');
+      },
+    });
+
+    return () => {
+      console.log('📡 Unsubscribing from observable');
+      subscription.unsubscribe();
+    };
+  }, [observable]);
 
   useEffect(() => {
     async function detectRole() {
@@ -303,15 +343,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [channelData?.timeline]);
+  }, [timelineEvents]);
 
   useEffect(() => {
-    const timeline = channelData?.timeline;
-    if (!timeline) return;
+    if (!timelineEvents || timelineEvents.length === 0) return;
     
     const userAddresses = new Set(
-      timeline
-        ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      timelineEvents
+        .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
         .map((event: any) => event.creatorUserId)
         .filter(Boolean)
     );
@@ -321,7 +360,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         getProfile(address);
       }
     });
-  }, [channelData?.timeline, getProfile, profileCache]);
+  }, [timelineEvents, getProfile, profileCache]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,9 +460,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  const timeline = channelData?.timeline;
-  const messages = timeline
-    ?.filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+  // ✅ Process timeline events into messages
+  const messages = timelineEvents
+    .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
     .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
@@ -439,7 +478,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
         isOwn: event.creatorUserId === activeAccount?.address,
       };
-    }) || [];
+    })
+    .sort((a, b) => a.timestamp - b.timestamp);
 
   if (isSpaceLoading) {
     return (
