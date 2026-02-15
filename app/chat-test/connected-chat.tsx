@@ -2,9 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSpace, useSendMessage, useScrollback, useObservable } from '@towns-protocol/react-sdk';
+import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import type { StreamTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
@@ -27,6 +26,8 @@ const LoadingSpinner = () => (
     <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
   </div>
 );
+
+const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -151,9 +152,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
-  // ✅ NEW: Timeline events state
-  const [timelineEvents, setTimelineEvents] = useState<StreamTimelineEvent[]>([]);
-  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -164,10 +162,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
+  // ✅ CORRECT: Use useTimeline for messages
+  const { data: events } = useTimeline(channelId);
+  
   // ✅ Single channel hooks
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
-  const observable = useObservable(channelId);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -193,7 +193,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ Load scrollback history
+  // ✅ Load scrollback on mount (optional - for older history)
   useEffect(() => {
     if (hasLoadedHistory || isScrollbackPending || !channelId) return;
     
@@ -202,13 +202,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const loadHistory = async () => {
       try {
         const result = await scrollback();
-        
-        if (result && Array.isArray(result.events)) {
-          console.log(`✅ Loaded ${result.events.length} historical messages`);
-          setTimelineEvents(result.events);
-        }
-        
-        console.log(`   At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum?.toString()}`);
+        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
         setHasLoadedHistory(true);
       } catch (error) {
         console.error('❌ Failed to load message history:', error);
@@ -218,38 +212,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     loadHistory();
   }, [hasLoadedHistory, scrollback, isScrollbackPending, channelId]);
-
-  // ✅ Subscribe to real-time messages
-  useEffect(() => {
-    if (!observable) return;
-
-    console.log('📡 Subscribing to real-time messages...');
-
-    const subscription = observable.subscribe({
-      next: (event: StreamTimelineEvent) => {
-        console.log('📨 New event received:', event);
-        
-        setTimelineEvents(prev => {
-          // Prevent duplicates
-          const exists = prev.some(e => e.eventId === event.eventId);
-          if (exists) return prev;
-          
-          return [...prev, event];
-        });
-      },
-      error: (err: any) => {
-        console.error('❌ Observable error:', err);
-      },
-      complete: () => {
-        console.log('📡 Observable completed');
-      },
-    });
-
-    return () => {
-      console.log('📡 Unsubscribing from observable');
-      subscription.unsubscribe();
-    };
-  }, [observable]);
 
   useEffect(() => {
     async function detectRole() {
@@ -343,13 +305,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [timelineEvents]);
+  }, [events]);
 
   useEffect(() => {
-    if (!timelineEvents || timelineEvents.length === 0) return;
+    if (!events || events.length === 0) return;
     
     const userAddresses = new Set(
-      timelineEvents
+      events
         .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
         .map((event: any) => event.creatorUserId)
         .filter(Boolean)
@@ -360,7 +322,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         getProfile(address);
       }
     });
-  }, [timelineEvents, getProfile, profileCache]);
+  }, [events, getProfile, profileCache]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -461,8 +423,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   // ✅ Process timeline events into messages
-  const messages = timelineEvents
+  const messages = (events || [])
     .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+    .filter((event: any) => {
+      const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+      return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+    })
     .map((event: any) => {
       const userAddress = event.creatorUserId || '';
       const profile = profileCache[userAddress];
@@ -624,7 +590,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               }}
             />
           )}
-
+      
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
