@@ -29,10 +29,13 @@ export async function POST(req: NextRequest) {
 
     // If not found by user_id, try exact match by address (userId might be the address)
     if (error || !user) {
+      // Validate userId is a string before calling toLowerCase
+      const addressToMatch = typeof userId === 'string' ? userId.toLowerCase() : userId;
+      
       const result = await supabase
         .from('chat_users')
         .select('address')
-        .eq('address', userId.toLowerCase())
+        .eq('address', addressToMatch)
         .single();
       
       user = result.data;

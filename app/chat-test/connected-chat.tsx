@@ -202,10 +202,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     setUserWallets((prev) => ({ ...prev, [userId]: walletAddress }));
     
     // Fetch profile for this wallet address
-    if (walletAddress && !profileCache[walletAddress]) {
-      getProfile(walletAddress);
+    if (walletAddress) {
+      // Check inside the callback to avoid dependency issues
+      setProfileCache((prevCache) => {
+        if (!prevCache[walletAddress]) {
+          getProfile(walletAddress);
+        }
+        return prevCache;
+      });
     }
-  }, [getProfile, profileCache]);
+  }, [getProfile]);
 
   // ✅ NEW: Extract unique userIds from events
   const uniqueUserIds = useMemo(() => {
