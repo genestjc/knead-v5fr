@@ -164,7 +164,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = space?.channelIds?.[0] || defaultChannelId;
   
-  // ✅ useChannel - removed unused error
   const { data: channelData } = useChannel(spaceId, channelId);
   
   const { data: timeline, isLoading: isTimelineLoading, error: timelineError } = useRoleBasedTimeline(channelId);
@@ -187,7 +186,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const sendToFiles = useSendMessage(channelConfig.files || channelId);
   const sendToFallback = useSendMessage(channelId);
   
-  // ✅ Create scrollback hooks for all shard channels
   const scrollbackFallback = useScrollback(channelId);
   const scrollbackContributors = useScrollback(channelConfig.contributors || channelId);
   const scrollbackParticipantsA = useScrollback(channelConfig.participantsA || channelId);
@@ -254,9 +252,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return null;
   }, []);
 
-  // ✅ Load history from all shard channels with isPending guards
   useEffect(() => {
-    // ✅ Check if any scrollback is pending
     const isAnyScrollbackPending = 
       scrollbackContributors.isPending || 
       scrollbackParticipantsA.isPending || 
@@ -271,7 +267,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const loadAllHistory = async () => {
       try {
         if (isVirtualShardingEnabled()) {
-          // Load from all 4 shard channels
           const results = await Promise.all([
             scrollbackContributors.scrollback(),
             scrollbackParticipantsA.scrollback(),
@@ -284,7 +279,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             console.log(`   Shard ${idx + 1}: At beginning: ${result.terminus}, From block: ${result.fromInclusiveMiniblockNum.toString()}`);
           });
         } else {
-          // Load from single fallback channel
           const result = await scrollbackFallback.scrollback();
           console.log('✅ Message history loaded');
           console.log('   At beginning:', result.terminus);
@@ -450,18 +444,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [timeline, getProfile, profileCache]);
 
-  const sendWithTimeout = async (sendFn: any, message: string, timeoutMs = 30000) => {
-    return Promise.race([
-      sendFn(message),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error(`Message send timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
-      )
-    ]);
-  };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // ✅ LOG PERMISSION STATE
+    console.log('🔍 PRE-SEND CHECK:', {
+      canPost: permissions?.canPost,
+      reason: permissions?.reason,
+      role: permissions?.role,
+      userRole,
+      permissions,
+    });
+    
+    // ✅ TEMPORARILY COMMENTED OUT FOR TESTING
+    /*
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
         alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
@@ -472,8 +468,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
       return;
     }
+    */
     
     if (!messageInput.trim() || isSending || !channelId) {
+      console.log('❌ Basic validation failed:', {
+        hasMessage: !!messageInput.trim(),
+        isSending,
+        hasChannelId: !!channelId,
+      });
       return;
     }
 
@@ -481,44 +483,48 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     try {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📤 SENDING MESSAGE');
+      console.log('📤 ATTEMPTING TO SEND MESSAGE');
+      console.log('   Message:', messageToSend);
       console.log('   User Role:', userRole);
       console.log('   Sharding Enabled:', isVirtualShardingEnabled());
+      console.log('   Channel ID:', channelId);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      console.time('Send Duration'); // ✅ Measure time
       
       setMessageInput('');
       setFailedMessage(null);
       
       const sendMessage = getSendFunction(false);
+      console.log('   Send function exists:', !!sendMessage);
+      
       if (!sendMessage) {
         throw new Error('Send function not available');
       }
       
-      await sendWithTimeout(sendMessage, messageToSend, 30000);
+      console.log('⏳ Calling sendMessage...');
       
-      console.log('✅ Message sent successfully');
+      // ✅ NO TIMEOUT WRAPPER - See real error
+      const result = await sendMessage(messageToSend);
+      
+      console.timeEnd('Send Duration');
+      console.log('✅ MESSAGE SENT SUCCESSFULLY!');
+      console.log('   Result:', result);
+      
+      alert('✅ Message sent! Check if it appears in the chat.');
       
     } catch (error: any) {
-      console.error('❌ Failed to send message:', error);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ SEND FAILED');
+      console.error('   Error name:', error.name);
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       setMessageInput(messageToSend);
       setFailedMessage(messageToSend);
       
-      if (error.message?.includes('timed out')) {
-        alert('⏱️ Message send timed out after 30 seconds.\n\nThe Towns network may be experiencing issues. Please try again in a minute.');
-      } else if (error.message?.includes('deadline_exceeded')) {
-        alert('⏳ Network timeout. Your message was not delivered. Please try sending again.');
-      } else if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
-        alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
-      } else if (error.message?.includes('QUORUM_FAILED')) {
-        alert('❌ Network error - message not delivered. Please check your connection and try again.');
-      } else if (error.message?.includes('not entitled') || error.message?.includes('permission')) {
-        alert('❌ You do not have permission to send messages.\n\nThis is an on-chain permission issue. Contact support.');
-      } else if (error.message?.includes('already a member')) {
-        console.log('ℹ️ Already a member, ignoring error');
-      } else {
-        alert(`Failed to send: ${error.message}\n\nYour message was not delivered.`);
-      }
+      alert(`❌ Send failed: ${error.message}`);
     }
   };
 
@@ -549,9 +555,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
       
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      await sendWithTimeout(sendMessage, fileMessage, 30000);
+      const result = await sendMessage(fileMessage);
       
-      console.log('✅ File message sent');
+      console.log('✅ File message sent:', result);
       
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -696,11 +702,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
           permissions?.canPost ? 'focus:ring-[#007AFF] border-gray-300' : 'bg-gray-100 border-gray-200 cursor-not-allowed'
         }`}
-        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
+        disabled={isSending || isUploading || !channelId}
       />
       <button 
         type="submit" 
-        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+        disabled={!messageInput.trim() || isSending || isUploading || !channelId} 
         className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -720,6 +726,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             activeEvent={activeEvent}
           />
 
+          {/* ✅ DEBUG BANNER - Shows permission state */}
+          <div className="bg-purple-50 border-b border-purple-200 px-4 py-2">
+            <div className="text-xs font-mono">
+              <p><strong>🔍 Permission State Debug:</strong></p>
+              <p>permissions object: {permissions ? JSON.stringify(permissions) : 'null'}</p>
+              <p>permissions.canPost: {String(permissions?.canPost)}</p>
+              <p>permissions.role: {permissions?.role || 'undefined'}</p>
+              <p>permissions.reason: {permissions?.reason || 'undefined'}</p>
+              <p>userRole (local state): {userRole}</p>
+              <p>isAdmin: {String(isAdmin)}</p>
+            </div>
+          </div>
+
           {failedMessage && (
             <RetryMessageBanner
               message={failedMessage}
@@ -733,8 +752,133 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
-              {/* Video views - keeping original structure for brevity */}
-              {/* Desktop and mobile video+chat layouts remain the same */}
+              <div className="hidden lg:grid lg:grid-rows-2 h-screen">
+                <div className="border-b border-gray-200">
+                  <EventVideoStage 
+                    event={activeEvent} 
+                    currentUserAddress={activeAccount?.address || ''}
+                    roomUrl={activeEvent.dailyRoomUrl}
+                    token={dailyToken}
+                  />
+                </div>
+                
+                <div className="flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' ? 'bg-purple-100 text-purple-800' : 
+                        userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {userRole === 'participant' && activeEvent && (
+                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
+                            {permissions?.canPost 
+                              ? '✅ You can send messages during this live event!' 
+                              : '⏳ Event is live, waiting for permissions update...'}
+                          </p>
+                          {!permissions?.canPost && (
+                            <p className="text-xs text-yellow-600 mt-1">
+                              This usually takes 5-10 seconds. If stuck, click Refresh Access.
+                            </p>
+                          )}
+                        </div>
+                        {!permissions?.canPost && (
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 ml-3 whitespace-nowrap"
+                          >
+                            Refresh Access
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {renderMessages()}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-4 bg-white">
+                    {renderChatInput()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:hidden flex flex-col h-screen">
+                <div className="border-b border-gray-200">
+                  <EventVideoStage 
+                    event={activeEvent} 
+                    currentUserAddress={activeAccount?.address || ''}
+                    roomUrl={activeEvent.dailyRoomUrl}
+                    token={dailyToken}
+                  />
+                </div>
+
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="font-georgia-pro text-sm text-gray-600">
+                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+                        userRole === 'contributor' ? 'bg-purple-100 text-purple-800' : 
+                        userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {userRole === 'contributor' && '⭐ Contributor'}
+                        {userRole === 'participant' && '💬 Participant'}
+                        {userRole === 'freemium' && '👀 Freemium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {userRole === 'participant' && activeEvent && (
+                    <div className={`px-4 py-3 border-b ${permissions?.canPost ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <div className="flex flex-col gap-2">
+                        <p className={`text-sm font-medium ${permissions?.canPost ? 'text-green-800' : 'text-yellow-800'}`}>
+                          {permissions?.canPost 
+                            ? '✅ You can send messages!' 
+                            : '⏳ Waiting for permissions...'}
+                        </p>
+                        {!permissions?.canPost && (
+                          <>
+                            <p className="text-xs text-yellow-600">
+                              Usually takes 5-10 seconds.
+                            </p>
+                            <button
+                              onClick={() => window.location.reload()}
+                              className="px-3 py-1.5 bg-yellow-600 text-white rounded-full text-sm hover:bg-yellow-700 self-start"
+                            >
+                              Refresh Access
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-y-auto pb-16">
+                    {renderMessages()}
+                  </div>
+
+                  <div className="border-t border-gray-200 p-4 bg-white">
+                    {renderChatInput()}
+                  </div>
+                </div>
+              </div>
             </>
           ) : (
             <div className="h-full flex flex-col bg-white">
