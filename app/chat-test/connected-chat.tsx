@@ -9,7 +9,6 @@ import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
-import { UserWalletResolver } from '@/components/chat/UserWalletResolver';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -154,9 +153,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
-  // ✅ NEW: Track resolved wallet addresses for userIds
-  const [userWallets, setUserWallets] = useState<Record<string, string | null>>({});
-  
   const activeAccount = useActiveAccount();
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -173,7 +169,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ✅ UPDATED: getProfile now accepts wallet addresses only
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -184,7 +179,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           alias: data.user.alias,
           avatar: data.user.avatar,
           displayName: data.user.displayName,
-          walletAddress: walletAddress, // Store the wallet address we queried with
+          walletAddress: walletAddress,
         };
         
         setProfileCache(prev => ({ ...prev, [walletAddress]: profile }));
@@ -196,31 +191,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     return null;
   }, []);
-
-  // ✅ NEW: Callback to handle resolved wallet addresses
-  // ✅ CORRECT:
-const handleWalletResolved = useCallback((userId: string, walletAddress: string | null) => {
-  setUserWallets((prev) => ({ ...prev, [userId]: walletAddress }));
-  
-  // Fetch profile for this wallet address if not already cached
-  if (walletAddress && !profileCache[walletAddress]) {
-    getProfile(walletAddress);
-  }
-}, [getProfile, profileCache]);
-
-  // ✅ NEW: Extract unique userIds from events
-  const uniqueUserIds = useMemo(() => {
-    if (!events || events.length === 0) return [];
-    
-    const userIds = new Set<string>();
-    events.forEach((event: any) => {
-      if (event.content?.kind === RiverTimelineEvent.ChannelMessage && event.creatorUserId) {
-        userIds.add(event.creatorUserId);
-      }
-    });
-    
-    return Array.from(userIds);
-  }, [events]);
 
   useEffect(() => {
     if (hasLoadedHistory || isScrollbackPending || !channelId) return;
@@ -433,85 +403,43 @@ const handleWalletResolved = useCallback((userId: string, walletAddress: string 
     }
   };
 
-  // ✅ UPDATED: Process timeline events into messages with resolved wallet addresses
-  // In the messages mapping, add console logging:
-const messages = useMemo(() => {
-  console.log('🔍 Processing events:', {
-    totalEvents: events?.length || 0,
-    hasEvents: !!events,
-    events: events,
-  });
+  // ✅ SIMPLIFIED: event.sender.id is already the wallet address!
+  const messages = useMemo(() => {
+    if (!events || events.length === 0) {
+      return [];
+    }
 
-  if (!events || events.length === 0) {
-    console.log('⚠️ No events to process');
-    return [];
-  }
-
-  const filteredMessages = events.filter((event: any) => {
-    const isMessage = event.content?.kind === RiverTimelineEvent.ChannelMessage;
-    console.log('🔍 Event type check:', {
-      eventId: event.eventId?.substring(0, 10),
-      kind: event.content?.kind,
-      isMessage,
-    });
-    return isMessage;
-  });
-
-  console.log('✅ Filtered to messages:', filteredMessages.length);
-
-  const recentMessages = filteredMessages.filter((event: any) => {
-    const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-    const isRecent = messageTime >= VIRTUAL_SHARDING_CUTOFF;
-    console.log('📅 Time check:', {
-      eventId: event.eventId?.substring(0, 10),
-      messageTime: new Date(messageTime).toISOString(),
-      cutoff: new Date(VIRTUAL_SHARDING_CUTOFF).toISOString(),
-      isRecent,
-    });
-    return isRecent;
-  });
-
-  console.log('✅ Recent messages:', recentMessages.length);
-
-  return recentMessages.map((event: any) => {
-    // ✅ DETAILED LOGGING OF EACH EVENT:
-    console.log('📨 Event structure:', {
-      eventId: event.eventId,
-      creatorUserId: event.creatorUserId,
-      creatorAddress: event.creatorAddress,
-      userId: event.userId,
-      sender: event.sender,
-      creatorDisplayName: event.creatorDisplayName,
-      content: event.content?.body?.substring(0, 50),
-      allEventKeys: Object.keys(event),
-    });
-    
-    const userId = event.creatorUserId || '';
-    const walletAddress = userWallets[userId];
-    
-    console.log('💰 Wallet resolution:', {
-      userId,
-      walletAddress,
-      hasWallet: !!walletAddress,
-      userWalletsCache: userWallets,
-    });
-    
-    const profile = walletAddress ? profileCache[walletAddress] : null;
-    
-    return {
-      id: event.eventId,
-      content: event.content?.body || '',
-      sender: {
-        id: userId,
-        walletAddress: walletAddress || undefined,
-        name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-        avatar: profile?.avatar,
-      },
-      timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-      isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-    };
-  }).sort((a, b) => a.timestamp - b.timestamp);
-}, [events, userWallets, profileCache, activeAccount?.address]);
+    return events
+      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .filter((event: any) => {
+        const messageTime = event.createdAtEpochMs || event.timestamp || 0;
+        return messageTime >= VIRTUAL_SHARDING_CUTOFF;
+      })
+      .map((event: any) => {
+        // ✅ event.sender.id is the wallet address
+        const walletAddress = event.sender?.id || '';
+        const profile = walletAddress ? profileCache[walletAddress] : null;
+        
+        // Fetch profile if not cached
+        if (walletAddress && !profileCache[walletAddress]) {
+          getProfile(walletAddress);
+        }
+        
+        return {
+          id: event.eventId,
+          content: event.content?.body || '',
+          sender: {
+            id: walletAddress,
+            walletAddress: walletAddress, // ✅ Ready for tipping!
+            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+            avatar: profile?.avatar,
+          },
+          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+        };
+      })
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [events, profileCache, activeAccount?.address, getProfile]);
 
   if (isSpaceLoading) {
     return (
@@ -638,18 +566,6 @@ const messages = useMemo(() => {
 
   return (
     <>
-      {/* ✅ NEW: Render invisible wallet resolvers for each unique userId */}
-      {uniqueUserIds.map((userId) => (
-        !userWallets[userId] && (
-          <UserWalletResolver
-            key={userId}
-            spaceId={spaceId}
-            userId={userId}
-            onResolved={handleWalletResolved}
-          />
-        )
-      ))}
-
       <DailyProvider>
         <ChatLayout>
           <PermissionDebugBanner 
@@ -730,7 +646,7 @@ const messages = useMemo(() => {
                         userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {userRole === 'contributor' && '�� Contributor'}
+                        {userRole === 'contributor' && '⭐ Contributor'}
                         {userRole === 'participant' && '💬 Participant'}
                         {userRole === 'freemium' && '👀 Freemium'}
                       </span>
