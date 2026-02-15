@@ -33,8 +33,7 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// ✅ UPDATED: Bread Loaf Counter Badge (rounder top, no dots, centered text)
-// ✅ UPDATED: Bread Loaf Counter Badge (thinner lines, centered text)
+// ✅ FINAL: Bread Loaf Counter Badge (smaller, subtle gray)
 function BreadCounterBadge({ 
   totalTips, 
   isActive, 
@@ -44,74 +43,70 @@ function BreadCounterBadge({
   isActive: boolean; 
   isReacting: boolean;
 }) {
-  const strokeColor = isActive 
-    ? totalTips > 0 ? '#b45309' : '#4b5563'  // amber-700 : gray-600
-    : '#9ca3af';  // gray-400
-
-  const textColor = isActive
-    ? totalTips > 0 ? 'text-amber-700' : 'text-gray-700'
-    : 'text-gray-400';
+  // ✅ Simplified: Always use gray, slightly darker when active
+  const strokeColor = isActive ? '#4b5563' : '#9ca3af';  // gray-600 : gray-400
+  const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
 
   return (
-    <div className="relative inline-flex items-center justify-center w-[110px] h-[55px]">
-      {/* Bread loaf outline SVG - thinner lines */}
+    <div className="relative inline-flex items-center justify-center w-[85px] h-[42px]">
+      {/* Bread loaf outline SVG - SMALLER and subtle */}
       <svg 
-        width="110" 
-        height="55" 
-        viewBox="0 0 110 55" 
+        width="85" 
+        height="42" 
+        viewBox="0 0 85 42" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* ✅ Rounder dome top - THINNER stroke */}
+        {/* Rounder dome top */}
         <path 
-          d="M20 22 C20 10, 28 5, 40 5 L70 5 C82 5, 90 10, 90 22" 
+          d="M15 17 C15 8, 21 4, 30 4 L55 4 C64 4, 70 8, 70 17" 
           stroke={strokeColor}
           strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Left side - THINNER stroke */}
+        {/* Left side */}
         <path 
-          d="M20 22 C18 24, 17 26, 17 28 L17 44 C17 46, 19 48, 22 48" 
+          d="M15 17 C13 19, 12 21, 12 22 L12 34 C12 36, 14 37, 16 37" 
           stroke={strokeColor}
           strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Right side - THINNER stroke */}
+        {/* Right side */}
         <path 
-          d="M90 22 C92 24, 93 26, 93 28 L93 44 C93 46, 91 48, 88 48" 
+          d="M70 17 C72 19, 73 21, 73 22 L73 34 C73 36, 71 37, 69 37" 
           stroke={strokeColor}
           strokeWidth="1.8"
           fill="white"
         />
         
-        {/* Bottom edge - THINNER stroke */}
+        {/* Bottom edge */}
         <path 
-          d="M22 48 L88 48" 
+          d="M16 37 L69 37" 
           stroke={strokeColor}
           strokeWidth="1.8"
           fill="white"
         />
         
-        {/* ✅ Depth shadow lines at top corners */}
+        {/* Subtle depth lines */}
         <path 
-          d="M22 23 C21 25, 20 27, 20 29" 
+          d="M16 18 C15 20, 14 21, 14 23" 
           stroke={strokeColor}
           strokeWidth="0.8"
-          opacity="0.25"
+          opacity="0.2"
         />
         <path 
-          d="M88 23 C89 25, 90 27, 90 29" 
+          d="M69 18 C70 20, 71 21, 71 23" 
           stroke={strokeColor}
           strokeWidth="0.8"
-          opacity="0.25"
+          opacity="0.2"
         />
       </svg>
 
-      {/* ✅ Counter text - TRULY CENTERED with thinner font */}
-      <div className={`relative z-10 font-georgia-pro text-xs font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
+      {/* Counter text - smaller font */}
+      <div className={`relative z-10 font-georgia-pro text-[11px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
         {isReacting ? (
           <span>⏳</span>
         ) : (
