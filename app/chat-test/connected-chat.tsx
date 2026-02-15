@@ -39,6 +39,7 @@ interface UserProfile {
   alias: string | null;
   avatar: string | null;
   displayName: string;
+  walletAddress: string | null;  // ✅ Add this
 }
 
 function PermissionDebugBanner({ 
@@ -181,6 +182,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           alias: data.user.alias,
           avatar: data.user.avatar,
           displayName: data.user.displayName,
+          walletAddress: data.user.walletAddress || null, // ✅ Use null if not available (no fallback to avoid userId)
         };
         
         setProfileCache(prev => ({ ...prev, [address]: profile }));
@@ -438,6 +440,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         content: event.content?.body || '',
         sender: {
           id: userAddress,
+          walletAddress: profile?.walletAddress || undefined,  // ✅ Add this
           name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
           avatar: profile?.avatar,
         },

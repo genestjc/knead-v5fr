@@ -128,10 +128,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       // already succeeded, so we still show success to the user.
       try {
         console.log('📨 [RIVER] Sending reaction to Towns Protocol...');
-        await sendReaction({
-          eventId: messageId,
-          reaction: reaction,
-        });
+        await sendReaction(messageId, reaction);  // ✅ Use positional args
         console.log('✅ [RIVER] Reaction sent successfully');
       } catch (riverError: any) {
         // River failed, but blockchain succeeded - that's OK!
