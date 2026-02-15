@@ -34,6 +34,7 @@ interface MessageBubbleProps {
 }
 
 // ✅ NEW: Bread Loaf Counter Badge (icon + counter combined)
+// ✅ UPDATED: Bread Loaf Counter Badge (sandwich loaf shape with depth)
 function BreadCounterBadge({ 
   totalTips, 
   isActive, 
@@ -53,42 +54,76 @@ function BreadCounterBadge({
 
   return (
     <div className="relative inline-flex items-center justify-center">
-      {/* Bread loaf outline SVG */}
+      {/* Bread loaf outline SVG - sandwich loaf with depth */}
       <svg 
-        width="85" 
-        height="50" 
-        viewBox="0 0 85 50" 
+        width="110" 
+        height="55" 
+        viewBox="0 0 110 55" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* Rounded top of loaf */}
+        {/* ✅ Main loaf shape with rounded top and depth curves */}
+        {/* Rounded dome top */}
         <path 
-          d="M15 15 C15 8, 20 5, 28 5 L57 5 C65 5, 70 8, 70 15 L70 20 L15 20 Z" 
+          d="M20 20 C20 11, 25 6, 35 6 L75 6 C85 6, 90 11, 90 20" 
           stroke={strokeColor}
           strokeWidth="2.5"
           fill="white"
         />
-        {/* Body of loaf */}
+        
+        {/* �� Left side depth curve - where dome meets body */}
         <path 
-          d="M15 20 L15 42 C15 44, 17 45, 20 45 L65 45 C68 45, 70 44, 70 42 L70 20 Z" 
+          d="M20 20 Q18 22, 18 24 L18 44 C18 46, 20 48, 23 48" 
           stroke={strokeColor}
           strokeWidth="2.5"
           fill="white"
         />
-        {/* Decorative dots */}
-        <circle cx="30" cy="32" r="1.5" fill={strokeColor} opacity="0.5"/>
-        <circle cx="42" cy="35" r="1.5" fill={strokeColor} opacity="0.5"/>
-        <circle cx="55" cy="32" r="1.5" fill={strokeColor} opacity="0.5"/>
+        
+        {/* ✅ Right side depth curve - where dome meets body */}
+        <path 
+          d="M90 20 Q92 22, 92 24 L92 44 C92 46, 90 48, 87 48" 
+          stroke={strokeColor}
+          strokeWidth="2.5"
+          fill="white"
+        />
+        
+        {/* Bottom edge */}
+        <path 
+          d="M23 48 L87 48" 
+          stroke={strokeColor}
+          strokeWidth="2.5"
+          fill="white"
+        />
+        
+        {/* ✅ Inner shadow lines to show depth at top curves */}
+        <path 
+          d="M22 21 Q21 23, 21 25" 
+          stroke={strokeColor}
+          strokeWidth="1"
+          opacity="0.3"
+        />
+        <path 
+          d="M88 21 Q89 23, 89 25" 
+          stroke={strokeColor}
+          strokeWidth="1"
+          opacity="0.3"
+        />
+        
+        {/* Decorative dots/texture on the crust */}
+        <circle cx="35" cy="32" r="1.5" fill={strokeColor} opacity="0.4"/>
+        <circle cx="50" cy="35" r="1.5" fill={strokeColor} opacity="0.4"/>
+        <circle cx="55" cy="31" r="1.5" fill={strokeColor} opacity="0.4"/>
+        <circle cx="70" cy="34" r="1.5" fill={strokeColor} opacity="0.4"/>
       </svg>
 
       {/* Counter text inside bread */}
-      <div className={`relative z-10 font-georgia-pro text-xs font-semibold ${textColor} px-2 py-1 text-center`}>
+      <div className={`relative z-10 font-georgia-pro text-xs font-semibold ${textColor} px-4 py-2 text-center`}>
         {isReacting ? (
           <span className="text-xs">⏳</span>
         ) : (
           <span className="whitespace-nowrap">
-            {totalTips > 0 ? totalTips : '0'} TOWNS
+            {totalTips > 0 ? totalTips : '0'} $TOWNS
           </span>
         )}
       </div>
