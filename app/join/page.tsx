@@ -20,10 +20,21 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { createThirdwebClient, getContract } from "thirdweb";
+import { balanceOf } from "thirdweb/extensions/erc1155";
+import { base } from "thirdweb/chains";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
 );
+
+// ThirdWeb client for direct NFT checks
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
+});
+
+const NFT_CONTRACT_ADDRESS = "0xfd678ed8a0ed853d5399da9585d46aea44cbce85";
+const PREMIUM_TOKEN_ID = 1n;
 
 function PaymentForm({
   onSuccess,
@@ -130,47 +141,71 @@ export default function JoinPage() {
     }
   }, []);
 
-  const pollForMembership = async (maxAttempts = 10, delayMs = 2000) => {
-    if (!refreshMembership) return false;
-    
+  // Direct check of NFT contract - bypasses cache entirely
+  const checkPremiumNFTDirect = async (walletAddress: string): Promise<boolean> => {
+    try {
+      const contract = getContract({
+        client,
+        chain: base,
+        address: NFT_CONTRACT_ADDRESS,
+      });
+
+      const balance = await balanceOf({
+        contract,
+        owner: walletAddress,
+        tokenId: PREMIUM_TOKEN_ID,
+      });
+
+      console.log(`🔍 Direct NFT check - Token ID ${PREMIUM_TOKEN_ID} balance:`, balance.toString());
+      return balance > 0n;
+    } catch (error) {
+      console.error("Error checking NFT directly:", error);
+      return false;
+    }
+  };
+
+  const pollForNFT = async (walletAddress: string, maxAttempts = 15, delayMs = 2000) => {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`🔄 Checking for membership (attempt ${attempt}/${maxAttempts})...`);
+      console.log(`🔄 Polling for NFT (attempt ${attempt}/${maxAttempts})...`);
       
-      // Wait before checking
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      // Wait before checking (except first attempt)
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
       
-      // Clear cache and refresh
-      localStorage.removeItem("knead_membership_cache");
-      await refreshMembership();
+      // Direct blockchain check - no cache involved
+      const hasNFT = await checkPremiumNFTDirect(walletAddress);
       
-      // Check if premium access is now available
-      // We need to re-check hasAccess after refreshing
-      // Give it a moment for state to update
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      if (hasAccess("premium")) {
-        console.log("✅ Premium membership detected!");
+      if (hasNFT) {
+        console.log("✅ Premium NFT detected on blockchain!");
+        
+        // Now that we confirmed NFT exists, refresh the membership provider
+        // Clear cache first to force fresh check
+        localStorage.removeItem("knead_membership_cache");
+        if (refreshMembership) {
+          await refreshMembership();
+        }
+        
         return true;
       }
     }
     
-    console.log("⚠️ Membership not detected after max attempts");
+    console.log("⚠️ NFT not detected after max attempts");
     return false;
   };
 
   const handlePaymentReturn = async () => {
-    if (!refreshMembership) return;
+    if (!account?.address) return;
     
     setIsRefreshingMembership(true);
     try {
-      console.log("💎 Payment successful! Waiting for NFT to mint...");
+      console.log("💎 Payment successful! Checking for NFT mint...");
       
-      // Poll for membership with retries
-      const success = await pollForMembership(10, 2000); // 10 attempts, 2 seconds apart = 20 seconds max
+      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
+      const success = await pollForNFT(account.address, 15, 2000);
       
       if (!success) {
-        // Show message that it might take a moment
-        alert("Your membership is being activated. If you don't see it immediately, please refresh the page in a moment.");
+        alert("Your membership is being activated. Please refresh the page in a moment if you don't see it.");
       }
     } finally {
       setIsRefreshingMembership(false);
@@ -219,16 +254,17 @@ export default function JoinPage() {
     setIsModalOpen(false);
     setClientSecret(null);
     
+    if (!account?.address) return;
+    
     setIsRefreshingMembership(true);
     try {
-      console.log("💎 Payment successful! Waiting for NFT to mint...");
+      console.log("💎 Payment successful! Checking for NFT mint...");
       
-      // Poll for membership with retries
-      const success = await pollForMembership(10, 2000); // 10 attempts, 2 seconds apart = 20 seconds max
+      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
+      const success = await pollForNFT(account.address, 15, 2000);
       
       if (!success) {
-        // Show message that it might take a moment
-        alert("Your membership is being activated. If you don't see it immediately, please refresh the page in a moment.");
+        alert("Your membership is being activated. Please refresh the page in a moment if you don't see it.");
       }
     } finally {
       setIsRefreshingMembership(false);
@@ -322,7 +358,7 @@ export default function JoinPage() {
                   <div className="animate-pulse h-12 bg-gray-100 rounded w-full"></div>
                   {isRefreshingMembership && (
                     <p className="text-sm text-gray-600 font-georgia-pro">
-                      Activating your membership...
+                      Checking blockchain for your membership NFT...
                     </p>
                   )}
                 </div>
