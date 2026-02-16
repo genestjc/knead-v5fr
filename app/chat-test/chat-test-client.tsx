@@ -160,7 +160,7 @@ function useBotAutoConnect() {
     const activeWallet = wallet || botWallet;
 
     if (activeWallet && isAgentConnected) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ BOT SUCCESSFULLY CONNECTED');
       console.log(`   Wallet: ${activeWallet.getAccount?.()?.address || 'unknown'}`);
       console.log(`   Time: ${new Date().toISOString()}`);
@@ -260,7 +260,7 @@ function SetupFlow() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ CUSTOM ETHERS V5 SIGNER
+// TOWNS CHAT - ✅ SEPARATED BOT AND HUMAN JOIN LOGIC
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat({ botWallet }: { botWallet: any }) {
@@ -306,7 +306,7 @@ function TownsChat({ botWallet }: { botWallet: any }) {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
@@ -319,107 +319,120 @@ function TownsChat({ botWallet }: { botWallet: any }) {
             }
             return;
         }
+    }, [isAgentConnected, syncAgent]);
 
-        if (hasJoined || isJoining || !effectiveWallet || !SAVED_SPACE_ID) return;
+    // ━━━ BOT JOIN (only runs in KEY_SHARER_AUTO_MODE) ━━━
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) return;
+        if (!isAgentConnected || !syncAgent || !effectiveWallet || !SAVED_SPACE_ID) return;
+        if (hasJoined || isJoining) return;
 
-        const joinSpaceNow = async () => {
+        const joinAsBot = async () => {
             setIsJoining(true);
-            
             try {
                 const account = effectiveWallet.getAccount?.();
-                if (!account) {
-                    console.error('❌ No account available');
-                    setIsJoining(false);
-                    return;
+                if (!account) { 
+                    setIsJoining(false); 
+                    return; 
                 }
-                
-                // ✅ BOT MODE: Wait for river connection, then call joinSpace
-                if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('🤖 Bot Mode: Waiting for river connection...');
-                    console.log('   (15 second delay for SDK initialization)'); // ✅ Updated message
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
+
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('🤖 Bot Mode: Waiting for river connection...');
+                console.log('   (15 second delay for SDK initialization)');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
                 // ✅ Wait 15 seconds for river connection to be ready
-                await new Promise(resolve => setTimeout(resolve, 15000)); // ✅ Changed from 5000 to 15000
-    
+                await new Promise(resolve => setTimeout(resolve, 15000));
+
                 console.log('🤖 Bot: Calling joinSpace with skipMintMembership...');
                 console.log('   Account:', account.address);
-                    
-                    try {
-                        const signer = await createTownsSigner(account, client, activeChain);
-                        
-                        await joinSpace(SAVED_SPACE_ID, signer, {
-                            skipMintMembership: true  // Already has NFT
-                        });
-                        
-                        console.log('✅ Bot: joinSpace succeeded');
-                        setHasJoined(true);
-                        window.KEY_SHARER_SPACE_JOINED = true;
-                        
-                    } catch (joinError: any) {
-                        console.error('❌ Bot joinSpace error:', joinError.message);
-                        
-                        // "already a member" is actually success
-                        if (joinError.message?.includes('already a member')) {
-                            console.log('✅ Bot: Already a member — treating as joined');
-                            setHasJoined(true);
-                            window.KEY_SHARER_SPACE_JOINED = true;
-                        } else {
-                            window.KEY_SHARER_ERROR = joinError.message;
-                            throw joinError;
-                        }
-                    } finally {
-                        setIsJoining(false);
-                    }
-                    
-                    return;
+
+                const signer = await createTownsSigner(account, client, activeChain);
+                await joinSpace(SAVED_SPACE_ID, signer, { 
+                    skipMintMembership: true  // Already has NFT
+                });
+
+                console.log('✅ Bot: joinSpace succeeded');
+                setHasJoined(true);
+                window.KEY_SHARER_SPACE_JOINED = true;
+            } catch (error: any) {
+                console.error('❌ Bot joinSpace error:', error.message);
+
+                // "already a member" is actually success
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ Bot: Already a member — treating as joined');
+                    setHasJoined(true);
+                    window.KEY_SHARER_SPACE_JOINED = true;
+                } else {
+                    window.KEY_SHARER_ERROR = error.message;
                 }
-                
-                // ✅ NORMAL USER FLOW
-// ✅ NORMAL USER FLOW
-console.log('🔍 Checking membership status...');
-const checkRes = await fetch('/api/towns/check-membership', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userAddress: account.address }),
-});
+            } finally {
+                setIsJoining(false);
+            }
+        };
 
-const membershipData = await checkRes.json();
+        joinAsBot();
+    }, [isAgentConnected, syncAgent, effectiveWallet, hasJoined, isJoining, joinSpace]);
 
-if (membershipData.success) {
-    const { hasMembership, totalMembers } = membershipData;
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 Membership Status:');
-    console.log('   Has membership:', hasMembership);
-    console.log('   Total members:', totalMembers);
-    console.log('   Space is FREE ✅');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-}
+    // ━━━ HUMAN JOIN (never runs in bot mode) ━━━
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) return;
+        if (!isAgentConnected || !syncAgent || !wallet || !SAVED_SPACE_ID) return;
+        if (hasJoined || isJoining) return;
 
-console.log('🚀 Joining space...');
+        const joinAsHuman = async () => {
+            setIsJoining(true);
+            try {
+                const account = wallet.getAccount?.();
+                if (!account) { 
+                    setIsJoining(false); 
+                    return; 
+                }
 
-const signer = await createTownsSigner(account, client, activeChain);
-const hasMembership = membershipData?.hasMembership || false;
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('👤 Human Mode: Joining space...');
+                console.log('   (3 second delay for SDK sync)');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-await joinSpace(SAVED_SPACE_ID, signer, {
-    skipMintMembership: hasMembership
-});
+                // ✅ Give SDK 3 seconds to sync streams after agent connects
+                await new Promise(resolve => setTimeout(resolve, 3000));
 
-console.log('✅ Joined successfully!');
-setHasJoined(true);
+                // Check membership
+                console.log('🔍 Checking membership status...');
+                const checkRes = await fetch('/api/towns/check-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: account.address }),
+                });
+                const membershipData = await checkRes.json();
+                const hasMembership = membershipData?.hasMembership || false;
 
+                if (membershipData.success) {
+                    const { totalMembers } = membershipData;
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    console.log('📊 Membership Status:');
+                    console.log('   Has membership:', hasMembership);
+                    console.log('   Total members:', totalMembers);
+                    console.log('   Space is FREE ✅');
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                }
+
+                console.log('🚀 Joining space...');
+                console.log('   skipMintMembership:', hasMembership);
+
+                const signer = await createTownsSigner(account, client, activeChain);
+                await joinSpace(SAVED_SPACE_ID, signer, {
+                    skipMintMembership: hasMembership,
+                });
+
+                console.log('✅ Human joined successfully!');
+                setHasJoined(true);
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member');
                     setHasJoined(true);
-                    
-                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                        window.KEY_SHARER_SPACE_JOINED = true;
-                    }
                 } else {
-                    console.error('❌ Join failed:', error);
+                    console.error('❌ Human join failed:', error);
                     alert(`Failed to join: ${error.message}`);
                 }
             } finally {
@@ -427,8 +440,8 @@ setHasJoined(true);
             }
         };
 
-        joinSpaceNow();
-    }, [isAgentConnected, syncAgent, effectiveWallet, hasJoined, isJoining, joinSpace]);
+        joinAsHuman();
+    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
 
     useEffect(() => {
         if (hasJoined && space?.initialized) {
