@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
       scheduledEnd,
       videoEnabled,
       hostId,
-      guestAddresses = [], // ✅ Receive addresses instead of IDs
+      guestAddresses = [],
     } = body;
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -211,12 +211,12 @@ export async function POST(req: NextRequest) {
       for (const address of guestAddresses) {
         console.log(`   Processing address: ${address}`);
         
-        // Check if user exists - use error handling
+        // Check if user exists
         const { data: existingUser, error: lookupError } = await supabase
           .from('chat_users')
           .select('id')
           .ilike('address', address)
-          .maybeSingle(); // ✅ Use maybeSingle() instead of single()
+          .maybeSingle();
         
         console.log(`   Lookup result for ${address}:`, { 
           found: !!existingUser, 
@@ -233,9 +233,10 @@ export async function POST(req: NextRequest) {
           const { data: newUser, error: createError } = await supabase
             .from('chat_users')
             .insert({
-              address: address.toLowerCase(), // ✅ Ensure lowercase
+              address: address.toLowerCase(),
               display_name: `Guest ${address.slice(0, 8)}`,
-              role: 'user',
+              // ✅ FIXED: Use 'viewer' (the default role) instead of 'user'
+              // Or omit role entirely to use the default
             })
             .select('id')
             .single();
