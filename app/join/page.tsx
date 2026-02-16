@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useMembership } from "@/components/membership-provider";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
@@ -113,10 +113,35 @@ function PaymentForm({
 
 export default function JoinPage() {
   const account = useActiveAccount();
-  const { hasAccess, isLoading } = useMembership();
+  const { hasAccess, isLoading, refreshMembership } = useMembership();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
+  const [isRefreshingMembership, setIsRefreshingMembership] = useState(false);
+
+  // Check URL for payment success on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success') {
+      // Payment was successful, refresh membership
+      handlePaymentReturn();
+      // Clean up URL
+      window.history.replaceState({}, '', '/join');
+    }
+  }, []);
+
+  const handlePaymentReturn = async () => {
+    if (!refreshMembership) return;
+    
+    setIsRefreshingMembership(true);
+    try {
+      // Wait a bit for webhook to process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await refreshMembership();
+    } finally {
+      setIsRefreshingMembership(false);
+    }
+  };
 
   const handleOpenPaymentModal = async () => {
     if (!account?.address) {
@@ -156,9 +181,22 @@ export default function JoinPage() {
     }
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
     setIsModalOpen(false);
     setClientSecret(null);
+    
+    setIsRefreshingMembership(true);
+    try {
+      // Give webhook a moment to mint the NFT
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Refresh membership to check for the newly minted NFT
+      if (refreshMembership) {
+        await refreshMembership();
+      }
+    } finally {
+      setIsRefreshingMembership(false);
+    }
   };
 
   const stripeOptions = clientSecret
@@ -243,7 +281,7 @@ export default function JoinPage() {
                 <li>Unlimited access to stories</li>
                 <li>Priority access to events and other activations</li>
               </p>
-              {isLoading ? (
+              {isLoading || isRefreshingMembership ? (
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
               ) : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
@@ -253,7 +291,7 @@ export default function JoinPage() {
                 <button
                   onClick={handleOpenPaymentModal}
                   disabled={isLoadingIntent}
-                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center"
+                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoadingIntent ? (
                     <>
