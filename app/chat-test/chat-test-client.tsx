@@ -266,7 +266,8 @@ function TownsChat() {
     const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
-    const [signerRef] = useState<{ current: any }>({ current: null }); // ✅ Store signer
+    const [joinAttempt, setJoinAttempt] = useState(0); // ✅ Track retry attempts
+    const [signerRef] = useState<{ current: any }>({ current: null });
 
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
@@ -306,7 +307,46 @@ function TownsChat() {
         }
     }, [space]);
 
-    // ✅ OPTIMIZED: Join immediately when conditions met
+    // ✅ RETRY LOGIC: Wrap joinSpace with exponential backoff
+    const joinWithRetry = async (spaceId: string, signer: any, maxRetries = 3) => {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                setJoinAttempt(attempt + 1);
+                console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
+                
+                await joinSpace(spaceId, signer, { skipMintMembership: false });
+                
+                console.log('✅ Joined successfully!');
+                return; // Success!
+                
+            } catch (error: any) {
+                // ✅ Handle "already a member" as success
+                if (error.message?.includes('already a member') || error.message?.includes('Already joined')) {
+                    console.log('✅ Already a member');
+                    return;
+                }
+                
+                // ✅ Check if error is transient (RPC/network issue)
+                const isTransient = error.message?.includes('CANNOT_CONNECT') 
+                    || error.message?.includes('429')
+                    || error.message?.includes('Bandwidth limit')
+                    || error.message?.includes('Too Many Requests')
+                    || error.message?.includes('failed_precondition');
+                
+                if (isTransient && attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s
+                    console.log(`⏳ Stream node busy (429 rate limit), retrying in ${delay/1000}s...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue; // Retry
+                }
+                
+                // ✅ Non-transient error or max retries reached
+                console.error('❌ Join failed after retries:', error);
+                throw error;
+            }
+        }
+    };
+
     useEffect(() => {
         if (!isAgentConnected || !syncAgent) {
             if (!isAgentConnected) {
@@ -336,34 +376,35 @@ function TownsChat() {
                     window.KEY_SHARER_SPACE_JOINED = true;
                 }
                 
-                console.log('🚀 Joining space...');
-                
-                // ✅ OPTIMIZED: Reuse signer from agent connection if available
+                // ✅ Reuse signer from agent connection if available
                 let signer = signerRef.current;
                 if (!signer) {
                     signer = await createTownsSigner(account, client, activeChain);
                     signerRef.current = signer;
                 }
                 
-                // ✅ OPTIMIZED: Just try to join, handle "already member" error
-                await joinSpace(SAVED_SPACE_ID, signer, {
-                    skipMintMembership: false // Let it handle membership automatically
-                });
+                // ✅ Join with retry logic
+                await joinWithRetry(SAVED_SPACE_ID, signer, 3);
                 
-                console.log('✅ Joined successfully!');
                 setHasJoined(true);
 
             } catch (error: any) {
-                // ✅ Handle "already a member" gracefully
-                if (error.message?.includes('already a member') || error.message?.includes('Already joined')) {
-                    console.log('✅ Already a member');
-                    setHasJoined(true);
+                console.error('❌ Join failed after all retries:', error);
+                
+                // ✅ User-friendly error messages
+                let errorMessage = 'Failed to join chat. ';
+                if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
+                    errorMessage += 'Network is busy, please wait a moment and try again.';
+                } else if (error.message?.includes('CANNOT_CONNECT')) {
+                    errorMessage += 'Cannot connect to network, please check your internet.';
                 } else {
-                    console.error('❌ Join failed:', error);
-                    alert(`Failed to join: ${error.message}`);
+                    errorMessage += error.message;
                 }
+                
+                alert(errorMessage);
             } finally {
                 setIsJoining(false);
+                setJoinAttempt(0);
             }
         };
 
@@ -376,7 +417,6 @@ function TownsChat() {
         }
     }, [hasJoined, space?.initialized, space?.channelIds]);
 
-    // ✅ OPTIMIZED: Show loading states immediately
     if (!isAgentConnected || !syncAgent) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -396,8 +436,15 @@ function TownsChat() {
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {isJoining ? 'Joining space...' : 'Loading space...'}
+                        {isJoining ? (
+                            joinAttempt > 1 ? `Retrying connection (${joinAttempt}/3)...` : 'Joining space...'
+                        ) : 'Loading space...'}
                     </p>
+                    {joinAttempt > 1 && (
+                        <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+                            Network is busy, please wait...
+                        </p>
+                    )}
                 </div>
             </div>
         );
