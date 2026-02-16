@@ -27,8 +27,6 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// ✅ REMOVED: const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
-
 interface ConnectedChatProps {
   currentUser: ChatUser;
   spaceId: string;
@@ -249,158 +247,133 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
+  // ✅ FIXED: Fetch live event with proper response parsing
   useEffect(() => {
-  async function fetchLiveEvent() {
-    try {
-      const res = await fetch('/api/events?status=live', { 
-        cache: 'no-store', 
-        headers: { 'Cache-Control': 'no-cache' } 
-      });
-      const data = await res.json();
-      
-      if (data.success && data.data.length > 0) {
-        const liveEvent = data.data[0];
-        
-        // ✅ DEBUG LOGGING - START
+    async function fetchLiveEvent() {
+      try {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🎥 LIVE EVENT DATA:');
-        console.log('   Event ID:', liveEvent.id);
-        console.log('   Event Title:', liveEvent.title);
-        console.log('   Status:', liveEvent.status);
-        console.log('   Video Enabled:', liveEvent.videoEnabled);
-        console.log('   Daily Room URL:', liveEvent.dailyRoomUrl);
-        console.log('   Daily Room Name:', liveEvent.dailyRoomName);
-        console.log('');
-        console.log('👤 HOST INFO:');
-        console.log('   Host object:', liveEvent.host);
-        console.log('   Host ID:', liveEvent.host?.id);
-        console.log('   Host Address:', liveEvent.host?.address);
-        console.log('   Host Name:', liveEvent.host?.alias || liveEvent.host?.displayName);
-        console.log('');
-        console.log('👥 GUESTS INFO:');
-        console.log('   Guests array:', liveEvent.guests);
-        console.log('   Number of guests:', liveEvent.guests?.length || 0);
+        console.log('🎥 [EventVideoStage] Fetching live event...');
         
-        if (liveEvent.guests && liveEvent.guests.length > 0) {
-          liveEvent.guests.forEach((g, i) => {
-            console.log(`   Guest ${i + 1}:`, {
-              id: g.id,
-              address: g.address,
-              displayName: g.displayName || g.alias,
-              avatar: g.avatar
-            });
-          });
-        } else {
-          console.log('   ⚠️ No guests found in event!');
+        const response = await fetch('/api/events?status=live', { 
+          cache: 'no-store', 
+          headers: { 'Cache-Control': 'no-cache' } 
+        });
+        const data = await response.json(); // ✅ FIXED: Parse the response
+        
+        if (!data.success || !data.data || data.data.length === 0) {
+          console.log('   No live events found');
+          setActiveEvent(null);
+          setDailyToken(null);
+          return;
         }
         
-        console.log('');
-        console.log('🔑 YOUR WALLET INFO:');
-        console.log('   activeAccount:', activeAccount);
-        console.log('   Your Address:', activeAccount?.address);
-        console.log('   Your Address (lowercase):', activeAccount?.address?.toLowerCase());
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        // ✅ DEBUG LOGGING - END
+        const event = data.data[0];
+        console.log('   Event found:', event.title);
+        console.log('   Host:', event.host?.address);
+        console.log('   Guest addresses:', event.guestAddresses);
         
-        setActiveEvent(liveEvent);
+        setActiveEvent(event);
         
         if (!activeAccount?.address) {
           console.log('⚠️ No active account, skipping token generation');
           return;
         }
         
-        if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
-          const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
-          
-          console.log('');
-          console.log('🔍 HOST CHECK:');
-          console.log('   Host address:', liveEvent.host?.address?.toLowerCase());
-          console.log('   Your address:', activeAccount.address.toLowerCase());
-          console.log('   ✅ isHost:', isHost);
-          
-          console.log('');
-          console.log('🔍 GUEST CHECK:');
-          const isGuest = liveEvent.guests?.some(g => {
-            const guestAddr = g.address?.toLowerCase();
-            const yourAddr = activeAccount.address.toLowerCase();
-            const matches = guestAddr === yourAddr;
-            
-            console.log(`   Comparing: ${guestAddr} === ${yourAddr} → ${matches}`);
-            
-            return matches;
-          });
-          
-          console.log('   ✅ isGuest:', isGuest);
-          console.log('');
-          console.log('🎫 TOKEN GENERATION:');
-          console.log('   Should generate token:', isHost || isGuest);
-          
-          // ✅ ONLY GENERATE TOKEN FOR HOST OR GUESTS
-          if (isHost || isGuest) {
-            console.log('   ✅ Generating Daily token...');
-            
-            const tokenRes = await fetch('/api/events/generate-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roomName: liveEvent.dailyRoomName,
-                walletAddress: activeAccount.address,
-                isHost: isHost,
-              }),
-            });
-            
-            if (tokenRes.ok) {
-              const tokenData = await tokenRes.json();
-              if (tokenData.success) {
-                console.log('   ✅ Token generated successfully!');
-                console.log('   Token (first 20 chars):', tokenData.data.token.substring(0, 20) + '...');
-                setDailyToken(tokenData.data.token);
-              } else {
-                console.error('   ❌ Token generation failed:', tokenData);
-              }
-            } else {
-              console.error('   ❌ Token request failed:', tokenRes.status);
-            }
-          } else {
-            console.log('   ❌ Not host or guest - no token generated');
-            console.log('   You are a regular chat participant');
-            setDailyToken(null);
-          }
-          
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        // ✅ Check if current user is host or guest
+        const userAddress = activeAccount.address.toLowerCase();
+        const isHost = event.host?.address?.toLowerCase() === userAddress;
+        
+        // ✅ NEW: Direct address comparison
+        const isGuest = event.guestAddresses?.some((addr: string) => 
+          addr.toLowerCase() === userAddress
+        );
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('👤 YOUR WALLET INFO:');
+        console.log('   Your Address:', activeAccount.address);
+        console.log('   Your Address (lowercase):', userAddress);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔑 HOST CHECK:');
+        console.log('   Host address:', event.host?.address);
+        console.log('   isHost:', isHost);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('👥 GUEST CHECK:');
+        console.log('   Guest addresses:', event.guestAddresses);
+        console.log('   Number of guests:', event.guestAddresses?.length || 0);
+        console.log('   isGuest:', isGuest);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        // ✅ Generate token if user is host OR guest
+        const shouldGenerateToken = isHost || isGuest;
+        
+        console.log('🎫 TOKEN GENERATION:');
+        console.log('   Should generate token:', shouldGenerateToken);
+        
+        if (!shouldGenerateToken) {
+          console.log('   ❌ Not host or guest - no token generated');
+          console.log('   You are a regular chat participant');
+          setDailyToken(null);
+          return;
         }
-      } else {
-        console.log('ℹ️ No live events found');
+        
+        if (!event.videoEnabled || !event.dailyRoomName) {
+          console.log('   ⚠️ Video not enabled or no room name');
+          return;
+        }
+        
+        // ✅ Generate Daily.co token
+        console.log('   ✅ Generating Daily.co token...');
+        
+        const tokenResponse = await fetch('/api/events/generate-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomName: event.dailyRoomName,
+            walletAddress: activeAccount.address,
+            isHost: isHost,
+          }),
+        });
+        
+        const tokenData = await tokenResponse.json();
+        
+        if (tokenData.success && tokenData.data?.token) {
+          console.log('   ✅ Token generated successfully!');
+          setDailyToken(tokenData.data.token);
+        } else {
+          console.error('   ❌ Token generation failed:', tokenData);
+          setDailyToken(null);
+        }
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      } catch (error) {
+        console.error('❌ Error fetching live event:', error);
         setActiveEvent(null);
         setDailyToken(null);
       }
-    } catch (error) {
-      console.error('❌ Error fetching live event:', error);
     }
-  }
-  
-  if (activeAccount?.address) {
-    fetchLiveEvent();
-    const interval = setInterval(fetchLiveEvent, 30000);
     
-    const supabase = createSupabaseClient();
-    const channel = supabase
-      .channel('chat_live_events')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'chat_events' 
-      }, () => {
-        fetchLiveEvent();
-      })
-      .subscribe();
-    
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
-  }
-}, [activeAccount?.address]);
+    if (activeAccount?.address) {
+      fetchLiveEvent();
+      const interval = setInterval(fetchLiveEvent, 30000);
+      
+      const supabase = createSupabaseClient();
+      const channel = supabase
+        .channel('chat_live_events')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'chat_events' 
+        }, () => {
+          fetchLiveEvent();
+        })
+        .subscribe();
+      
+      return () => {
+        clearInterval(interval);
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [activeAccount?.address]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -504,7 +477,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ SIMPLIFIED: Removed VIRTUAL_SHARDING_CUTOFF filter
   const messages = useMemo(() => {
     if (!events || events.length === 0) {
       return [];
