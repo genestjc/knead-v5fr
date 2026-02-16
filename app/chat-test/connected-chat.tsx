@@ -250,77 +250,157 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, [activeAccount?.address]);
 
   useEffect(() => {
-    async function fetchLiveEvent() {
-      try {
-        const res = await fetch('/api/events?status=live', { 
-          cache: 'no-store', 
-          headers: { 'Cache-Control': 'no-cache' } 
-        });
-        const data = await res.json();
+  async function fetchLiveEvent() {
+    try {
+      const res = await fetch('/api/events?status=live', { 
+        cache: 'no-store', 
+        headers: { 'Cache-Control': 'no-cache' } 
+      });
+      const data = await res.json();
+      
+      if (data.success && data.data.length > 0) {
+        const liveEvent = data.data[0];
         
-        if (data.success && data.data.length > 0) {
-          const liveEvent = data.data[0];
-          setActiveEvent(liveEvent);
-          
-          if (!activeAccount?.address) {
-            return;
-          }
-          
-          if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
-            const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
-            const isGuest = liveEvent.guests?.some((g: { address?: string }) => g.address?.toLowerCase() === activeAccount.address.toLowerCase());
-            
-            // ✅ ONLY generate token for host or designated guests
-            if (isHost || isGuest) {
-              const tokenRes = await fetch('/api/events/generate-token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  roomName: liveEvent.dailyRoomName,
-                  walletAddress: activeAccount.address,
-                  isHost: isHost,
-                }),
-              });
-              
-              if (tokenRes.ok) {
-                const tokenData = await tokenRes.json();
-                if (tokenData.success) {
-                  setDailyToken(tokenData.data.token);
-                }
-              }
-            }
-          }
+        // ✅ DEBUG LOGGING - START
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🎥 LIVE EVENT DATA:');
+        console.log('   Event ID:', liveEvent.id);
+        console.log('   Event Title:', liveEvent.title);
+        console.log('   Status:', liveEvent.status);
+        console.log('   Video Enabled:', liveEvent.videoEnabled);
+        console.log('   Daily Room URL:', liveEvent.dailyRoomUrl);
+        console.log('   Daily Room Name:', liveEvent.dailyRoomName);
+        console.log('');
+        console.log('👤 HOST INFO:');
+        console.log('   Host object:', liveEvent.host);
+        console.log('   Host ID:', liveEvent.host?.id);
+        console.log('   Host Address:', liveEvent.host?.address);
+        console.log('   Host Name:', liveEvent.host?.alias || liveEvent.host?.displayName);
+        console.log('');
+        console.log('👥 GUESTS INFO:');
+        console.log('   Guests array:', liveEvent.guests);
+        console.log('   Number of guests:', liveEvent.guests?.length || 0);
+        
+        if (liveEvent.guests && liveEvent.guests.length > 0) {
+          liveEvent.guests.forEach((g, i) => {
+            console.log(`   Guest ${i + 1}:`, {
+              id: g.id,
+              address: g.address,
+              displayName: g.displayName || g.alias,
+              avatar: g.avatar
+            });
+          });
         } else {
-          setActiveEvent(null);
-          setDailyToken(null);
+          console.log('   ⚠️ No guests found in event!');
         }
-      } catch (error) {
-        console.error('❌ Error fetching live event:', error);
+        
+        console.log('');
+        console.log('🔑 YOUR WALLET INFO:');
+        console.log('   activeAccount:', activeAccount);
+        console.log('   Your Address:', activeAccount?.address);
+        console.log('   Your Address (lowercase):', activeAccount?.address?.toLowerCase());
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        // ✅ DEBUG LOGGING - END
+        
+        setActiveEvent(liveEvent);
+        
+        if (!activeAccount?.address) {
+          console.log('⚠️ No active account, skipping token generation');
+          return;
+        }
+        
+        if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
+          const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
+          
+          console.log('');
+          console.log('🔍 HOST CHECK:');
+          console.log('   Host address:', liveEvent.host?.address?.toLowerCase());
+          console.log('   Your address:', activeAccount.address.toLowerCase());
+          console.log('   ✅ isHost:', isHost);
+          
+          console.log('');
+          console.log('🔍 GUEST CHECK:');
+          const isGuest = liveEvent.guests?.some(g => {
+            const guestAddr = g.address?.toLowerCase();
+            const yourAddr = activeAccount.address.toLowerCase();
+            const matches = guestAddr === yourAddr;
+            
+            console.log(`   Comparing: ${guestAddr} === ${yourAddr} → ${matches}`);
+            
+            return matches;
+          });
+          
+          console.log('   ✅ isGuest:', isGuest);
+          console.log('');
+          console.log('🎫 TOKEN GENERATION:');
+          console.log('   Should generate token:', isHost || isGuest);
+          
+          // ✅ ONLY GENERATE TOKEN FOR HOST OR GUESTS
+          if (isHost || isGuest) {
+            console.log('   ✅ Generating Daily token...');
+            
+            const tokenRes = await fetch('/api/events/generate-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomName: liveEvent.dailyRoomName,
+                walletAddress: activeAccount.address,
+                isHost: isHost,
+              }),
+            });
+            
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.success) {
+                console.log('   ✅ Token generated successfully!');
+                console.log('   Token (first 20 chars):', tokenData.data.token.substring(0, 20) + '...');
+                setDailyToken(tokenData.data.token);
+              } else {
+                console.error('   ❌ Token generation failed:', tokenData);
+              }
+            } else {
+              console.error('   ❌ Token request failed:', tokenRes.status);
+            }
+          } else {
+            console.log('   ❌ Not host or guest - no token generated');
+            console.log('   You are a regular chat participant');
+            setDailyToken(null);
+          }
+          
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+      } else {
+        console.log('ℹ️ No live events found');
+        setActiveEvent(null);
+        setDailyToken(null);
       }
+    } catch (error) {
+      console.error('❌ Error fetching live event:', error);
     }
+  }
+  
+  if (activeAccount?.address) {
+    fetchLiveEvent();
+    const interval = setInterval(fetchLiveEvent, 30000);
     
-    if (activeAccount?.address) {
-      fetchLiveEvent();
-      const interval = setInterval(fetchLiveEvent, 30000);
-      
-      const supabase = createSupabaseClient();
-      const channel = supabase
-        .channel('chat_live_events')
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
-          table: 'chat_events' 
-        }, () => {
-          fetchLiveEvent();
-        })
-        .subscribe();
-      
-      return () => {
-        clearInterval(interval);
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [activeAccount?.address]);
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel('chat_live_events')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'chat_events' 
+      }, () => {
+        fetchLiveEvent();
+      })
+      .subscribe();
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }
+}, [activeAccount?.address]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
