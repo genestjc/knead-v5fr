@@ -103,7 +103,7 @@ export interface ChatEvent {
   channelId: string;
   eventType: EventType;
   hostId: string;
-  guestIds: string[];
+  guestAddresses?: string[]; // ✅ CHANGED: Now stores wallet addresses directly
   scheduledStart: Date;
   scheduledEnd: Date;
   status: 'scheduled' | 'live' | 'ended' | 'cancelled';
