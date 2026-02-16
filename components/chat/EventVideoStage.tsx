@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react'; // ✅ Added useRef
+import React, { useEffect, useState, useRef } from 'react';
 import { useDaily, useParticipantIds, useLocalSessionId } from '@daily-co/daily-react';
 import { DailyVideoTile } from './DailyVideoTile';
 import type { ChatEvent } from '@/types/chat';
@@ -19,15 +19,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ NEW: Add refs to prevent duplicate joins
+  // ✅ Refs to prevent duplicate joins
   const hasAttemptedJoinRef = useRef(false);
   const currentRoomRef = useRef<string | null>(null);
 
-  const isHost = event.host?.id 
-    ? currentUserAddress.toLowerCase() === event.host.id.toLowerCase() 
-    : false;
+  const isHost = event.host?.address?.toLowerCase() === currentUserAddress.toLowerCase();
 
-  // ✅ UPDATED: Join call with better duplicate prevention
+  // ✅ Join call with duplicate prevention
   useEffect(() => {
     if (!daily) {
       console.log('⏳ [EventVideoStage] Daily not ready yet');
@@ -39,19 +37,19 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       return;
     }
 
-    // ✅ NEW: Check if we already joined this exact room
+    // Check if we already joined this exact room
     if (hasAttemptedJoinRef.current && currentRoomRef.current === roomUrl) {
       console.log('⏭️ [EventVideoStage] Already joined this room, skipping');
       return;
     }
 
-    // ✅ FIX: Prevent duplicate joins
+    // Prevent duplicate joins
     const meetingState = daily.meetingState();
     if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
       console.log('✅ [EventVideoStage] Already joined/joining, skipping');
       setJoining(false);
-      hasAttemptedJoinRef.current = true; // ✅ Mark as attempted
-      currentRoomRef.current = roomUrl; // ✅ Remember this room
+      hasAttemptedJoinRef.current = true;
+      currentRoomRef.current = roomUrl;
       return;
     }
     
@@ -69,7 +67,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         console.log('   Is Host:', isHost);
         console.log('   Meeting State:', daily.meetingState());
 
-        // ✅ NEW: Mark as attempting BEFORE join
+        // Mark as attempting BEFORE join
         hasAttemptedJoinRef.current = true;
         currentRoomRef.current = roomUrl;
 
@@ -97,7 +95,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         if (isMounted) {
           setError((err as Error).message || 'Failed to join video call');
           setJoining(false);
-          // ✅ NEW: Reset refs on error so we can retry
+          // Reset refs on error so we can retry
           hasAttemptedJoinRef.current = false;
           currentRoomRef.current = null;
         }
@@ -106,12 +104,12 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
     joinCall();
 
-    // ✅ UPDATED: Only leave if switching rooms
+    // Only leave if switching rooms
     return () => {
       isMounted = false;
       console.log('🧹 [EventVideoStage] Component unmounting');
       
-      // ✅ NEW: Don't leave if we're staying in the same room
+      // Don't leave if we're staying in the same room
       if (daily && daily.meetingState() === 'joined-meeting' && currentRoomRef.current !== roomUrl) {
         console.log('🚪 [EventVideoStage] Leaving call on cleanup');
         daily.leave().catch(console.error);
@@ -119,9 +117,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         currentRoomRef.current = null;
       }
     };
-  }, [daily, roomUrl, token]);
+  }, [daily, roomUrl, token, isHost, currentUserAddress]);
 
-  // ✅ Monitor connection state and errors
+  // Monitor connection state and errors
   useEffect(() => {
     if (!daily) return;
 
@@ -161,7 +159,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const handleLeaveCall = async () => {
     if (daily) {
       console.log('🚪 [EventVideoStage] User manually leaving call');
-      // ✅ NEW: Reset refs when manually leaving
+      // Reset refs when manually leaving
       hasAttemptedJoinRef.current = false;
       currentRoomRef.current = null;
       await daily.leave();
@@ -224,26 +222,49 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  const remoteParticipants = participantIds.filter(id => id !== localSessionId);
-  const hostParticipant = remoteParticipants[0];
-  const guestParticipant = remoteParticipants[1];
+  // ✅ NEW: Identify host by matching wallet address
+  const hostSessionId = participantIds.find(id => {
+    if (id === localSessionId && isHost) return true; // You are the host
+    
+    const participant = daily?.participants()[id];
+    if (!participant) return false;
+    
+    // Match by user_name or userData.address
+    const participantAddress = (
+      participant.userData?.address || 
+      participant.user_name || 
+      ''
+    ).toLowerCase();
+    
+    const hostAddress = event.host?.address?.toLowerCase() || '';
+    
+    // Match first 8 chars after 0x (in case of truncation)
+    return participantAddress.includes(hostAddress.slice(2, 10));
+  });
+
+  // ✅ All other participants are guests
+  const guestSessionIds = participantIds.filter(id => id !== hostSessionId);
+
+  console.log('🎬 [EventVideoStage] Identified participants:', {
+    total: participantIds.length,
+    hostSessionId,
+    guestCount: guestSessionIds.length,
+    localSessionId,
+    isHost,
+  });
 
   return (
     <div className="h-full flex flex-col bg-gray-100">
       <div className="flex-1 p-4">
+        {/* ✅ DESKTOP: Host left, Guest right */}
         <div className="hidden lg:grid lg:grid-cols-2 gap-4 h-full">
+          {/* LEFT: Always Host */}
           <div>
-            {localSessionId && isHost ? (
+            {hostSessionId ? (
               <DailyVideoTile
-                sessionId={localSessionId}
-                label="You (Host)"
-                isLocal={true}
-              />
-            ) : hostParticipant ? (
-              <DailyVideoTile
-                sessionId={hostParticipant}
-                label="Host"
-                isLocal={false}
+                sessionId={hostSessionId}
+                label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
+                isLocal={hostSessionId === localSessionId}
               />
             ) : (
               <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
@@ -252,18 +273,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             )}
           </div>
 
+          {/* RIGHT: Always Guest */}
           <div>
-            {localSessionId && !isHost ? (
+            {guestSessionIds.length > 0 ? (
               <DailyVideoTile
-                sessionId={localSessionId}
-                label="You"
-                isLocal={true}
-              />
-            ) : guestParticipant ? (
-              <DailyVideoTile
-                sessionId={guestParticipant}
-                label="Guest"
-                isLocal={false}
+                sessionId={guestSessionIds[0]}
+                label={guestSessionIds[0] === localSessionId ? "You (Guest)" : "Guest"}
+                isLocal={guestSessionIds[0] === localSessionId}
               />
             ) : (
               <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
@@ -273,28 +289,40 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
         </div>
 
-        <div className="lg:hidden space-y-4 h-full overflow-y-auto p-4">
-          {/* Local participant */}
-          {localSessionId && (
+        {/* ✅ MOBILE: Host top, Guest bottom */}
+        <div className="lg:hidden space-y-4 h-full overflow-y-auto">
+          {/* Host (top on mobile) */}
+          {hostSessionId ? (
             <DailyVideoTile
-              sessionId={localSessionId}
-              label={isHost ? "You (Host)" : "You"}
-              isLocal={true}
+              sessionId={hostSessionId}
+              label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
+              isLocal={hostSessionId === localSessionId}
             />
+          ) : (
+            <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
+              <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
+            </div>
           )}
           
-          {/* All remote participants */}
-          {remoteParticipants.map(participantId => (
-            <DailyVideoTile
-              key={participantId}
-              sessionId={participantId}
-              label={participantId === hostParticipant ? "Host" : "Guest"}
-              isLocal={false}
-            />
-          ))}
+          {/* Guests (below host on mobile) */}
+          {guestSessionIds.length > 0 ? (
+            guestSessionIds.map(guestId => (
+              <DailyVideoTile
+                key={guestId}
+                sessionId={guestId}
+                label={guestId === localSessionId ? "You (Guest)" : "Guest"}
+                isLocal={guestId === localSessionId}
+              />
+            ))
+          ) : (
+            <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
+              <p className="font-georgia-pro text-gray-400">Waiting for guest...</p>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* ✅ Bottom controls bar */}
       <div className="p-4 bg-white border-t border-gray-200">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
@@ -330,5 +358,4 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   );
 }
 
-// ✅ NEW: Add default export for compatibility
 export default EventVideoStage;
