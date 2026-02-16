@@ -8,9 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, adminAddress, ban, spaceId } = await req.json();
-    
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
+    const { userAddress, adminAddress, ban } = await req.json();
 
     // Validation
     if (!userAddress || !adminAddress || ban === undefined) {
@@ -20,15 +18,29 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Verify admin
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
+    const supabase = createSupabaseAdmin();
+
+    // Check if caller has admin or moderator role in DB
+    const { data: adminUser, error: adminError } = await supabase
+      .from('chat_users')
+      .select('address, role')
+      .eq('address', adminAddress.toLowerCase())
+      .single();
+
+    if (adminError || !adminUser) {
       return NextResponse.json<ApiResponse<null>>({ 
         success: false, 
-        error: 'Unauthorized' 
+        error: 'Unauthorized: Admin user not found' 
       }, { status: 401 });
     }
 
-    const supabase = createSupabaseAdmin();
+    const allowedRoles = ['master-admin', 'admin', 'moderator'];
+    if (!allowedRoles.includes(adminUser.role)) {
+      return NextResponse.json<ApiResponse<null>>({ 
+        success: false, 
+        error: 'Unauthorized: Insufficient permissions' 
+      }, { status: 401 });
+    }
 
     // Check if user exists
     const { data: user, error: userError } = await supabase
