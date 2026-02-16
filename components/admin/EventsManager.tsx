@@ -203,127 +203,135 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   // ✅ UPDATED: Create event with comprehensive debug logging
   const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!adminUserId) {
-      setError('Admin user ID not loaded');
-      return;
-    }
+  e.preventDefault();
+  
+  if (!adminUserId) {
+    setError('Admin user ID not loaded');
+    return;
+  }
 
-    // ✅ COMPREHENSIVE DEBUG LOGGING
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📋 CREATING EVENT');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('');
-    console.log('📝 FORM DATA:');
-    console.log('   Title:', formData.title);
-    console.log('   Description:', formData.description);
-    console.log('   Event Type:', formData.eventType);
-    console.log('   Video Enabled:', formData.videoEnabled);
-    console.log('   Channel ID:', formData.channelId);
-    console.log('   Scheduled Start:', formData.scheduledStart);
-    console.log('   Scheduled End:', formData.scheduledEnd);
-    console.log('');
-    console.log('👤 HOST INFO:');
-    console.log('   Admin User ID:', adminUserId);
-    console.log('');
-    console.log('👥 SELECTED GUESTS:');
-    console.log('   Count:', selectedGuests.length);
-    console.log('   Full array:', selectedGuests);
-    
-    if (selectedGuests.length > 0) {
-      console.log('   Guest details:');
-      selectedGuests.forEach((guest, i) => {
-        console.log(`     Guest ${i + 1}:`, {
-          id: guest.id,
-          address: guest.address,
-          name: guest.alias || guest.displayName
-        });
+  // ✅ CRITICAL: Capture selectedGuests at submission time
+  const guestsAtSubmission = [...selectedGuests];
+
+  // ✅ COMPREHENSIVE DEBUG LOGGING
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📋 CREATING EVENT');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('');
+  console.log('📝 FORM DATA:');
+  console.log('   Title:', formData.title);
+  console.log('   Description:', formData.description);
+  console.log('   Event Type:', formData.eventType);
+  console.log('   Video Enabled:', formData.videoEnabled);
+  console.log('   Channel ID:', formData.channelId);
+  console.log('   Scheduled Start:', formData.scheduledStart);
+  console.log('   Scheduled End:', formData.scheduledEnd);
+  console.log('');
+  console.log('👤 HOST INFO:');
+  console.log('   Admin User ID:', adminUserId);
+  console.log('');
+  console.log('👥 SELECTED GUESTS (from state):');
+  console.log('   selectedGuests state:', selectedGuests);
+  console.log('   selectedGuests count:', selectedGuests.length);
+  console.log('');
+  console.log('👥 GUESTS AT SUBMISSION (captured):');
+  console.log('   guestsAtSubmission:', guestsAtSubmission);
+  console.log('   guestsAtSubmission count:', guestsAtSubmission.length);
+  
+  if (guestsAtSubmission.length > 0) {
+    console.log('   Guest details:');
+    guestsAtSubmission.forEach((guest, i) => {
+      console.log(`     Guest ${i + 1}:`, {
+        id: guest.id,
+        address: guest.address,
+        name: guest.alias || guest.displayName
       });
+    });
+  } else {
+    console.log('   ⚠️ NO GUESTS AT SUBMISSION!');
+    console.log('   ⚠️ Check if selectedGuests state was cleared before form submit');
+  }
+  
+  const guestIds = guestsAtSubmission.map(g => g.id);
+  console.log('');
+  console.log('📤 PAYLOAD TO API:');
+  console.log('   Guest IDs:', guestIds);
+  console.log('   Guest IDs length:', guestIds.length);
+  console.log('   Guest IDs type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  try {
+    const requestBody = {
+      title: formData.title,
+      description: formData.description,
+      channelId: formData.channelId,
+      eventType: formData.eventType,
+      scheduledStart: new Date(formData.scheduledStart).toISOString(),
+      scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
+      videoEnabled: formData.videoEnabled,
+      hostId: adminUserId,
+      guestIds: guestIds,
+    };
+    
+    console.log('');
+    console.log('📨 SENDING REQUEST:');
+    console.log('   URL: /api/events');
+    console.log('   Method: POST');
+    console.log('   Body:', JSON.stringify(requestBody, null, 2));
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    const response = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+    
+    console.log('');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ SERVER RESPONSE:');
+    console.log('   Status:', response.status);
+    console.log('   Success:', data.success);
+    console.log('   Response data:', data);
+    
+    if (data.success && data.data) {
+      console.log('');
+      console.log('📊 CREATED EVENT:');
+      console.log('   Event ID:', data.data.id);
+      console.log('   Title:', data.data.title);
+      console.log('   Host ID:', data.data.host_id);
+      console.log('   Guest IDs (saved):', data.data.guest_ids);
+      console.log('   Guest IDs length:', data.data.guest_ids?.length || 0);
+      console.log('   Video Enabled:', data.data.video_enabled);
+      console.log('   Daily Room:', data.data.daily_room_url);
+      console.log('');
+      console.log('🔍 VERIFICATION:');
+      console.log(`   Run in Supabase SQL:`);
+      console.log(`   SELECT id, title, host_id, guest_ids FROM chat_events WHERE id = '${data.data.id}';`);
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    if (data.success) {
+      setShowCreateModal(false);
+      resetForm();
+      alert('Event created successfully! Check console for details.');
+      
+      // Force refetch to show new event
+      fetchEvents();
     } else {
-      console.log('   ⚠️ NO GUESTS SELECTED!');
+      console.error('❌ Error:', data.error);
+      setError(data.error || 'Failed to create event');
     }
-    
-    const guestIds = selectedGuests.map(g => g.id);
-    console.log('');
-    console.log('📤 PAYLOAD TO API:');
-    console.log('   Guest IDs:', guestIds);
-    console.log('   Guest IDs length:', guestIds.length);
-    console.log('   Guest IDs type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    try {
-      const requestBody = {
-        title: formData.title,
-        description: formData.description,
-        channelId: formData.channelId,
-        eventType: formData.eventType,
-        scheduledStart: new Date(formData.scheduledStart).toISOString(),
-        scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
-        videoEnabled: formData.videoEnabled,
-        hostId: adminUserId,
-        guestIds: guestIds,
-      };
-      
-      console.log('');
-      console.log('📨 SENDING REQUEST:');
-      console.log('   URL: /api/events');
-      console.log('   Method: POST');
-      console.log('   Body:', JSON.stringify(requestBody, null, 2));
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      
-      console.log('');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('✅ SERVER RESPONSE:');
-      console.log('   Status:', response.status);
-      console.log('   Success:', data.success);
-      console.log('   Response data:', data);
-      
-      if (data.success && data.data) {
-        console.log('');
-        console.log('📊 CREATED EVENT:');
-        console.log('   Event ID:', data.data.id);
-        console.log('   Title:', data.data.title);
-        console.log('   Host ID:', data.data.host_id);
-        console.log('   Guest IDs (saved):', data.data.guest_ids);
-        console.log('   Guest IDs length:', data.data.guest_ids?.length || 0);
-        console.log('   Video Enabled:', data.data.video_enabled);
-        console.log('   Daily Room:', data.data.daily_room_url);
-        console.log('');
-        console.log('🔍 VERIFICATION:');
-        console.log(`   Run in Supabase SQL:`);
-        console.log(`   SELECT id, title, host_id, guest_ids FROM chat_events WHERE id = '${data.data.id}';`);
-      }
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      if (data.success) {
-        setShowCreateModal(false);
-        resetForm();
-        alert('Event created successfully! Check console for details.');
-        
-        // Force refetch to show new event
-        fetchEvents();
-      } else {
-        console.error('❌ Error:', data.error);
-        setError(data.error || 'Failed to create event');
-      }
-    } catch (err: any) {
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ EXCEPTION:', err);
-      console.error('   Message:', err.message);
-      console.error('   Stack:', err.stack);
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      setError('Error creating event');
-    }
-  };
+  } catch (err: any) {
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ EXCEPTION:', err);
+    console.error('   Message:', err.message);
+    console.error('   Stack:', err.stack);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    setError('Error creating event');
+  }
+};
 
   const resetForm = () => {
     setFormData({
