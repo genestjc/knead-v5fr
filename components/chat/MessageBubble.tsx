@@ -34,82 +34,67 @@ interface MessageBubbleProps {
 }
 
 // Bread Loaf Counter Badge
-function BreadCounterBadge({ 
-  totalTips, 
-  isActive, 
-  isReacting 
-}: { 
-  totalTips: number; 
-  isActive: boolean; 
+function BreadCounterBadge({
+  totalTips,
+  isActive,
+  isReacting
+}: {
+  totalTips: number;
+  isActive: boolean;
   isReacting: boolean;
 }) {
-  const strokeColor = isActive ? '#4b5563' : '#9ca3af';  // gray-600 : gray-400
-  const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
-  const fillColor = isActive ? '#f3f4f6' : '#f9fafb';  // subtle fill for depth
-  
+  const stroke = isActive ? '#374151' : '#9ca3af';
+  const text = isActive ? 'text-gray-700' : 'text-gray-400';
   return (
-    <div className="relative inline-flex items-center justify-center w-[70px] h-[40px]">
-      {/* 3D Bread loaf SVG */}
-      <svg 
-        width="70" 
-        height="40" 
-        viewBox="0 0 70 40" 
-        fill="none" 
-        xmlns="http://www.w3.org/2000/svg"
-        className="absolute inset-0"
-      >
-        {/* Back/Right side panel (for 3D depth) */}
-        <path 
-          d="M52 12 C52 8, 50 5, 46 4 L46 34 C48 34, 50 33, 51 31 L51 15 C51.5 14, 52 13, 52 12 Z" 
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth="1.4"
+    <div className="relative w-[120px] h-[64px]">
+      <svg viewBox="0 0 120 64" className="absolute inset-0" fill="none">
+        {/* back loaf */}
+        <path
+          d="
+          M62 10
+          C80 10 110 10 110 26
+          V56
+          H62
+          Z"
+          stroke={stroke}
+          strokeWidth="2"
           opacity="0.6"
         />
-        
-        {/* Main front face with rounded top */}
-        <path 
-          d="M14 22 C14 10, 20 3, 32 3 C44 3, 50 10, 50 22 L50 32 C50 34, 48 36, 46 36 L18 36 C16 36, 14 34, 14 32 Z" 
+        {/* back slit */}
+        <line
+          x1="78"
+          y1="30"
+          x2="98"
+          y2="28"
+          stroke={stroke}
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.6"
+        />
+        {/* FRONT LOAF */}
+        <path
+          d="
+          M8 30
+          C8 12 26 6 44 6
+          C60 6 78 12 78 30
+          V56
+          H8
+          Z"
           fill="white"
-          stroke={strokeColor}
-          strokeWidth="1.6"
+          stroke={stroke}
+          strokeWidth="2"
         />
-        
-        {/* Center line suggesting bread split/texture */}
-        <line 
-          x1="32" 
-          y1="8" 
-          x2="32" 
-          y2="15" 
-          stroke={strokeColor}
-          strokeWidth="0.8"
-          opacity="0.2"
-        />
-        
-        {/* Subtle texture dots on front */}
-        <circle cx="24" cy="18" r="0.8" fill={strokeColor} opacity="0.15" />
-        <circle cx="40" cy="20" r="0.8" fill={strokeColor} opacity="0.15" />
-        <circle cx="28" cy="26" r="0.8" fill={strokeColor} opacity="0.15" />
-        <circle cx="36" cy="24" r="0.8" fill={strokeColor} opacity="0.15" />
-        
-        {/* Bottom shadow line for depth */}
-        <path 
-          d="M18 36 L46 36" 
-          stroke={strokeColor}
-          strokeWidth="1.8"
-          opacity="0.3"
-        />
+        {/* crumbs */}
+        <circle cx="36" cy="40" r="1.6" fill={stroke} opacity="0.35" />
+        <circle cx="30" cy="46" r="1.6" fill={stroke} opacity="0.35" />
+        <circle cx="42" cy="46" r="1.6" fill={stroke} opacity="0.35" />
       </svg>
-      
-      {/* Counter text - centered on front face */}
-      <div className={`relative z-10 font-georgia-pro text-[10px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
-        {isReacting ? (
-          <span>⏳</span>
-        ) : (
-          <span className="whitespace-nowrap">
-            {totalTips > 0 ? totalTips : '0'} $TOWNS
-          </span>
-        )}
+      {/* text centered in loaf body */}
+      <div
+        className={`absolute left-[10px] top-[14px] w-[68px] h-[36px]
+        flex items-center justify-center text-[12px] font-medium ${text}`}
+      >
+        {isReacting ? '⏳' : `${totalTips || 0} $TOWNS`}
       </div>
     </div>
   );
