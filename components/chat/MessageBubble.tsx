@@ -35,6 +35,7 @@ interface MessageBubbleProps {
 
 // ✅ FINAL: Bread Loaf Counter Badge (smaller, subtle gray)
 // ✅ FINAL: Bread Loaf Counter Badge (tall rounded dome, more breathing room)
+// ✅ FINAL: Bread Loaf Counter Badge (smaller, text fits perfectly)
 function BreadCounterBadge({ 
   totalTips, 
   isActive, 
@@ -44,70 +45,69 @@ function BreadCounterBadge({
   isActive: boolean; 
   isReacting: boolean;
 }) {
-  // Simplified: Always use gray, slightly darker when active
   const strokeColor = isActive ? '#4b5563' : '#9ca3af';  // gray-600 : gray-400
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
 
   return (
-    <div className="relative inline-flex items-center justify-center w-[90px] h-[50px]">
-      {/* Bread loaf outline SVG - ROUNDED DOME TOP */}
+    <div className="relative inline-flex items-center justify-center w-[75px] h-[42px]">
+      {/* Bread loaf outline SVG - SMALLER */}
       <svg 
-        width="90" 
-        height="50" 
-        viewBox="0 0 90 50" 
+        width="75" 
+        height="42" 
+        viewBox="0 0 75 42" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* ✅ Tall rounded dome top - classic sandwich bread */}
+        {/* Tall rounded dome top */}
         <path 
-          d="M20 25 C20 12, 28 5, 45 5 C62 5, 70 12, 70 25" 
+          d="M16 21 C16 10, 22 4, 37.5 4 C53 4, 59 10, 59 21" 
           stroke={strokeColor}
-          strokeWidth="1.8"
+          strokeWidth="1.6"
           fill="white"
         />
         
-        {/* ✅ Left side - straight down with slight curve */}
+        {/* Left side */}
         <path 
-          d="M20 25 C18 26, 17 27, 17 28 L17 42 C17 44, 18 45, 20 45" 
+          d="M16 21 C14 22, 13 23, 13 24 L13 36 C13 38, 14 39, 16 39" 
           stroke={strokeColor}
-          strokeWidth="1.8"
+          strokeWidth="1.6"
           fill="white"
         />
         
-        {/* ✅ Right side - straight down with slight curve */}
+        {/* Right side */}
         <path 
-          d="M70 25 C72 26, 73 27, 73 28 L73 42 C73 44, 72 45, 70 45" 
+          d="M59 21 C61 22, 62 23, 62 24 L62 36 C62 38, 61 39, 59 39" 
           stroke={strokeColor}
-          strokeWidth="1.8"
+          strokeWidth="1.6"
           fill="white"
         />
         
         {/* Bottom edge */}
         <path 
-          d="M20 45 L70 45" 
+          d="M16 39 L59 39" 
           stroke={strokeColor}
-          strokeWidth="1.8"
+          strokeWidth="1.6"
           fill="white"
         />
         
-        {/* Subtle depth shadow at corners */}
+        {/* Subtle depth shadow */}
         <path 
-          d="M21 26 C19 27, 18 28, 18 30" 
+          d="M17 22 C15 23, 14 24, 14 26" 
           stroke={strokeColor}
-          strokeWidth="0.8"
+          strokeWidth="0.7"
           opacity="0.2"
         />
         <path 
-          d="M69 26 C71 27, 72 28, 72 30" 
+          d="M58 22 C60 23, 61 24, 61 26" 
           stroke={strokeColor}
-          strokeWidth="0.8"
+          strokeWidth="0.7"
           opacity="0.2"
         />
       </svg>
 
-      {/* Counter text - centered with breathing room */}
-      <div className={`relative z-10 font-georgia-pro text-[11px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
+      {/* Counter text - smaller font, better positioned */}
+      <div className={`relative z-10 font-georgia-pro text-[10px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full px-2`}>
         {isReacting ? (
           <span>⏳</span>
         ) : (
