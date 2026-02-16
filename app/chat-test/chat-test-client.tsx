@@ -401,9 +401,8 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
                 setLoadingStep('Joining space...');
                 
                 // ✅ Determine if user is freemium for skipMintMembership optimization
-                const userAddress = account.address;
-                // Check if user has any NFTs (this is a simplified check)
-                // In production, you'd want to call getUserRole or similar
+                // TODO: In production, call getUserRole(account.address) to determine actual role
+                // and set skipMint = (userRole === 'freemium') for role-based optimization
                 const skipMint = true; // Default to true for faster joins
                 
                 // ✅ Join with retry logic
@@ -430,6 +429,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
             } finally {
                 setIsJoining(false);
                 setJoinAttempt(0);
+                setLoadingStep('Initializing...'); // Reset for next attempt
             }
         };
 
