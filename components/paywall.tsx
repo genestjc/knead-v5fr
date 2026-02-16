@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,7 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { hasKneadMonthly } from "@/lib/blockchain/check-nft-ownership";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
@@ -120,9 +121,78 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [isRefreshingMembership, setIsRefreshingMembership] = useState(false);
   const { toast } = useToast();
-  const { membershipType: _membershipType } = useMembership();
+  const { membershipType: _membershipType, refreshMembership } = useMembership();
   const { status: _status, minting } = useFreemiumMembership(account?.address || null);
+
+  // Check URL for payment success on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success') {
+      // Payment was successful, refresh membership
+      handlePaymentReturn();
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const pollForNFT = async (walletAddress: string, maxAttempts = 15, delayMs = 2000) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`🔄 Polling for NFT (attempt ${attempt}/${maxAttempts})...`);
+      
+      // Wait before checking (except first attempt)
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+      
+      // Use existing blockchain check function
+      const hasNFT = await hasKneadMonthly(walletAddress);
+      
+      if (hasNFT) {
+        console.log("✅ Premium NFT detected on blockchain!");
+        
+        // Now that we confirmed NFT exists, refresh the membership provider
+        // Clear cache first to force fresh check
+        localStorage.removeItem("knead_membership_cache");
+        if (refreshMembership) {
+          await refreshMembership();
+        }
+        
+        return true;
+      }
+    }
+    
+    console.log("⚠️ NFT not detected after max attempts");
+    return false;
+  };
+
+  const handlePaymentReturn = async () => {
+    if (!account?.address || !refreshMembership) return;
+    
+    setIsRefreshingMembership(true);
+    try {
+      console.log("💎 Payment successful! Checking for NFT mint...");
+      
+      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
+      const success = await pollForNFT(account.address, 15, 2000);
+      
+      if (success) {
+        toast({
+          title: "Welcome!",
+          description: "Your membership is now active. Enjoy unlimited access!",
+        });
+      } else {
+        toast({
+          title: "Almost there...",
+          description: "Your membership is being activated. Please refresh in a moment.",
+          variant: "default",
+        });
+      }
+    } finally {
+      setIsRefreshingMembership(false);
+    }
+  };
 
   const handleOpenPaymentModal = async () => {
     if (!account?.address) {
@@ -177,13 +247,34 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
     }
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
     setIsModalOpen(false);
     setClientSecret(null);
-    toast({
-      title: "Success",
-      description: "Payment successful! Your membership is being activated.",
-    });
+    
+    if (!account?.address) return;
+    
+    setIsRefreshingMembership(true);
+    try {
+      console.log("💎 Payment successful! Checking for NFT mint...");
+      
+      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
+      const success = await pollForNFT(account.address, 15, 2000);
+      
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Payment successful! Your membership is now active.",
+        });
+      } else {
+        toast({
+          title: "Almost there...",
+          description: "Your membership is being activated. Please refresh in a moment.",
+          variant: "default",
+        });
+      }
+    } finally {
+      setIsRefreshingMembership(false);
+    }
   };
 
   const stripeOptions = clientSecret
@@ -215,12 +306,12 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
       }
     : null;
 
-  // Show loading state while auto-minting is happening
-  if (minting) {
+  // Show loading state while auto-minting is happening or refreshing membership
+  if (minting || isRefreshingMembership) {
     return (
       <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
         <h2 className="font-adonis text-2xl mb-4">
-          Setting up your membership...
+          {isRefreshingMembership ? "Activating your membership..." : "Setting up your membership..."}
         </h2>
         <div className="flex justify-center my-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -266,7 +357,7 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
         <button
           onClick={handleOpenPaymentModal}
           disabled={isLoadingIntent}
-          className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis"
+          className="inline-flex items-center justify-center bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoadingIntent ? (
             <>
