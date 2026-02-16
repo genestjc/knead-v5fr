@@ -273,14 +273,28 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
         </div>
 
-        <div className="lg:hidden h-full">
+        <div className="lg:hidden space-y-4 h-full overflow-y-auto">
+          {/* Local participant */}
           {localSessionId && (
-            <DailyVideoTile
-              sessionId={localSessionId}
-              label={isHost ? "You (Host)" : "You"}
-              isLocal={true}
-            />
+            <div className="h-64">
+              <DailyVideoTile
+                sessionId={localSessionId}
+                label={isHost ? "You (Host)" : "You"}
+                isLocal={true}
+              />
+            </div>
           )}
+          
+          {/* All remote participants */}
+          {remoteParticipants.map(participantId => (
+            <div key={participantId} className="h-64">
+              <DailyVideoTile
+                sessionId={participantId}
+                label={participantId === hostParticipant ? "Host" : "Guest"}
+                isLocal={false}
+              />
+            </div>
+          ))}
         </div>
       </div>
 

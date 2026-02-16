@@ -268,21 +268,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           
           if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
             const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
+            const isGuest = liveEvent.guests?.some(g => g.address?.toLowerCase() === activeAccount.address.toLowerCase());
             
-            const tokenRes = await fetch('/api/events/generate-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roomName: liveEvent.dailyRoomName,
-                walletAddress: activeAccount.address,
-                isHost: isHost,
-              }),
-            });
-            
-            if (tokenRes.ok) {
-              const tokenData = await tokenRes.json();
-              if (tokenData.success) {
-                setDailyToken(tokenData.data.token);
+            // ✅ ONLY generate token for host or designated guests
+            if (isHost || isGuest) {
+              const tokenRes = await fetch('/api/events/generate-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  roomName: liveEvent.dailyRoomName,
+                  walletAddress: activeAccount.address,
+                  isHost: isHost,
+                }),
+              });
+              
+              if (tokenRes.ok) {
+                const tokenData = await tokenRes.json();
+                if (tokenData.success) {
+                  setDailyToken(tokenData.data.token);
+                }
               }
             }
           }
