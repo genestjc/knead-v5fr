@@ -130,14 +130,48 @@ export default function JoinPage() {
     }
   }, []);
 
+  const pollForMembership = async (maxAttempts = 10, delayMs = 2000) => {
+    if (!refreshMembership) return false;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`🔄 Checking for membership (attempt ${attempt}/${maxAttempts})...`);
+      
+      // Wait before checking
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      
+      // Clear cache and refresh
+      localStorage.removeItem("knead_membership_cache");
+      await refreshMembership();
+      
+      // Check if premium access is now available
+      // We need to re-check hasAccess after refreshing
+      // Give it a moment for state to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      if (hasAccess("premium")) {
+        console.log("✅ Premium membership detected!");
+        return true;
+      }
+    }
+    
+    console.log("⚠️ Membership not detected after max attempts");
+    return false;
+  };
+
   const handlePaymentReturn = async () => {
     if (!refreshMembership) return;
     
     setIsRefreshingMembership(true);
     try {
-      // Wait a bit for webhook to process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await refreshMembership();
+      console.log("💎 Payment successful! Waiting for NFT to mint...");
+      
+      // Poll for membership with retries
+      const success = await pollForMembership(10, 2000); // 10 attempts, 2 seconds apart = 20 seconds max
+      
+      if (!success) {
+        // Show message that it might take a moment
+        alert("Your membership is being activated. If you don't see it immediately, please refresh the page in a moment.");
+      }
     } finally {
       setIsRefreshingMembership(false);
     }
@@ -187,12 +221,14 @@ export default function JoinPage() {
     
     setIsRefreshingMembership(true);
     try {
-      // Give webhook a moment to mint the NFT
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log("💎 Payment successful! Waiting for NFT to mint...");
       
-      // Refresh membership to check for the newly minted NFT
-      if (refreshMembership) {
-        await refreshMembership();
+      // Poll for membership with retries
+      const success = await pollForMembership(10, 2000); // 10 attempts, 2 seconds apart = 20 seconds max
+      
+      if (!success) {
+        // Show message that it might take a moment
+        alert("Your membership is being activated. If you don't see it immediately, please refresh the page in a moment.");
       }
     } finally {
       setIsRefreshingMembership(false);
@@ -282,10 +318,17 @@ export default function JoinPage() {
                 <li>Priority access to events and other activations</li>
               </p>
               {isLoading || isRefreshingMembership ? (
-                <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="animate-pulse h-12 bg-gray-100 rounded w-full"></div>
+                  {isRefreshingMembership && (
+                    <p className="text-sm text-gray-600 font-georgia-pro">
+                      Activating your membership...
+                    </p>
+                  )}
+                </div>
               ) : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  You're already a Knead Monthly member
+                  You're already a premium member
                 </div>
               ) : account?.address ? (
                 <button
