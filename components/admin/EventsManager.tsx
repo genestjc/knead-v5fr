@@ -12,16 +12,7 @@ interface EventsManagerProps {
   adminAddress: string;
 }
 
-interface User {
-  id: string;
-  address: string;
-  displayName: string;
-  alias: string | null;
-  role: string;
-}
-
 export function EventsManager({ adminAddress }: EventsManagerProps) {
-  // ✅ Get connected wallet account for signing transactions
   const account = useActiveAccount();
   
   const [events, setEvents] = useState<any[]>([]);
@@ -31,11 +22,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [adminUserId, setAdminUserId] = useState<string>('');
   const [isProcessingNFTs, setIsProcessingNFTs] = useState(false);
 
-  // Guest management
-  const [guestSearchTerm, setGuestSearchTerm] = useState('');
-  const [guestSearchResults, setGuestSearchResults] = useState<User[]>([]);
-  const [selectedGuests, setSelectedGuests] = useState<User[]>([]);
-  const [searchingGuests, setSearchingGuests] = useState(false);
+  // ✅ SIMPLIFIED: Just a textarea for addresses
+  const [guestAddressesInput, setGuestAddressesInput] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -53,7 +41,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchAdminUser();
     fetchEvents();
 
-    // ✅ REAL-TIME SUBSCRIPTION
     const supabase = createSupabaseClient();    
     console.log('🔄 [EventsManager] Setting up real-time subscription...');
     
@@ -128,7 +115,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
       if (data.success) {
         console.log('✅ [EventsManager] Fetched events:', data.data.length);
-        console.log('✅ [EventsManager] Event titles:', data.data.map((e: any) => e.title));
         setEvents(data.data);
       } else {
         setError(data.error || 'Failed to fetch events');
@@ -141,197 +127,66 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  const searchUsers = async (searchTerm: string) => {
-    if (searchTerm.length < 2) {
-      setGuestSearchResults([]);
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!adminUserId) {
+      setError('Admin user ID not loaded');
       return;
     }
 
-    setSearchingGuests(true);
+    // ✅ PARSE ADDRESSES FROM TEXTAREA
+    const rawAddresses = guestAddressesInput
+      .split(/[\n,]+/)
+      .map(addr => addr.trim().toLowerCase())
+      .filter(addr => addr.startsWith('0x') && addr.length === 42);
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📋 CREATING EVENT');
+    console.log('   Title:', formData.title);
+    console.log('   Raw input:', guestAddressesInput);
+    console.log('   Parsed guest addresses:', rawAddresses);
+    console.log('   Guest count:', rawAddresses.length);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     try {
-      const response = await fetch(`/api/admin/users?adminAddress=${adminAddress}`);
+      const requestBody = {
+        title: formData.title,
+        description: formData.description,
+        channelId: formData.channelId,
+        eventType: formData.eventType,
+        scheduledStart: new Date(formData.scheduledStart).toISOString(),
+        scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
+        videoEnabled: formData.videoEnabled,
+        hostId: adminUserId,
+        guestAddresses: rawAddresses,
+      };
+      
+      console.log('📨 Sending to API:', requestBody);
+
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
       const data = await response.json();
+      
+      console.log('✅ Response:', data);
 
       if (data.success) {
-        const filtered = data.data.filter((user: User) => {
-          const term = searchTerm.toLowerCase();
-          return (
-            user.address.toLowerCase().includes(term) ||
-            user.displayName?.toLowerCase().includes(term) ||
-            user.alias?.toLowerCase().includes(term)
-          );
-        });
-        setGuestSearchResults(filtered.slice(0, 5));
+        setShowCreateModal(false);
+        resetForm();
+        alert('✅ Event created successfully! Guests have been added.');
+        fetchEvents();
+      } else {
+        setError(data.error || 'Failed to create event');
       }
-    } catch (err) {
-      console.error('Error searching users:', err);
-    } finally {
-      setSearchingGuests(false);
+    } catch (err: any) {
+      console.error('❌ Error:', err);
+      setError('Error creating event');
     }
   };
-
-  // ✅ UPDATED: Add guest with debug logging
-  const addGuest = (user: User) => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('➕ ADDING GUEST:');
-    console.log('   User:', user);
-    console.log('   User ID:', user.id);
-    console.log('   User Address:', user.address);
-    console.log('   User Name:', user.alias || user.displayName);
-    console.log('');
-    console.log('   Current selectedGuests:', selectedGuests);
-    console.log('   Current count:', selectedGuests.length);
-    
-    if (!selectedGuests.find(g => g.id === user.id)) {
-      const newGuests = [...selectedGuests, user];
-      setSelectedGuests(newGuests);
-      console.log('   ✅ Guest added!');
-      console.log('   New selectedGuests:', newGuests);
-      console.log('   New count:', newGuests.length);
-    } else {
-      console.log('   ⚠️ Guest already in list, skipping');
-    }
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
-    setGuestSearchTerm('');
-    setGuestSearchResults([]);
-  };
-
-  const removeGuest = (userId: string) => {
-    setSelectedGuests(selectedGuests.filter(g => g.id !== userId));
-  };
-
-  // ✅ UPDATED: Create event with comprehensive debug logging
-  const handleCreateEvent = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!adminUserId) {
-    setError('Admin user ID not loaded');
-    return;
-  }
-
-  // ✅ CRITICAL: Capture selectedGuests at submission time
-  const guestsAtSubmission = [...selectedGuests];
-
-  // ✅ COMPREHENSIVE DEBUG LOGGING
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📋 CREATING EVENT');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log('📝 FORM DATA:');
-  console.log('   Title:', formData.title);
-  console.log('   Description:', formData.description);
-  console.log('   Event Type:', formData.eventType);
-  console.log('   Video Enabled:', formData.videoEnabled);
-  console.log('   Channel ID:', formData.channelId);
-  console.log('   Scheduled Start:', formData.scheduledStart);
-  console.log('   Scheduled End:', formData.scheduledEnd);
-  console.log('');
-  console.log('👤 HOST INFO:');
-  console.log('   Admin User ID:', adminUserId);
-  console.log('');
-  console.log('👥 SELECTED GUESTS (from state):');
-  console.log('   selectedGuests state:', selectedGuests);
-  console.log('   selectedGuests count:', selectedGuests.length);
-  console.log('');
-  console.log('👥 GUESTS AT SUBMISSION (captured):');
-  console.log('   guestsAtSubmission:', guestsAtSubmission);
-  console.log('   guestsAtSubmission count:', guestsAtSubmission.length);
-  
-  if (guestsAtSubmission.length > 0) {
-    console.log('   Guest details:');
-    guestsAtSubmission.forEach((guest, i) => {
-      console.log(`     Guest ${i + 1}:`, {
-        id: guest.id,
-        address: guest.address,
-        name: guest.alias || guest.displayName
-      });
-    });
-  } else {
-    console.log('   ⚠️ NO GUESTS AT SUBMISSION!');
-    console.log('   ⚠️ Check if selectedGuests state was cleared before form submit');
-  }
-  
-  const guestIds = guestsAtSubmission.map(g => g.id);
-  console.log('');
-  console.log('📤 PAYLOAD TO API:');
-  console.log('   Guest IDs:', guestIds);
-  console.log('   Guest IDs length:', guestIds.length);
-  console.log('   Guest IDs type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-  try {
-    const requestBody = {
-      title: formData.title,
-      description: formData.description,
-      channelId: formData.channelId,
-      eventType: formData.eventType,
-      scheduledStart: new Date(formData.scheduledStart).toISOString(),
-      scheduledEnd: new Date(formData.scheduledEnd).toISOString(),
-      videoEnabled: formData.videoEnabled,
-      hostId: adminUserId,
-      guestIds: guestIds,
-    };
-    
-    console.log('');
-    console.log('📨 SENDING REQUEST:');
-    console.log('   URL: /api/events');
-    console.log('   Method: POST');
-    console.log('   Body:', JSON.stringify(requestBody, null, 2));
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    const response = await fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json();
-    
-    console.log('');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ SERVER RESPONSE:');
-    console.log('   Status:', response.status);
-    console.log('   Success:', data.success);
-    console.log('   Response data:', data);
-    
-    if (data.success && data.data) {
-      console.log('');
-      console.log('📊 CREATED EVENT:');
-      console.log('   Event ID:', data.data.id);
-      console.log('   Title:', data.data.title);
-      console.log('   Host ID:', data.data.host_id);
-      console.log('   Guest IDs (saved):', data.data.guest_ids);
-      console.log('   Guest IDs length:', data.data.guest_ids?.length || 0);
-      console.log('   Video Enabled:', data.data.video_enabled);
-      console.log('   Daily Room:', data.data.daily_room_url);
-      console.log('');
-      console.log('🔍 VERIFICATION:');
-      console.log(`   Run in Supabase SQL:`);
-      console.log(`   SELECT id, title, host_id, guest_ids FROM chat_events WHERE id = '${data.data.id}';`);
-    }
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    if (data.success) {
-      setShowCreateModal(false);
-      resetForm();
-      alert('Event created successfully! Check console for details.');
-      
-      // Force refetch to show new event
-      fetchEvents();
-    } else {
-      console.error('❌ Error:', data.error);
-      setError(data.error || 'Failed to create event');
-    }
-  } catch (err: any) {
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('❌ EXCEPTION:', err);
-    console.error('   Message:', err.message);
-    console.error('   Stack:', err.stack);
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    setError('Error creating event');
-  }
-};
 
   const resetForm = () => {
     setFormData({
@@ -344,15 +199,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       videoEnabled: true,
       audioOnly: false,
     });
-    setSelectedGuests([]);
-    setGuestSearchTerm('');
-    setGuestSearchResults([]);
+    setGuestAddressesInput('');
   };
 
-  // ✅ UPDATED: Handle Event Pass NFTs when starting/ending events
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
     try {
-      // Step 1: Update database
       const response = await fetch(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -367,7 +218,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       if (data.success) {
         console.log(`✅ Event status updated to: ${newStatus}`);
         
-        // Step 2: Mint or burn Event Passes on-chain
         if (newStatus === 'live' || newStatus === 'ended') {
           await handleEventPassNFTs(eventId, newStatus);
         }
@@ -380,7 +230,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  // ✅ NEW: Handle Event Pass NFT minting/burning for students/participants
   const handleEventPassNFTs = async (eventId: string, status: string) => {
     if (isProcessingNFTs) {
       alert('Already processing NFTs. Please wait...');
@@ -392,23 +241,19 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       
       console.log('🎫 Managing Event Pass NFTs for status:', status);
       
-      // Check if admin wallet is connected
       if (!account) {
-        alert('❌ Please connect your admin wallet first!\n\nYou need to sign the transaction to mint/burn Event Passes.');
+        alert('❌ Please connect your admin wallet first!');
         return;
       }
       
-      // Prompt for student/participant addresses
       const instruction = status === 'live' 
-        ? '🎓 Enter STUDENT wallet addresses (who will participate in TEXT CHAT):\n\nThese should be users with Knead Monthly Pass.\nThey will receive Event Pass NFTs to send messages during the event.'
-        : '🔥 Enter the SAME student addresses to BURN their Event Passes:\n\nThis will revoke their ability to send messages.';
+        ? '🎓 Enter STUDENT wallet addresses (text chat participants):\n\nComma-separated:\n0x123...,0x456...'
+        : '🔥 Enter the SAME student addresses to BURN their passes:';
       
-      const participantAddressesInput = prompt(
-        `${instruction}\n\nFormat (comma-separated):\n0x123...,0x456...,0x789...`
-      );
+      const participantAddressesInput = prompt(instruction);
       
       if (!participantAddressesInput) {
-        alert('❌ No addresses entered.\n\nEvent status was updated, but no NFTs were minted/burned.\n\nYou can manually mint/burn later if needed.');
+        alert('❌ No addresses entered.');
         setIsProcessingNFTs(false);
         return;
       }
@@ -419,14 +264,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         .filter(addr => addr.startsWith('0x'));
       
       if (participantAddresses.length === 0) {
-        alert('❌ No valid Ethereum addresses found.\n\nPlease use format: 0x123...,0x456...');
+        alert('❌ No valid addresses found.');
         setIsProcessingNFTs(false);
         return;
       }
 
-      console.log(`📋 Processing ${participantAddresses.length} student addresses...`);
-
-      // Get Event Pass contract
       const eventPassContract = getContract({
         client: thirdwebClient,
         chain: base,
@@ -434,9 +276,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       });
 
       if (status === 'live') {
-        // ✅ Mint Event Passes to students
-        console.log(`🎫 Minting Event Passes to ${participantAddresses.length} students...`);
-        
         const transaction = prepareContractCall({
           contract: eventPassContract,
           method: "function batchMintPasses(address[] memory recipients, string memory eventId)",
@@ -444,13 +283,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         });
 
         const confirmation = confirm(
-          `⏳ Ready to mint ${participantAddresses.length} Event Passes?\n\n` +
-          `Students will be able to:\n` +
-          `✅ Send messages in chat\n` +
-          `✅ React to messages\n` +
-          `✅ Participate in discussion\n\n` +
-          `You (host) and guests will join via video.\n\n` +
-          `Click OK to sign the transaction.`
+          `Ready to mint ${participantAddresses.length} Event Passes?\n\n` +
+          `Students will be able to send messages in chat.\n` +
+          `Click OK to sign.`
         );
         
         if (!confirmation) {
@@ -463,19 +298,13 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           account,
         });
         
-        console.log(`✅ Event Passes minted! Tx: ${txResult.transactionHash}`);
         alert(
           `✅ Event Started!\n\n` +
           `🎫 ${participantAddresses.length} Event Passes minted!\n\n` +
-          `Students can now send messages in chat.\n\n` +
-          `📹 You and your guests can join the video room.\n\n` +
           `Tx: ${txResult.transactionHash.slice(0, 10)}...`
         );
         
       } else if (status === 'ended') {
-        // ✅ Burn Event Passes from students
-        console.log(`🔥 Burning Event Passes from ${participantAddresses.length} students...`);
-        
         const transaction = prepareContractCall({
           contract: eventPassContract,
           method: "function batchBurnPasses(address[] memory holders)",
@@ -483,11 +312,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         });
 
         const confirmation = confirm(
-          `⏳ Ready to burn ${participantAddresses.length} Event Passes?\n\n` +
-          `Students will lose:\n` +
-          `❌ Ability to send messages\n` +
-          `✅ They can still view chat history\n\n` +
-          `Click OK to sign the transaction.`
+          `Ready to burn ${participantAddresses.length} Event Passes?`
         );
         
         if (!confirmation) {
@@ -500,19 +325,16 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           account,
         });
         
-        console.log(`✅ Event Passes burned! Tx: ${txResult.transactionHash}`);
         alert(
           `✅ Event Ended!\n\n` +
           `🔥 ${participantAddresses.length} Event Passes burned!\n\n` +
-          `Students can no longer send messages.\n` +
-          `They can still view the chat history.\n\n` +
           `Tx: ${txResult.transactionHash.slice(0, 10)}...`
         );
       }
       
     } catch (err: any) {
       console.error('❌ Error managing Event Pass NFTs:', err);
-      alert(`❌ Failed to manage Event Passes:\n\n${err.message || 'Unknown error'}\n\nPlease check console for details.`);
+      alert(`❌ Failed: ${err.message || 'Unknown error'}`);
     } finally {
       setIsProcessingNFTs(false);
     }
@@ -646,7 +468,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
               {event.guests && event.guests.length > 0 && (
                 <div className="mb-4">
-                  <span className="font-georgia-pro text-sm text-gray-500">Video Guests (join Daily.co room):</span>
+                  <span className="font-georgia-pro text-sm text-gray-500">Video Guests:</span>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {event.guests.map((guest: any) => (
                       <span key={guest.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-georgia-pro">
@@ -676,7 +498,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'live')}
                     disabled={isProcessingNFTs}
-                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50"
                   >
                     {isProcessingNFTs ? '⏳ Processing...' : '🔴 Start Event & Mint Passes'}
                   </button>
@@ -685,7 +507,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   <button
                     onClick={() => handleUpdateEventStatus(event.id, 'ended')}
                     disabled={isProcessingNFTs}
-                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50"
                   >
                     {isProcessingNFTs ? '⏳ Processing...' : '⏹️ End Event & Burn Passes'}
                   </button>
@@ -784,57 +606,24 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
+              {/* ✅ SIMPLIFIED GUEST INPUT */}
               <div>
                 <label className="block font-georgia-pro text-sm mb-2">
-                  Video Guests (Optional) 
-                  <span className="text-xs text-gray-500 ml-2">- These people will join you in the Daily.co video room</span>
+                  Video Guests (Optional)
+                  <span className="text-xs text-gray-500 ml-2">- Paste wallet addresses</span>
                 </label>
                 
-                {selectedGuests.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {selectedGuests.map(guest => (
-                      <div key={guest.id} className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                        <span className="font-georgia-pro">📹 {guest.alias || guest.displayName || guest.address.slice(0, 8)}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeGuest(guest.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <textarea
+                  value={guestAddressesInput}
+                  onChange={(e) => setGuestAddressesInput(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro font-mono text-sm"
+                  placeholder="0x506B26c791D0d9A6aa159C3F0dfa686Dc16Af382, 0x123...&#10;or one per line:&#10;0x506B26c791D0d9A6aa159C3F0dfa686Dc16Af382&#10;0x123..."
+                  rows={4}
+                />
                 
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={guestSearchTerm}
-                    onChange={(e) => {
-                      setGuestSearchTerm(e.target.value);
-                      searchUsers(e.target.value);
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro"
-                    placeholder="Search by name or address... (e.g., Bill Norris)"
-                  />
-                  
-                  {guestSearchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-y-auto">
-                      {guestSearchResults.map(user => (
-                        <button
-                          key={user.id}
-                          type="button"
-                          onClick={() => addGuest(user)}
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 font-georgia-pro text-sm"
-                        >
-                          <div className="font-medium">{user.alias || user.displayName || 'Anonymous'}</div>
-                          <div className="text-xs text-gray-500">{user.address}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Paste Ethereum addresses (comma or newline separated). We'll look them up or create entries automatically.
+                </p>
               </div>
 
               <div className="border-t pt-4">
@@ -865,15 +654,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 {formData.videoEnabled && (
                   <div className="mt-3 p-3 bg-purple-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-purple-800">
-                      💡 Daily.co room will be created for you and your video guests. Students will participate via text chat with Event Pass NFTs.
-                    </p>
-                  </div>
-                )}
-                
-                {formData.audioOnly && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <p className="font-georgia-pro text-xs text-blue-800">
-                      🎙️ Audio-only mode: participants can only use microphone, no cameras.
+                      💡 Daily.co room will be created for you and your video guests. Students participate via text chat.
                     </p>
                   </div>
                 )}
@@ -883,7 +664,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 <button
                   type="submit"
                   disabled={!adminUserId}
-                  className="px-6 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition disabled:opacity-50"
                 >
                   Create Event
                 </button>
