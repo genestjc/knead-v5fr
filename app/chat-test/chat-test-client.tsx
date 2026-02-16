@@ -377,45 +377,45 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                 }
                 
                 // ✅ NORMAL USER FLOW
-                console.log('🔍 Checking membership status...');
-                const checkRes = await fetch('/api/towns/check-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: account.address }),
-                });
-                
-                const membershipData = await checkRes.json();
-                
-                if (membershipData.success) {
-                    const { hasMembership, totalMembers, isUnder100 } = membershipData;
-                    
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('📊 Membership Status:');
-                    console.log('   Has membership:', hasMembership);
-                    console.log('   Total members:', totalMembers);
-                    console.log('   Free tier active:', isUnder100);
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    
-                    if (!hasMembership && !isUnder100) {
-                        console.warn('⚠️ Over 100 members - new mints may cost gas');
-                    }
-                }
-                
-                console.log('⏳ Stabilizing...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
+console.log('🔍 Checking membership status...');
+const checkRes = await fetch('/api/towns/check-membership', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userAddress: account.address }),
+});
 
-                console.log('🚀 Joining space...');
-                
-                const signer = await createTownsSigner(account, client, activeChain);
-                
-                const hasMembership = membershipData?.hasMembership || false;
-                
-                await joinSpace(SAVED_SPACE_ID, signer, {
-                    skipMintMembership: hasMembership
-                });
-                
-                console.log('✅ Joined successfully!');
-                setHasJoined(true);
+const membershipData = await checkRes.json();
+
+if (membershipData.success) {
+    const { hasMembership, totalMembers, isUnder100 } = membershipData;
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 Membership Status:');
+    console.log('   Has membership:', hasMembership);
+    console.log('   Total members:', totalMembers);
+    console.log('   Free tier active:', isUnder100);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    if (!hasMembership && !isUnder100) {
+        console.warn('⚠️ Over 100 members - new mints may cost gas');
+    }
+}
+
+// ✅ REMOVED: 1-second "Stabilizing" delay - not needed for regular users
+
+console.log('🚀 Joining space...');
+
+const signer = await createTownsSigner(account, client, activeChain);
+
+const hasMembership = membershipData?.hasMembership || false;
+
+await joinSpace(SAVED_SPACE_ID, signer, {
+    skipMintMembership: hasMembership
+});
+
+console.log('✅ Joined successfully!');
+setHasJoined(true);
+
 
             } catch (error: any) {
                 if (error.message?.includes('already a member')) {
