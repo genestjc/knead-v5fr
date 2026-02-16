@@ -266,6 +266,7 @@ function TownsChat() {
     const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
+    const [signerRef] = useState<{ current: any }>({ current: null }); // ✅ Store signer
 
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
@@ -301,11 +302,11 @@ function TownsChat() {
             console.log('📊 Space Sync Status:');
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
-            console.log('   Metadata:', space.metadata);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
+    // ✅ OPTIMIZED: Join immediately when conditions met
     useEffect(() => {
         if (!isAgentConnected || !syncAgent) {
             if (!isAgentConnected) {
@@ -328,49 +329,33 @@ function TownsChat() {
                     return;
                 }
                 
-                // ✅ Bot check: Add delay for bot's river sync
+                // ✅ ONLY for bot: wait for river sync
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                     console.log('🤖 Bot Mode: Waiting 15s for river connection...');
                     await new Promise(resolve => setTimeout(resolve, 15000));
                     window.KEY_SHARER_SPACE_JOINED = true;
                 }
                 
-                console.log('🔍 Checking membership status...');
-                const checkRes = await fetch('/api/towns/check-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: account.address }),
-                });
-                
-                const membershipData = await checkRes.json();
-                
-                if (membershipData.success) {
-                    const { hasMembership, totalMembers } = membershipData;
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('📊 Membership Status:');
-                    console.log('   Has membership:', hasMembership);
-                    console.log('   Total members:', totalMembers);
-                    console.log('   Space is FREE ✅');
-                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                }
-                
-                console.log('⏳ Stabilizing...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
                 console.log('🚀 Joining space...');
                 
-                const signer = await createTownsSigner(account, client, activeChain);
-                const hasMembership = membershipData?.hasMembership || false;
+                // ✅ OPTIMIZED: Reuse signer from agent connection if available
+                let signer = signerRef.current;
+                if (!signer) {
+                    signer = await createTownsSigner(account, client, activeChain);
+                    signerRef.current = signer;
+                }
                 
+                // ✅ OPTIMIZED: Just try to join, handle "already member" error
                 await joinSpace(SAVED_SPACE_ID, signer, {
-                    skipMintMembership: hasMembership
+                    skipMintMembership: false // Let it handle membership automatically
                 });
                 
                 console.log('✅ Joined successfully!');
                 setHasJoined(true);
 
             } catch (error: any) {
-                if (error.message?.includes('already a member')) {
+                // ✅ Handle "already a member" gracefully
+                if (error.message?.includes('already a member') || error.message?.includes('Already joined')) {
                     console.log('✅ Already a member');
                     setHasJoined(true);
                 } else {
@@ -391,13 +376,14 @@ function TownsChat() {
         }
     }, [hasJoined, space?.initialized, space?.channelIds]);
 
+    // ✅ OPTIMIZED: Show loading states immediately
     if (!isAgentConnected || !syncAgent) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {!isAgentConnected ? 'Connecting to Towns...' : 'Initializing...'}
+                        {!isAgentConnected ? 'Connecting to Towns...' : 'Initializing sync...'}
                     </p>
                 </div>
             </div>
@@ -410,7 +396,7 @@ function TownsChat() {
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {isJoining ? 'Joining space...' : 'Loading space data...'}
+                        {isJoining ? 'Joining space...' : 'Loading space...'}
                     </p>
                 </div>
             </div>
@@ -422,6 +408,12 @@ function TownsChat() {
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
                     <p className="font-georgia-pro text-red-500">❌ Space not found</p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
+                    >
+                        Retry
+                    </button>
                 </div>
             </div>
         );
@@ -436,7 +428,7 @@ function TownsChat() {
                         Syncing with stream nodes...
                     </p>
                     <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                        This may take 10-30 seconds
+                        This should take 5-10 seconds
                     </p>
                 </div>
             </div>
@@ -449,10 +441,10 @@ function TownsChat() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
                 <div className="text-center">
-                    <p className="font-georgia-pro text-red-500">❌ No channels found in space</p>
+                    <p className="font-georgia-pro text-red-500">❌ No channels found</p>
                     <button 
                         onClick={() => window.location.reload()}
-                        className="mt-4 px-4 py-2 bg-black text-white rounded-full"
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
                     >
                         Retry
                     </button>
