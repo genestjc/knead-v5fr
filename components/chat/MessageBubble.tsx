@@ -45,9 +45,11 @@ function BreadCounterBadge({
 }) {
   const strokeColor = isActive ? '#4b5563' : '#9ca3af';  // gray-600 : gray-400
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
+  const fillColor = isActive ? '#f3f4f6' : '#f9fafb';  // subtle fill for depth
+  
   return (
     <div className="relative inline-flex items-center justify-center w-[70px] h-[40px]">
-      {/* Rounded bread loaf SVG */}
+      {/* 3D Bread loaf SVG */}
       <svg 
         width="70" 
         height="40" 
@@ -56,29 +58,50 @@ function BreadCounterBadge({
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* Rounded bread shape - centered */}
+        {/* Back/Right side panel (for 3D depth) */}
         <path 
-          d="M18 22 C18 10, 24 4, 35 4 C46 4, 52 10, 52 22 C52 24, 51 26, 50 27 L50 34 C50 35.5, 48.5 37, 47 37 L23 37 C21.5 37, 20 35.5, 20 34 L20 27 C19 26, 18 24, 18 22 Z" 
+          d="M52 12 C52 8, 50 5, 46 4 L46 34 C48 34, 50 33, 51 31 L51 15 C51.5 14, 52 13, 52 12 Z" 
+          fill={fillColor}
+          stroke={strokeColor}
+          strokeWidth="1.4"
+          opacity="0.6"
+        />
+        
+        {/* Main front face with rounded top */}
+        <path 
+          d="M14 22 C14 10, 20 3, 32 3 C44 3, 50 10, 50 22 L50 32 C50 34, 48 36, 46 36 L18 36 C16 36, 14 34, 14 32 Z" 
+          fill="white"
           stroke={strokeColor}
           strokeWidth="1.6"
-          fill="white"
         />
-        {/* Subtle depth shadow - left */}
-        <path 
-          d="M21 24 C19 25, 19 26, 19 28" 
+        
+        {/* Center line suggesting bread split/texture */}
+        <line 
+          x1="32" 
+          y1="8" 
+          x2="32" 
+          y2="15" 
           stroke={strokeColor}
-          strokeWidth="0.5"
-          opacity="0.15"
+          strokeWidth="0.8"
+          opacity="0.2"
         />
-        {/* Subtle depth shadow - right */}
+        
+        {/* Subtle texture dots on front */}
+        <circle cx="24" cy="18" r="0.8" fill={strokeColor} opacity="0.15" />
+        <circle cx="40" cy="20" r="0.8" fill={strokeColor} opacity="0.15" />
+        <circle cx="28" cy="26" r="0.8" fill={strokeColor} opacity="0.15" />
+        <circle cx="36" cy="24" r="0.8" fill={strokeColor} opacity="0.15" />
+        
+        {/* Bottom shadow line for depth */}
         <path 
-          d="M49 24 C51 25, 51 26, 51 28" 
+          d="M18 36 L46 36" 
           stroke={strokeColor}
-          strokeWidth="0.5"
-          opacity="0.15"
+          strokeWidth="1.8"
+          opacity="0.3"
         />
       </svg>
-      {/* Counter text - centered */}
+      
+      {/* Counter text - centered on front face */}
       <div className={`relative z-10 font-georgia-pro text-[10px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
         {isReacting ? (
           <span>⏳</span>
