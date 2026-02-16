@@ -55,10 +55,10 @@ export async function GET(req: NextRequest) {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('[GET /api/events] Processing event:', event.title);
         console.log('   Event ID:', event.id);
-        console.log('   guest_ids from DB:', event.guest_ids);
-        console.log('   guest_ids type:', typeof event.guest_ids);
-        console.log('   guest_ids is array?', Array.isArray(event.guest_ids));
-        console.log('   guest_ids length:', event.guest_ids?.length || 0);
+        console.log('   guest_addresses from DB:', event.guest_addresses);
+        console.log('   guest_addresses type:', typeof event.guest_addresses);
+        console.log('   guest_addresses is array?', Array.isArray(event.guest_addresses));
+        console.log('   guest_addresses length:', event.guest_addresses?.length || 0);
         
         // Fetch host
         let host = null;
@@ -72,36 +72,7 @@ export async function GET(req: NextRequest) {
           console.log('   Host:', host?.address || 'not found');
         }
 
-        // Fetch guests
-        let guests = [];
-        if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
-          console.log('   Fetching guests for IDs:', event.guest_ids);
-          
-          const { data: guestData, error: guestError } = await supabase
-            .from('chat_users')
-            .select('id, address, display_name, alias, avatar')
-            .in('id', event.guest_ids);
-          
-          console.log('   Guest query error:', guestError);
-          console.log('   Guest data returned:', guestData);
-          console.log('   Number of guests found:', guestData?.length || 0);
-          
-          if (guestData) {
-            guestData.forEach((g, i) => {
-              console.log(`   Guest ${i + 1}:`, {
-                id: g.id,
-                address: g.address,
-                name: g.alias || g.display_name
-              });
-            });
-          }
-          
-          guests = guestData || [];
-        } else {
-          console.log('   No guest_ids or empty array');
-        }
-        
-        console.log('   Final guests count:', guests.length);
+        console.log('   Guest addresses (returning as-is):', event.guest_addresses);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         return {
@@ -125,13 +96,7 @@ export async function GET(req: NextRequest) {
                 avatar: host.avatar,
               }
             : null,
-          guests: guests.map((g) => ({
-            id: g.id,
-            address: g.address,
-            displayName: g.display_name,
-            alias: g.alias,
-            avatar: g.avatar,
-          })),
+          guestAddresses: event.guest_addresses || [], // ✅ Return addresses directly
           createdAt: event.created_at,
           updatedAt: event.updated_at,
         };
@@ -166,7 +131,7 @@ export async function POST(req: NextRequest) {
       scheduledEnd,
       videoEnabled,
       hostId,
-      guestAddresses = [],
+      guestAddresses = [], // ✅ Now receiving addresses directly
     } = body;
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -202,53 +167,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
-    // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
-let guestIds: string[] = [];
-
-if (guestAddresses.length > 0) {
-  console.log('🔍 Looking up/creating guest user IDs...');
-  
-  for (const address of guestAddresses) {
-    const normalizedAddress = address.toLowerCase();
-    console.log(`   Processing address: ${address}`);
+    // ✅ SIMPLIFIED: Just normalize addresses to lowercase
+    const normalizedGuestAddresses = guestAddresses.map((addr: string) => 
+      addr.toLowerCase()
+    );
     
-    // ✅ FIXED: Try lowercase exact match first
-    let { data: existingUser, error: lookupError } = await supabase
-      .from('chat_users')
-      .select('id, address')
-      .eq('address', normalizedAddress)
-      .maybeSingle();
-    
-    // ✅ FALLBACK: Try case-insensitive search if not found
-    if (!existingUser && !lookupError) {
-      console.log(`   Trying case-insensitive search...`);
-      const { data: mixedCaseUser } = await supabase
-        .from('chat_users')
-        .select('id, address')
-        .ilike('address', normalizedAddress)
-        .maybeSingle();
-      
-      if (mixedCaseUser) {
-        existingUser = mixedCaseUser;
-        console.log(`   Found user with mixed-case address: ${mixedCaseUser.address}`);
-      }
-    }
-    
-    if (existingUser) {
-      console.log(`   ✅ Found user for ${address}: ${existingUser.id}`);
-      guestIds.push(existingUser.id);
-    } else {
-      console.log(`   ⚠️ User not found in database - skipping`);
-      console.log(`   💡 Make sure user ${address} has logged into chat at least once`);
-    }
-  }
-  
-      console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('   Final guest IDs:', guestIds);
-      console.log('   Final guest count:', guestIds.length);
-      console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }
+    console.log('📝 Normalized guest addresses:', normalizedGuestAddresses);
 
     // Create Daily.co room if video is enabled
     let dailyRoomUrl = null;
@@ -308,8 +232,8 @@ if (guestAddresses.length > 0) {
       }
     }
 
-    // ✅ INSERT EVENT WITH GUEST IDs
-    console.log('💾 Inserting event with guest_ids:', guestIds);
+    // ✅ INSERT EVENT WITH GUEST ADDRESSES (not UUIDs)
+    console.log('💾 Inserting event with guest_addresses:', normalizedGuestAddresses);
     
     const { data: event, error: insertError } = await supabase
       .from('chat_events')
@@ -319,7 +243,7 @@ if (guestAddresses.length > 0) {
         channel_id: channelId,
         event_type: eventType,
         host_id: hostId,
-        guest_ids: guestIds,
+        guest_addresses: normalizedGuestAddresses, // ✅ Store addresses directly
         scheduled_start: scheduledStart,
         scheduled_end: scheduledEnd,
         status: 'scheduled',
@@ -333,8 +257,8 @@ if (guestAddresses.length > 0) {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('💾 INSERT RESULT');
     console.log('   Success:', !insertError);
-    console.log('   Event created with guest_ids:', event?.guest_ids);
-    console.log('   Guest count:', event?.guest_ids?.length || 0);
+    console.log('   Event created with guest_addresses:', event?.guest_addresses);
+    console.log('   Guest count:', event?.guest_addresses?.length || 0);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
