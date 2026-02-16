@@ -316,118 +316,82 @@ function TownsChat() {
 
         if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
-        const joinSpaceNow = async () => {
-          setIsJoining(true);
-          
-          try {
-            const account = wallet.getAccount();
-            if (!account) {
-              setIsJoining(false);
-              return;
-            }
+        // ✅ BOT MODE: Skip joinSpace entirely, let useSpace() handle sync
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🤖 Bot Mode: Skipping joinSpace()');
+            console.log('   Bot already has membership NFT');
+            console.log('   useSpace() will handle sync automatically');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             
-            // ✅ ADD 5-SECOND STABILIZATION DELAY FOR AGENT
-            console.log('⏳ Waiting for agent to stabilize (5 seconds)...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            console.log('✅ Agent stabilization complete');
+            setHasJoined(true);
+            window.KEY_SHARER_SPACE_JOINED = true;
             
-            console.log('🔍 Checking membership status...');
-            const checkRes = await fetch('/api/towns/check-membership', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userAddress: account.address }),
-            });
-            
-            const membershipData = await checkRes.json();
-            
-            if (window.KEY_SHARER_AUTO_MODE) {
-              console.log('🤖 Bot membership data:', {
-                success: membershipData.success,
-                hasMembership: membershipData.hasMembership,
-                balance: membershipData.balance,
-                totalMembers: membershipData.totalMembers,
-              });
-            }
-            
-            if (membershipData.success) {
-              const { hasMembership, totalMembers, isUnder100 } = membershipData;
-              
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.log('📊 Membership Status:');
-              console.log('   Has membership:', hasMembership);
-              console.log('   Total members:', totalMembers);
-              console.log('   Free tier active:', isUnder100);
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              
-              if (!hasMembership && !isUnder100) {
-                console.warn('⚠️ Over 100 members - new mints may cost gas');
-              }
-            }
-            
-            console.log('⏳ Stabilizing...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            return; // Skip the entire joinSpace flow for bot
+        }
 
-            console.log('🚀 Joining space...');
-            console.log('   Space ID:', SAVED_SPACE_ID);
-            console.log('   Account:', account.address);
-            
-            const signer = await createTownsSigner(account, client, activeChain);
-            console.log('   Signer created:', !!signer);
-            
-            const hasMembership = membershipData?.hasMembership || false;
-            
-            const skipMint = window.KEY_SHARER_AUTO_MODE ? true : hasMembership;
-            
-            console.log('   Skip minting:', skipMint);
-            console.log('   Bot mode:', !!window.KEY_SHARER_AUTO_MODE);
+        // ✅ NORMAL USER FLOW: Continue with membership check + joinSpace
+        const joinSpaceNow = async () => {
+            setIsJoining(true);
             
             try {
-              await joinSpace(SAVED_SPACE_ID, signer, {
-                skipMintMembership: skipMint
-              });
-              
-              console.log('✅ joinSpace call completed successfully');
-            } catch (joinError: any) {
-              console.error('❌ joinSpace failed with error:', {
-                message: joinError.message,
-                code: joinError.code,
-                details: joinError.details || joinError.toString(),
-              });
-              throw joinError;
-            }
-            
-            console.log('✅ Joined successfully!');
-            setHasJoined(true);
+                const account = wallet.getAccount();
+                if (!account) {
+                    setIsJoining(false);
+                    return;
+                }
+                
+                console.log('🔍 Checking membership status...');
+                const checkRes = await fetch('/api/towns/check-membership', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userAddress: account.address }),
+                });
+                
+                const membershipData = await checkRes.json();
+                
+                if (membershipData.success) {
+                    const { hasMembership, totalMembers, isUnder100 } = membershipData;
+                    
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    console.log('📊 Membership Status:');
+                    console.log('   Has membership:', hasMembership);
+                    console.log('   Total members:', totalMembers);
+                    console.log('   Free tier active:', isUnder100);
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    
+                    if (!hasMembership && !isUnder100) {
+                        console.warn('⚠️ Over 100 members - new mints may cost gas');
+                    }
+                }
+                
+                console.log('⏳ Stabilizing...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
-            if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-              console.log('🔑 Key sharer fully joined space');
-              window.KEY_SHARER_SPACE_JOINED = true;
-            }
+                console.log('🚀 Joining space...');
+                
+                const signer = await createTownsSigner(account, client, activeChain);
+                
+                const hasMembership = membershipData?.hasMembership || false;
+                
+                await joinSpace(SAVED_SPACE_ID, signer, {
+                    skipMintMembership: hasMembership
+                });
+                
+                console.log('✅ Joined successfully!');
+                setHasJoined(true);
 
-          } catch (error: any) {
-            if (error.message?.includes('already a member')) {
-              console.log('✅ Already a member');
-              setHasJoined(true);
-              
-              if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                console.log('🔑 Key sharer fully joined space');
-                window.KEY_SHARER_SPACE_JOINED = true;
-              }
-            } else {
-              console.error('❌ Join failed:', error);
-              
-              console.error('Full error object:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-                cause: error.cause,
-              });
-              
-              alert(`Failed to join: ${error.message}`);
+            } catch (error: any) {
+                if (error.message?.includes('already a member')) {
+                    console.log('✅ Already a member');
+                    setHasJoined(true);
+                } else {
+                    console.error('❌ Join failed:', error);
+                    alert(`Failed to join: ${error.message}`);
+                }
+            } finally {
+                setIsJoining(false);
             }
-          } finally {
-            setIsJoining(false);
-          }
         };
 
         joinSpaceNow();
