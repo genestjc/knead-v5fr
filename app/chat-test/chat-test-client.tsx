@@ -337,14 +337,14 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                     console.log('🤖 Bot Mode: Waiting for river connection...');
-                    console.log('   (5 second delay for SDK initialization)');
+                    console.log('   (15 second delay for SDK initialization)'); // ✅ Updated message
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    
-                    // ✅ Wait for river connection to be ready
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    
-                    console.log('🤖 Bot: Calling joinSpace with skipMintMembership...');
-                    console.log('   Account:', account.address);
+    
+                // ✅ Wait 15 seconds for river connection to be ready
+                await new Promise(resolve => setTimeout(resolve, 15000)); // ✅ Changed from 5000 to 15000
+    
+                console.log('🤖 Bot: Calling joinSpace with skipMintMembership...');
+                console.log('   Account:', account.address);
                     
                     try {
                         const signer = await createTownsSigner(account, client, activeChain);
