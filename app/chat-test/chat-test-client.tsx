@@ -22,7 +22,6 @@ declare global {
     KEY_SHARER_SPACE_JOINED?: boolean;
     KEY_SHARER_CHANNEL_SYNCED?: boolean;
     KEY_SHARER_CHANNEL_ID?: string;
-    __BOT_WALLET__?: any;
   }
 }
 
@@ -101,7 +100,6 @@ function useBotAutoConnect() {
         };
         
         setBotWallet(mockWallet);
-        window.__BOT_WALLET__ = mockWallet;
         
         delete window.KEY_SHARER_PRIVATE_KEY;
         console.log('🧹 Private key removed from browser memory');
@@ -176,6 +174,9 @@ function useBotAutoConnect() {
       window.KEY_SHARER_CONNECTED = false;
     }
   }, [wallet, botWallet, isAgentConnected]);
+
+  // ✅ Return botWallet so it can be passed as prop
+  return { botWallet };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -262,7 +263,7 @@ function SetupFlow() {
 // TOWNS CHAT - ✅ CUSTOM ETHERS V5 SIGNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function TownsChat() {
+function TownsChat({ botWallet }: { botWallet: any }) {
     const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
@@ -279,13 +280,11 @@ function TownsChat() {
         syncAgent = null;
     }
 
-    // ✅ Get the correct wallet for bot mode
-    const activeWallet = typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE
-        ? window.__BOT_WALLET__
-        : wallet;
+    // ✅ Use botWallet if in bot mode, otherwise use regular wallet
+    const effectiveWallet = wallet || botWallet;
 
     const currentUser: ChatUser | null = useMemo(() => {
-        const address = activeWallet?.getAccount?.()?.address;
+        const address = effectiveWallet?.getAccount?.()?.address;
         if (!address) return null;
         
         return {
@@ -298,7 +297,7 @@ function TownsChat() {
             createdAt: new Date(),
             updatedAt: new Date(),
         };
-    }, [activeWallet]);
+    }, [effectiveWallet]);
 
     useEffect(() => {
         if (space) {
@@ -321,13 +320,13 @@ function TownsChat() {
             return;
         }
 
-        if (hasJoined || isJoining || !activeWallet || !SAVED_SPACE_ID) return;
+        if (hasJoined || isJoining || !effectiveWallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             setIsJoining(true);
             
             try {
-                const account = activeWallet.getAccount?.();
+                const account = effectiveWallet.getAccount?.();
                 if (!account) {
                     console.error('❌ No account available');
                     setIsJoining(false);
@@ -436,7 +435,7 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [isAgentConnected, syncAgent, activeWallet, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, syncAgent, effectiveWallet, hasJoined, isJoining, joinSpace]);
 
     useEffect(() => {
         if (hasJoined && space?.initialized) {
@@ -538,7 +537,8 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     
-    useBotAutoConnect();
+    // ✅ Get botWallet from hook
+    const { botWallet } = useBotAutoConnect();
 
     useEffect(() => {
         setIsMounted(true);
@@ -565,8 +565,6 @@ export default function ChatTestClient() {
     if (!isMounted) return <LoadingSpinner />;
 
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      const botWallet = window.__BOT_WALLET__;
-      
       if (!botWallet) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-white">
@@ -584,7 +582,8 @@ export default function ChatTestClient() {
         return <SetupFlow />;
       }
 
-      return <TownsChat />;
+      // ✅ Pass botWallet as prop to TownsChat
+      return <TownsChat botWallet={botWallet} />;
     }
 
     if (!wallet) {
@@ -606,5 +605,5 @@ export default function ChatTestClient() {
         return <SetupFlow />;
     }
 
-    return <TownsChat />;
+    return <TownsChat botWallet={botWallet} />;
 }
