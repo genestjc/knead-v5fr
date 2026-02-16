@@ -22,6 +22,7 @@ declare global {
     KEY_SHARER_SPACE_JOINED?: boolean;
     KEY_SHARER_CHANNEL_SYNCED?: boolean;
     KEY_SHARER_CHANNEL_ID?: string;
+    __BOT_WALLET__?: any; // ✅ Store bot wallet globally
   }
 }
 
@@ -101,6 +102,9 @@ function useBotAutoConnect() {
         
         setBotWallet(mockWallet);
         
+        // ✅ Store bot wallet globally so TownsChat can access it
+        window.__BOT_WALLET__ = mockWallet;
+        
         delete window.KEY_SHARER_PRIVATE_KEY;
         console.log('🧹 Private key removed from browser memory');
         
@@ -178,7 +182,7 @@ function useBotAutoConnect() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW - ✅ CLEAN (NO BEARER TOKEN CACHING)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
@@ -277,8 +281,13 @@ function TownsChat() {
         syncAgent = null;
     }
 
+    // ✅ Get the correct wallet for bot mode
+    const activeWallet = typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE
+        ? window.__BOT_WALLET__
+        : wallet;
+
     const currentUser: ChatUser | null = useMemo(() => {
-        const address = wallet?.getAccount()?.address;
+        const address = activeWallet?.getAccount?.()?.address;
         if (!address) return null;
         
         return {
@@ -291,7 +300,7 @@ function TownsChat() {
             createdAt: new Date(),
             updatedAt: new Date(),
         };
-    }, [wallet]);
+    }, [activeWallet]);
 
     useEffect(() => {
         if (space) {
@@ -314,14 +323,15 @@ function TownsChat() {
             return;
         }
 
-        if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
+        if (hasJoined || isJoining || !activeWallet || !SAVED_SPACE_ID) return;
 
         const joinSpaceNow = async () => {
             setIsJoining(true);
             
             try {
-                const account = wallet.getAccount();
+                const account = activeWallet.getAccount?.();
                 if (!account) {
+                    console.error('❌ No account available');
                     setIsJoining(false);
                     return;
                 }
@@ -329,22 +339,37 @@ function TownsChat() {
                 // ✅ BOT MODE: Call joinSpace with skipMintMembership
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('🤖 Bot Mode: Joining space (skip mint)...');
-                    console.log('   Bot already has membership NFT');
-                    console.log('   Calling joinSpace() to register with stream nodes');
+                    console.log('🤖 Bot Mode: Calling joinSpace with skipMintMembership...');
+                    console.log('   Account:', account.address);
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                     
-                    const signer = await createTownsSigner(account, client, activeChain);
+                    try {
+                        const signer = await createTownsSigner(account, client, activeChain);
+                        
+                        await joinSpace(SAVED_SPACE_ID, signer, {
+                            skipMintMembership: true  // Already has NFT
+                        });
+                        
+                        console.log('✅ Bot: joinSpace succeeded');
+                        setHasJoined(true);
+                        window.KEY_SHARER_SPACE_JOINED = true;
+                        
+                    } catch (joinError: any) {
+                        console.error('❌ Bot joinSpace error:', joinError.message);
+                        
+                        // "already a member" is actually success
+                        if (joinError.message?.includes('already a member')) {
+                            console.log('✅ Bot: Already a member — treating as joined');
+                            setHasJoined(true);
+                            window.KEY_SHARER_SPACE_JOINED = true;
+                        } else {
+                            window.KEY_SHARER_ERROR = joinError.message;
+                            throw joinError;
+                        }
+                    } finally {
+                        setIsJoining(false);
+                    }
                     
-                    await joinSpace(SAVED_SPACE_ID, signer, {
-                        skipMintMembership: true  // Already has NFT
-                    });
-                    
-                    console.log('✅ Bot joined space successfully');
-                    setHasJoined(true);
-                    window.KEY_SHARER_SPACE_JOINED = true;
-                    
-                    setIsJoining(false);
                     return;
                 }
                 
@@ -407,7 +432,7 @@ function TownsChat() {
         };
 
         joinSpaceNow();
-    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, syncAgent, activeWallet, hasJoined, isJoining, joinSpace]);
 
     useEffect(() => {
         if (hasJoined && space?.initialized) {
@@ -536,7 +561,9 @@ export default function ChatTestClient() {
     if (!isMounted) return <LoadingSpinner />;
 
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      if (!wallet) {
+      const botWallet = window.__BOT_WALLET__;
+      
+      if (!botWallet) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="text-center max-w-md">
