@@ -203,58 +203,52 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
-    let guestIds: string[] = [];
+    // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
+let guestIds: string[] = [];
 
-    if (guestAddresses.length > 0) {
-      console.log('🔍 Looking up/creating guest user IDs...');
+if (guestAddresses.length > 0) {
+  console.log('🔍 Looking up/creating guest user IDs...');
+  
+  for (const address of guestAddresses) {
+    const normalizedAddress = address.toLowerCase();
+    console.log(`   Processing address: ${address}`);
+    
+    // ✅ FIXED: Try lowercase exact match first
+    let { data: existingUser, error: lookupError } = await supabase
+      .from('chat_users')
+      .select('id, address')
+      .eq('address', normalizedAddress)
+      .maybeSingle();
+    
+    // ✅ FALLBACK: Try case-insensitive search if not found
+    if (!existingUser && !lookupError) {
+      console.log(`   Trying case-insensitive search...`);
+      const { data: mixedCaseUser } = await supabase
+        .from('chat_users')
+        .select('id, address')
+        .ilike('address', normalizedAddress)
+        .maybeSingle();
       
-      for (const address of guestAddresses) {
-        console.log(`   Processing address: ${address}`);
-        
-        // Check if user exists
-        const { data: existingUser, error: lookupError } = await supabase
-          .from('chat_users')
-          .select('id')
-          .ilike('address', address)
-          .maybeSingle();
-        
-        console.log(`   Lookup result for ${address}:`, { 
-          found: !!existingUser, 
-          error: lookupError?.message 
-        });
-        
-        if (existingUser && !lookupError) {
-          console.log(`   ✅ Found user for ${address}: ${existingUser.id}`);
-          guestIds.push(existingUser.id);
-        } else {
-          // Create user entry for this address
-          console.log(`   ⚠️ No user found for ${address}, creating...`);
-          
-          const { data: newUser, error: createError } = await supabase
-            .from('chat_users')
-            .insert({
-              address: address.toLowerCase(),
-              display_name: `Guest ${address.slice(0, 8)}`,
-              // ✅ FIXED: Use 'viewer' (the default role) instead of 'user'
-              // Or omit role entirely to use the default
-            })
-            .select('id')
-            .single();
-          
-          if (newUser && !createError) {
-            console.log(`   ✅ Created user: ${newUser.id}`);
-            guestIds.push(newUser.id);
-          } else {
-            console.error(`   ❌ Failed to create user for ${address}:`, createError);
-          }
-        }
+      if (mixedCaseUser) {
+        existingUser = mixedCaseUser;
+        console.log(`   Found user with mixed-case address: ${mixedCaseUser.address}`);
       }
-      
+    }
+    
+    if (existingUser) {
+      console.log(`   ✅ Found user for ${address}: ${existingUser.id}`);
+      guestIds.push(existingUser.id);
+    } else {
+      console.log(`   ⚠️ User not found in database - skipping`);
+      console.log(`   💡 Make sure user ${address} has logged into chat at least once`);
+    }
+  }
+  
       console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('   Final guest IDs:', guestIds);
       console.log('   Final guest count:', guestIds.length);
       console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
+  }
 
     // Create Daily.co room if video is enabled
     let dailyRoomUrl = null;
