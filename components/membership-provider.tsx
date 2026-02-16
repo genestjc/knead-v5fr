@@ -40,24 +40,39 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Check membership directly from the contract using the comprehensive function
+  // ✅ FIXED: Check membership - BLOCKCHAIN FIRST (source of truth)
   const checkMembershipFromContract = async (address: string): Promise<MembershipType> => {
     try {
       console.log("Checking membership from contract for:", address);
       
-      // FIRST: Check if subscription is cancelled in database
-      const response = await fetch(`/api/check-membership?address=${address}`);
-      const data = await response.json();
+      // FIRST: Check blockchain (source of truth)
+      // This checks ALL membership contracts (Monthly, Annual, Breadwinner's Club, etc.)
+      const membership = await getMembershipType(client, address);
+      console.log("Blockchain membership result:", membership);
       
-      // If API says they have no membership or error, don't rely on cache
-      if (!response.ok || data.membershipType === "none") {
-        return null;
+      // If they have premium on blockchain, verify it's not cancelled in database
+      if (membership === "premium") {
+        try {
+          const response = await fetch(`/api/check-membership?address=${address}`);
+          const data = await response.json();
+          
+          // If subscription is explicitly cancelled in DB, revoke access
+          if (response.ok && data.status === "cancelled") {
+            console.log("⚠️ Subscription cancelled in database - revoking premium access");
+            return null;
+          }
+          
+          // Otherwise, blockchain says premium, so they're premium
+          console.log("✅ Premium membership confirmed (blockchain + DB check passed)");
+          return "premium";
+        } catch (apiError) {
+          // API failed, but blockchain says premium, so trust blockchain
+          console.warn("⚠️ API check failed, trusting blockchain:", apiError);
+          return "premium";
+        }
       }
       
-      // Use the comprehensive membership checker that checks all contracts
-      // including Breadwinner's Club (ERC721 on Zora) and Annual memberships
-      const membership = await getMembershipType(client, address);
-      
+      // For non-premium (freemium or null), return blockchain result directly
       return membership;
     } catch (err) {
       console.error("Error checking membership from contract:", err);
@@ -96,6 +111,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         expiresAt: Date.now() + (6 * 60 * 60 * 1000)
       };
       localStorage.setItem(MEMBERSHIP_CACHE_KEY, JSON.stringify(cacheData));
+      console.log("✅ Cached membership:", type);
     } catch (err) {
       console.error("Error caching membership:", err);
     }
@@ -109,25 +125,28 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       // First try to get cached membership
       const cachedMembership = getCachedMembership(address);
       if (cachedMembership) {
-        // Even with cache, verify it's still valid via API (quick check)
-        fetch(`/api/check-membership?address=${address}`)
-          .then(res => res.json())
-          .then(data => {
-            // If API says "none" but we have cache, clear cache and refetch
-            if (data.membershipType === "none" && cachedMembership.type !== null) {
-              console.log("Cache invalidated by API check, refetching...");
-              localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
-              fetchMembershipType(address);
-            }
-          })
-          .catch(err => console.error("Background API check failed:", err));
-        
+        // Use cache immediately
         setMembershipType(cachedMembership.type);
         setIsLoading(false);
+        
+        // Background: verify cache is still valid via blockchain check
+        // This ensures if they just purchased, we'll detect it
+        checkMembershipFromContract(address)
+          .then(freshMembership => {
+            // If blockchain says different than cache, update
+            if (freshMembership !== cachedMembership.type) {
+              console.log("🔄 Cache outdated, updating from blockchain:", freshMembership);
+              localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
+              cacheMembership(address, freshMembership);
+              setMembershipType(freshMembership);
+            }
+          })
+          .catch(err => console.error("Background blockchain check failed:", err));
+        
         return;
       }
       
-      // No cached data, fetch directly from contract
+      // No cached data, fetch directly from blockchain
       const contractMembership = await checkMembershipFromContract(address);
       
       // Cache and set the result
@@ -182,6 +201,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
   const refreshMembership = async () => {
     if (account?.address) {
       // Clear cache before refreshing
+      console.log("🔄 Refreshing membership - clearing cache");
       localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
       await fetchMembershipType(account.address);
     }
