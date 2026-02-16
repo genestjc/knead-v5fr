@@ -6,6 +6,7 @@ import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-pro
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
+import { BanScreen } from '@/components/chat/BanScreen';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
@@ -155,7 +156,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
-  const { permissions } = useChatPermissions(activeAccount?.address || null);
+  const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
 
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
   
@@ -164,6 +165,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+
+  // ✅ BAN CHECK: Right after all hooks, before any useEffects
+  if (isBanned) {
+    return (
+      <ChatLayout>
+        <BanScreen />
+      </ChatLayout>
+    );
+  }
   
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -247,7 +257,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // ✅ FIXED: Fetch live event with proper response parsing
   useEffect(() => {
     async function fetchLiveEvent() {
       try {
@@ -258,7 +267,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           cache: 'no-store', 
           headers: { 'Cache-Control': 'no-cache' } 
         });
-        const data = await response.json(); // ✅ FIXED: Parse the response
+        const data = await response.json();
         
         if (!data.success || !data.data || data.data.length === 0) {
           console.log('   No live events found');
@@ -279,11 +288,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           return;
         }
         
-        // ✅ Check if current user is host or guest
         const userAddress = activeAccount.address.toLowerCase();
         const isHost = event.host?.address?.toLowerCase() === userAddress;
         
-        // ✅ NEW: Direct address comparison
         const isGuest = event.guestAddresses?.some((addr: string) => 
           addr.toLowerCase() === userAddress
         );
@@ -303,7 +310,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         console.log('   isGuest:', isGuest);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
-        // ✅ Generate token if user is host OR guest
         const shouldGenerateToken = isHost || isGuest;
         
         console.log('🎫 TOKEN GENERATION:');
@@ -321,7 +327,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           return;
         }
         
-        // ✅ Generate Daily.co token
         console.log('   ✅ Generating Daily.co token...');
         
         const tokenResponse = await fetch('/api/events/generate-token', {
@@ -381,6 +386,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ✅ Extra safety: Block banned users
+    if (isBanned) {
+      alert('You are banned from Knead chat.');
+      return;
+    }
     
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
