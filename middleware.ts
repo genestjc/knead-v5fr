@@ -33,7 +33,9 @@ export function middleware(request: NextRequest) {
       https://embedded-wallet.thirdweb.com 
       https://vercel.live 
       https://js.stripe.com 
-      https://checkout.stripe.com;
+      https://checkout.stripe.com
+      https://www.youtube.com
+      https://www.youtube-nocookie.com;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
