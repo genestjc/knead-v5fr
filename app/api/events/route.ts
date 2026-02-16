@@ -138,7 +138,17 @@ export async function POST(req: NextRequest) {
       guestIds = [],
     } = body;
 
-    console.log('[POST /api/events] Creating event:', { title, hostId, videoEnabled });
+    // ✅ ADD SERVER-SIDE DEBUG LOGGING
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📥 [POST /api/events] REQUEST RECEIVED');
+    console.log('   Title:', title);
+    console.log('   Host ID:', hostId);
+    console.log('   Guest IDs from request:', guestIds);
+    console.log('   Guest IDs type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
+    console.log('   Guest IDs length:', guestIds.length);
+    console.log('   Guest IDs stringified:', JSON.stringify(guestIds));
+    console.log('   Video Enabled:', videoEnabled);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Validate required fields
     if (!title || !channelId || !eventType || !hostId || !scheduledStart || !scheduledEnd) {
@@ -169,6 +179,27 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Host user not found' },
         { status: 404 }
       );
+    }
+
+    // ✅ VERIFY GUESTS EXIST (if provided)
+    if (guestIds.length > 0) {
+      console.log('🔍 [POST /api/events] Verifying guests exist...');
+      const { data: guests, error: guestError } = await supabase
+        .from('chat_users')
+        .select('id, address, display_name, alias')
+        .in('id', guestIds);
+      
+      console.log('   Found guests:', guests);
+      console.log('   Guest error:', guestError);
+      
+      if (guestError) {
+        console.error('❌ [POST /api/events] Error fetching guests:', guestError);
+      }
+      
+      if (!guests || guests.length !== guestIds.length) {
+        console.warn('⚠️ [POST /api/events] Some guests not found in database!');
+        console.warn('   Requested:', guestIds.length, 'Found:', guests?.length || 0);
+      }
     }
 
     // Create Daily.co room if video is enabled
@@ -215,8 +246,6 @@ export async function POST(req: NextRequest) {
         const endTimestamp = Math.floor(new Date(scheduledEnd).getTime() / 1000);
         const chainEventType = eventType === 'live' ? EventType.Live : EventType.Discussion;
         
-        // Note: On-chain event ID is created but not stored in DB yet
-        // TODO: Add on_chain_event_id column to chat_events table to store this mapping
         await createOnChainEvent(
           title,
           startTimestamp,
@@ -228,11 +257,16 @@ export async function POST(req: NextRequest) {
         console.log('[POST /api/events] Created on-chain event for:', title);
       } catch (chainError) {
         console.error('[POST /api/events] Error creating on-chain event:', chainError);
-        // Don't fail the whole request if on-chain creation fails
       }
     }
 
-    // Insert event into database
+    // ✅ INSERT EVENT WITH DEBUG LOGGING
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('💾 [POST /api/events] INSERTING INTO DATABASE');
+    console.log('   guest_ids to insert:', guestIds);
+    console.log('   guest_ids type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     const { data: event, error: insertError } = await supabase
       .from('chat_events')
       .insert({
@@ -251,6 +285,14 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('💾 [POST /api/events] INSERT RESULT');
+    console.log('   Success:', !insertError);
+    console.log('   Error:', insertError);
+    console.log('   Returned event:', event);
+    console.log('   Returned guest_ids:', event?.guest_ids);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
       console.error('[POST /api/events] Error creating event:', insertError);
