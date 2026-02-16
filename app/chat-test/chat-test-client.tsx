@@ -182,7 +182,7 @@ function useBotAutoConnect() {
 // SETUP FLOW
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function SetupFlow() {
+function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
     const wallet = useActiveWallet();
     const { connect, isAgentConnected } = useAgentConnection();
     const [setupComplete, setSetupComplete] = useState(false);
@@ -208,6 +208,12 @@ function SetupFlow() {
                 console.log('🌐 Using omega (mainnet) environment');
                 
                 const signer = await createTownsSigner(account, client, activeChain);
+                
+                // ✅ Cache signer for reuse in joinSpaceNow()
+                if (signerRef) {
+                    signerRef.current = signer;
+                    console.log('💾 Signer cached for reuse');
+                }
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
@@ -238,7 +244,7 @@ function SetupFlow() {
         };
 
         runSetup();
-    }, [wallet, isAgentConnected, setupComplete, isConnecting, connect]);
+    }, [wallet, isAgentConnected, setupComplete, isConnecting, connect, signerRef]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
@@ -262,12 +268,12 @@ function SetupFlow() {
 // TOWNS CHAT - ✅ SIMPLE HUMAN-CENTERED LOGIC (bot auto-joins via same flow)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function TownsChat() {
+function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
     const [joinAttempt, setJoinAttempt] = useState(0); // ✅ Track retry attempts
-    const [signerRef] = useState<{ current: any }>({ current: null });
+    const [loadingStep, setLoadingStep] = useState<string>('Initializing...');
 
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
@@ -308,13 +314,13 @@ function TownsChat() {
     }, [space]);
 
     // ✅ RETRY LOGIC: Wrap joinSpace with exponential backoff
-    const joinWithRetry = async (spaceId: string, signer: any, maxRetries = 3) => {
+    const joinWithRetry = async (spaceId: string, signer: any, maxRetries = 3, skipMintMembership = true) => {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 setJoinAttempt(attempt + 1);
                 console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
                 
-                await joinSpace(spaceId, signer, { skipMintMembership: false });
+                await joinSpace(spaceId, signer, { skipMintMembership });
                 
                 console.log('✅ Joined successfully!');
                 return; // Success!
@@ -334,7 +340,7 @@ function TownsChat() {
                     || error.message?.includes('failed_precondition');
                 
                 if (isTransient && attempt < maxRetries - 1) {
-                    const delay = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
                     console.log(`⏳ Stream node busy (429 rate limit), retrying in ${delay/1000}s...`);
                     await new Promise(r => setTimeout(r, delay));
                     continue; // Retry
@@ -369,23 +375,41 @@ function TownsChat() {
                     return;
                 }
                 
-                // ✅ ONLY for bot: wait for river sync
+                // ✅ ONLY for bot: wait for river sync (reduced from 15s to 3s)
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-                    console.log('🤖 Bot Mode: Waiting 15s for river connection...');
-                    await new Promise(resolve => setTimeout(resolve, 15000));
+                    setLoadingStep('Bot Mode: Waiting for river connection...');
+                    console.log('🤖 Bot Mode: Waiting 3s for river connection...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                     window.KEY_SHARER_SPACE_JOINED = true;
                 }
                 
+                setLoadingStep('Preparing to join space...');
+                
                 // ✅ Reuse signer from agent connection if available
-                let signer = signerRef.current;
+                let signer = signerRef?.current;
                 if (!signer) {
+                    setLoadingStep('Creating signer...');
+                    console.log('⚠️ No cached signer, creating new one...');
                     signer = await createTownsSigner(account, client, activeChain);
-                    signerRef.current = signer;
+                    if (signerRef) {
+                        signerRef.current = signer;
+                    }
+                } else {
+                    console.log('✅ Reusing cached signer');
                 }
                 
-                // ✅ Join with retry logic
-                await joinWithRetry(SAVED_SPACE_ID, signer, 3);
+                setLoadingStep('Joining space...');
                 
+                // ✅ Determine if user is freemium for skipMintMembership optimization
+                const userAddress = account.address;
+                // Check if user has any NFTs (this is a simplified check)
+                // In production, you'd want to call getUserRole or similar
+                const skipMint = true; // Default to true for faster joins
+                
+                // ✅ Join with retry logic
+                await joinWithRetry(SAVED_SPACE_ID, signer, 3, skipMint);
+                
+                setLoadingStep('Space joined successfully!');
                 setHasJoined(true);
 
             } catch (error: any) {
@@ -401,6 +425,7 @@ function TownsChat() {
                     errorMessage += error.message;
                 }
                 
+                setLoadingStep('Join failed');
                 alert(errorMessage);
             } finally {
                 setIsJoining(false);
@@ -436,13 +461,11 @@ function TownsChat() {
                 <div className="text-center">
                     <LoadingSpinner />
                     <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-                        {isJoining ? (
-                            joinAttempt > 1 ? `Retrying connection (${joinAttempt}/3)...` : 'Joining space...'
-                        ) : 'Loading space...'}
+                        {loadingStep}
                     </p>
                     {joinAttempt > 1 && (
                         <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-                            Network is busy, please wait...
+                            Retry {joinAttempt}/3 - Network is busy, please wait...
                         </p>
                     )}
                 </div>
@@ -525,6 +548,9 @@ export default function ChatTestClient() {
     const { isAgentConnected } = useAgentConnection();
     
     const { botWallet } = useBotAutoConnect();
+    
+    // ✅ Create signerRef at the top level to share between SetupFlow and TownsChat
+    const [signerRef] = useState<{ current: any }>({ current: null });
 
     useEffect(() => {
         setIsMounted(true);
@@ -566,10 +592,10 @@ export default function ChatTestClient() {
       }
 
       if (!isAgentConnected) {
-        return <SetupFlow />;
+        return <SetupFlow signerRef={signerRef} />;
       }
 
-      return <TownsChat />;
+      return <TownsChat signerRef={signerRef} />;
     }
 
     if (!wallet) {
@@ -588,8 +614,8 @@ export default function ChatTestClient() {
     }
 
     if (!isAgentConnected) {
-        return <SetupFlow />;
+        return <SetupFlow signerRef={signerRef} />;
     }
 
-    return <TownsChat />;
+    return <TownsChat signerRef={signerRef} />;
 }

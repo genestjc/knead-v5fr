@@ -150,7 +150,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
-  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   
   const activeAccount = useActiveAccount();
 
@@ -194,6 +193,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ✅ Load scrollback immediately on mount (parallel with space initialization)
+  useEffect(() => {
+    if (!channelId || isScrollbackPending) return;
+    
+    console.log('📜 Loading message history in parallel...');
+    
+    const loadHistory = async () => {
+      try {
+        const result = await scrollback();
+        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
+      } catch (error) {
+        console.error('❌ Failed to load message history:', error);
+      }
+    };
+    
+    loadHistory();
+  }, [channelId, scrollback, isScrollbackPending]);
+
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -216,25 +233,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     return null;
   }, []);
-
-  useEffect(() => {
-    if (hasLoadedHistory || isScrollbackPending || !channelId) return;
-    
-    console.log('📜 Loading message history...');
-    
-    const loadHistory = async () => {
-      try {
-        const result = await scrollback();
-        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
-        setHasLoadedHistory(true);
-      } catch (error) {
-        console.error('❌ Failed to load message history:', error);
-        setHasLoadedHistory(true);
-      }
-    };
-    
-    loadHistory();
-  }, [hasLoadedHistory, scrollback, isScrollbackPending, channelId]);
 
   useEffect(() => {
     async function detectRole() {
