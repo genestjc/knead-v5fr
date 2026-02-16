@@ -135,19 +135,13 @@ export async function POST(req: NextRequest) {
       scheduledEnd,
       videoEnabled,
       hostId,
-      guestIds = [],
+      guestAddresses = [], // ✅ Receive addresses instead of IDs
     } = body;
 
-    // ✅ ADD SERVER-SIDE DEBUG LOGGING
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📥 [POST /api/events] REQUEST RECEIVED');
+    console.log('📥 [POST /api/events] Creating event');
     console.log('   Title:', title);
-    console.log('   Host ID:', hostId);
-    console.log('   Guest IDs from request:', guestIds);
-    console.log('   Guest IDs type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
-    console.log('   Guest IDs length:', guestIds.length);
-    console.log('   Guest IDs stringified:', JSON.stringify(guestIds));
-    console.log('   Video Enabled:', videoEnabled);
+    console.log('   Guest addresses received:', guestAddresses);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Validate required fields
@@ -155,11 +149,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json<ApiResponse<null>>(
         {
           success: false,
-          error: `Missing required fields: ${
-            !title ? 'title ' : ''
-          }${!channelId ? 'channelId ' : ''}${!eventType ? 'eventType ' : ''}${
-            !hostId ? 'hostId ' : ''
-          }${!scheduledStart ? 'scheduledStart ' : ''}${!scheduledEnd ? 'scheduledEnd ' : ''}`,
+          error: `Missing required fields`,
         },
         { status: 400 }
       );
@@ -181,25 +171,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ VERIFY GUESTS EXIST (if provided)
-    if (guestIds.length > 0) {
-      console.log('🔍 [POST /api/events] Verifying guests exist...');
-      const { data: guests, error: guestError } = await supabase
-        .from('chat_users')
-        .select('id, address, display_name, alias')
-        .in('id', guestIds);
+    // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
+    let guestIds: string[] = [];
+    
+    if (guestAddresses.length > 0) {
+      console.log('🔍 Looking up/creating guest user IDs...');
       
-      console.log('   Found guests:', guests);
-      console.log('   Guest error:', guestError);
-      
-      if (guestError) {
-        console.error('❌ [POST /api/events] Error fetching guests:', guestError);
+      for (const address of guestAddresses) {
+        // Check if user exists
+        let { data: existingUser } = await supabase
+          .from('chat_users')
+          .select('id')
+          .ilike('address', address) // Case-insensitive match
+          .single();
+        
+        if (existingUser) {
+          console.log(`   ✅ Found user for ${address}: ${existingUser.id}`);
+          guestIds.push(existingUser.id);
+        } else {
+          // Create user entry for this address
+          console.log(`   ⚠️ No user found for ${address}, creating...`);
+          
+          const { data: newUser, error: createError } = await supabase
+            .from('chat_users')
+            .insert({
+              address: address,
+              display_name: `Guest ${address.slice(0, 8)}`,
+              role: 'user',
+            })
+            .select('id')
+            .single();
+          
+          if (newUser && !createError) {
+            console.log(`   ✅ Created user: ${newUser.id}`);
+            guestIds.push(newUser.id);
+          } else {
+            console.error(`   ❌ Failed to create user for ${address}:`, createError);
+          }
+        }
       }
       
-      if (!guests || guests.length !== guestIds.length) {
-        console.warn('⚠️ [POST /api/events] Some guests not found in database!');
-        console.warn('   Requested:', guestIds.length, 'Found:', guests?.length || 0);
-      }
+      console.log('   Final guest IDs:', guestIds);
     }
 
     // Create Daily.co room if video is enabled
@@ -260,13 +272,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ✅ INSERT EVENT WITH DEBUG LOGGING
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('💾 [POST /api/events] INSERTING INTO DATABASE');
-    console.log('   guest_ids to insert:', guestIds);
-    console.log('   guest_ids type:', Array.isArray(guestIds) ? 'Array' : typeof guestIds);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
+    // ✅ INSERT EVENT WITH GUEST IDs
+    console.log('💾 Inserting event with guest_ids:', guestIds);
+    
     const { data: event, error: insertError } = await supabase
       .from('chat_events')
       .insert({
@@ -287,11 +295,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('💾 [POST /api/events] INSERT RESULT');
+    console.log('💾 INSERT RESULT');
     console.log('   Success:', !insertError);
-    console.log('   Error:', insertError);
-    console.log('   Returned event:', event);
-    console.log('   Returned guest_ids:', event?.guest_ids);
+    console.log('   Event created with guest_ids:', event?.guest_ids);
+    console.log('   Guest count:', event?.guest_ids?.length || 0);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
