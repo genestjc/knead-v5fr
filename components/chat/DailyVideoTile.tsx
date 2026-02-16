@@ -48,7 +48,7 @@ export function DailyVideoTile({ sessionId, label, isLocal = false }: DailyVideo
   };
 
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden h-full">
+    <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full aspect-video">
       {/* Video Element */}
       <video
         ref={videoRef}
