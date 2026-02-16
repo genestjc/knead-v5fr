@@ -31,8 +31,16 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
   try {
     const nftContractAddress = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
     
+    // 🔍 DEBUG LOGGING
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔍 hasKneadMonthly() called");
+    console.log("  Wallet:", address);
+    console.log("  Contract from env:", nftContractAddress);
+    console.log("  Expected:", "0xfd678ed8a0ed853d5399da9585d46aea44cbce85");
+    console.log("  Match?", nftContractAddress?.toLowerCase() === "0xfd678ed8a0ed853d5399da9585d46aea44cbce85");
+    
     if (!nftContractAddress) {
-      console.warn("NEXT_PUBLIC_NFT_CONTRACT_ADDRESS is not set");
+      console.warn("❌ NEXT_PUBLIC_NFT_CONTRACT_ADDRESS is not set");
       return false;
     }
 
@@ -42,15 +50,21 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
       address: nftContractAddress,
     });
 
+    console.log("  Checking Token ID: 1");
+
     const balance = await readContract({
       contract,
       method: "function balanceOf(address account, uint256 id) view returns (uint256)",
       params: [address, BigInt(1)],
     });
 
+    console.log("  Balance:", balance.toString());
+    console.log("  Has NFT?", Number(balance) > 0 ? "✅ YES" : "❌ NO");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
     return Number(balance) > 0;
   } catch (error) {
-    console.error("Error checking Knead Monthly NFT:", error);
+    console.error("❌ Error checking Knead Monthly NFT:", error);
     return false;
   }
 }
