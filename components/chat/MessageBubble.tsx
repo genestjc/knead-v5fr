@@ -33,9 +33,7 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// ✅ FINAL: Bread Loaf Counter Badge (smaller, subtle gray)
-// ✅ FINAL: Bread Loaf Counter Badge (tall rounded dome, more breathing room)
-// ✅ FINAL: Bread Loaf Counter Badge (smaller, text fits perfectly)
+// Bread Loaf Counter Badge
 function BreadCounterBadge({ 
   totalTips, 
   isActive, 
@@ -47,67 +45,41 @@ function BreadCounterBadge({
 }) {
   const strokeColor = isActive ? '#4b5563' : '#9ca3af';  // gray-600 : gray-400
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
-
   return (
-    <div className="relative inline-flex items-center justify-center w-[75px] h-[42px]">
-      {/* Bread loaf outline SVG - SMALLER */}
+    <div className="relative inline-flex items-center justify-center w-[70px] h-[40px]">
+      {/* Rounded bread loaf SVG */}
       <svg 
-        width="75" 
-        height="42" 
-        viewBox="0 0 75 42" 
+        width="70" 
+        height="40" 
+        viewBox="0 0 70 40" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
         className="absolute inset-0"
       >
-        {/* Tall rounded dome top */}
+        {/* Rounded bread shape - centered */}
         <path 
-          d="M16 21 C16 10, 22 4, 37.5 4 C53 4, 59 10, 59 21" 
+          d="M18 22 C18 10, 24 4, 35 4 C46 4, 52 10, 52 22 C52 24, 51 26, 50 27 L50 34 C50 35.5, 48.5 37, 47 37 L23 37 C21.5 37, 20 35.5, 20 34 L20 27 C19 26, 18 24, 18 22 Z" 
           stroke={strokeColor}
           strokeWidth="1.6"
           fill="white"
         />
-        
-        {/* Left side */}
+        {/* Subtle depth shadow - left */}
         <path 
-          d="M16 21 C14 22, 13 23, 13 24 L13 36 C13 38, 14 39, 16 39" 
+          d="M21 24 C19 25, 19 26, 19 28" 
           stroke={strokeColor}
-          strokeWidth="1.6"
-          fill="white"
+          strokeWidth="0.5"
+          opacity="0.15"
         />
-        
-        {/* Right side */}
+        {/* Subtle depth shadow - right */}
         <path 
-          d="M59 21 C61 22, 62 23, 62 24 L62 36 C62 38, 61 39, 59 39" 
+          d="M49 24 C51 25, 51 26, 51 28" 
           stroke={strokeColor}
-          strokeWidth="1.6"
-          fill="white"
-        />
-        
-        {/* Bottom edge */}
-        <path 
-          d="M16 39 L59 39" 
-          stroke={strokeColor}
-          strokeWidth="1.6"
-          fill="white"
-        />
-        
-        {/* Subtle depth shadow */}
-        <path 
-          d="M17 22 C15 23, 14 24, 14 26" 
-          stroke={strokeColor}
-          strokeWidth="0.7"
-          opacity="0.2"
-        />
-        <path 
-          d="M58 22 C60 23, 61 24, 61 26" 
-          stroke={strokeColor}
-          strokeWidth="0.7"
-          opacity="0.2"
+          strokeWidth="0.5"
+          opacity="0.15"
         />
       </svg>
-
-      {/* Counter text - smaller font, better positioned */}
-      <div className={`relative z-10 font-georgia-pro text-[10px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full px-2`}>
+      {/* Counter text - centered */}
+      <div className={`relative z-10 font-georgia-pro text-[10px] font-normal ${textColor} text-center flex items-center justify-center w-full h-full`}>
         {isReacting ? (
           <span>⏳</span>
         ) : (
