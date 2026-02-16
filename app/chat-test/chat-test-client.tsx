@@ -63,6 +63,48 @@ const LoadingSpinner = () => (
 );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ✅ RETRY HELPER WITH EXPONENTIAL BACKOFF
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000,
+  context: string = 'operation'
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a rate limit error (429) or bandwidth exceeded
+      const isRateLimitError = 
+        error.message?.includes('429') ||
+        error.message?.includes('Too Many Requests') ||
+        error.message?.includes('Bandwidth limit exceeded') ||
+        error.message?.includes('-31002');
+      
+      const isLastAttempt = attempt === maxRetries - 1;
+      
+      if (isRateLimitError && !isLastAttempt) {
+        const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(`⚠️ Rate limit hit on ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // For non-rate-limit errors or last attempt, throw immediately
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ✅ BOT AUTO-CONNECT HOOK (for automated message client/node)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -160,7 +202,7 @@ function useBotAutoConnect() {
     const activeWallet = wallet || botWallet;
 
     if (activeWallet && isAgentConnected) {
-      console.log('━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ BOT SUCCESSFULLY CONNECTED');
       console.log(`   Wallet: ${activeWallet.getAccount?.()?.address || 'unknown'}`);
       console.log(`   Time: ${new Date().toISOString()}`);
@@ -175,7 +217,6 @@ function useBotAutoConnect() {
     }
   }, [wallet, botWallet, isAgentConnected]);
 
-  // ✅ Return botWallet so it can be passed as prop
   return { botWallet };
 }
 
@@ -212,12 +253,19 @@ function SetupFlow() {
                 
                 console.log('✅ Signer created, requesting Towns authentication signature...');
                 
-                await connect(signer, { 
-                    townsConfig: TOWNS_CONFIG,
-                    onTokenExpired: () => {
+                await retryWithBackoff(
+                  async () => {
+                    await connect(signer, { 
+                      townsConfig: TOWNS_CONFIG,
+                      onTokenExpired: () => {
                         console.log('⚠️ Token expired');
-                    }
-                });
+                      }
+                    });
+                  },
+                  3,
+                  2000,
+                  'agent connection'
+                );
                 
                 console.log('✅ Towns agent connected');
                 
@@ -232,7 +280,7 @@ function SetupFlow() {
                     window.KEY_SHARER_CONNECTED = false;
                 }
                 
-                alert(`Setup failed: ${error.message}`);
+                alert(`Setup failed: ${error.message}\n\nIf you're seeing rate limit errors, please try again in a few minutes.`);
             } finally {
                 setIsConnecting(false);
             }
@@ -260,13 +308,14 @@ function SetupFlow() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TOWNS CHAT - ✅ SEPARATED BOT AND HUMAN JOIN LOGIC
+// TOWNS CHAT - ✅ SEPARATED BOT AND HUMAN JOIN LOGIC WITH RETRY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TownsChat({ botWallet }: { botWallet: any }) {
     const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
     const [hasJoined, setHasJoined] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
+    const [joinAttempted, setJoinAttempted] = useState(false); // ✅ Prevent multiple attempts
 
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
@@ -280,7 +329,6 @@ function TownsChat({ botWallet }: { botWallet: any }) {
         syncAgent = null;
     }
 
-    // ✅ Use botWallet if in bot mode, otherwise use regular wallet
     const effectiveWallet = wallet || botWallet;
 
     const currentUser: ChatUser | null = useMemo(() => {
@@ -306,7 +354,7 @@ function TownsChat({ botWallet }: { botWallet: any }) {
             console.log('   Initialized:', space.initialized);
             console.log('   Channel IDs:', space.channelIds);
             console.log('   Metadata:', space.metadata);
-            console.log('━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
     }, [space]);
 
@@ -325,10 +373,12 @@ function TownsChat({ botWallet }: { botWallet: any }) {
     useEffect(() => {
         if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) return;
         if (!isAgentConnected || !syncAgent || !effectiveWallet || !SAVED_SPACE_ID) return;
-        if (hasJoined || isJoining) return;
+        if (hasJoined || isJoining || joinAttempted) return; // ✅ Prevent re-runs
 
         const joinAsBot = async () => {
             setIsJoining(true);
+            setJoinAttempted(true); // ✅ Mark as attempted
+            
             try {
                 const account = effectiveWallet.getAccount?.();
                 if (!account) { 
@@ -336,21 +386,28 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                     return; 
                 }
 
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━');
                 console.log('🤖 Bot Mode: Waiting for river connection...');
                 console.log('   (15 second delay for SDK initialization)');
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-                // ✅ Wait 15 seconds for river connection to be ready
                 await new Promise(resolve => setTimeout(resolve, 15000));
 
                 console.log('🤖 Bot: Calling joinSpace with skipMintMembership...');
                 console.log('   Account:', account.address);
 
-                const signer = await createTownsSigner(account, client, activeChain);
-                await joinSpace(SAVED_SPACE_ID, signer, { 
-                    skipMintMembership: true  // Already has NFT
-                });
+                // ✅ Wrap joinSpace in retry logic
+                await retryWithBackoff(
+                  async () => {
+                    const signer = await createTownsSigner(account, client, activeChain);
+                    await joinSpace(SAVED_SPACE_ID, signer, { 
+                      skipMintMembership: true
+                    });
+                  },
+                  3,
+                  2000,
+                  'bot joinSpace'
+                );
 
                 console.log('✅ Bot: joinSpace succeeded');
                 setHasJoined(true);
@@ -358,13 +415,13 @@ function TownsChat({ botWallet }: { botWallet: any }) {
             } catch (error: any) {
                 console.error('❌ Bot joinSpace error:', error.message);
 
-                // "already a member" is actually success
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Bot: Already a member — treating as joined');
                     setHasJoined(true);
                     window.KEY_SHARER_SPACE_JOINED = true;
                 } else {
                     window.KEY_SHARER_ERROR = error.message;
+                    setJoinAttempted(false); // ✅ Allow retry on real errors
                 }
             } finally {
                 setIsJoining(false);
@@ -372,16 +429,18 @@ function TownsChat({ botWallet }: { botWallet: any }) {
         };
 
         joinAsBot();
-    }, [isAgentConnected, syncAgent, effectiveWallet, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, syncAgent, effectiveWallet, hasJoined, isJoining, joinAttempted, joinSpace]);
 
     // ━━━ HUMAN JOIN (never runs in bot mode) ━━━
     useEffect(() => {
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) return;
         if (!isAgentConnected || !syncAgent || !wallet || !SAVED_SPACE_ID) return;
-        if (hasJoined || isJoining) return;
+        if (hasJoined || isJoining || joinAttempted) return; // ✅ Prevent re-runs
 
         const joinAsHuman = async () => {
             setIsJoining(true);
+            setJoinAttempted(true); // ✅ Mark as attempted
+            
             try {
                 const account = wallet.getAccount?.();
                 if (!account) { 
@@ -394,17 +453,28 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                 console.log('   (3 second delay for SDK sync)');
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-                // ✅ Give SDK 3 seconds to sync streams after agent connects
                 await new Promise(resolve => setTimeout(resolve, 3000));
 
-                // Check membership
-                console.log('🔍 Checking membership status...');
-                const checkRes = await fetch('/api/towns/check-membership', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: account.address }),
-                });
-                const membershipData = await checkRes.json();
+                // ✅ Wrap API call and joinSpace in retry logic
+                const membershipData = await retryWithBackoff(
+                  async () => {
+                    const checkRes = await fetch('/api/towns/check-membership', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userAddress: account.address }),
+                    });
+                    
+                    if (!checkRes.ok) {
+                      throw new Error(`HTTP ${checkRes.status}: ${checkRes.statusText}`);
+                    }
+                    
+                    return await checkRes.json();
+                  },
+                  3,
+                  1000,
+                  'membership check'
+                );
+
                 const hasMembership = membershipData?.hasMembership || false;
 
                 if (membershipData.success) {
@@ -420,10 +490,18 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                 console.log('🚀 Joining space...');
                 console.log('   skipMintMembership:', hasMembership);
 
-                const signer = await createTownsSigner(account, client, activeChain);
-                await joinSpace(SAVED_SPACE_ID, signer, {
-                    skipMintMembership: hasMembership,
-                });
+                // ✅ Wrap joinSpace in retry logic
+                await retryWithBackoff(
+                  async () => {
+                    const signer = await createTownsSigner(account, client, activeChain);
+                    await joinSpace(SAVED_SPACE_ID, signer, {
+                      skipMintMembership: hasMembership,
+                    });
+                  },
+                  3,
+                  2000,
+                  'human joinSpace'
+                );
 
                 console.log('✅ Human joined successfully!');
                 setHasJoined(true);
@@ -433,7 +511,19 @@ function TownsChat({ botWallet }: { botWallet: any }) {
                     setHasJoined(true);
                 } else {
                     console.error('❌ Human join failed:', error);
-                    alert(`Failed to join: ${error.message}`);
+                    
+                    const isRateLimitError = 
+                      error.message?.includes('429') ||
+                      error.message?.includes('Too Many Requests') ||
+                      error.message?.includes('Bandwidth limit exceeded');
+                    
+                    if (isRateLimitError) {
+                      alert(`⚠️ Rate limit reached. Please:\n\n1. Wait 1-2 minutes\n2. Refresh the page\n3. Contact support if this persists\n\n(Check your RPC provider dashboard)`);
+                    } else {
+                      alert(`Failed to join: ${error.message}`);
+                    }
+                    
+                    setJoinAttempted(false); // ✅ Allow retry
                 }
             } finally {
                 setIsJoining(false);
@@ -441,7 +531,7 @@ function TownsChat({ botWallet }: { botWallet: any }) {
         };
 
         joinAsHuman();
-    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace]);
+    }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinAttempted, joinSpace]);
 
     useEffect(() => {
         if (hasJoined && space?.initialized) {
@@ -543,7 +633,6 @@ export default function ChatTestClient() {
     const wallet = useActiveWallet();
     const { isAgentConnected } = useAgentConnection();
     
-    // ✅ Get botWallet from hook
     const { botWallet } = useBotAutoConnect();
 
     useEffect(() => {
@@ -588,7 +677,6 @@ export default function ChatTestClient() {
         return <SetupFlow />;
       }
 
-      // ✅ Pass botWallet as prop to TownsChat
       return <TownsChat botWallet={botWallet} />;
     }
 
