@@ -22,7 +22,7 @@ declare global {
     KEY_SHARER_SPACE_JOINED?: boolean;
     KEY_SHARER_CHANNEL_SYNCED?: boolean;
     KEY_SHARER_CHANNEL_ID?: string;
-    __BOT_WALLET__?: any; // ✅ Store bot wallet globally
+    __BOT_WALLET__?: any;
   }
 }
 
@@ -101,8 +101,6 @@ function useBotAutoConnect() {
         };
         
         setBotWallet(mockWallet);
-        
-        // ✅ Store bot wallet globally so TownsChat can access it
         window.__BOT_WALLET__ = mockWallet;
         
         delete window.KEY_SHARER_PRIVATE_KEY;
@@ -182,7 +180,7 @@ function useBotAutoConnect() {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP FLOW - ✅ CLEAN (NO BEARER TOKEN CACHING)
-// ━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function SetupFlow() {
     const wallet = useActiveWallet();
@@ -336,12 +334,18 @@ function TownsChat() {
                     return;
                 }
                 
-                // ✅ BOT MODE: Call joinSpace with skipMintMembership
+                // ✅ BOT MODE: Wait for river connection, then call joinSpace
                 if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                    console.log('🤖 Bot Mode: Calling joinSpace with skipMintMembership...');
-                    console.log('   Account:', account.address);
+                    console.log('🤖 Bot Mode: Waiting for river connection...');
+                    console.log('   (5 second delay for SDK initialization)');
                     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    
+                    // ✅ Wait for river connection to be ready
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    
+                    console.log('🤖 Bot: Calling joinSpace with skipMintMembership...');
+                    console.log('   Account:', account.address);
                     
                     try {
                         const signer = await createTownsSigner(account, client, activeChain);
