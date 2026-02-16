@@ -52,6 +52,14 @@ export async function GET(req: NextRequest) {
     // Fetch host and guest data
     const eventsWithUsers = await Promise.all(
       events.map(async (event) => {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[GET /api/events] Processing event:', event.title);
+        console.log('   Event ID:', event.id);
+        console.log('   guest_ids from DB:', event.guest_ids);
+        console.log('   guest_ids type:', typeof event.guest_ids);
+        console.log('   guest_ids is array?', Array.isArray(event.guest_ids));
+        console.log('   guest_ids length:', event.guest_ids?.length || 0);
+        
         // Fetch host
         let host = null;
         if (event.host_id) {
@@ -61,17 +69,40 @@ export async function GET(req: NextRequest) {
             .eq('id', event.host_id)
             .single();
           host = hostData;
+          console.log('   Host:', host?.address || 'not found');
         }
 
         // Fetch guests
         let guests = [];
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
-          const { data: guestData } = await supabase
+          console.log('   Fetching guests for IDs:', event.guest_ids);
+          
+          const { data: guestData, error: guestError } = await supabase
             .from('chat_users')
             .select('id, address, display_name, alias, avatar')
             .in('id', event.guest_ids);
+          
+          console.log('   Guest query error:', guestError);
+          console.log('   Guest data returned:', guestData);
+          console.log('   Number of guests found:', guestData?.length || 0);
+          
+          if (guestData) {
+            guestData.forEach((g, i) => {
+              console.log(`   Guest ${i + 1}:`, {
+                id: g.id,
+                address: g.address,
+                name: g.alias || g.display_name
+              });
+            });
+          }
+          
           guests = guestData || [];
+        } else {
+          console.log('   No guest_ids or empty array');
         }
+        
+        console.log('   Final guests count:', guests.length);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         return {
           id: event.id,
@@ -173,19 +204,26 @@ export async function POST(req: NextRequest) {
 
     // ✅ LOOK UP OR CREATE GUEST USER IDs FROM ADDRESSES
     let guestIds: string[] = [];
-    
+
     if (guestAddresses.length > 0) {
       console.log('🔍 Looking up/creating guest user IDs...');
       
       for (const address of guestAddresses) {
-        // Check if user exists
-        let { data: existingUser } = await supabase
+        console.log(`   Processing address: ${address}`);
+        
+        // Check if user exists - use error handling
+        const { data: existingUser, error: lookupError } = await supabase
           .from('chat_users')
           .select('id')
-          .ilike('address', address) // Case-insensitive match
-          .single();
+          .ilike('address', address)
+          .maybeSingle(); // ✅ Use maybeSingle() instead of single()
         
-        if (existingUser) {
+        console.log(`   Lookup result for ${address}:`, { 
+          found: !!existingUser, 
+          error: lookupError?.message 
+        });
+        
+        if (existingUser && !lookupError) {
           console.log(`   ✅ Found user for ${address}: ${existingUser.id}`);
           guestIds.push(existingUser.id);
         } else {
@@ -195,7 +233,7 @@ export async function POST(req: NextRequest) {
           const { data: newUser, error: createError } = await supabase
             .from('chat_users')
             .insert({
-              address: address,
+              address: address.toLowerCase(), // ✅ Ensure lowercase
               display_name: `Guest ${address.slice(0, 8)}`,
               role: 'user',
             })
@@ -211,7 +249,10 @@ export async function POST(req: NextRequest) {
         }
       }
       
+      console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('   Final guest IDs:', guestIds);
+      console.log('   Final guest count:', guestIds.length);
+      console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
 
     // Create Daily.co room if video is enabled
