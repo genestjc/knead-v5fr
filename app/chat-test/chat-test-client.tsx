@@ -1,7 +1,7 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
@@ -549,8 +549,8 @@ export default function ChatTestClient() {
     
     const { botWallet } = useBotAutoConnect();
     
-    // ✅ Create signerRef at the top level to share between SetupFlow and TownsChat
-    const [signerRef] = useState<{ current: any }>({ current: null });
+    // ✅ Use useRef for signer caching (proper React pattern)
+    const signerRef = useRef<any>(null);
 
     useEffect(() => {
         setIsMounted(true);
