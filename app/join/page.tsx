@@ -285,7 +285,7 @@ export default function JoinPage() {
                 <div className="animate-pulse h-12 bg-gray-100 rounded"></div>
               ) : hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  You're already a premium member
+                  You're already a Knead Monthly member
                 </div>
               ) : account?.address ? (
                 <button
