@@ -316,21 +316,6 @@ function TownsChat() {
 
         if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
-        // ✅ BOT MODE: Skip joinSpace entirely, let useSpace() handle sync
-        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('🤖 Bot Mode: Skipping joinSpace()');
-            console.log('   Bot already has membership NFT');
-            console.log('   useSpace() will handle sync automatically');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            
-            setHasJoined(true);
-            window.KEY_SHARER_SPACE_JOINED = true;
-            
-            return; // Skip the entire joinSpace flow for bot
-        }
-
-        // ✅ NORMAL USER FLOW: Continue with membership check + joinSpace
         const joinSpaceNow = async () => {
             setIsJoining(true);
             
@@ -341,6 +326,29 @@ function TownsChat() {
                     return;
                 }
                 
+                // ✅ BOT MODE: Call joinSpace with skipMintMembership
+                if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    console.log('🤖 Bot Mode: Joining space (skip mint)...');
+                    console.log('   Bot already has membership NFT');
+                    console.log('   Calling joinSpace() to register with stream nodes');
+                    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                    
+                    const signer = await createTownsSigner(account, client, activeChain);
+                    
+                    await joinSpace(SAVED_SPACE_ID, signer, {
+                        skipMintMembership: true  // Already has NFT
+                    });
+                    
+                    console.log('✅ Bot joined space successfully');
+                    setHasJoined(true);
+                    window.KEY_SHARER_SPACE_JOINED = true;
+                    
+                    setIsJoining(false);
+                    return;
+                }
+                
+                // ✅ NORMAL USER FLOW
                 console.log('🔍 Checking membership status...');
                 const checkRes = await fetch('/api/towns/check-membership', {
                     method: 'POST',
@@ -385,6 +393,10 @@ function TownsChat() {
                 if (error.message?.includes('already a member')) {
                     console.log('✅ Already a member');
                     setHasJoined(true);
+                    
+                    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+                        window.KEY_SHARER_SPACE_JOINED = true;
+                    }
                 } else {
                     console.error('❌ Join failed:', error);
                     alert(`Failed to join: ${error.message}`);
