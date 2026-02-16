@@ -268,7 +268,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           
           if (liveEvent.videoEnabled && liveEvent.dailyRoomName) {
             const isHost = liveEvent.host?.address?.toLowerCase() === activeAccount.address.toLowerCase();
-            const isGuest = liveEvent.guests?.some((g: any) => g.address?.toLowerCase() === activeAccount.address.toLowerCase());
+            const isGuest = liveEvent.guests?.some((g: { address?: string }) => g.address?.toLowerCase() === activeAccount.address.toLowerCase());
             
             // ✅ ONLY generate token for host or designated guests
             if (isHost || isGuest) {

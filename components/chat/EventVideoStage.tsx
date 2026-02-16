@@ -232,7 +232,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     <div className="h-full flex flex-col bg-gray-100">
       <div className="flex-1 p-4">
         <div className="hidden lg:grid lg:grid-cols-2 gap-4 h-full">
-          <div className="h-full">
+          <div>
             {localSessionId && isHost ? (
               <DailyVideoTile
                 sessionId={localSessionId}
@@ -252,7 +252,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             )}
           </div>
 
-          <div className="h-full">
+          <div>
             {localSessionId && !isHost ? (
               <DailyVideoTile
                 sessionId={localSessionId}
@@ -273,27 +273,24 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
         </div>
 
-        <div className="lg:hidden space-y-4 h-full overflow-y-auto">
+        <div className="lg:hidden space-y-4 h-full overflow-y-auto p-4">
           {/* Local participant */}
           {localSessionId && (
-            <div className="h-64">
-              <DailyVideoTile
-                sessionId={localSessionId}
-                label={isHost ? "You (Host)" : "You"}
-                isLocal={true}
-              />
-            </div>
+            <DailyVideoTile
+              sessionId={localSessionId}
+              label={isHost ? "You (Host)" : "You"}
+              isLocal={true}
+            />
           )}
           
           {/* All remote participants */}
           {remoteParticipants.map(participantId => (
-            <div key={participantId} className="h-64">
-              <DailyVideoTile
-                sessionId={participantId}
-                label={participantId === hostParticipant ? "Host" : "Guest"}
-                isLocal={false}
-              />
-            </div>
+            <DailyVideoTile
+              key={participantId}
+              sessionId={participantId}
+              label={participantId === hostParticipant ? "Host" : "Guest"}
+              isLocal={false}
+            />
           ))}
         </div>
       </div>
