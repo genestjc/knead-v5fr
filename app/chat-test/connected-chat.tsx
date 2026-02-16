@@ -27,7 +27,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
+// ✅ REMOVED: const VIRTUAL_SHARDING_CUTOFF = new Date('2026-02-14T20:00:00Z').getTime();
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -179,7 +179,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         console.log('🔑 Key sharer: Channel sync confirmed — key fulfillment active');
       }
     } else if (window.KEY_SHARER_AUTO_MODE) {
-      // Reset sync status when events unavailable or channel changes
       window.KEY_SHARER_CHANNEL_SYNCED = false;
       window.KEY_SHARER_CHANNEL_ID = undefined;
     }
@@ -421,24 +420,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ SIMPLIFIED: event.sender.id is already the wallet address!
+  // ✅ SIMPLIFIED: Removed VIRTUAL_SHARDING_CUTOFF filter
   const messages = useMemo(() => {
     if (!events || events.length === 0) {
       return [];
     }
 
+    console.log(`💬 Processing ${events.length} events`);
+
     return events
       .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-      .filter((event: any) => {
-        const messageTime = event.createdAtEpochMs || event.timestamp || 0;
-        return messageTime >= VIRTUAL_SHARDING_CUTOFF;
-      })
       .map((event: any) => {
-        // ✅ event.sender.id is the wallet address
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
         
-        // Fetch profile if not cached
         if (walletAddress && !profileCache[walletAddress]) {
           getProfile(walletAddress);
         }
@@ -448,7 +443,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           content: event.content?.body || '',
           sender: {
             id: walletAddress,
-            walletAddress: walletAddress, // ✅ Ready for tipping!
+            walletAddress: walletAddress,
             name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
             avatar: profile?.avatar,
           },
