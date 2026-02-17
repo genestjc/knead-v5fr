@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -15,7 +15,6 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
-import { useTownsAgent } from '@/hooks/use-towns-agent';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
@@ -102,7 +101,8 @@ function RetryMessageBanner({
 }
 
 export default function ConnectedChat(props: ConnectedChatProps) {
-  const { isAgentConnected, isAgentConnecting } = useTownsAgent();
+  // ✅ Read-only — just check state, do NOT reconnect
+  const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
   if (isAgentConnecting) {
     return (
