@@ -145,13 +145,22 @@ function useBotAutoConnect() {
 function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const syncAgent = useSyncAgent(); // ✅ Hook at top level - check if provider restored session
+  
+  // ✅ Safely check for syncAgent - wrap in try/catch since it throws
+  let syncAgent;
+  try {
+    syncAgent = useSyncAgent();
+  } catch {
+    // No agent yet - this is fine
+    syncAgent = null;
+  }
+  
   const [setupComplete, setSetupComplete] = useState(false);
   const [setupStep, setSetupStep] = useState("Connecting...");
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    // ✅ If provider restored a session, skip SetupFlow entirely
+    // ✅ If provider restored a session, skip SetupFlow
     if (syncAgent && !setupComplete) {
       console.log('✅ Provider restored session - skipping signature request');
       setSetupComplete(true);
@@ -169,9 +178,8 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           return;
         }
 
-        // ✅ Simple: Just request signature and connect (no save/restore logic)
         setSetupStep("Please sign the message...");
-        console.log('🔐 Requesting wallet signature (first time)...');
+        console.log('🔐 Requesting wallet signature...');
 
         const signer = await createTownsSigner(account, client, activeChain);
 
@@ -180,12 +188,64 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           console.log('💾 Signer cached for reuse in this session');
         }
 
-        await connectAgent(signer, {
+        const agent = await connectAgent(signer, {
           townsConfig: TOWNS_CONFIG,
         });
 
+        // ✅ INSPECT EVERYTHING THE SDK GIVES US
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔍 INSPECTING CONNECTION RESULT:');
+        console.log('   Type:', typeof agent);
+        console.log('   Is null?:', agent === null);
+        console.log('   Is undefined?:', agent === undefined);
+        
+        if (agent) {
+          console.log('   Keys:', Object.keys(agent));
+          console.log('   Constructor:', agent.constructor.name);
+          
+          // Check for token properties
+          console.log('   agent.bearerToken:', (agent as any).bearerToken);
+          console.log('   agent.token:', (agent as any).token);
+          console.log('   agent._bearerToken:', (agent as any)._bearerToken);
+          console.log('   agent._token:', (agent as any)._token);
+          
+          // Check for context
+          console.log('   agent.context:', (agent as any).context);
+          console.log('   agent._context:', (agent as any)._context);
+          console.log('   agent.signerContext:', (agent as any).signerContext);
+          console.log('   agent._signerContext:', (agent as any)._signerContext);
+          
+          // Check prototype
+          const proto = Object.getPrototypeOf(agent);
+          console.log('   Prototype methods:', Object.getOwnPropertyNames(proto).filter(p => p !== 'constructor'));
+          
+          // Try to call toString or inspect if it exists
+          if (typeof (agent as any).inspect === 'function') {
+            console.log('   agent.inspect():', (agent as any).inspect());
+          }
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+        // ✅ CHECK LOCALSTORAGE
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔍 CHECKING LOCALSTORAGE AFTER CONNECTION:');
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.includes('towns') || 
+            key.includes('bearer') || 
+            key.includes('token') || 
+            key.includes('sync') ||
+            key.includes('agent') ||
+            key.includes('context')
+          )) {
+            const value = localStorage.getItem(key);
+            console.log(`   ${key}:`, value ? value.substring(0, 150) + '...' : 'null');
+          }
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
         console.log('✅ Connected successfully');
-        // ✅ providers.tsx will handle saving context for next visit
         setSetupComplete(true);
 
       } catch (error: any) {
@@ -241,7 +301,22 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   const { joinSpace } = useJoinSpace();
   const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
-  const syncAgent = useSyncAgent();
+  // ✅ Safely get syncAgent
+  let syncAgent;
+  try {
+    syncAgent = useSyncAgent();
+    
+    // ✅ INSPECT THE AGENT ONCE
+    if (syncAgent) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━');
+      console.log('🔍 INSPECTING useSyncAgent() IN TownsChat:');
+      console.log('   Keys:', Object.keys(syncAgent));
+      console.log('   Methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(syncAgent)));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+  } catch (error) {
+    syncAgent = null;
+  }
 
   const currentUser: ChatUser | null = useMemo(() => {
     const address = wallet?.getAccount()?.address;
@@ -367,7 +442,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
 
         setLoadingStep('Checking membership...');
 
-        // ✅ STEP 1: Try to join without minting (check if they have NFT)
+        // ✅ STEP 1: Try to join without minting
         try {
           console.log('🔍 Attempting to join without minting...');
           await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
@@ -397,7 +472,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
             
             setLoadingStep('Minting membership NFT (one-time)...');
             
-            // ✅ STEP 2: Mint membership NFT (only once, with retries for network issues)
             await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
             
             console.log('✅ Minted and joined successfully!');
