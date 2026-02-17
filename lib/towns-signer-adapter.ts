@@ -30,7 +30,8 @@ class ThirdWebEthersSigner extends ethers.Signer {
     return signature;
   }
   
-  async signTransaction(transaction: ethers.providers.TransactionRequest): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async signTransaction(_transaction: ethers.providers.TransactionRequest): Promise<string> {
     throw new Error("signTransaction not implemented for ThirdWeb adapter");
   }
   
@@ -99,18 +100,19 @@ export async function createTownsSigner(
       console.log('✅ Signature test successful');
       console.log('   Message:', testMessage);
       console.log('   Signature:', testSig.substring(0, 20) + '...');
-    } catch (sigError: any) {
-      throw new Error(`Signature test failed: ${sigError.message}`);
+    } catch (sigError) {
+      const errorMessage = sigError instanceof Error ? sigError.message : String(sigError);
+      throw new Error(`Signature test failed: ${errorMessage}`);
     }
 
     console.log('✅ Ethers v5 signer ready for Towns Protocol');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     return signer;
-  } catch (error: any) {
+  } catch (error) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('❌ FAILED TO CREATE SIGNER');
-    console.error('   Error:', error.message);
+    console.error('   Error:', error instanceof Error ? error.message : String(error));
     console.error('   Account:', account.address);
     console.error('   Chain:', chain.id);
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
