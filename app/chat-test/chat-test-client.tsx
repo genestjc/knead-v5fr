@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent, connectTowns } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -10,7 +10,6 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
-import { saveSignerContext, getSignerContext, clearSignerContext } from '@/lib/towns-context-storage';
 
 declare global {
   interface Window {
@@ -146,13 +145,20 @@ function useBotAutoConnect() {
 function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const syncAgent = useSyncAgent(); // ✅ Hook at top level - check if provider restored session
   const [setupComplete, setSetupComplete] = useState(false);
   const [setupStep, setSetupStep] = useState("Connecting...");
   const [isConnecting, setIsConnecting] = useState(false);
-  const [manuallyConnected, setManuallyConnected] = useState(false);
 
   useEffect(() => {
-    if (!wallet || (isAgentConnected && !manuallyConnected) || setupComplete || isConnecting) return;
+    // ✅ If provider restored a session, skip SetupFlow entirely
+    if (syncAgent && !setupComplete) {
+      console.log('✅ Provider restored session - skipping signature request');
+      setSetupComplete(true);
+      return;
+    }
+
+    if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
 
     const runSetup = async () => {
       setIsConnecting(true);
@@ -163,65 +169,23 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           return;
         }
 
-        // ✅ STEP 1: Try saved context (NO SIGNATURE NEEDED!)
-        const savedContext = getSignerContext(account.address);
-        
-        if (savedContext) {
-          setSetupStep("Restoring saved session...");
-          console.log('⚡ Fast reconnect: Using saved SignerContext (no signature needed!)');
-          
-          try {
-            // Use standalone connectTowns() for saved context
-            const restoredAgent = await connectTowns(savedContext, {
-              townsConfig: TOWNS_CONFIG,
-            });
-            
-            console.log('✅ Reconnected instantly without signature!');
-            
-            // Workaround: Set manual flag so we know we're connected
-            setManuallyConnected(true);
-            setSetupComplete(true);
-            setIsConnecting(false);
-            return;
-            
-          } catch (error: any) {
-            console.warn('⚠️ Saved context invalid:', error.message);
-            clearSignerContext();
-          }
-        }
-
-        // ✅ STEP 2: Fresh signature (first time only)
+        // ✅ Simple: Just request signature and connect (no save/restore logic)
         setSetupStep("Please sign the message...");
-        console.log('🔐 First time - requesting signature...');
+        console.log('🔐 Requesting wallet signature (first time)...');
 
         const signer = await createTownsSigner(account, client, activeChain);
 
         if (signerRef) {
           signerRef.current = signer;
-          console.log('💾 Signer cached for reuse');
+          console.log('💾 Signer cached for reuse in this session');
         }
 
-        // Use hook's connect method
-        const result = await connectAgent(signer, {
+        await connectAgent(signer, {
           townsConfig: TOWNS_CONFIG,
         });
 
-        // ✅ STEP 3: Try to save context for next time
-        try {
-          // Try to extract context from the result
-          const context = (result as any)?.context;
-          
-          if (context && context.rootKey && context.delegateKey) {
-            saveSignerContext(context, account.address);
-            console.log('✅ Context saved - next visit will be instant!');
-          } else {
-            console.warn('⚠️ Could not extract context to save');
-          }
-        } catch (error) {
-          console.warn('⚠️ Failed to save context:', error);
-        }
-
         console.log('✅ Connected successfully');
+        // ✅ providers.tsx will handle saving context for next visit
         setSetupComplete(true);
 
       } catch (error: any) {
@@ -233,18 +197,18 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           window.KEY_SHARER_CONNECTED = false;
         }
         
-        alert(`Setup failed: ${error.message}`);
+        alert(`Setup failed: ${error.message}\n\nPlease refresh the page.`);
       } finally {
         setIsConnecting(false);
       }
     };
 
     runSetup();
-  }, [wallet, isAgentConnected, manuallyConnected, setupComplete, isConnecting, connectAgent, signerRef]);
+  }, [wallet, isAgentConnected, syncAgent, setupComplete, isConnecting, connectAgent, signerRef]);
 
-  // ✅ Override the loading check if we manually connected
-  if (manuallyConnected && !setupComplete) {
-    setSetupComplete(true);
+  // ✅ If provider already connected, skip loading screen
+  if (syncAgent) {
+    return null;
   }
 
   return (
@@ -258,11 +222,6 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         {setupStep.includes("sign the message") && (
           <p className="font-georgia-pro text-xs text-gray-400 mt-2">
             📝 First time setup - check your wallet
-          </p>
-        )}
-        {setupStep.includes("saved session") && (
-          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            ⚡ Welcome back - no signature needed!
           </p>
         )}
       </div>
@@ -311,76 +270,68 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   }, [space]);
 
   const joinWithRetry = async (
-  spaceId: string,
-  signer: any,
-  maxRetries = 3,
-  skipMintMembership = false
-) => {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      if (attempt > 0) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`⏳ Retrying in ${delay/1000}s...`);
-        setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
-        await new Promise(r => setTimeout(r, delay));
-      }
+    spaceId: string,
+    signer: any,
+    maxRetries = 3,
+    skipMintMembership = false
+  ) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`⏳ Retrying in ${delay/1000}s...`);
+          setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
 
-      setJoinAttempt(attempt + 1);
-      console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
-      setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
+        setJoinAttempt(attempt + 1);
+        console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
+        setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
 
-      await joinSpace(spaceId, signer, { skipMintMembership });
+        await joinSpace(spaceId, signer, { skipMintMembership });
 
-      console.log('✅ Joined successfully!');
-      return; // ✅ Success - stop retrying
-
-    } catch (error: any) {
-      const errorMsg = error.message?.toLowerCase() || '';
-      
-      // ✅ Already a member - stop retrying
-      if (errorMsg.includes('already a member') || 
-          errorMsg.includes('already joined')) {
-        console.log('✅ Already a member');
+        console.log('✅ Joined successfully!');
         return;
-      }
 
-      // ✅ Check if it's a transient network error
-      const isTransient =
-        errorMsg.includes('cannot_connect') ||
-        errorMsg.includes('429') ||
-        errorMsg.includes('bandwidth limit') ||
-        errorMsg.includes('too many requests') ||
-        errorMsg.includes('failed_precondition') ||
-        errorMsg.includes('deadline_exceeded') ||
-        errorMsg.includes('unavailable') ||
-        errorMsg.includes('timeout');
+      } catch (error: any) {
+        const errorMsg = error.message?.toLowerCase() || '';
+        
+        if (errorMsg.includes('already a member') || 
+            errorMsg.includes('already joined')) {
+          console.log('✅ Already a member');
+          return;
+        }
 
-      // ✅ If NOT transient, throw immediately (don't retry)
-      if (!isTransient) {
-        console.error('❌ Non-transient error - will not retry:', error.message);
+        const isTransient =
+          errorMsg.includes('cannot_connect') ||
+          errorMsg.includes('429') ||
+          errorMsg.includes('bandwidth limit') ||
+          errorMsg.includes('too many requests') ||
+          errorMsg.includes('failed_precondition') ||
+          errorMsg.includes('deadline_exceeded') ||
+          errorMsg.includes('unavailable') ||
+          errorMsg.includes('timeout');
+
+        if (!isTransient) {
+          console.error('❌ Non-transient error - will not retry:', error.message);
+          throw error;
+        }
+
+        if (attempt < maxRetries - 1) {
+          console.log(`⚠️ Transient network error, will retry...`);
+          continue;
+        }
+
+        console.error('❌ All retries exhausted:', error);
         throw error;
       }
-
-      // ✅ If transient and not last attempt, retry
-      if (attempt < maxRetries - 1) {
-        console.log(`⚠️ Transient network error, will retry...`);
-        continue;
-      }
-
-      // ✅ Last attempt failed - give up
-      console.error('❌ All retries exhausted:', error);
-      throw error;
     }
-  }
 
-  throw new Error('Failed to join after all retries');
-};
+    throw new Error('Failed to join after all retries');
+  };
 
   useEffect(() => {
-    // ✅ Check syncAgent OR if we manually connected via saved context
-    const hasSavedContext = wallet?.getAccount() && getSignerContext(wallet.getAccount()!.address);
-    
-    if (!syncAgent && !hasSavedContext) {
+    if (!syncAgent) {
       if (!isAgentConnected) {
         console.log('⏳ Waiting for agent connection...');
       } else {
@@ -392,99 +343,97 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
     const joinSpaceNow = async () => {
-  setIsJoining(true);
-  try {
-    const account = wallet.getAccount();
-    if (!account) {
-      setIsJoining(false);
-      return;
-    }
-
-    setLoadingStep('Preparing to join space...');
-
-    let signer = signerRef?.current;
-    if (!signer) {
-      setLoadingStep('Creating signer...');
-      console.log('⚠️ No cached signer, creating new one...');
-      signer = await createTownsSigner(account, client, activeChain);
-      if (signerRef) {
-        signerRef.current = signer;
-      }
-    } else {
-      console.log('✅ Reusing cached signer');
-    }
-
-    setLoadingStep('Checking membership...');
-
-    // ✅ STEP 1: Try to join without minting (check if they have NFT)
-    try {
-      console.log('🔍 Attempting to join without minting...');
-      await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
-      
-      console.log('✅ Joined successfully - already has membership NFT!');
-      setHasJoined(true);
-      setLoadingStep('Space joined successfully!');
-      
-      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-        window.KEY_SHARER_SPACE_JOINED = true;
-      }
-      
-      return; // ✅ Success - stop here, no minting needed!
-      
-    } catch (error: any) {
-      const errorMsg = error.message?.toLowerCase() || '';
-      
-      // ✅ ONLY mint if explicitly told "not a member" or "not entitled"
-      const needsMembership = 
-        errorMsg.includes('not a member') || 
-        errorMsg.includes('not entitled') ||
-        errorMsg.includes('no membership') ||
-        errorMsg.includes('must mint') ||
-        errorMsg.includes('must be a member');
-      
-      if (needsMembership) {
-        console.log('📝 User does not have membership NFT - will mint once');
-        
-        setLoadingStep('Minting membership NFT (one-time)...');
-        
-        // ✅ STEP 2: Mint membership NFT (only once, with retries for network issues)
-        await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
-        
-        console.log('✅ Minted and joined successfully!');
-        setHasJoined(true);
-        setLoadingStep('Space joined successfully!');
-        
-        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-          window.KEY_SHARER_SPACE_JOINED = true;
+      setIsJoining(true);
+      try {
+        const account = wallet.getAccount();
+        if (!account) {
+          setIsJoining(false);
+          return;
         }
-        
-      } else {
-        // ✅ Some other error - DON'T try to mint, just fail
-        console.error('❌ Join failed with non-membership error:', error.message);
-        throw error;
+
+        setLoadingStep('Preparing to join space...');
+
+        let signer = signerRef?.current;
+        if (!signer) {
+          setLoadingStep('Creating signer...');
+          console.log('⚠️ No cached signer, creating new one...');
+          signer = await createTownsSigner(account, client, activeChain);
+          if (signerRef) {
+            signerRef.current = signer;
+          }
+        } else {
+          console.log('✅ Reusing cached signer');
+        }
+
+        setLoadingStep('Checking membership...');
+
+        // ✅ STEP 1: Try to join without minting (check if they have NFT)
+        try {
+          console.log('🔍 Attempting to join without minting...');
+          await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
+          
+          console.log('✅ Joined successfully - already has membership NFT!');
+          setHasJoined(true);
+          setLoadingStep('Space joined successfully!');
+          
+          if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+            window.KEY_SHARER_SPACE_JOINED = true;
+          }
+          
+          return;
+          
+        } catch (error: any) {
+          const errorMsg = error.message?.toLowerCase() || '';
+          
+          const needsMembership = 
+            errorMsg.includes('not a member') || 
+            errorMsg.includes('not entitled') ||
+            errorMsg.includes('no membership') ||
+            errorMsg.includes('must mint') ||
+            errorMsg.includes('must be a member');
+          
+          if (needsMembership) {
+            console.log('📝 User does not have membership NFT - will mint once');
+            
+            setLoadingStep('Minting membership NFT (one-time)...');
+            
+            // ✅ STEP 2: Mint membership NFT (only once, with retries for network issues)
+            await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
+            
+            console.log('✅ Minted and joined successfully!');
+            setHasJoined(true);
+            setLoadingStep('Space joined successfully!');
+            
+            if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+              window.KEY_SHARER_SPACE_JOINED = true;
+            }
+            
+          } else {
+            console.error('❌ Join failed with non-membership error:', error.message);
+            throw error;
+          }
+        }
+
+      } catch (error: any) {
+        console.error('❌ Join failed:', error);
+
+        let errorMessage = 'Failed to join chat. ';
+        if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
+          errorMessage += 'Network is busy, please wait a moment and try again.';
+        } else if (error.message?.includes('CANNOT_CONNECT')) {
+          errorMessage += 'Cannot connect to network, please check your internet.';
+        } else {
+          errorMessage += error.message;
+        }
+
+        setLoadingStep('Join failed');
+        alert(errorMessage);
+      } finally {
+        setIsJoining(false);
+        setJoinAttempt(0);
+        setLoadingStep('Initializing...');
       }
-    }
-
-  } catch (error: any) {
-    console.error('❌ Join failed:', error);
-
-    let errorMessage = 'Failed to join chat. ';
-    if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
-      errorMessage += 'Network is busy, please wait a moment and try again.';
-    } else if (error.message?.includes('CANNOT_CONNECT')) {
-      errorMessage += 'Cannot connect to network, please check your internet.';
-    } else {
-      errorMessage += error.message;
-    }
-
-    setLoadingStep('Join failed');
-    alert(errorMessage);
-  } finally {
-    setIsJoining(false);
-    setJoinAttempt(0);
-    setLoadingStep('Initializing...');
-  }
-};
+    };
 
     joinSpaceNow();
   }, [syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef, isAgentConnected]);
@@ -495,10 +444,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     }
   }, [hasJoined, space?.initialized, space?.channelIds]);
 
-  // ✅ Allow loading if we have saved context (even if syncAgent isn't ready yet)
-  const hasSavedContext = wallet?.getAccount() && getSignerContext(wallet.getAccount()!.address);
-  
-  if (!syncAgent && !hasSavedContext) {
+  if (!syncAgent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
