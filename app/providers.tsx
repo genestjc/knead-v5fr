@@ -12,9 +12,9 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/config/wagmi';
 import { useState } from 'react';
+import { clearSignerContext } from '@/lib/towns-context-storage'; // ✅ Add this
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Create QueryClient instance once per component lifecycle
   const [queryClient] = useState(() => new QueryClient());
 
   return (
@@ -26,6 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               config={{ 
                 onTokenExpired: () => {
                   console.log('⚠️ Towns session expired, please reconnect');
+                  clearSignerContext(); // ✅ Add this line
                 }
               }}
             >
