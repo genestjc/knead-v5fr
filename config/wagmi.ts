@@ -19,8 +19,8 @@ export const wagmiConfig = createConfig({
             metadata: {
               name: 'Knead Magazine',
               description: 'Nourishment for the creative spirit',
-              url: 'https://kneadmag.com',
-              icons: ['https://kneadmag.com/favicon.ico'],
+              url: 'https://www.kneadmag.com',
+              icons: ['https://www.kneadmag.com/favicon.ico'],
             },
             showQrModal: true,
           }),
