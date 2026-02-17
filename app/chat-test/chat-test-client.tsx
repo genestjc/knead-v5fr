@@ -66,6 +66,7 @@ function useBotAutoConnect() {
       initRef.current
     )
       return;
+
     initRef.current = true;
 
     (async () => {
@@ -125,13 +126,7 @@ function useBotAutoConnect() {
 // Single unified connect → join → render flow
 // ---------------------------------------------------------------------------
 
-type Phase =
-  | 'idle'
-  | 'signing'
-  | 'connecting'
-  | 'joining'
-  | 'ready'
-  | 'error';
+type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: 'Waiting for wallet...',
@@ -146,17 +141,21 @@ function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   const { joinSpace } = useJoinSpace();
-  const { data: space, isLoading: isSpaceLoading } = useSpace(
-    SAVED_SPACE_ID || '',
-  );
+  const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
 
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(() => {
+    // Bot mode: agent is already connected by useBotAutoConnect,
+    // so skip straight to joining — avoids 'signing' label flicker
+    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+      return 'joining';
+    }
+    return 'idle';
+  });
   const [errorMsg, setErrorMsg] = useState('');
   const signerRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
 
   // ---- Single linear flow: signer → connect → join ----
-
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
@@ -171,21 +170,15 @@ function TownsChat() {
       // 1. Create signer (cached for the session)
       if (!signerRef.current) {
         setPhase('signing');
-        signerRef.current = await createTownsSigner(
-          account,
-          client,
-          activeChain,
-        );
+        signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (skip if already connected)
+      // 2. Connect agent (skip if already connected — e.g. bot mode)
       if (!isAgentConnected) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
         });
-
-        // Safety check per Towns team: bail if connect() returns undefined
         if (!agent) {
           throw new Error('Agent connection failed — returned undefined');
         }
@@ -221,13 +214,12 @@ function TownsChat() {
   }, [wallet, isAgentConnected, connectAgent, joinSpace]);
 
   useEffect(() => {
-    if (wallet && phase === 'idle') {
+    if (wallet && (phase === 'idle' || phase === 'joining')) {
       runFlow();
     }
   }, [wallet, phase, runFlow]);
 
   // ---- Derived state ----
-
   const currentUser: ChatUser | null = useMemo(() => {
     const address = wallet?.getAccount()?.address;
     if (!address) return null;
@@ -244,7 +236,6 @@ function TownsChat() {
   }, [wallet]);
 
   // ---- Render ----
-
   if (phase === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
