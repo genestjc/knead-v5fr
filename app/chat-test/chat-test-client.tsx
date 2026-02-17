@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
+import { saveSignerContext, getSignerContext, clearSignerContext } from '@/lib/towns-context-storage';
 
 declare global {
   interface Window {
@@ -148,9 +149,10 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const [setupComplete, setSetupComplete] = useState(false);
   const [setupStep, setSetupStep] = useState("Connecting...");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [manuallyConnected, setManuallyConnected] = useState(false);
 
   useEffect(() => {
-    if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
+    if (!wallet || (isAgentConnected && !manuallyConnected) || setupComplete || isConnecting) return;
 
     const runSetup = async () => {
       setIsConnecting(true);
@@ -161,8 +163,36 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           return;
         }
 
+        // ✅ STEP 1: Try saved context (NO SIGNATURE NEEDED!)
+        const savedContext = getSignerContext(account.address);
+        
+        if (savedContext) {
+          setSetupStep("Restoring saved session...");
+          console.log('⚡ Fast reconnect: Using saved SignerContext (no signature needed!)');
+          
+          try {
+            // Use standalone connectTowns() for saved context
+            const restoredAgent = await connectTowns(savedContext, {
+              townsConfig: TOWNS_CONFIG,
+            });
+            
+            console.log('✅ Reconnected instantly without signature!');
+            
+            // Workaround: Set manual flag so we know we're connected
+            setManuallyConnected(true);
+            setSetupComplete(true);
+            setIsConnecting(false);
+            return;
+            
+          } catch (error: any) {
+            console.warn('⚠️ Saved context invalid:', error.message);
+            clearSignerContext();
+          }
+        }
+
+        // ✅ STEP 2: Fresh signature (first time only)
         setSetupStep("Please sign the message...");
-        console.log('🔐 Requesting wallet signature...');
+        console.log('🔐 First time - requesting signature...');
 
         const signer = await createTownsSigner(account, client, activeChain);
 
@@ -171,10 +201,25 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           console.log('💾 Signer cached for reuse');
         }
 
-        // ✅ Always use hook's connect method to ensure isAgentConnected updates
-        await connectAgent(signer, {
+        // Use hook's connect method
+        const result = await connectAgent(signer, {
           townsConfig: TOWNS_CONFIG,
         });
+
+        // ✅ STEP 3: Try to save context for next time
+        try {
+          // Try to extract context from the result
+          const context = (result as any)?.context;
+          
+          if (context && context.rootKey && context.delegateKey) {
+            saveSignerContext(context, account.address);
+            console.log('✅ Context saved - next visit will be instant!');
+          } else {
+            console.warn('⚠️ Could not extract context to save');
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to save context:', error);
+        }
 
         console.log('✅ Connected successfully');
         setSetupComplete(true);
@@ -195,7 +240,12 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
     };
 
     runSetup();
-  }, [wallet, isAgentConnected, setupComplete, isConnecting, connectAgent, signerRef]);
+  }, [wallet, isAgentConnected, manuallyConnected, setupComplete, isConnecting, connectAgent, signerRef]);
+
+  // ✅ Override the loading check if we manually connected
+  if (manuallyConnected && !setupComplete) {
+    setSetupComplete(true);
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -207,7 +257,12 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         </p>
         {setupStep.includes("sign the message") && (
           <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            📝 Check your wallet for the signature request
+            📝 First time setup - check your wallet
+          </p>
+        )}
+        {setupStep.includes("saved session") && (
+          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+            ⚡ Welcome back - no signature needed!
           </p>
         )}
       </div>
@@ -251,7 +306,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
       console.log('📊 Space Sync Status:');
       console.log('   Initialized:', space.initialized);
       console.log('   Channel IDs:', space.channelIds);
-      console.log('━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
   }, [space]);
 
@@ -308,10 +363,13 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   };
 
   useEffect(() => {
-    if (!isAgentConnected || !syncAgent) {
+    // ✅ Check syncAgent OR if we manually connected via saved context
+    const hasSavedContext = wallet?.getAccount() && getSignerContext(wallet.getAccount()!.address);
+    
+    if (!syncAgent && !hasSavedContext) {
       if (!isAgentConnected) {
         console.log('⏳ Waiting for agent connection...');
-      } else if (!syncAgent) {
+      } else {
         console.log('⏳ Agent connected, waiting for sync agent...');
       }
       return;
@@ -384,7 +442,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
         // ✅ If they need membership NFT, mint it with retry logic
         if (needsToMint) {
           setLoadingStep('Minting membership NFT...');
-          console.log('💳 Minting Space membership NFT...');
+          console.log('💳 Minting Space membership NFT (one-time only)...');
           
           await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
           
@@ -420,7 +478,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     };
 
     joinSpaceNow();
-  }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef]);
+  }, [syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef, isAgentConnected]);
 
   useEffect(() => {
     if (hasJoined && space?.initialized) {
@@ -428,7 +486,10 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     }
   }, [hasJoined, space?.initialized, space?.channelIds]);
 
-  if (!isAgentConnected || !syncAgent) {
+  // ✅ Allow loading if we have saved context (even if syncAgent isn't ready yet)
+  const hasSavedContext = wallet?.getAccount() && getSignerContext(wallet.getAccount()!.address);
+  
+  if (!syncAgent && !hasSavedContext) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
