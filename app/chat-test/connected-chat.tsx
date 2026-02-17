@@ -41,17 +41,17 @@ interface UserProfile {
   walletAddress: string | null;
 }
 
-function PermissionDebugBanner({ 
-  permissions, 
-  userRole, 
-  activeEvent 
-}: { 
-  permissions: any; 
-  userRole: string; 
-  activeEvent: any 
+function PermissionDebugBanner({
+  permissions,
+  userRole,
+  activeEvent,
+}: {
+  permissions: any;
+  userRole: string;
+  activeEvent: any;
 }) {
   if (process.env.NODE_ENV !== 'development') return null;
-  
+
   return (
     <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
       <div className="flex items-center justify-between text-xs font-mono">
@@ -66,14 +66,14 @@ function PermissionDebugBanner({
   );
 }
 
-function RetryMessageBanner({ 
-  message, 
-  onRetry, 
-  onCancel 
-}: { 
-  message: string; 
-  onRetry: () => void; 
-  onCancel: () => void; 
+function RetryMessageBanner({
+  message,
+  onRetry,
+  onCancel,
+}: {
+  message: string;
+  onRetry: () => void;
+  onCancel: () => void;
 }) {
   return (
     <div className="bg-red-50 border-b border-red-200 px-4 py-3">
@@ -103,7 +103,7 @@ function RetryMessageBanner({
 
 export default function ConnectedChat(props: ConnectedChatProps) {
   const { isAgentConnected, isAgentConnecting } = useTownsAgent();
-  
+
   if (isAgentConnecting) {
     return (
       <ChatLayout>
@@ -115,7 +115,7 @@ export default function ConnectedChat(props: ConnectedChatProps) {
       </ChatLayout>
     );
   }
-  
+
   if (!isAgentConnected) {
     return (
       <ChatLayout>
@@ -134,38 +134,197 @@ export default function ConnectedChat(props: ConnectedChatProps) {
       </ChatLayout>
     );
   }
-  
+
   return <ConnectedChatInner {...props} />;
 }
 
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
+  // -- All useState hooks --
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   const [isAdmin, setIsAdmin] = useState(false);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
-  
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
-  
-  const activeAccount = useActiveAccount();
 
+  // -- All useRef hooks --
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // -- All context/external hooks --
+  const activeAccount = useActiveAccount();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
-
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
-  
+
   const channelId = space?.channelIds?.[0] || defaultChannelId;
-  
+
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
-  // ✅ BAN CHECK: Right after all hooks, before any useEffects
+  // -- All useCallback hooks --
+  const getProfile = useCallback(async (walletAddress: string) => {
+    try {
+      const response = await fetch(`/api/chat/user?address=${walletAddress}`);
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        setProfileCache(prev => ({
+          ...prev,
+          [walletAddress]: {
+            alias: data.user.alias,
+            avatar: data.user.avatar,
+            displayName: data.user.displayName,
+            walletAddress,
+          },
+        }));
+      }
+    } catch {
+      // Silent — profile fetch is non-critical
+    }
+  }, []);
+
+  // -- All useMemo hooks --
+  const messages = useMemo(() => {
+    if (!events || events.length === 0) return [];
+
+    return events
+      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .map((event: any) => {
+        const walletAddress = event.sender?.id || '';
+        const profile = walletAddress ? profileCache[walletAddress] : null;
+
+        if (walletAddress && !profileCache[walletAddress]) {
+          getProfile(walletAddress);
+        }
+
+        return {
+          id: event.eventId,
+          content: event.content?.body || '',
+          sender: {
+            id: walletAddress,
+            walletAddress,
+            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+            avatar: profile?.avatar,
+          },
+          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+        };
+      })
+      .sort((a: any, b: any) => a.timestamp - b.timestamp);
+  }, [events, profileCache, activeAccount?.address, getProfile]);
+
+  // -- All useEffect hooks --
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (events && channelId && window.KEY_SHARER_AUTO_MODE) {
+      window.KEY_SHARER_CHANNEL_SYNCED = true;
+      window.KEY_SHARER_CHANNEL_ID = channelId;
+    } else if (window.KEY_SHARER_AUTO_MODE) {
+      window.KEY_SHARER_CHANNEL_SYNCED = false;
+      window.KEY_SHARER_CHANNEL_ID = undefined;
+    }
+  }, [events, channelId]);
+
+  useEffect(() => {
+    if (!channelId) return;
+    scrollback().catch(() => {});
+  }, [channelId, scrollback]);
+
+  useEffect(() => {
+    if (!activeAccount?.address) return;
+
+    async function detectRole() {
+      const roleInfo = await getUserRole(activeAccount!.address);
+      setUserRole(roleInfo.role);
+
+      try {
+        const response = await fetch(`/api/chat/user?address=${activeAccount!.address}`);
+        const data = await response.json();
+        if (data.success && data.user) {
+          setIsAdmin(data.user.role === 'admin' || data.user.role === 'master-admin');
+        }
+      } catch {
+        // Silent — admin check is non-critical
+      }
+    }
+
+    detectRole();
+  }, [activeAccount?.address]);
+
+  useEffect(() => {
+    if (!activeAccount?.address) return;
+
+    async function fetchLiveEvent() {
+      try {
+        const response = await fetch('/api/events?status=live', {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+        const data = await response.json();
+
+        if (!data.success || !data.data?.length) {
+          setActiveEvent(null);
+          setDailyToken(null);
+          return;
+        }
+
+        const event = data.data[0];
+        setActiveEvent(event);
+
+        const userAddress = activeAccount.address!.toLowerCase();
+        const isHost = event.host?.address?.toLowerCase() === userAddress;
+        const isGuest = event.guestAddresses?.some(
+          (addr: string) => addr.toLowerCase() === userAddress,
+        );
+
+        if ((!isHost && !isGuest) || !event.videoEnabled || !event.dailyRoomName) {
+          setDailyToken(null);
+          return;
+        }
+
+        const tokenResponse = await fetch('/api/events/generate-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomName: event.dailyRoomName,
+            walletAddress: activeAccount.address,
+            isHost,
+          }),
+        });
+        const tokenData = await tokenResponse.json();
+        setDailyToken(tokenData.success ? tokenData.data?.token : null);
+      } catch {
+        setActiveEvent(null);
+        setDailyToken(null);
+      }
+    }
+
+    fetchLiveEvent();
+    const interval = setInterval(fetchLiveEvent, 30000);
+
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel('chat_live_events')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_events' }, fetchLiveEvent)
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [activeAccount?.address]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [events]);
+
+  // ✅ BAN CHECK: After ALL hooks — React Rules of Hooks safe
   if (isBanned) {
     return (
       <ChatLayout>
@@ -173,224 +332,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </ChatLayout>
     );
   }
-  
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
 
-    if (events && channelId) {
-      console.log(`🔑 Channel ${channelId} synced — ${events.length} events loaded`);
-      
-      if (window.KEY_SHARER_AUTO_MODE) {
-        window.KEY_SHARER_CHANNEL_SYNCED = true;
-        window.KEY_SHARER_CHANNEL_ID = channelId;
-        console.log('🔑 Key sharer: Channel sync confirmed — key fulfillment active');
-      }
-    } else if (window.KEY_SHARER_AUTO_MODE) {
-      window.KEY_SHARER_CHANNEL_SYNCED = false;
-      window.KEY_SHARER_CHANNEL_ID = undefined;
-    }
-  }, [events, channelId]);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // ✅ Load scrollback immediately on mount
-  useEffect(() => {
-    if (!channelId) return;
-    
-    console.log('📜 Loading message history...');
-    
-    const loadHistory = async () => {
-      try {
-        const result = await scrollback();
-        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
-      } catch (error) {
-        console.error('❌ Failed to load message history:', error);
-      }
-    };
-    
-    loadHistory();
-  }, [channelId, scrollback]);
-
-  const getProfile = useCallback(async (walletAddress: string) => {
-    try {
-      const response = await fetch(`/api/chat/user?address=${walletAddress}`);
-      const data = await response.json();
-      
-      if (data.success && data.user) {
-        const profile = {
-          alias: data.user.alias,
-          avatar: data.user.avatar,
-          displayName: data.user.displayName,
-          walletAddress: walletAddress,
-        };
-        
-        setProfileCache(prev => ({ ...prev, [walletAddress]: profile }));
-        return profile;
-      }
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-    }
-    
-    return null;
-  }, []);
-
-  useEffect(() => {
-    async function detectRole() {
-      if (activeAccount?.address) {
-        const roleInfo = await getUserRole(activeAccount.address);
-        setUserRole(roleInfo.role);
-        
-        try {
-          const response = await fetch(`/api/chat/user?address=${activeAccount.address}`);
-          const data = await response.json();
-          if (data.success && data.user) {
-            const isUserAdmin = data.user.role === 'admin' || data.user.role === 'master-admin';
-            setIsAdmin(isUserAdmin);
-          }
-        } catch (error) {
-          console.error('Failed to check admin status:', error);
-        }
-      }
-    }
-    detectRole();
-  }, [activeAccount?.address]);
-
-  useEffect(() => {
-    async function fetchLiveEvent() {
-      try {
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🎥 [EventVideoStage] Fetching live event...');
-        
-        const response = await fetch('/api/events?status=live', { 
-          cache: 'no-store', 
-          headers: { 'Cache-Control': 'no-cache' } 
-        });
-        const data = await response.json();
-        
-        if (!data.success || !data.data || data.data.length === 0) {
-          console.log('   No live events found');
-          setActiveEvent(null);
-          setDailyToken(null);
-          return;
-        }
-        
-        const event = data.data[0];
-        console.log('   Event found:', event.title);
-        console.log('   Host:', event.host?.address);
-        console.log('   Guest addresses:', event.guestAddresses);
-        
-        setActiveEvent(event);
-        
-        if (!activeAccount?.address) {
-          console.log('⚠️ No active account, skipping token generation');
-          return;
-        }
-        
-        const userAddress = activeAccount.address.toLowerCase();
-        const isHost = event.host?.address?.toLowerCase() === userAddress;
-        
-        const isGuest = event.guestAddresses?.some((addr: string) => 
-          addr.toLowerCase() === userAddress
-        );
-        
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('👤 YOUR WALLET INFO:');
-        console.log('   Your Address:', activeAccount.address);
-        console.log('   Your Address (lowercase):', userAddress);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🔑 HOST CHECK:');
-        console.log('   Host address:', event.host?.address);
-        console.log('   isHost:', isHost);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('👥 GUEST CHECK:');
-        console.log('   Guest addresses:', event.guestAddresses);
-        console.log('   Number of guests:', event.guestAddresses?.length || 0);
-        console.log('   isGuest:', isGuest);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
-        const shouldGenerateToken = isHost || isGuest;
-        
-        console.log('🎫 TOKEN GENERATION:');
-        console.log('   Should generate token:', shouldGenerateToken);
-        
-        if (!shouldGenerateToken) {
-          console.log('   ❌ Not host or guest - no token generated');
-          console.log('   You are a regular chat participant');
-          setDailyToken(null);
-          return;
-        }
-        
-        if (!event.videoEnabled || !event.dailyRoomName) {
-          console.log('   ⚠️ Video not enabled or no room name');
-          return;
-        }
-        
-        console.log('   ✅ Generating Daily.co token...');
-        
-        const tokenResponse = await fetch('/api/events/generate-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roomName: event.dailyRoomName,
-            walletAddress: activeAccount.address,
-            isHost: isHost,
-          }),
-        });
-        
-        const tokenData = await tokenResponse.json();
-        
-        if (tokenData.success && tokenData.data?.token) {
-          console.log('   ✅ Token generated successfully!');
-          setDailyToken(tokenData.data.token);
-        } else {
-          console.error('   ❌ Token generation failed:', tokenData);
-          setDailyToken(null);
-        }
-        
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      } catch (error) {
-        console.error('❌ Error fetching live event:', error);
-        setActiveEvent(null);
-        setDailyToken(null);
-      }
-    }
-    
-    if (activeAccount?.address) {
-      fetchLiveEvent();
-      const interval = setInterval(fetchLiveEvent, 30000);
-      
-      const supabase = createSupabaseClient();
-      const channel = supabase
-        .channel('chat_live_events')
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
-          table: 'chat_events' 
-        }, () => {
-          fetchLiveEvent();
-        })
-        .subscribe();
-      
-      return () => {
-        clearInterval(interval);
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [activeAccount?.address]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [events]);
-
+  // -- Event handlers --
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // ✅ Extra safety: Block banned users
+
     if (isBanned) {
       alert('You are banned from Knead chat.');
       return;
     }
-    
+
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
         alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
@@ -401,46 +352,38 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
       return;
     }
-    
-    if (!messageInput.trim() || isSending || !channelId) {
-      return;
-    }
+
+    if (!messageInput.trim() || isSending || !channelId) return;
 
     const messageToSend = messageInput.trim();
-    
+
     try {
-      console.log('📤 Sending message...');
-      
       setMessageInput('');
       setFailedMessage(null);
-      
+
       await Promise.race([
         sendMessage(messageToSend),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Message send timed out after 30 seconds')), 30000)
-        )
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Message send timed out after 30 seconds')), 30000),
+        ),
       ]);
-      
-      console.log('✅ Message sent successfully');
-      
     } catch (error: any) {
-      console.error('❌ Failed to send message:', error.message);
-      
       setMessageInput(messageToSend);
       setFailedMessage(messageToSend);
-      
-      if (error.message?.includes('timed out')) {
+
+      const msg = error.message || '';
+      if (msg.includes('timed out')) {
         alert('⏱️ Message send timed out.\n\nThe Towns network may be experiencing issues. Please try again.');
-      } else if (error.message?.includes('deadline_exceeded')) {
+      } else if (msg.includes('deadline_exceeded')) {
         alert('⏳ Network timeout. Your message was not delivered. Please try sending again.');
-      } else if (error.message?.includes('BAD_PREV_MINIBLOCK_HASH')) {
+      } else if (msg.includes('BAD_PREV_MINIBLOCK_HASH')) {
         alert('⏳ Channel is syncing. Please wait a few seconds and try again.');
-      } else if (error.message?.includes('QUORUM_FAILED')) {
+      } else if (msg.includes('QUORUM_FAILED')) {
         alert('❌ Network error - message not delivered. Please check your connection and try again.');
-      } else if (error.message?.includes('not entitled') || error.message?.includes('permission')) {
+      } else if (msg.includes('not entitled') || msg.includes('permission')) {
         alert('❌ You do not have permission to send messages. Contact support.');
       } else {
-        alert(`Failed to send: ${error.message}`);
+        alert(`Failed to send: ${msg}`);
       }
     }
   };
@@ -460,65 +403,27 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     setIsUploading(true);
     try {
-      console.log('📎 Uploading file to IPFS:', file.name);
       const ipfsUri = await uploadToIPFS(file);
-      console.log('✅ File uploaded:', ipfsUri);
-      
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
-      
+
       await Promise.race([
         sendMessage(fileMessage),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('File upload timeout')), 30000)
-        )
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('File upload timeout')), 30000),
+        ),
       ]);
-      
-      console.log('✅ File message sent');
-      
+
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (error) {
-      console.error('❌ File upload failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload file. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const messages = useMemo(() => {
-    if (!events || events.length === 0) {
-      return [];
-    }
-
-    console.log(`💬 Processing ${events.length} events`);
-
-    return events
-      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-      .map((event: any) => {
-        const walletAddress = event.sender?.id || '';
-        const profile = walletAddress ? profileCache[walletAddress] : null;
-        
-        if (walletAddress && !profileCache[walletAddress]) {
-          getProfile(walletAddress);
-        }
-        
-        return {
-          id: event.eventId,
-          content: event.content?.body || '',
-          sender: {
-            id: walletAddress,
-            walletAddress: walletAddress,
-            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-            avatar: profile?.avatar,
-          },
-          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-        };
-      })
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address, getProfile]);
-
+  // -- Render helpers --
   if (isSpaceLoading) {
     return (
       <ChatLayout>
@@ -536,8 +441,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             <p className="font-georgia-pro text-sm mt-2">
               {spaceError?.message || 'Unknown error'}
             </p>
-            <button 
-              onClick={() => window.location.reload()} 
+            <button
+              onClick={() => window.location.reload()}
               className="mt-4 px-4 py-2 bg-black text-white rounded-full"
             >
               Retry
@@ -614,7 +519,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       >
         <Paperclip className="w-5 h-5" />
       </button>
-      
+
       <input
         type="text"
         value={messageInput}
@@ -630,9 +535,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         }`}
         disabled={!permissions?.canPost || isSending || isUploading || !channelId}
       />
-      <button 
-        type="submit" 
-        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId} 
+      <button
+        type="submit"
+        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId}
         className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -642,11 +547,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     </form>
   );
 
+  // -- Role badge helper --
+  const roleBadge = (
+    <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
+      userRole === 'contributor' ? 'bg-purple-100 text-purple-800' :
+      userRole === 'participant' ? 'bg-blue-100 text-blue-800' :
+      'bg-gray-100 text-gray-800'
+    }`}>
+      {userRole === 'contributor' && '⭐ Contributor'}
+      {userRole === 'participant' && '💬 Participant'}
+      {userRole === 'freemium' && '👀 Freemium'}
+    </span>
+  );
+
+  const spaceHeader = (
+    <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
+      <div className="flex items-center justify-between">
+        <p className="font-georgia-pro text-sm text-gray-600">
+          <strong>{space?.metadata?.name || 'Knead Space'}</strong>
+        </p>
+        {roleBadge}
+      </div>
+    </div>
+  );
+
+  // -- Main render --
   return (
     <>
       <DailyProvider>
         <ChatLayout>
-          <PermissionDebugBanner 
+          <PermissionDebugBanner
             permissions={permissions}
             userRole={userRole}
             activeEvent={activeEvent}
@@ -662,51 +592,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               }}
             />
           )}
-      
+
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
+              {/* Desktop: video top, chat bottom */}
               <div className="hidden lg:grid lg:grid-rows-2 h-screen">
                 <div className="border-b border-gray-200">
-                  <EventVideoStage 
-                    event={activeEvent} 
+                  <EventVideoStage
+                    event={activeEvent}
                     currentUserAddress={activeAccount?.address || ''}
                     roomUrl={activeEvent.dailyRoomUrl}
                     token={dailyToken}
                   />
                 </div>
-                
-                <div className="flex flex-col overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-georgia-pro text-sm text-gray-600">
-                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-                      </p>
-                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-                        userRole === 'contributor' ? 'bg-purple-100 text-purple-800' : 
-                        userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {userRole === 'contributor' && '⭐ Contributor'}
-                        {userRole === 'participant' && '💬 Participant'}
-                        {userRole === 'freemium' && '👀 Freemium'}
-                      </span>
-                    </div>
-                  </div>
 
+                <div className="flex flex-col overflow-hidden">
+                  {spaceHeader}
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
-
                   <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
                     {renderChatInput()}
                   </div>
                 </div>
               </div>
 
+              {/* Mobile: video top, chat bottom */}
               <div className="lg:hidden flex flex-col h-screen">
                 <div className="border-b border-gray-200 flex-shrink-0">
-                  <EventVideoStage 
-                    event={activeEvent} 
+                  <EventVideoStage
+                    event={activeEvent}
                     currentUserAddress={activeAccount?.address || ''}
                     roomUrl={activeEvent.dailyRoomUrl}
                     token={dailyToken}
@@ -714,27 +629,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-georgia-pro text-sm text-gray-600">
-                        <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-                      </p>
-                      <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-                        userRole === 'contributor' ? 'bg-purple-100 text-purple-800' : 
-                        userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {userRole === 'contributor' && '⭐ Contributor'}
-                        {userRole === 'participant' && '💬 Participant'}
-                        {userRole === 'freemium' && '👀 Freemium'}
-                      </span>
-                    </div>
-                  </div>
-
+                  {spaceHeader}
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
-
                   <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
                     {renderChatInput()}
                   </div>
@@ -743,22 +641,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             </>
           ) : (
             <div className="flex flex-col h-screen bg-white">
-              <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <p className="font-georgia-pro text-sm text-gray-600">
-                    <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-                  </p>
-                  <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-                    userRole === 'contributor' ? 'bg-purple-100 text-purple-800' : 
-                    userRole === 'participant' ? 'bg-blue-100 text-blue-800' : 
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {userRole === 'contributor' && '⭐ Contributor'}
-                    {userRole === 'participant' && '💬 Participant'}
-                    {userRole === 'freemium' && '👀 Freemium'}
-                  </span>
-                </div>
-              </div>
+              {spaceHeader}
 
               {activeEvent && (
                 <div className="flex-shrink-0">
@@ -777,7 +660,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           )}
         </ChatLayout>
       </DailyProvider>
-      
+
       <FreemiumBanner remainingMinutes={remainingMinutes} />
     </>
   );
