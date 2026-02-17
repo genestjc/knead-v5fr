@@ -1,8 +1,8 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -28,220 +28,212 @@ const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
-  loading: () => <LoadingSpinner />,
+  loading: () => <LoadingSpinner message="Loading chat..." />,
 });
 
-const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-white">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-      <p className="font-georgia-pro text-gray-600">Loading...</p>
-    </div>
-  </div>
-);
+// ---------------------------------------------------------------------------
+// Shared UI
+// ---------------------------------------------------------------------------
 
-function useBotAutoConnect() {
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const wallet = useActiveWallet();
-  const [botWallet, setBotWallet] = useState<any>(null);
-  const [botInitialized, setBotInitialized] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE || !window.KEY_SHARER_PRIVATE_KEY) {
-      return;
-    }
-
-    if (botInitialized) {
-      return;
-    }
-
-    const initBotWallet = async () => {
-      try {
-        const account = privateKeyToAccount({
-          client,
-          privateKey: window.KEY_SHARER_PRIVATE_KEY!,
-        });
-
-        const mockWallet = {
-          getAccount: () => account,
-          getChain: () => activeChain,
-          disconnect: async () => {},
-          switchChain: async () => {},
-        };
-
-        setBotWallet(mockWallet);
-        delete window.KEY_SHARER_PRIVATE_KEY;
-        setBotInitialized(true);
-      } catch (error: any) {
-        console.error('Bot wallet creation failed:', error);
-        window.KEY_SHARER_ERROR = `Wallet creation failed: ${error.message}`;
-        window.KEY_SHARER_CONNECTED = false;
-        setBotInitialized(true);
-      }
-    };
-
-    initBotWallet();
-  }, [botInitialized]);
-
-  useEffect(() => {
-    if (!botWallet || isAgentConnected) {
-      return;
-    }
-
-    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      const initAgent = async () => {
-        try {
-          const signer = await createTownsSigner(
-            botWallet.getAccount()!,
-            client,
-            activeChain
-          );
-
-          await connectAgent(signer, {
-            townsConfig: TOWNS_CONFIG,
-          });
-        } catch (error: any) {
-          console.error('Bot agent connection failed:', error);
-          window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
-          window.KEY_SHARER_CONNECTED = false;
-        }
-      };
-
-      initAgent();
-    }
-  }, [botWallet, isAgentConnected, connectAgent]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) {
-      return;
-    }
-
-    const activeWallet = wallet || botWallet;
-    if (activeWallet && isAgentConnected) {
-      window.KEY_SHARER_CONNECTED = true;
-      window.KEY_SHARER_ATTEMPTED = true;
-      delete window.KEY_SHARER_ERROR;
-    } else {
-      window.KEY_SHARER_ATTEMPTED = true;
-      window.KEY_SHARER_CONNECTED = false;
-    }
-  }, [wallet, botWallet, isAgentConnected]);
-
-  return { botWallet };
-}
-
-function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
-  const wallet = useActiveWallet();
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  
-  let syncAgent;
-  try {
-    syncAgent = useSyncAgent();
-  } catch {
-    syncAgent = null;
-  }
-  
-  const [setupComplete, setSetupComplete] = useState(false);
-  const [setupStep, setSetupStep] = useState("Connecting...");
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  useEffect(() => {
-    if (syncAgent && !setupComplete) {
-      setSetupComplete(true);
-      return;
-    }
-
-    if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
-
-    const runSetup = async () => {
-      setIsConnecting(true);
-      try {
-        const account = wallet.getAccount();
-        if (!account) {
-          setIsConnecting(false);
-          return;
-        }
-
-        setSetupStep("Please sign the message...");
-
-        const signer = await createTownsSigner(account, client, activeChain);
-
-        if (signerRef) {
-          signerRef.current = signer;
-        }
-
-        await connectAgent(signer, {
-          townsConfig: TOWNS_CONFIG,
-        });
-
-        setSetupComplete(true);
-
-      } catch (error: any) {
-        console.error('Setup failed:', error);
-        setSetupStep("Setup failed - please refresh");
-        
-        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-          window.KEY_SHARER_ERROR = error.message;
-          window.KEY_SHARER_CONNECTED = false;
-        }
-        
-        alert(`Setup failed: ${error.message}\n\nPlease refresh the page.`);
-      } finally {
-        setIsConnecting(false);
-      }
-    };
-
-    runSetup();
-  }, [wallet, isAgentConnected, syncAgent, setupComplete, isConnecting, connectAgent, signerRef]);
-
-  if (syncAgent) {
-    return null;
-  }
-
+function LoadingSpinner({ message }: { message?: string }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="text-center max-w-md px-4">
-        <h2 className="font-adonis text-3xl mb-4">Connecting to Chat</h2>
-        <LoadingSpinner />
-        <p className="font-georgia-pro text-sm text-gray-600 mt-4">
-          {setupStep}
-        </p>
-        {setupStep.includes("sign the message") && (
-          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            Check your wallet to continue
-          </p>
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4" />
+        {message && (
+          <p className="font-georgia-pro text-sm text-gray-600">{message}</p>
         )}
       </div>
     </div>
   );
 }
 
-function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
-  const [spaceId] = useState<string | null>(SAVED_SPACE_ID || null);
-  const [hasJoined, setHasJoined] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
-  const [joinAttempt, setJoinAttempt] = useState(0);
-  const [loadingStep, setLoadingStep] = useState<string>('Initializing...');
+// ---------------------------------------------------------------------------
+// Bot auto-connect
+// ---------------------------------------------------------------------------
 
+function useBotAutoConnect() {
+  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   const wallet = useActiveWallet();
-  const { isAgentConnected } = useAgentConnection();
-  const { joinSpace } = useJoinSpace();
-  const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
+  const [botWallet, setBotWallet] = useState<any>(null);
+  const initRef = useRef(false);
 
-  let syncAgent;
-  try {
-    syncAgent = useSyncAgent();
-  } catch {
-    syncAgent = null;
-  }
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !window.KEY_SHARER_AUTO_MODE ||
+      !window.KEY_SHARER_PRIVATE_KEY ||
+      initRef.current
+    )
+      return;
+    initRef.current = true;
+
+    (async () => {
+      try {
+        const account = privateKeyToAccount({
+          client,
+          privateKey: window.KEY_SHARER_PRIVATE_KEY!,
+        });
+        delete window.KEY_SHARER_PRIVATE_KEY;
+        setBotWallet({
+          getAccount: () => account,
+          getChain: () => activeChain,
+          disconnect: async () => {},
+          switchChain: async () => {},
+        });
+      } catch (e: any) {
+        window.KEY_SHARER_ERROR = `Wallet creation failed: ${e.message}`;
+        window.KEY_SHARER_CONNECTED = false;
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!botWallet || isAgentConnected || !window.KEY_SHARER_AUTO_MODE) return;
+
+    (async () => {
+      try {
+        const signer = await createTownsSigner(
+          botWallet.getAccount()!,
+          client,
+          activeChain,
+        );
+        const agent = await connectAgent(signer, { townsConfig: TOWNS_CONFIG });
+        if (!agent) {
+          window.KEY_SHARER_ERROR = 'Agent connection returned undefined';
+          window.KEY_SHARER_CONNECTED = false;
+        }
+      } catch (e: any) {
+        window.KEY_SHARER_ERROR = `Agent connection failed: ${e.message}`;
+        window.KEY_SHARER_CONNECTED = false;
+      }
+    })();
+  }, [botWallet, isAgentConnected, connectAgent]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.KEY_SHARER_AUTO_MODE) return;
+    const active = wallet || botWallet;
+    window.KEY_SHARER_ATTEMPTED = true;
+    window.KEY_SHARER_CONNECTED = !!(active && isAgentConnected);
+    if (window.KEY_SHARER_CONNECTED) delete window.KEY_SHARER_ERROR;
+  }, [wallet, botWallet, isAgentConnected]);
+
+  return { botWallet };
+}
+
+// ---------------------------------------------------------------------------
+// Single unified connect → join → render flow
+// ---------------------------------------------------------------------------
+
+type Phase =
+  | 'idle'
+  | 'signing'
+  | 'connecting'
+  | 'joining'
+  | 'ready'
+  | 'error';
+
+const PHASE_LABELS: Record<Phase, string> = {
+  idle: 'Waiting for wallet...',
+  signing: 'Please sign the message...',
+  connecting: 'Connecting to Towns...',
+  joining: 'Joining space...',
+  ready: '',
+  error: 'Something went wrong.',
+};
+
+function TownsChat() {
+  const wallet = useActiveWallet();
+  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const { joinSpace } = useJoinSpace();
+  const { data: space, isLoading: isSpaceLoading } = useSpace(
+    SAVED_SPACE_ID || '',
+  );
+
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const signerRef = useRef<any>(null);
+  const flowStartedRef = useRef(false);
+
+  // ---- Single linear flow: signer → connect → join ----
+
+  const runFlow = useCallback(async () => {
+    if (flowStartedRef.current) return;
+    flowStartedRef.current = true;
+
+    try {
+      const account = wallet?.getAccount();
+      if (!account || !SAVED_SPACE_ID) {
+        flowStartedRef.current = false;
+        return;
+      }
+
+      // 1. Create signer (cached for the session)
+      if (!signerRef.current) {
+        setPhase('signing');
+        signerRef.current = await createTownsSigner(
+          account,
+          client,
+          activeChain,
+        );
+      }
+
+      // 2. Connect agent (skip if already connected)
+      if (!isAgentConnected) {
+        setPhase('connecting');
+        const agent = await connectAgent(signerRef.current, {
+          townsConfig: TOWNS_CONFIG,
+        });
+
+        // Safety check per Towns team: bail if connect() returns undefined
+        if (!agent) {
+          throw new Error('Agent connection failed — returned undefined');
+        }
+      }
+
+      // 3. Join space — single call, treat "already a member" as success
+      setPhase('joining');
+      try {
+        await joinSpace(SAVED_SPACE_ID, signerRef.current);
+      } catch (e: any) {
+        const msg = (e.message || '').toLowerCase();
+        const alreadyJoined =
+          msg.includes('already a member') || msg.includes('already joined');
+        if (!alreadyJoined) throw e;
+      }
+
+      setPhase('ready');
+
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_SPACE_JOINED = true;
+        window.KEY_SHARER_CONNECTED = true;
+      }
+    } catch (e: any) {
+      setPhase('error');
+      setErrorMsg(friendlyError(e));
+      flowStartedRef.current = false;
+
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_ERROR = e.message;
+        window.KEY_SHARER_CONNECTED = false;
+      }
+    }
+  }, [wallet, isAgentConnected, connectAgent, joinSpace]);
+
+  useEffect(() => {
+    if (wallet && phase === 'idle') {
+      runFlow();
+    }
+  }, [wallet, phase, runFlow]);
+
+  // ---- Derived state ----
 
   const currentUser: ChatUser | null = useMemo(() => {
     const address = wallet?.getAccount()?.address;
     if (!address) return null;
-
     return {
       id: address,
-      address: address,
+      address,
       displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
       role: 'viewer',
       membershipTier: 'freemium',
@@ -251,190 +243,20 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     };
   }, [wallet]);
 
-  const joinWithRetry = async (
-    spaceId: string,
-    signer: any,
-    maxRetries = 3,
-    skipMintMembership = false
-  ) => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
-          await new Promise(r => setTimeout(r, delay));
-        }
+  // ---- Render ----
 
-        setJoinAttempt(attempt + 1);
-        setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
-
-        await joinSpace(spaceId, signer, { skipMintMembership });
-        return;
-
-      } catch (error: any) {
-        const errorMsg = error.message?.toLowerCase() || '';
-        
-        if (errorMsg.includes('already a member') || 
-            errorMsg.includes('already joined')) {
-          return;
-        }
-
-        const isTransient =
-          errorMsg.includes('cannot_connect') ||
-          errorMsg.includes('429') ||
-          errorMsg.includes('bandwidth limit') ||
-          errorMsg.includes('too many requests') ||
-          errorMsg.includes('failed_precondition') ||
-          errorMsg.includes('deadline_exceeded') ||
-          errorMsg.includes('unavailable') ||
-          errorMsg.includes('timeout');
-
-        if (!isTransient) {
-          throw error;
-        }
-
-        if (attempt < maxRetries - 1) {
-          continue;
-        }
-
-        throw error;
-      }
-    }
-
-    throw new Error('Failed to join after all retries');
-  };
-
-  useEffect(() => {
-    if (!syncAgent) {
-      return;
-    }
-
-    if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
-
-    const joinSpaceNow = async () => {
-      setIsJoining(true);
-      try {
-        const account = wallet.getAccount();
-        if (!account) {
-          setIsJoining(false);
-          return;
-        }
-
-        setLoadingStep('Preparing to join space...');
-
-        let signer = signerRef?.current;
-        if (!signer) {
-          setLoadingStep('Creating signer...');
-          signer = await createTownsSigner(account, client, activeChain);
-          if (signerRef) {
-            signerRef.current = signer;
-          }
-        }
-
-        setLoadingStep('Checking membership...');
-
-        try {
-          await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
-          
-          setHasJoined(true);
-          setLoadingStep('Space joined successfully!');
-          
-          if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-            window.KEY_SHARER_SPACE_JOINED = true;
-          }
-          
-          return;
-          
-        } catch (error: any) {
-          const errorMsg = error.message?.toLowerCase() || '';
-          
-          const needsMembership = 
-            errorMsg.includes('not a member') || 
-            errorMsg.includes('not entitled') ||
-            errorMsg.includes('no membership') ||
-            errorMsg.includes('must mint') ||
-            errorMsg.includes('must be a member');
-          
-          if (needsMembership) {
-            setLoadingStep('Minting membership NFT (one-time)...');
-            
-            await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
-            
-            setHasJoined(true);
-            setLoadingStep('Space joined successfully!');
-            
-            if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-              window.KEY_SHARER_SPACE_JOINED = true;
-            }
-            
-          } else {
-            throw error;
-          }
-        }
-
-      } catch (error: any) {
-        console.error('Join failed:', error);
-
-        let errorMessage = 'Failed to join chat. ';
-        if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
-          errorMessage += 'Network is busy, please try again.';
-        } else if (error.message?.includes('CANNOT_CONNECT')) {
-          errorMessage += 'Cannot connect to network.';
-        } else {
-          errorMessage += error.message;
-        }
-
-        setLoadingStep('Join failed');
-        alert(errorMessage);
-      } finally {
-        setIsJoining(false);
-        setJoinAttempt(0);
-        setLoadingStep('Initializing...');
-      }
-    };
-
-    joinSpaceNow();
-  }, [syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef, isAgentConnected]);
-
-  if (!syncAgent) {
+  if (phase === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <LoadingSpinner />
-          <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-            {!isAgentConnected ? 'Connecting to Towns...' : 'Initializing sync...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isSpaceLoading || isJoining) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <LoadingSpinner />
-          <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-            {loadingStep}
-          </p>
-          {joinAttempt > 1 && (
-            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-              Retry {joinAttempt}/3
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (!space) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <p className="font-georgia-pro text-red-500">Space not found</p>
+        <div className="text-center max-w-md px-4">
+          <p className="font-georgia-pro text-red-500 mb-4">{errorMsg}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
+            onClick={() => {
+              setPhase('idle');
+              setErrorMsg('');
+              flowStartedRef.current = false;
+            }}
+            className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
           >
             Retry
           </button>
@@ -443,50 +265,52 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     );
   }
 
-  if (!space.initialized) {
+  if (phase !== 'ready') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <LoadingSpinner />
-          <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-            Syncing with chat network...
-          </p>
-        </div>
-      </div>
+      <LoadingSpinner
+        message={
+          PHASE_LABELS[phase] +
+          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
+        }
+      />
     );
+  }
+
+  if (isSpaceLoading || !space) {
+    return <LoadingSpinner message="Loading space..." />;
+  }
+
+  if (!space.initialized) {
+    return <LoadingSpinner message="Syncing with chat network..." />;
   }
 
   const channelId = space.channelIds?.[0];
   if (!channelId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <p className="font-georgia-pro text-red-500">No channels found</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
-          >
-            Retry
-          </button>
-        </div>
+        <p className="font-georgia-pro text-red-500">No channels found</p>
       </div>
     );
   }
 
-  if (hasJoined && currentUser) {
-    return (
-      <div className="w-full h-screen">
-        <ConnectedChat
-          currentUser={currentUser}
-          spaceId={spaceId!}
-          defaultChannelId={channelId}
-        />
-      </div>
-    );
+  if (!currentUser) {
+    return <LoadingSpinner message="Resolving user..." />;
   }
 
-  return <LoadingSpinner />;
+  return (
+    <div className="w-full h-screen">
+      <ConnectedChat
+        currentUser={currentUser}
+        spaceId={SAVED_SPACE_ID!}
+        defaultChannelId={channelId}
+      />
+    </div>
+  );
 }
+
+// ---------------------------------------------------------------------------
+// Root component
+// ---------------------------------------------------------------------------
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
@@ -494,51 +318,34 @@ export default function ChatTestClient() {
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
-  const signerRef = useRef<any>(null);
+  useEffect(() => setIsMounted(true), []);
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const hasExportIntent = localStorage.getItem("exportKeyIntent") === "1";
-    if (hasExportIntent && wallet && isAgentConnected) {
-      localStorage.removeItem("exportKeyIntent");
-      setTimeout(() => {
-        alert(
-          "✅ Authentication successful!\n\n" +
+    if (localStorage.getItem('exportKeyIntent') !== '1') return;
+    if (!wallet || !isAgentConnected) return;
+    localStorage.removeItem('exportKeyIntent');
+    setTimeout(() => {
+      alert(
+        '✅ Authentication successful!\n\n' +
           "To export your private key:\n" +
           "1. Click the 'K' logo (top left)\n" +
           "2. Click 'Export Private Key'\n" +
-          "3. Follow the instructions"
-        );
-      }, 1500);
-    }
+          '3. Follow the instructions',
+      );
+    }, 1500);
   }, [wallet, isAgentConnected]);
 
   if (!isMounted) return <LoadingSpinner />;
 
+  // Bot mode
   if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-    if (!botWallet) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="text-center max-w-md">
-            <LoadingSpinner />
-            <p className="font-georgia-pro text-sm text-gray-600 mt-4">
-              Bot Mode: Connecting...
-            </p>
-          </div>
-        </div>
-      );
+    if (!botWallet || !isAgentConnected) {
+      return <LoadingSpinner message="Bot Mode: Connecting..." />;
     }
-
-    if (!isAgentConnected) {
-      return <SetupFlow signerRef={signerRef} />;
-    }
-
-    return <TownsChat signerRef={signerRef} />;
+    return <TownsChat />;
   }
 
+  // Normal user — show connect button
   if (!wallet) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -554,9 +361,22 @@ export default function ChatTestClient() {
     );
   }
 
-  if (!isAgentConnected) {
-    return <SetupFlow signerRef={signerRef} />;
-  }
+  return <TownsChat />;
+}
 
-  return <TownsChat signerRef={signerRef} />;
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function friendlyError(error: any): string {
+  const msg = error.message?.toLowerCase() || '';
+  if (msg.includes('429') || msg.includes('bandwidth'))
+    return 'Network is busy — please try again in a moment.';
+  if (msg.includes('cannot_connect') || msg.includes('unavailable'))
+    return 'Cannot reach the Towns network. Check your connection.';
+  if (msg.includes('user rejected') || msg.includes('denied'))
+    return 'Wallet signature was cancelled.';
+  if (msg.includes('returned undefined'))
+    return 'Agent connection failed. Please retry.';
+  return error.message || 'An unexpected error occurred.';
 }
