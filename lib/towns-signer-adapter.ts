@@ -4,6 +4,12 @@ import type { Chain } from "thirdweb/chains";
 import { ethers } from "ethers"; // v5
 
 /**
+ * Default RPC URL pattern for ThirdWeb chains when no RPC URL is provided
+ * This follows ThirdWeb's standard RPC endpoint format
+ */
+const THIRDWEB_RPC_URL_PATTERN = (chainId: number) => `https://${chainId}.rpc.thirdweb.com`;
+
+/**
  * Custom ethers v5 Signer that wraps a ThirdWeb Account
  * and includes a proper JsonRpcProvider required by Towns SDK
  */
@@ -22,9 +28,18 @@ class ThirdWebEthersSigner extends ethers.Signer {
   }
   
   async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
-    const messageString = typeof message === 'string' 
-      ? message 
-      : ethers.utils.toUtf8String(message);
+    let messageString: string;
+    
+    if (typeof message === 'string') {
+      messageString = message;
+    } else {
+      // Convert bytes to UTF-8 string with error handling
+      try {
+        messageString = ethers.utils.toUtf8String(message);
+      } catch (error) {
+        throw new Error(`Failed to convert message bytes to UTF-8 string: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     
     const signature = await this.account.signMessage({ message: messageString });
     return signature;
@@ -65,7 +80,7 @@ export async function createTownsSigner(
     // Get RPC URL from chain
     const rpcUrl = typeof chain.rpc === 'string' 
       ? chain.rpc 
-      : chain.rpc?.[0] || `https://${chain.id}.rpc.thirdweb.com`;
+      : chain.rpc?.[0] || THIRDWEB_RPC_URL_PATTERN(chain.id);
 
     console.log('   RPC:', rpcUrl.substring(0, 50) + '...');
 
@@ -93,7 +108,7 @@ export async function createTownsSigner(
       );
     }
 
-    // Test sign capability
+    // Test sign capability (internal validation only, not user-facing)
     try {
       const testMessage = "Towns SDK Signer Test";
       const testSig = await signer.signMessage(testMessage);
