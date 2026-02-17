@@ -195,18 +195,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   // ✅ Load scrollback immediately on mount (parallel with space initialization)
   useEffect(() => {
-    if (!channelId || isScrollbackPending) return;
-    
-    console.log('📜 Loading message history in parallel...');
-    
-    const loadHistory = async () => {
-      try {
-        const result = await scrollback();
-        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
-      } catch (error) {
-        console.error('❌ Failed to load message history:', error);
-      }
-    };
+  // ✅ OPTIMIZED: Removed isScrollbackPending guard for parallel loading
+  if (!channelId) return;
+  
+  console.log('📜 Loading message history in parallel...');
+  
+  const loadHistory = async () => {
+    try {
+      const result = await scrollback();
+      console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
+    } catch (error) {
+      console.error('❌ Failed to load message history:', error);
+    }
+  };
+  
+  loadHistory();
+}, [channelId, scrollback]); // ✅ Removed isScrollbackPending from dependencies
     
     loadHistory();
   }, [channelId, scrollback, isScrollbackPending]);
