@@ -311,56 +311,70 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   }, [space]);
 
   const joinWithRetry = async (
-    spaceId: string,
-    signer: any,
-    maxRetries = 3,
-    skipMintMembership = false
-  ) => {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`⏳ Retrying in ${delay/1000}s...`);
-          setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
-          await new Promise(r => setTimeout(r, delay));
-        }
+  spaceId: string,
+  signer: any,
+  maxRetries = 3,
+  skipMintMembership = false
+) => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`⏳ Retrying in ${delay/1000}s...`);
+        setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
 
-        setJoinAttempt(attempt + 1);
-        console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
-        setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
+      setJoinAttempt(attempt + 1);
+      console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
+      setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
 
-        await joinSpace(spaceId, signer, { skipMintMembership });
+      await joinSpace(spaceId, signer, { skipMintMembership });
 
-        console.log('✅ Joined successfully!');
+      console.log('✅ Joined successfully!');
+      return; // ✅ Success - stop retrying
+
+    } catch (error: any) {
+      const errorMsg = error.message?.toLowerCase() || '';
+      
+      // ✅ Already a member - stop retrying
+      if (errorMsg.includes('already a member') || 
+          errorMsg.includes('already joined')) {
+        console.log('✅ Already a member');
         return;
+      }
 
-      } catch (error: any) {
-        if (error.message?.includes('already a member') || 
-            error.message?.includes('Already joined')) {
-          console.log('✅ Already a member');
-          return;
-        }
+      // ✅ Check if it's a transient network error
+      const isTransient =
+        errorMsg.includes('cannot_connect') ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('bandwidth limit') ||
+        errorMsg.includes('too many requests') ||
+        errorMsg.includes('failed_precondition') ||
+        errorMsg.includes('deadline_exceeded') ||
+        errorMsg.includes('unavailable') ||
+        errorMsg.includes('timeout');
 
-        const isTransient =
-          error.message?.includes('CANNOT_CONNECT') ||
-          error.message?.includes('429') ||
-          error.message?.includes('Bandwidth limit') ||
-          error.message?.includes('Too Many Requests') ||
-          error.message?.includes('failed_precondition') ||
-          error.message?.includes('deadline_exceeded');
-
-        if (isTransient && attempt < maxRetries - 1) {
-          console.log(`⚠️ Transient error, will retry...`);
-          continue;
-        }
-
-        console.error('❌ Join failed:', error);
+      // ✅ If NOT transient, throw immediately (don't retry)
+      if (!isTransient) {
+        console.error('❌ Non-transient error - will not retry:', error.message);
         throw error;
       }
-    }
 
-    throw new Error('Failed to join after all retries');
-  };
+      // ✅ If transient and not last attempt, retry
+      if (attempt < maxRetries - 1) {
+        console.log(`⚠️ Transient network error, will retry...`);
+        continue;
+      }
+
+      // ✅ Last attempt failed - give up
+      console.error('❌ All retries exhausted:', error);
+      throw error;
+    }
+  }
+
+  throw new Error('Failed to join after all retries');
+};
 
   useEffect(() => {
     // ✅ Check syncAgent OR if we manually connected via saved context
@@ -378,104 +392,99 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
     const joinSpaceNow = async () => {
-      setIsJoining(true);
-      try {
-        const account = wallet.getAccount();
-        if (!account) {
-          setIsJoining(false);
-          return;
-        }
+  setIsJoining(true);
+  try {
+    const account = wallet.getAccount();
+    if (!account) {
+      setIsJoining(false);
+      return;
+    }
 
-        setLoadingStep('Preparing to join space...');
+    setLoadingStep('Preparing to join space...');
 
-        let signer = signerRef?.current;
-        if (!signer) {
-          setLoadingStep('Creating signer...');
-          console.log('⚠️ No cached signer, creating new one...');
-          signer = await createTownsSigner(account, client, activeChain);
-          if (signerRef) {
-            signerRef.current = signer;
-          }
-        } else {
-          console.log('✅ Reusing cached signer');
-        }
+    let signer = signerRef?.current;
+    if (!signer) {
+      setLoadingStep('Creating signer...');
+      console.log('⚠️ No cached signer, creating new one...');
+      signer = await createTownsSigner(account, client, activeChain);
+      if (signerRef) {
+        signerRef.current = signer;
+      }
+    } else {
+      console.log('✅ Reusing cached signer');
+    }
 
-        setLoadingStep('Checking membership...');
+    setLoadingStep('Checking membership...');
 
-        // ✅ Try to join without minting first to check if already a member
-        let needsToMint = true;
-        try {
-          console.log('🔍 Checking if already a member (trying join without mint)...');
-          await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
-          
-          console.log('✅ Already a member - joined without minting!');
-          needsToMint = false;
-          setHasJoined(true);
-          
-        } catch (error: any) {
-          const errorMsg = error.message?.toLowerCase() || '';
-          
-          // Check if it's specifically a "not a member" error
-          if (errorMsg.includes('not a member') || 
-              errorMsg.includes('not entitled') ||
-              errorMsg.includes('no membership') ||
-              errorMsg.includes('must be a member')) {
-            
-            console.log('📝 Not a member yet - will mint membership NFT');
-            needsToMint = true;
-            
-          } else if (errorMsg.includes('already a member') || 
-                     errorMsg.includes('already joined')) {
-            
-            console.log('✅ Already a member (from error message)');
-            needsToMint = false;
-            setHasJoined(true);
-            
-          } else {
-            // Unknown error - try with minting as fallback
-            console.warn('⚠️ Unknown error during membership check:', error.message);
-            console.log('   Will attempt to mint as fallback');
-            needsToMint = true;
-          }
-        }
-
-        // ✅ If they need membership NFT, mint it with retry logic
-        if (needsToMint) {
-          setLoadingStep('Minting membership NFT...');
-          console.log('💳 Minting Space membership NFT (one-time only)...');
-          
-          await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
-          
-          console.log('✅ Minted and joined successfully!');
-          setHasJoined(true);
-        }
-
+    // ✅ STEP 1: Try to join without minting (check if they have NFT)
+    try {
+      console.log('🔍 Attempting to join without minting...');
+      await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
+      
+      console.log('✅ Joined successfully - already has membership NFT!');
+      setHasJoined(true);
+      setLoadingStep('Space joined successfully!');
+      
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_SPACE_JOINED = true;
+      }
+      
+      return; // ✅ Success - stop here, no minting needed!
+      
+    } catch (error: any) {
+      const errorMsg = error.message?.toLowerCase() || '';
+      
+      // ✅ ONLY mint if explicitly told "not a member" or "not entitled"
+      const needsMembership = 
+        errorMsg.includes('not a member') || 
+        errorMsg.includes('not entitled') ||
+        errorMsg.includes('no membership') ||
+        errorMsg.includes('must mint') ||
+        errorMsg.includes('must be a member');
+      
+      if (needsMembership) {
+        console.log('📝 User does not have membership NFT - will mint once');
+        
+        setLoadingStep('Minting membership NFT (one-time)...');
+        
+        // ✅ STEP 2: Mint membership NFT (only once, with retries for network issues)
+        await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
+        
+        console.log('✅ Minted and joined successfully!');
+        setHasJoined(true);
         setLoadingStep('Space joined successfully!');
-
+        
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
           window.KEY_SHARER_SPACE_JOINED = true;
         }
-
-      } catch (error: any) {
-        console.error('❌ Join failed after all retries:', error);
-
-        let errorMessage = 'Failed to join chat. ';
-        if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
-          errorMessage += 'Network is busy, please wait a moment and try again.';
-        } else if (error.message?.includes('CANNOT_CONNECT')) {
-          errorMessage += 'Cannot connect to network, please check your internet.';
-        } else {
-          errorMessage += error.message;
-        }
-
-        setLoadingStep('Join failed');
-        alert(errorMessage);
-      } finally {
-        setIsJoining(false);
-        setJoinAttempt(0);
-        setLoadingStep('Initializing...');
+        
+      } else {
+        // ✅ Some other error - DON'T try to mint, just fail
+        console.error('❌ Join failed with non-membership error:', error.message);
+        throw error;
       }
-    };
+    }
+
+  } catch (error: any) {
+    console.error('❌ Join failed:', error);
+
+    let errorMessage = 'Failed to join chat. ';
+    if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
+      errorMessage += 'Network is busy, please wait a moment and try again.';
+    } else if (error.message?.includes('CANNOT_CONNECT')) {
+      errorMessage += 'Cannot connect to network, please check your internet.';
+    } else {
+      errorMessage += error.message;
+    }
+
+    setLoadingStep('Join failed');
+    alert(errorMessage);
+  } finally {
+    setIsJoining(false);
+    setJoinAttempt(0);
+    setLoadingStep('Initializing...');
+  }
+};
 
     joinSpaceNow();
   }, [syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef, isAgentConnected]);
