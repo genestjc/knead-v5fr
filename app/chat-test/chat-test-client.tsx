@@ -393,7 +393,13 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
 
         setLoadingStep('Joining space...');
 
-        await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
+        try {
+          await joinSpace(..., { skipMintMembership: true });
+          // Success = already a member!
+          } catch {
+          // Failed = need to mint
+          await joinWithRetry(..., false);
+          }
 
         setLoadingStep('Space joined successfully!');
         setHasJoined(true);
