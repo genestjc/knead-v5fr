@@ -57,12 +57,10 @@ function useBotAutoConnect() {
 
     const initBotWallet = async () => {
       try {
-        console.log('🤖 Bot Mode: Creating account from private key...');
         const account = privateKeyToAccount({
           client,
           privateKey: window.KEY_SHARER_PRIVATE_KEY!,
         });
-        console.log('✅ Bot account created:', account.address);
 
         const mockWallet = {
           getAccount: () => account,
@@ -73,10 +71,9 @@ function useBotAutoConnect() {
 
         setBotWallet(mockWallet);
         delete window.KEY_SHARER_PRIVATE_KEY;
-        console.log('🧹 Private key removed from browser memory');
         setBotInitialized(true);
       } catch (error: any) {
-        console.error('❌ Bot wallet creation failed:', error);
+        console.error('Bot wallet creation failed:', error);
         window.KEY_SHARER_ERROR = `Wallet creation failed: ${error.message}`;
         window.KEY_SHARER_CONNECTED = false;
         setBotInitialized(true);
@@ -94,7 +91,6 @@ function useBotAutoConnect() {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
       const initAgent = async () => {
         try {
-          console.log('🤖 Bot Mode: Connecting Towns agent...');
           const signer = await createTownsSigner(
             botWallet.getAccount()!,
             client,
@@ -103,12 +99,9 @@ function useBotAutoConnect() {
 
           await connectAgent(signer, {
             townsConfig: TOWNS_CONFIG,
-            onTokenExpired: () => console.log('🔄 Token expired')
           });
-
-          console.log('✅ Bot Towns agent connected');
         } catch (error: any) {
-          console.error('❌ Bot agent connection failed:', error);
+          console.error('Bot agent connection failed:', error);
           window.KEY_SHARER_ERROR = `Agent connection failed: ${error.message}`;
           window.KEY_SHARER_CONNECTED = false;
         }
@@ -125,11 +118,6 @@ function useBotAutoConnect() {
 
     const activeWallet = wallet || botWallet;
     if (activeWallet && isAgentConnected) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('✅ BOT SUCCESSFULLY CONNECTED');
-      console.log(`   Wallet: ${activeWallet.getAccount?.()?.address || 'unknown'}`);
-      console.log(`   Time: ${new Date().toISOString()}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       window.KEY_SHARER_CONNECTED = true;
       window.KEY_SHARER_ATTEMPTED = true;
       delete window.KEY_SHARER_ERROR;
@@ -146,12 +134,10 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   
-  // ✅ Safely check for syncAgent - wrap in try/catch since it throws
   let syncAgent;
   try {
     syncAgent = useSyncAgent();
   } catch {
-    // No agent yet - this is fine
     syncAgent = null;
   }
   
@@ -160,9 +146,7 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    // ✅ If provider restored a session, skip SetupFlow
     if (syncAgent && !setupComplete) {
-      console.log('✅ Provider restored session - skipping signature request');
       setSetupComplete(true);
       return;
     }
@@ -179,77 +163,21 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         }
 
         setSetupStep("Please sign the message...");
-        console.log('🔐 Requesting wallet signature...');
 
         const signer = await createTownsSigner(account, client, activeChain);
 
         if (signerRef) {
           signerRef.current = signer;
-          console.log('💾 Signer cached for reuse in this session');
         }
 
-        const agent = await connectAgent(signer, {
+        await connectAgent(signer, {
           townsConfig: TOWNS_CONFIG,
         });
 
-        // ✅ INSPECT EVERYTHING THE SDK GIVES US
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🔍 INSPECTING CONNECTION RESULT:');
-        console.log('   Type:', typeof agent);
-        console.log('   Is null?:', agent === null);
-        console.log('   Is undefined?:', agent === undefined);
-        
-        if (agent) {
-          console.log('   Keys:', Object.keys(agent));
-          console.log('   Constructor:', agent.constructor.name);
-          
-          // Check for token properties
-          console.log('   agent.bearerToken:', (agent as any).bearerToken);
-          console.log('   agent.token:', (agent as any).token);
-          console.log('   agent._bearerToken:', (agent as any)._bearerToken);
-          console.log('   agent._token:', (agent as any)._token);
-          
-          // Check for context
-          console.log('   agent.context:', (agent as any).context);
-          console.log('   agent._context:', (agent as any)._context);
-          console.log('   agent.signerContext:', (agent as any).signerContext);
-          console.log('   agent._signerContext:', (agent as any)._signerContext);
-          
-          // Check prototype
-          const proto = Object.getPrototypeOf(agent);
-          console.log('   Prototype methods:', Object.getOwnPropertyNames(proto).filter(p => p !== 'constructor'));
-          
-          // Try to call toString or inspect if it exists
-          if (typeof (agent as any).inspect === 'function') {
-            console.log('   agent.inspect():', (agent as any).inspect());
-          }
-        }
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-        // ✅ CHECK LOCALSTORAGE
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🔍 CHECKING LOCALSTORAGE AFTER CONNECTION:');
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            key.includes('towns') || 
-            key.includes('bearer') || 
-            key.includes('token') || 
-            key.includes('sync') ||
-            key.includes('agent') ||
-            key.includes('context')
-          )) {
-            const value = localStorage.getItem(key);
-            console.log(`   ${key}:`, value ? value.substring(0, 150) + '...' : 'null');
-          }
-        }
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-        console.log('✅ Connected successfully');
         setSetupComplete(true);
 
       } catch (error: any) {
-        console.error('❌ Setup failed:', error);
+        console.error('Setup failed:', error);
         setSetupStep("Setup failed - please refresh");
         
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -266,7 +194,6 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
     runSetup();
   }, [wallet, isAgentConnected, syncAgent, setupComplete, isConnecting, connectAgent, signerRef]);
 
-  // ✅ If provider already connected, skip loading screen
   if (syncAgent) {
     return null;
   }
@@ -281,7 +208,7 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         </p>
         {setupStep.includes("sign the message") && (
           <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            📝 First time setup - check your wallet
+            Check your wallet to continue
           </p>
         )}
       </div>
@@ -301,20 +228,10 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   const { joinSpace } = useJoinSpace();
   const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
-  // ✅ Safely get syncAgent
   let syncAgent;
   try {
     syncAgent = useSyncAgent();
-    
-    // ✅ INSPECT THE AGENT ONCE
-    if (syncAgent) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━');
-      console.log('🔍 INSPECTING useSyncAgent() IN TownsChat:');
-      console.log('   Keys:', Object.keys(syncAgent));
-      console.log('   Methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(syncAgent)));
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
-  } catch (error) {
+  } catch {
     syncAgent = null;
   }
 
@@ -334,16 +251,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     };
   }, [wallet]);
 
-  useEffect(() => {
-    if (space) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📊 Space Sync Status:');
-      console.log('   Initialized:', space.initialized);
-      console.log('   Channel IDs:', space.channelIds);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
-  }, [space]);
-
   const joinWithRetry = async (
     spaceId: string,
     signer: any,
@@ -354,18 +261,14 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
       try {
         if (attempt > 0) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`⏳ Retrying in ${delay/1000}s...`);
           setLoadingStep(`Network busy, retrying in ${delay/1000}s...`);
           await new Promise(r => setTimeout(r, delay));
         }
 
         setJoinAttempt(attempt + 1);
-        console.log(`🚀 Join attempt ${attempt + 1}/${maxRetries}...`);
         setLoadingStep(`Joining space (attempt ${attempt + 1}/${maxRetries})...`);
 
         await joinSpace(spaceId, signer, { skipMintMembership });
-
-        console.log('✅ Joined successfully!');
         return;
 
       } catch (error: any) {
@@ -373,7 +276,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
         
         if (errorMsg.includes('already a member') || 
             errorMsg.includes('already joined')) {
-          console.log('✅ Already a member');
           return;
         }
 
@@ -388,16 +290,13 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
           errorMsg.includes('timeout');
 
         if (!isTransient) {
-          console.error('❌ Non-transient error - will not retry:', error.message);
           throw error;
         }
 
         if (attempt < maxRetries - 1) {
-          console.log(`⚠️ Transient network error, will retry...`);
           continue;
         }
 
-        console.error('❌ All retries exhausted:', error);
         throw error;
       }
     }
@@ -407,11 +306,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
 
   useEffect(() => {
     if (!syncAgent) {
-      if (!isAgentConnected) {
-        console.log('⏳ Waiting for agent connection...');
-      } else {
-        console.log('⏳ Agent connected, waiting for sync agent...');
-      }
       return;
     }
 
@@ -431,23 +325,17 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
         let signer = signerRef?.current;
         if (!signer) {
           setLoadingStep('Creating signer...');
-          console.log('⚠️ No cached signer, creating new one...');
           signer = await createTownsSigner(account, client, activeChain);
           if (signerRef) {
             signerRef.current = signer;
           }
-        } else {
-          console.log('✅ Reusing cached signer');
         }
 
         setLoadingStep('Checking membership...');
 
-        // ✅ STEP 1: Try to join without minting
         try {
-          console.log('🔍 Attempting to join without minting...');
           await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
           
-          console.log('✅ Joined successfully - already has membership NFT!');
           setHasJoined(true);
           setLoadingStep('Space joined successfully!');
           
@@ -468,13 +356,10 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
             errorMsg.includes('must be a member');
           
           if (needsMembership) {
-            console.log('📝 User does not have membership NFT - will mint once');
-            
             setLoadingStep('Minting membership NFT (one-time)...');
             
             await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
             
-            console.log('✅ Minted and joined successfully!');
             setHasJoined(true);
             setLoadingStep('Space joined successfully!');
             
@@ -483,19 +368,18 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
             }
             
           } else {
-            console.error('❌ Join failed with non-membership error:', error.message);
             throw error;
           }
         }
 
       } catch (error: any) {
-        console.error('❌ Join failed:', error);
+        console.error('Join failed:', error);
 
         let errorMessage = 'Failed to join chat. ';
         if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
-          errorMessage += 'Network is busy, please wait a moment and try again.';
+          errorMessage += 'Network is busy, please try again.';
         } else if (error.message?.includes('CANNOT_CONNECT')) {
-          errorMessage += 'Cannot connect to network, please check your internet.';
+          errorMessage += 'Cannot connect to network.';
         } else {
           errorMessage += error.message;
         }
@@ -511,12 +395,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
 
     joinSpaceNow();
   }, [syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef, isAgentConnected]);
-
-  useEffect(() => {
-    if (hasJoined && space?.initialized) {
-      console.log('✅ Space fully initialized with channels:', space.channelIds);
-    }
-  }, [hasJoined, space?.initialized, space?.channelIds]);
 
   if (!syncAgent) {
     return (
@@ -541,7 +419,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
           </p>
           {joinAttempt > 1 && (
             <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-              Retry {joinAttempt}/3 - Network is busy, please wait...
+              Retry {joinAttempt}/3
             </p>
           )}
         </div>
@@ -553,7 +431,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <p className="font-georgia-pro text-red-500">❌ Space not found</p>
+          <p className="font-georgia-pro text-red-500">Space not found</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -571,10 +449,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
         <div className="text-center">
           <LoadingSpinner />
           <p className="font-georgia-pro text-sm text-gray-500 mt-4">
-            Syncing with stream nodes...
-          </p>
-          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            This should take 5-10 seconds
+            Syncing with chat network...
           </p>
         </div>
       </div>
@@ -586,7 +461,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <p className="font-georgia-pro text-red-500">❌ No channels found</p>
+          <p className="font-georgia-pro text-red-500">No channels found</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -650,7 +525,7 @@ export default function ChatTestClient() {
           <div className="text-center max-w-md">
             <LoadingSpinner />
             <p className="font-georgia-pro text-sm text-gray-600 mt-4">
-              🤖 Bot Mode: Connecting wallet programmatically...
+              Bot Mode: Connecting...
             </p>
           </div>
         </div>
