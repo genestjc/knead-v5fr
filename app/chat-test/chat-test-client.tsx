@@ -11,6 +11,9 @@ import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
 
+// Temporary — verify RPC URL reaches the client bundle
+console.log('RPC URL:', process.env.BASE_MAINNET_RPC_URL);
+
 declare global {
   interface Window {
     KEY_SHARER_PRIVATE_KEY?: string;
@@ -189,22 +192,43 @@ function TownsChat() {
       if (agentRef.current) {
         setPhase('joining');
 
-        const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
-        const alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
+        // Wait for persistence to load space memberships
+        // SDK loads from IndexedDB after connect() — typically ~0.5ms
+        let alreadyMember = false;
+        for (let i = 0; i < 5; i++) {
+          const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
+          alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
+          if (alreadyMember) break;
+          await new Promise((r) => setTimeout(r, 100)); // 100ms × 5 = 500ms max
+        }
 
         if (alreadyMember) {
           console.log('✅ Already a member of space, skipping joinSpace transaction');
         } else {
           try {
+            // First attempt: skip mint — covers the case where persistence
+            // hadn't loaded yet but user IS already a member on-chain
             await agentRef.current.spaces.joinSpace(
               SAVED_SPACE_ID,
               signerRef.current,
+              { skipMintMembership: true },
             );
           } catch (e: any) {
             const msg = (e.message || '').toLowerCase();
             const alreadyJoined =
               msg.includes('already a member') || msg.includes('already joined');
-            if (!alreadyJoined) throw e;
+            if (alreadyJoined) {
+              console.log('✅ Already a member (caught from joinSpace)');
+            } else if (msg.includes('not a member') || msg.includes('no membership')) {
+              // Genuinely new user — call again WITH mint
+              console.log('🆕 New user, minting membership...');
+              await agentRef.current.spaces.joinSpace(
+                SAVED_SPACE_ID,
+                signerRef.current,
+              );
+            } else {
+              throw e;
+            }
           }
         }
       }
