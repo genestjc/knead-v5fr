@@ -193,27 +193,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Load scrollback immediately on mount (parallel with space initialization)
+  // ✅ Load scrollback immediately on mount
   useEffect(() => {
-  // ✅ OPTIMIZED: Removed isScrollbackPending guard for parallel loading
-  if (!channelId) return;
-  
-  console.log('📜 Loading message history in parallel...');
-  
-  const loadHistory = async () => {
-    try {
-      const result = await scrollback();
-      console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
-    } catch (error) {
-      console.error('❌ Failed to load message history:', error);
-    }
-  };
-  
-  loadHistory();
-}, [channelId, scrollback]); // ✅ Removed isScrollbackPending from dependencies
+    if (!channelId) return;
+    
+    console.log('📜 Loading message history...');
+    
+    const loadHistory = async () => {
+      try {
+        const result = await scrollback();
+        console.log(`✅ Loaded history: terminus=${result.terminus}, from block=${result.fromInclusiveMiniblockNum.toString()}`);
+      } catch (error) {
+        console.error('❌ Failed to load message history:', error);
+      }
+    };
     
     loadHistory();
-  }, [channelId, scrollback, isScrollbackPending]);
+  }, [channelId, scrollback]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
