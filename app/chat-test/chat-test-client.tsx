@@ -139,10 +139,6 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 // ---------------------------------------------------------------------------
 // TownsChat — owns connection flow, NO SyncAgent-dependent hooks
-//
-// useJoinSpace calls useSyncAgent() internally (confirmed from SDK source),
-// so we cannot use it here. Instead, we call agent.spaces.joinSpace()
-// directly on the SyncAgent instance returned from connect().
 // ---------------------------------------------------------------------------
 
 function TownsChat() {
@@ -160,7 +156,6 @@ function TownsChat() {
   const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
 
-  // ---- Single linear flow: signer → connect → join (no hooks that need SyncAgent) ----
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
@@ -178,7 +173,7 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (skip if already connected — e.g. bot mode)
+      // 2. Connect agent
       if (!isAgentConnected) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
@@ -190,19 +185,28 @@ function TownsChat() {
         agentRef.current = agent;
       }
 
-      // 3. Join space — call directly on the agent, NOT via useJoinSpace hook
-      //    useJoinSpace internally calls useSyncAgent() which would throw here
-      setPhase('joining');
-      try {
-        await agentRef.current.spaces.joinSpace(
-          SAVED_SPACE_ID,
-          signerRef.current,
-        );
-      } catch (e: any) {
-        const msg = (e.message || '').toLowerCase();
-        const alreadyJoined =
-          msg.includes('already a member') || msg.includes('already joined');
-        if (!alreadyJoined) throw e;
+      // 3. Join space — only if not already a member
+      if (agentRef.current) {
+        setPhase('joining');
+
+        const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
+        const alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
+
+        if (alreadyMember) {
+          console.log('✅ Already a member of space, skipping joinSpace transaction');
+        } else {
+          try {
+            await agentRef.current.spaces.joinSpace(
+              SAVED_SPACE_ID,
+              signerRef.current,
+            );
+          } catch (e: any) {
+            const msg = (e.message || '').toLowerCase();
+            const alreadyJoined =
+              msg.includes('already a member') || msg.includes('already joined');
+            if (!alreadyJoined) throw e;
+          }
+        }
       }
 
       setPhase('ready');
@@ -223,6 +227,7 @@ function TownsChat() {
     }
   }, [wallet, isAgentConnected, connectAgent]);
 
+  // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
     if (wallet && (phase === 'idle' || phase === 'joining')) {
       runFlow();
@@ -250,8 +255,6 @@ function TownsChat() {
     );
   }
 
-  // ✅ GATE: TownsChatReady (and its useSpace hook) never mounts
-  // until both the flow is complete AND the SyncAgent is in context.
   if (phase !== 'ready' || !isAgentConnected) {
     return (
       <LoadingSpinner
@@ -268,7 +271,6 @@ function TownsChat() {
 
 // ---------------------------------------------------------------------------
 // TownsChatReady — only mounts when SyncAgent exists in context
-// All SyncAgent-dependent hooks (useSpace, etc.) live HERE
 // ---------------------------------------------------------------------------
 
 function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet> }) {
@@ -385,11 +387,18 @@ function friendlyError(error: any): string {
   const msg = error.message?.toLowerCase() || '';
   if (msg.includes('429') || msg.includes('bandwidth'))
     return 'Network is busy — please try again in a moment.';
-  if (msg.includes('cannot_connect') || msg.includes('unavailable'))
-    return 'Cannot reach the Towns network. Check your connection.';
+  if (msg.includes('cannot_connect') || msg.includes('unavailable') ||
+      msg.includes('downstream_network') || msg.includes('connection refused'))
+    return 'The Towns network is experiencing issues. Please try again shortly.';
+  if (msg.includes('unimplemented') || msg.includes('501'))
+    return 'The Towns network is undergoing maintenance. Please try again later.';
+  if (msg.includes('quorum_failed'))
+    return 'Not enough network nodes are available right now. Please try again in a few minutes.';
   if (msg.includes('user rejected') || msg.includes('denied'))
     return 'Wallet signature was cancelled.';
   if (msg.includes('returned undefined'))
     return 'Agent connection failed. Please retry.';
+  if (msg.includes('transaction failed after retries'))
+    return 'The Towns network is congested. Please try again shortly.';
   return error.message || 'An unexpected error occurred.';
 }
