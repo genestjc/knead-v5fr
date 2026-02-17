@@ -2,14 +2,16 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent, useTownsSync } from '@towns-protocol/react-sdk';
+import { signAndConnect, connectTowns } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
-import { client, activeChain, getAllRpcEndpoints } from '@/thirdweb-client';
-import { townsEnv } from '@towns-protocol/sdk';
+import { client, activeChain } from '@/thirdweb-client';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
+import { TOWNS_CONFIG } from '@/lib/towns-config';
+import { saveSignerContext, getSignerContext, clearSignerContext } from '@/lib/towns-context-storage';
 
 declare global {
   interface Window {
@@ -25,24 +27,6 @@ declare global {
 }
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-
-const AVAILABLE_RPCS = getAllRpcEndpoints();
-const BASE_RPC = AVAILABLE_RPCS[Math.floor(Math.random() * AVAILABLE_RPCS.length)];
-
-console.log('🔧 Configuring Towns SDK with load-balanced RPC');
-console.log(`   Available endpoints: ${AVAILABLE_RPCS.length}`);
-console.log(`   Selected: ${BASE_RPC?.substring(0, 50)}...`);
-
-const townsEnvWithRpc = townsEnv({
-  env: {
-    BASE_MAINNET_RPC_URL: BASE_RPC,
-  }
-});
-
-const TOWNS_CONFIG = townsEnvWithRpc.makeTownsConfig('omega');
-
-console.log('✅ Towns Config created');
-console.log('   Environment:', TOWNS_CONFIG.environmentId);
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -162,13 +146,14 @@ function useBotAutoConnect() {
 
 function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const wallet = useActiveWallet();
-  const { connect, isAgentConnected } = useAgentConnection();
+  const { isAgentConnected } = useAgentConnection();
+  const towns = useTownsSync();
   const [setupComplete, setSetupComplete] = useState(false);
   const [setupStep, setSetupStep] = useState("Connecting...");
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
+    if (!wallet || isAgentConnected || setupComplete || isConnecting || !towns) return;
 
     const runSetup = async () => {
       setIsConnecting(true);
@@ -179,8 +164,34 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           return;
         }
 
+        // ✅ STEP 1: Try saved context (instant reconnect)
+        const savedContext = getSignerContext(account.address);
+        
+        if (savedContext) {
+          setSetupStep("Restoring saved session...");
+          console.log('⚡ Fast reconnect: Using saved SignerContext');
+          
+          try {
+            const restoredAgent = await connectTowns(savedContext, {
+              townsConfig: TOWNS_CONFIG,
+            });
+            
+            towns.setSyncAgent(restoredAgent);
+            
+            console.log('✅ Reconnected instantly (~500ms-1s)');
+            setSetupComplete(true);
+            setIsConnecting(false);
+            return;
+            
+          } catch (error: any) {
+            console.warn('⚠️ Saved context invalid:', error.message);
+            clearSignerContext();
+          }
+        }
+
+        // ✅ STEP 2: Fresh signature
         setSetupStep("Please sign the message...");
-        console.log('🔐 Creating ethers v5 signer from ThirdWeb wallet...');
+        console.log('🔐 Requesting wallet signature...');
 
         const signer = await createTownsSigner(account, client, activeChain);
 
@@ -189,17 +200,29 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           console.log('💾 Signer cached for reuse');
         }
 
-        console.log('✅ Signer created, requesting Towns authentication signature...');
-
-        await connect(signer, {
+        const newAgent = await signAndConnect(signer, {
           townsConfig: TOWNS_CONFIG,
-          onTokenExpired: () => {
-            console.log('⚠️ Token expired');
-          }
         });
 
-        console.log('✅ Towns agent connected');
+        towns.setSyncAgent(newAgent);
+
+        // ✅ STEP 3: Save context for next time
+        try {
+          const context = (newAgent as any).config?.context;
+          
+          if (context && context.rootKey && context.delegateKey) {
+            saveSignerContext(context, account.address);
+            console.log('✅ Context saved - next login will be instant!');
+          } else {
+            console.warn('⚠️ Could not extract context - next visit will need signature');
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to save context:', error);
+        }
+
+        console.log('✅ Connected successfully');
         setSetupComplete(true);
+
       } catch (error: any) {
         console.error('❌ Setup failed:', error);
         setSetupStep("Setup failed - please refresh");
@@ -216,7 +239,7 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
     };
 
     runSetup();
-  }, [wallet, isAgentConnected, setupComplete, isConnecting, connect, signerRef]);
+  }, [wallet, isAgentConnected, setupComplete, isConnecting, towns, signerRef]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -229,6 +252,11 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         {setupStep.includes("sign the message") && (
           <p className="font-georgia-pro text-xs text-gray-400 mt-2">
             📝 Check your wallet for the signature request
+          </p>
+        )}
+        {setupStep.includes("saved session") && (
+          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+            ⚡ Reconnecting instantly - no signature needed!
           </p>
         )}
       </div>
@@ -248,7 +276,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   const { joinSpace } = useJoinSpace();
   const { data: space, isLoading: isSpaceLoading } = useSpace(spaceId || '');
 
-  // ✅ FIXED: Always call useSyncAgent unconditionally (no try/catch)
   const syncAgent = useSyncAgent();
 
   const currentUser: ChatUser | null = useMemo(() => {
@@ -330,7 +357,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
   };
 
   useEffect(() => {
-    // ✅ FIXED: Check syncAgent value, not hook call
     if (!isAgentConnected || !syncAgent) {
       if (!isAgentConnected) {
         console.log('⏳ Waiting for agent connection...');
@@ -367,7 +393,6 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
 
         setLoadingStep('Joining space...');
 
-        // ✅ CRITICAL FIX: skipMintMembership = false (Member NFT required!)
         await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
 
         setLoadingStep('Space joined successfully!');
