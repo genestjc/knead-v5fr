@@ -18,18 +18,20 @@ import { useActiveWallet } from 'thirdweb/react';
 
 function TownsProviderWithFastReconnect({ children }: { children: React.ReactNode }) {
   const [initialAgent, setInitialAgent] = useState<SyncAgent | undefined>();
-  const [isCheckingContext, setIsCheckingContext] = useState(true);
   const wallet = useActiveWallet();
 
   useEffect(() => {
-    // ✅ Try to restore saved context for instant reconnect
+    // ✅ Re-run when wallet connects/changes
     const restoreSavedContext = async () => {
       const account = wallet?.getAccount();
       
       if (!account?.address) {
-        setIsCheckingContext(false);
+        // ✅ No wallet yet - just wait, don't block children
         return;
       }
+
+      // ✅ Only try once per wallet address
+      if (initialAgent) return;
 
       const savedContext = getSignerContext(account.address);
       
@@ -52,32 +54,19 @@ function TownsProviderWithFastReconnect({ children }: { children: React.ReactNod
       } else {
         console.log('📝 No saved session found - new user or first visit');
       }
-      
-      setIsCheckingContext(false);
     };
 
     restoreSavedContext();
-  }, [wallet]);
-
-  // ✅ Show nothing while checking for saved context (prevents double connection attempts)
-  if (isCheckingContext) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  }, [wallet, initialAgent]); // ✅ Re-run when wallet connects
 
   return (
     <TownsSyncProvider
-      syncAgent={initialAgent} // ✅ Pass pre-connected agent for returning users
+      syncAgent={initialAgent} // ✅ Pass pre-connected agent (or undefined for new users)
       config={{
         onTokenExpired: () => {
           console.log('⚠️ Towns session expired, please reconnect');
           clearSignerContext();
+          setInitialAgent(undefined); // ✅ Clear agent so user can reconnect
         }
       }}
     >
