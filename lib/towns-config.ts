@@ -1,3 +1,7 @@
 import { townsEnv } from '@towns-protocol/sdk';
 
-export const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+const rpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+
+export const TOWNS_CONFIG = rpcUrl
+  ? townsEnv().makeTownsConfig('omega', { rpcUrl })
+  : townsEnv().makeTownsConfig('omega');
