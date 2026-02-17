@@ -15,6 +15,14 @@ const nextConfig = {
     '@towns-protocol/web3',
     '@towns-protocol/generated'
   ],
+
+  // ✅ Expose RPC URLs to browser under the keys the Towns SDK expects
+  // The SDK reads process.env.BASE_MAINNET_RPC_URL (not NEXT_PUBLIC_)
+  // Next.js only exposes NEXT_PUBLIC_ vars client-side, so we alias them here
+  env: {
+    BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+    VITE_BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+  },
   
   // ✅ WEBPACK CONFIG FOR .mjs FILES
   webpack: (config, { isServer }) => {
