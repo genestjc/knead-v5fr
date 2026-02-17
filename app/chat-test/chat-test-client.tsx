@@ -11,9 +11,6 @@ import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
 
-// Temporary — verify RPC URL reaches the client bundle
-console.log('RPC URL:', process.env.BASE_MAINNET_RPC_URL);
-
 declare global {
   interface Window {
     KEY_SHARER_PRIVATE_KEY?: string;
