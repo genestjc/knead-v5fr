@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -123,7 +123,7 @@ function useBotAutoConnect() {
 }
 
 // ---------------------------------------------------------------------------
-// Single unified connect → join → render flow
+// Phase types
 // ---------------------------------------------------------------------------
 
 type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
@@ -137,15 +137,19 @@ const PHASE_LABELS: Record<Phase, string> = {
   error: 'Something went wrong.',
 };
 
+// ---------------------------------------------------------------------------
+// TownsChat — owns connection flow, NO SyncAgent-dependent hooks
+//
+// useJoinSpace calls useSyncAgent() internally (confirmed from SDK source),
+// so we cannot use it here. Instead, we call agent.spaces.joinSpace()
+// directly on the SyncAgent instance returned from connect().
+// ---------------------------------------------------------------------------
+
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const { joinSpace } = useJoinSpace();
-  const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
 
   const [phase, setPhase] = useState<Phase>(() => {
-    // Bot mode: agent is already connected by useBotAutoConnect,
-    // so skip straight to joining — avoids 'signing' label flicker
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
       return 'joining';
     }
@@ -153,9 +157,10 @@ function TownsChat() {
   });
   const [errorMsg, setErrorMsg] = useState('');
   const signerRef = useRef<any>(null);
+  const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
 
-  // ---- Single linear flow: signer → connect → join ----
+  // ---- Single linear flow: signer → connect → join (no hooks that need SyncAgent) ----
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
@@ -182,12 +187,17 @@ function TownsChat() {
         if (!agent) {
           throw new Error('Agent connection failed — returned undefined');
         }
+        agentRef.current = agent;
       }
 
-      // 3. Join space — single call, treat "already a member" as success
+      // 3. Join space — call directly on the agent, NOT via useJoinSpace hook
+      //    useJoinSpace internally calls useSyncAgent() which would throw here
       setPhase('joining');
       try {
-        await joinSpace(SAVED_SPACE_ID, signerRef.current);
+        await agentRef.current.spaces.joinSpace(
+          SAVED_SPACE_ID,
+          signerRef.current,
+        );
       } catch (e: any) {
         const msg = (e.message || '').toLowerCase();
         const alreadyJoined =
@@ -211,29 +221,13 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent, joinSpace]);
+  }, [wallet, isAgentConnected, connectAgent]);
 
   useEffect(() => {
     if (wallet && (phase === 'idle' || phase === 'joining')) {
       runFlow();
     }
   }, [wallet, phase, runFlow]);
-
-  // ---- Derived state ----
-  const currentUser: ChatUser | null = useMemo(() => {
-    const address = wallet?.getAccount()?.address;
-    if (!address) return null;
-    return {
-      id: address,
-      address,
-      displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
-      role: 'viewer',
-      membershipTier: 'freemium',
-      isBanned: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  }, [wallet]);
 
   // ---- Render ----
   if (phase === 'error') {
@@ -256,7 +250,9 @@ function TownsChat() {
     );
   }
 
-  if (phase !== 'ready') {
+  // ✅ GATE: TownsChatReady (and its useSpace hook) never mounts
+  // until both the flow is complete AND the SyncAgent is in context.
+  if (phase !== 'ready' || !isAgentConnected) {
     return (
       <LoadingSpinner
         message={
@@ -266,6 +262,32 @@ function TownsChat() {
       />
     );
   }
+
+  return <TownsChatReady wallet={wallet} />;
+}
+
+// ---------------------------------------------------------------------------
+// TownsChatReady — only mounts when SyncAgent exists in context
+// All SyncAgent-dependent hooks (useSpace, etc.) live HERE
+// ---------------------------------------------------------------------------
+
+function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet> }) {
+  const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
+
+  const currentUser: ChatUser | null = useMemo(() => {
+    const address = wallet?.getAccount()?.address;
+    if (!address) return null;
+    return {
+      id: address,
+      address,
+      displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+      role: 'viewer',
+      membershipTier: 'freemium',
+      isBanned: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }, [wallet]);
 
   if (isSpaceLoading || !space) {
     return <LoadingSpinner message="Loading space..." />;
