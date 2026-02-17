@@ -2,8 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent, useTownsSync } from '@towns-protocol/react-sdk';
-import { signAndConnect, connectTowns } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useJoinSpace, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -11,7 +10,6 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
-import { saveSignerContext, getSignerContext, clearSignerContext } from '@/lib/towns-context-storage';
 
 declare global {
   interface Window {
@@ -146,14 +144,13 @@ function useBotAutoConnect() {
 
 function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
   const wallet = useActiveWallet();
-  const { isAgentConnected } = useAgentConnection();
-  const towns = useTownsSync();
+  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
   const [setupComplete, setSetupComplete] = useState(false);
   const [setupStep, setSetupStep] = useState("Connecting...");
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    if (!wallet || isAgentConnected || setupComplete || isConnecting || !towns) return;
+    if (!wallet || isAgentConnected || setupComplete || isConnecting) return;
 
     const runSetup = async () => {
       setIsConnecting(true);
@@ -164,32 +161,6 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           return;
         }
 
-        // ✅ STEP 1: Try saved context (instant reconnect)
-        const savedContext = getSignerContext(account.address);
-        
-        if (savedContext) {
-          setSetupStep("Restoring saved session...");
-          console.log('⚡ Fast reconnect: Using saved SignerContext');
-          
-          try {
-            const restoredAgent = await connectTowns(savedContext, {
-              townsConfig: TOWNS_CONFIG,
-            });
-            
-            towns.setSyncAgent(restoredAgent);
-            
-            console.log('✅ Reconnected instantly (~500ms-1s)');
-            setSetupComplete(true);
-            setIsConnecting(false);
-            return;
-            
-          } catch (error: any) {
-            console.warn('⚠️ Saved context invalid:', error.message);
-            clearSignerContext();
-          }
-        }
-
-        // ✅ STEP 2: Fresh signature
         setSetupStep("Please sign the message...");
         console.log('🔐 Requesting wallet signature...');
 
@@ -200,25 +171,10 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
           console.log('💾 Signer cached for reuse');
         }
 
-        const newAgent = await signAndConnect(signer, {
+        // ✅ Always use hook's connect method to ensure isAgentConnected updates
+        await connectAgent(signer, {
           townsConfig: TOWNS_CONFIG,
         });
-
-        towns.setSyncAgent(newAgent);
-
-        // ✅ STEP 3: Save context for next time
-        try {
-          const context = (newAgent as any).config?.context;
-          
-          if (context && context.rootKey && context.delegateKey) {
-            saveSignerContext(context, account.address);
-            console.log('✅ Context saved - next login will be instant!');
-          } else {
-            console.warn('⚠️ Could not extract context - next visit will need signature');
-          }
-        } catch (error) {
-          console.warn('⚠️ Failed to save context:', error);
-        }
 
         console.log('✅ Connected successfully');
         setSetupComplete(true);
@@ -239,7 +195,7 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
     };
 
     runSetup();
-  }, [wallet, isAgentConnected, setupComplete, isConnecting, towns, signerRef]);
+  }, [wallet, isAgentConnected, setupComplete, isConnecting, connectAgent, signerRef]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -252,11 +208,6 @@ function SetupFlow({ signerRef }: { signerRef?: { current: any } }) {
         {setupStep.includes("sign the message") && (
           <p className="font-georgia-pro text-xs text-gray-400 mt-2">
             📝 Check your wallet for the signature request
-          </p>
-        )}
-        {setupStep.includes("saved session") && (
-          <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-            ⚡ Reconnecting instantly - no signature needed!
           </p>
         )}
       </div>
@@ -300,7 +251,7 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
       console.log('📊 Space Sync Status:');
       console.log('   Initialized:', space.initialized);
       console.log('   Channel IDs:', space.channelIds);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━');
     }
   }, [space]);
 
@@ -369,104 +320,104 @@ function TownsChat({ signerRef }: { signerRef?: { current: any } }) {
     if (hasJoined || isJoining || !wallet || !SAVED_SPACE_ID) return;
 
     const joinSpaceNow = async () => {
-  setIsJoining(true);
-  try {
-    const account = wallet.getAccount();
-    if (!account) {
-      setIsJoining(false);
-      return;
-    }
+      setIsJoining(true);
+      try {
+        const account = wallet.getAccount();
+        if (!account) {
+          setIsJoining(false);
+          return;
+        }
 
-    setLoadingStep('Preparing to join space...');
+        setLoadingStep('Preparing to join space...');
 
-    let signer = signerRef?.current;
-    if (!signer) {
-      setLoadingStep('Creating signer...');
-      console.log('⚠️ No cached signer, creating new one...');
-      signer = await createTownsSigner(account, client, activeChain);
-      if (signerRef) {
-        signerRef.current = signer;
+        let signer = signerRef?.current;
+        if (!signer) {
+          setLoadingStep('Creating signer...');
+          console.log('⚠️ No cached signer, creating new one...');
+          signer = await createTownsSigner(account, client, activeChain);
+          if (signerRef) {
+            signerRef.current = signer;
+          }
+        } else {
+          console.log('✅ Reusing cached signer');
+        }
+
+        setLoadingStep('Checking membership...');
+
+        // ✅ Try to join without minting first to check if already a member
+        let needsToMint = true;
+        try {
+          console.log('🔍 Checking if already a member (trying join without mint)...');
+          await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
+          
+          console.log('✅ Already a member - joined without minting!');
+          needsToMint = false;
+          setHasJoined(true);
+          
+        } catch (error: any) {
+          const errorMsg = error.message?.toLowerCase() || '';
+          
+          // Check if it's specifically a "not a member" error
+          if (errorMsg.includes('not a member') || 
+              errorMsg.includes('not entitled') ||
+              errorMsg.includes('no membership') ||
+              errorMsg.includes('must be a member')) {
+            
+            console.log('📝 Not a member yet - will mint membership NFT');
+            needsToMint = true;
+            
+          } else if (errorMsg.includes('already a member') || 
+                     errorMsg.includes('already joined')) {
+            
+            console.log('✅ Already a member (from error message)');
+            needsToMint = false;
+            setHasJoined(true);
+            
+          } else {
+            // Unknown error - try with minting as fallback
+            console.warn('⚠️ Unknown error during membership check:', error.message);
+            console.log('   Will attempt to mint as fallback');
+            needsToMint = true;
+          }
+        }
+
+        // ✅ If they need membership NFT, mint it with retry logic
+        if (needsToMint) {
+          setLoadingStep('Minting membership NFT...');
+          console.log('💳 Minting Space membership NFT...');
+          
+          await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
+          
+          console.log('✅ Minted and joined successfully!');
+          setHasJoined(true);
+        }
+
+        setLoadingStep('Space joined successfully!');
+
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+          window.KEY_SHARER_SPACE_JOINED = true;
+        }
+
+      } catch (error: any) {
+        console.error('❌ Join failed after all retries:', error);
+
+        let errorMessage = 'Failed to join chat. ';
+        if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
+          errorMessage += 'Network is busy, please wait a moment and try again.';
+        } else if (error.message?.includes('CANNOT_CONNECT')) {
+          errorMessage += 'Cannot connect to network, please check your internet.';
+        } else {
+          errorMessage += error.message;
+        }
+
+        setLoadingStep('Join failed');
+        alert(errorMessage);
+      } finally {
+        setIsJoining(false);
+        setJoinAttempt(0);
+        setLoadingStep('Initializing...');
       }
-    } else {
-      console.log('✅ Reusing cached signer');
-    }
-
-    setLoadingStep('Checking membership...');
-
-    // ✅ Try to join without minting first to check if already a member
-    let needsToMint = true;
-    try {
-      console.log('🔍 Checking if already a member (trying join without mint)...');
-      await joinSpace(SAVED_SPACE_ID, signer, { skipMintMembership: true });
-      
-      console.log('✅ Already a member - joined without minting!');
-      needsToMint = false;
-      setHasJoined(true);
-      
-    } catch (error: any) {
-      const errorMsg = error.message?.toLowerCase() || '';
-      
-      // Check if it's specifically a "not a member" error
-      if (errorMsg.includes('not a member') || 
-          errorMsg.includes('not entitled') ||
-          errorMsg.includes('no membership') ||
-          errorMsg.includes('must be a member')) {
-        
-        console.log('📝 Not a member yet - will mint membership NFT');
-        needsToMint = true;
-        
-      } else if (errorMsg.includes('already a member') || 
-                 errorMsg.includes('already joined')) {
-        
-        console.log('✅ Already a member (from error message)');
-        needsToMint = false;
-        setHasJoined(true);
-        
-      } else {
-        // Unknown error - try with minting as fallback
-        console.warn('⚠️ Unknown error during membership check:', error.message);
-        console.log('   Will attempt to mint as fallback');
-        needsToMint = true;
-      }
-    }
-
-    // ✅ If they need membership NFT, mint it with retry logic
-    if (needsToMint) {
-      setLoadingStep('Minting membership NFT...');
-      console.log('💳 Minting Space membership NFT...');
-      
-      await joinWithRetry(SAVED_SPACE_ID, signer, 3, false);
-      
-      console.log('✅ Minted and joined successfully!');
-      setHasJoined(true);
-    }
-
-    setLoadingStep('Space joined successfully!');
-
-    if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      window.KEY_SHARER_SPACE_JOINED = true;
-    }
-
-  } catch (error: any) {
-    console.error('❌ Join failed after all retries:', error);
-
-    let errorMessage = 'Failed to join chat. ';
-    if (error.message?.includes('429') || error.message?.includes('Bandwidth limit')) {
-      errorMessage += 'Network is busy, please wait a moment and try again.';
-    } else if (error.message?.includes('CANNOT_CONNECT')) {
-      errorMessage += 'Cannot connect to network, please check your internet.';
-    } else {
-      errorMessage += error.message;
-    }
-
-    setLoadingStep('Join failed');
-    alert(errorMessage);
-  } finally {
-    setIsJoining(false);
-    setJoinAttempt(0);
-    setLoadingStep('Initializing...');
-  }
-};
+    };
 
     joinSpaceNow();
   }, [isAgentConnected, syncAgent, wallet, hasJoined, isJoining, joinSpace, signerRef]);
