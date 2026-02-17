@@ -7,12 +7,12 @@ import { WalletProvider } from "@/components/wallet-provider";
 import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
-import { TownsSyncProvider, connectTowns, type SyncAgent } from "@towns-protocol/react-sdk";
+import { TownsSyncProvider, connectUsingBearerToken, type SyncAgent } from "@towns-protocol/react-sdk";
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/config/wagmi';
 import { useState, useEffect } from 'react';
-import { getSignerContext, clearSignerContext } from '@/lib/towns-context-storage';
+import { getBearerToken, clearBearerToken } from '@/lib/towns-bearer-token-storage';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
 import { useActiveWallet } from 'thirdweb/react';
 
@@ -22,51 +22,51 @@ function TownsProviderWithFastReconnect({ children }: { children: React.ReactNod
 
   useEffect(() => {
     // ✅ Re-run when wallet connects/changes
-    const restoreSavedContext = async () => {
+    const restoreWithBearerToken = async () => {
       const account = wallet?.getAccount();
       
       if (!account?.address) {
-        // ✅ No wallet yet - just wait, don't block children
+        // ✅ No wallet yet - just wait
         return;
       }
 
       // ✅ Only try once per wallet address
       if (initialAgent) return;
 
-      const savedContext = getSignerContext(account.address);
+      const savedToken = getBearerToken(account.address);
       
-      if (savedContext) {
-        console.log('⚡ Fast reconnect: Attempting to restore saved session...');
+      if (savedToken) {
+        console.log('⚡ Fast reconnect: Using saved bearer token...');
         
         try {
-          const agent = await connectTowns(savedContext, {
+          const agent = await connectUsingBearerToken(savedToken, {
             townsConfig: TOWNS_CONFIG,
           });
           
-          console.log('✅ Session restored instantly - no signature needed!');
+          console.log('✅ Reconnected instantly with bearer token - no signature needed!');
           setInitialAgent(agent);
           
         } catch (error: any) {
-          console.warn('⚠️ Saved context invalid:', error.message);
+          console.warn('⚠️ Bearer token invalid or expired:', error.message);
           console.log('   User will need to sign in again');
-          clearSignerContext();
+          clearBearerToken();
         }
       } else {
-        console.log('📝 No saved session found - new user or first visit');
+        console.log('📝 No saved bearer token - new user or first visit');
       }
     };
 
-    restoreSavedContext();
+    restoreWithBearerToken();
   }, [wallet, initialAgent]); // ✅ Re-run when wallet connects
 
   return (
     <TownsSyncProvider
-      syncAgent={initialAgent} // ✅ Pass pre-connected agent (or undefined for new users)
+      syncAgent={initialAgent}
       config={{
         onTokenExpired: () => {
-          console.log('⚠️ Towns session expired, please reconnect');
-          clearSignerContext();
-          setInitialAgent(undefined); // ✅ Clear agent so user can reconnect
+          console.log('⚠️ Bearer token expired, clearing...');
+          clearBearerToken();
+          setInitialAgent(undefined);
         }
       }}
     >
