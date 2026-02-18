@@ -32,7 +32,7 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
   };
 
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full aspect-video">
+    <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-full flex items-center justify-center">
       {/* Daily's built-in video component */}
       <DailyVideo
         sessionId={sessionId}
