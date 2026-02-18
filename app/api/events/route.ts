@@ -189,13 +189,13 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             name: `knead-event-${Date.now()}`,
             properties: {
-              owner_only_broadcast: true,
+              owner_only_broadcast: true,         // Only hosts/guests can broadcast video/audio
               enable_screenshare: true,
-              enable_chat: false,
-              enable_prejoin_ui: false,
+              enable_chat: false,                 // Site has its own chat UI below the video
+              enable_prejoin_ui: false,           // Skip lobby for smoother join
               start_video_off: false,
               start_audio_off: false,
-              max_participants: 100,
+              max_participants: 100,              // Support larger audiences
             },
           }),
         });

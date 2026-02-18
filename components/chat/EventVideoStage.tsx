@@ -333,7 +333,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             })
           ) : (
             <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
-              <p className="font-georgia-pro text-gray-400">Waiting for guest...</p>
+              <p className="font-georgia-pro text-gray-400">Waiting for guests...</p>
             </div>
           )}
         </div>
