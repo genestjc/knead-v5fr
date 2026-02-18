@@ -4,15 +4,9 @@
  * Direct Message List Component
  * 
  * Displays list of DM conversations in sidebar
- * - Shows other user's info
- * - Last message preview
+ * - Shows other user's info from chat_users table
  * - Click to open DM
  * - New message button (contributor-only)
- * 
- * DM Access: Only Contributors can create and view DMs
- * - Freemium users: No DM access
- * - Participants: No DM access
- * - Contributors: Full DM access
  */
 
 import { useEffect, useState } from 'react';
@@ -28,8 +22,8 @@ interface Contributor {
 }
 
 interface DirectMessageListProps {
-  userId: string;  // Actually the wallet address (kept for compatibility)
-  onSelectDm: (dmId: string, townsDmId: string, otherUserName?: string) => void;
+  userId: string;
+  onSelectDm: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   selectedDmId?: string;
 }
 
@@ -38,10 +32,7 @@ export function DirectMessageList({
   onSelectDm, 
   selectedDmId 
 }: DirectMessageListProps) {
-  // Check if user is a contributor (required for DM access)
   const { isContributor, loading: permissionsLoading } = useContributorPermissions(userId);
-  
-  // ✅ FIXED: Use correct return value from useUserDms
   const { streamIds, isLoading, error: dmsError } = useUserDms();
   const { createDM, isPending: isCreatingDm } = useCreateDm();
   
@@ -53,7 +44,6 @@ export function DirectMessageList({
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleCreateDm = async () => {
-    // Extra safety check - should never reach here for non-contributors
     if (!isContributor) {
       setCreateError('Only Contributors can send direct messages');
       return;
@@ -67,12 +57,9 @@ export function DirectMessageList({
     setCreateError(null);
     
     try {
-      // Call createDM with userId string directly
       const result = await createDM(newDmAddress.trim());
       
-      // Use streamId from result
       if (result?.streamId) {
-        // DM created successfully, select it
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
@@ -82,31 +69,22 @@ export function DirectMessageList({
       
       const errorMessage = error.message || String(error);
       
-      // ✅ Handle "stream already exists" - DM exists, need to sync and find it
       if (errorMessage.includes('already exists')) {
         setCreateError('✅ DM already exists! Syncing... Refreshing in 3 seconds.');
-        
-        // Wait for sync, then refresh to show the DM
-        setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+        setTimeout(() => { window.location.reload(); }, 3000);
         return;
       }
       
-      // ✅ Handle BAD_PREV_MINIBLOCK_HASH / sync errors
       if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || 
           errorMessage.includes('miniblock') ||
           errorMessage.includes('timeout') || 
           errorMessage.includes('deadline') || 
           errorMessage.includes('context deadline exceeded')) {
         setCreateError('⏱️ Network syncing... Refreshing in 5 seconds...');
-        setTimeout(() => {
-          window.location.reload();
-        }, 5000);
+        setTimeout(() => { window.location.reload(); }, 5000);
         return;
       }
       
-      // ✅ Generic error
       setCreateError(errorMessage || 'Failed to create DM. Please try again.');
     }
   };
@@ -118,7 +96,6 @@ export function DirectMessageList({
     setSearchQuery('');
   };
 
-  // Fetch contributors when modal opens
   useEffect(() => {
     if (showNewDmModal && contributors.length === 0) {
       const fetchContributors = async () => {
@@ -127,7 +104,6 @@ export function DirectMessageList({
           const response = await fetch('/api/admin/contributors');
           const data = await response.json();
           if (data.success) {
-            // Filter out current user
             const filteredContributors = (data.data || []).filter(
               (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
             );
@@ -143,7 +119,6 @@ export function DirectMessageList({
     }
   }, [showNewDmModal, contributors.length, userId]);
 
-  // Filter contributors by search query
   const filteredContributors = contributors.filter((c) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -157,7 +132,6 @@ export function DirectMessageList({
     setSearchQuery('');
   };
 
-  // Reusable New DM Modal component
   const NewDmModal = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
@@ -172,7 +146,6 @@ export function DirectMessageList({
             </button>
           </div>
           
-          {/* Search contributors */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -185,7 +158,6 @@ export function DirectMessageList({
           </div>
         </div>
 
-        {/* Contributor list */}
         <div className="flex-1 overflow-y-auto">
           {loadingContributors ? (
             <div className="flex items-center justify-center py-8">
@@ -228,7 +200,6 @@ export function DirectMessageList({
           ) : null}
         </div>
 
-        {/* Manual address input */}
         <div className="p-6 border-t border-gray-200">
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
@@ -276,22 +247,21 @@ export function DirectMessageList({
 
   if (permissionsLoading || isLoading) {
     return (
-      <div className="p-4 text-sm text-gray-500">
+      <div className="p-4 text-sm text-gray-500 font-georgia-pro">
         Loading conversations...
       </div>
     );
   }
 
-  // ✅ Hide DM UI completely for non-contributors
   if (!isContributor) {
     return (
       <div className="p-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-900 mb-2">Direct Messages</h3>
-          <p className="text-sm text-blue-700">
+          <h3 className="font-adonis font-medium text-blue-900 mb-2">Direct Messages</h3>
+          <p className="text-sm text-blue-700 font-georgia-pro">
             Direct messaging is available only to Contributors.
           </p>
-          <p className="text-xs text-blue-600 mt-2">
+          <p className="text-xs text-blue-600 mt-2 font-georgia-pro">
             💡 Contributors have full access to DMs and can message each other anytime.
           </p>
         </div>
@@ -301,7 +271,7 @@ export function DirectMessageList({
 
   if (dmsError) {
     return (
-      <div className="p-4 text-sm text-red-500">
+      <div className="p-4 text-sm text-red-500 font-georgia-pro">
         {dmsError.message || 'Failed to load conversations'}
       </div>
     );
@@ -317,22 +287,20 @@ export function DirectMessageList({
           + New Message
         </button>
         
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 font-georgia-pro">
           <p>No conversations yet.</p>
           <p className="mt-2 text-xs">
             Contributors can start direct messages with each other.
           </p>
         </div>
 
-        {/* ✅ Manual refresh button */}
         <button
           onClick={() => window.location.reload()}
-          className="w-full mt-3 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+          className="w-full mt-3 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-georgia-pro"
         >
           🔄 Refresh DM List
         </button>
 
-        {/* New DM Modal */}
         {showNewDmModal && <NewDmModal />}
       </div>
     );
@@ -361,13 +329,13 @@ export function DirectMessageList({
         ))}
       </div>
 
-      {/* New DM Modal */}
       {showNewDmModal && <NewDmModal />}
     </div>
   );
 }
 
-// ✅ ENHANCED: Component for each DM item with proper user info
+// ✅ FIXED: Passes resolved displayName + avatar to onSelect so DirectMessageInterface
+// receives the correct single name (no duplicate fetch / double alias)
 function DmListItem({ 
   streamId, 
   currentUserId,
@@ -376,32 +344,30 @@ function DmListItem({
 }: { 
   streamId: string;
   currentUserId: string;
-  onSelect: (dmId: string, townsDmId: string, otherUserName?: string) => void;
+  onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
 }) {
   const [userProfile, setUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
   
-  // Get DM metadata
   const { data: dm } = useDm(streamId);
-  
-  // Get member list
   const { data: members } = useMemberList(streamId);
   
-  // Find the other user (not the current user)
+  // Find the other user's ID
   const otherUserId = members?.userIds?.find(
     (id) => id.toLowerCase() !== currentUserId.toLowerCase()
-  ) || currentUserId;
+  ) || '';
   
-  // Fetch user profile
+  // Fetch other user's profile from chat_users
   useEffect(() => {
     const fetchProfile = async () => {
+      if (!otherUserId) return;
       try {
         const response = await fetch(`/api/chat/user?address=${otherUserId}`);
         const data = await response.json();
         
         if (data.success && data.user) {
           setUserProfile({
-            displayName: data.user.alias || data.user.displayName,
+            displayName: data.user.alias || data.user.displayName || `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`,
             avatar: data.user.avatar,
           });
         }
@@ -410,19 +376,17 @@ function DmListItem({
       }
     };
 
-    if (otherUserId) {
-      fetchProfile();
-    }
+    fetchProfile();
   }, [otherUserId]);
   
-  // Format display name - show wallet address shortened as fallback
   const displayName = userProfile?.displayName || (otherUserId 
     ? `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`
     : 'Unknown User');
   
-  const avatarInitials = otherUserId 
-    ? otherUserId.slice(2, 4).toUpperCase() 
-    : '??';
+  const avatarInitials = (displayName.length >= 2 
+    ? displayName.slice(0, 2) 
+    : otherUserId.slice(2, 4)
+  ).toUpperCase();
   
   const convertIpfsToGatewayUrl = (uri: string): string => {
     if (uri && uri.startsWith('ipfs://')) {
@@ -433,14 +397,14 @@ function DmListItem({
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, displayName)}
+      // ✅ Pass displayName and avatar so DirectMessageInterface uses them directly
+      onClick={() => onSelect(streamId, streamId, displayName, userProfile?.avatar || undefined)}
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
         ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
       `}
     >
       <div className="flex items-center gap-3">
-        {/* Avatar */}
         {userProfile?.avatar ? (
           <img
             src={convertIpfsToGatewayUrl(userProfile.avatar)}
@@ -453,16 +417,14 @@ function DmListItem({
           </div>
         )}
 
-        {/* User info - No "Contributor" subtitle */}
         <div className="flex-1 min-w-0">
           <div className="font-adonis text-sm truncate">
             {displayName}
           </div>
         </div>
 
-        {/* Timestamp */}
-        <div className="text-xs text-gray-400">
-          {dm?.lastMessageAt ? formatTimestamp(dm.lastMessageAt) : 'now'}
+        <div className="text-xs text-gray-400 font-georgia-pro">
+          {dm?.lastMessageAt ? formatTimestamp(dm.lastMessageAt) : ''}
         </div>
       </div>
     </button>
