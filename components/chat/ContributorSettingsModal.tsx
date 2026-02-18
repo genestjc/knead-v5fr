@@ -83,8 +83,15 @@ export function ContributorSettingsModal({
         try {
           const supabase = createSupabaseClient();
           
+          // Validate file extension
+          const fileExt = avatarFile.name.split('.').pop()?.toLowerCase();
+          const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+          
+          if (!fileExt || !allowedExtensions.includes(fileExt)) {
+            throw new Error('Invalid file type. Please upload a JPG, PNG, GIF, or WebP image.');
+          }
+          
           // Create a unique filename
-          const fileExt = avatarFile.name.split('.').pop();
           const fileName = `${userAddress.toLowerCase()}-${Date.now()}.${fileExt}`;
           const filePath = `avatars/${fileName}`;
 

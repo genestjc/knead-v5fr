@@ -502,7 +502,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         onChange={(e) => setMessageInput(e.target.value)}
         placeholder={
           isUploading ? "Uploading..." :
-          !permissions?.canPost && userRole === 'participant' && !activeEvent ? "Messaging is available to Knead Monthly members during events. Check the calendar in the top left corner to see what's happening." :
+          !permissions?.canPost && userRole === 'participant' && !activeEvent ? "Messaging is available to Knead Monthly members during events. Check the calendar in the menu to see what's happening." :
           !permissions?.canPost && userRole === 'freemium' ? "Free Members can enjoy viewing for 1 hour per month. Sign-up for Knead Monthly to participate in events" :
           channelId ? "Type a message..." : "Loading..."
         }

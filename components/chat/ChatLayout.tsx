@@ -48,7 +48,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       try {
         const response = await fetch('/api/treasury/balance');
         const data = await response.json();
-        if (data.success) {
+        if (data.success && typeof data.balance === 'number') {
           setTreasuryBalance(data.balance.toFixed(2));
         }
       } catch (error) {
