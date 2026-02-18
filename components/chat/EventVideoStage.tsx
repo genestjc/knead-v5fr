@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useDaily, useDailyEvent, useParticipantIds, useLocalSessionId } from '@daily-co/daily-react';
+import { useDaily, useParticipantIds, useLocalSessionId, DailyVideo } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
   sessionId: string;
@@ -10,39 +10,14 @@ interface DailyVideoTileProps {
 }
 
 function DailyVideoTile({ sessionId, label, isLocal }: DailyVideoTileProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const daily = useDaily();
-
-  useEffect(() => {
-    if (!daily || !videoRef.current) return;
-
-    const participant = daily.participants()[sessionId];
-    if (!participant) return;
-
-    const track = participant.tracks?.video;
-    if (track?.state === 'playable' && track.persistentTrack) {
-      const stream = new MediaStream([track.persistentTrack]);
-      videoRef.current.srcObject = stream;
-    }
-  }, [daily, sessionId]);
-
-  useDailyEvent('track-started', (event) => {
-    if (!event || !videoRef.current) return;
-    if (event.participant?.session_id !== sessionId) return;
-    if (event.track?.kind !== 'video') return;
-
-    const stream = new MediaStream([event.track]);
-    videoRef.current.srcObject = stream;
-  });
-
   return (
     <div className="relative h-full bg-gray-900 rounded-lg overflow-hidden">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={isLocal}
+      <DailyVideo
+        sessionId={sessionId}
+        automirror={isLocal}
+        type="video"
         className="w-full h-full object-cover"
+        style={{ objectFit: 'cover' }}
       />
       <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded font-georgia-pro">
         {label}
