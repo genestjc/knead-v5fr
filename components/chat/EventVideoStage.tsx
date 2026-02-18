@@ -113,7 +113,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         hasAttemptedJoinRef.current = true;
         currentRoomRef.current = roomUrl;
 
-        // ✅ Add 10-second timeout
+        // ✅ Add 10-second timeout with proper cleanup
+        let timeoutId: NodeJS.Timeout;
         const joinPromise = daily.join({
           url: roomUrl,
           token: token,
@@ -124,11 +125,15 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           },
         });
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Join timeout after 10 seconds')), 10000)
-        );
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Join timeout after 10 seconds')), 10000);
+        });
 
-        await Promise.race([joinPromise, timeoutPromise]);
+        try {
+          await Promise.race([joinPromise, timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!isMounted) {
           console.log('⚠️ [EventVideoStage] Component unmounted during join, leaving...');
