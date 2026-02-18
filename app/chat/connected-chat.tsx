@@ -628,7 +628,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 <div className="flex flex-col overflow-hidden">
-                  <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="flex-1 overflow-y-auto min-h-0" data-chat-scroll>
                     {renderMessages()}
                   </div>
                   <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
@@ -649,7 +649,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="flex-1 overflow-y-auto min-h-0" data-chat-scroll>
                     {renderMessages()}
                   </div>
                   <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
@@ -666,7 +666,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0" data-chat-scroll>
                 {renderMessages()}
               </div>
 
