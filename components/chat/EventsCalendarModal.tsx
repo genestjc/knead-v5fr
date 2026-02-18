@@ -219,15 +219,6 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                           </span>
                         </div>
                         
-                        {event.host && (
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4" />
-                            <span>
-                              Hosted by {event.host.alias || event.host.displayName}
-                            </span>
-                          </div>
-                        )}
-                        
                         {event.videoEnabled && event.dailyRoomUrl && (
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4" />
