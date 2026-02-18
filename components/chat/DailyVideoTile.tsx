@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { useDaily, useVideoTrack, useAudioTrack } from '@daily-co/daily-react';
+import React from 'react';
+import { DailyVideo, useDaily, useVideoTrack, useAudioTrack } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
   sessionId: string;
@@ -15,26 +15,9 @@ interface DailyVideoTileProps {
  * Shows video/audio, participant name, and controls
  */
 export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = false }: DailyVideoTileProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const daily = useDaily();
-  
   const videoState = useVideoTrack(sessionId);
   const audioState = useAudioTrack(sessionId);
-
-  // Update video element
-  useEffect(() => {
-    if (videoRef.current && videoState.persistentTrack) {
-      videoRef.current.srcObject = new MediaStream([videoState.persistentTrack]);
-    }
-  }, [videoState.persistentTrack]);
-
-  // Update audio element (only for remote participants)
-  useEffect(() => {
-    if (!isLocal && audioRef.current && audioState.persistentTrack) {
-      audioRef.current.srcObject = new MediaStream([audioState.persistentTrack]);
-    }
-  }, [audioState.persistentTrack, isLocal]);
 
   const toggleCamera = () => {
     if (isLocal && daily) {
@@ -50,23 +33,14 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
 
   return (
     <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full aspect-video">
-      {/* Video Element */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={isLocal}
+      {/* Daily's built-in video component */}
+      <DailyVideo
+        sessionId={sessionId}
+        automirror={isLocal}
+        type="video"
         className="w-full h-full object-cover"
+        style={{ objectFit: 'cover' }}
       />
-      
-      {/* Audio Element (remote only) */}
-      {!isLocal && (
-        <audio
-          ref={audioRef}
-          autoPlay
-          playsInline
-        />
-      )}
 
       {/* Video Off Placeholder */}
       {videoState.isOff && (
