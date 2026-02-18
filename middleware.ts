@@ -17,6 +17,7 @@ export function middleware(request: NextRequest) {
     img-src 'self' blob: data: 
       https://*.thirdweb.com 
       https://*.thirdwebcdn.com
+      https://ipfs.thirdwebcdn.com
       https://*.ipfs.dweb.link 
       https://*.ipfscdn.io
       https://ipfs.io 
@@ -26,7 +27,8 @@ export function middleware(request: NextRequest) {
       https://*.supabase.co;
     font-src 'self' data: 
       https://use.typekit.net 
-      https://p.typekit.net;
+      https://p.typekit.net
+      https://vercel.live;
     media-src 'self' blob: data:
       https://*.daily.co
       https://*.pluot.blue;

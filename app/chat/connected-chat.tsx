@@ -616,7 +616,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
             <>
               {/* Desktop: video top, chat bottom */}
-              <div className="hidden lg:grid lg:grid-rows-2 h-screen">
+              <div className="hidden lg:grid lg:grid-rows-2 h-full">
                 <div className="border-b border-gray-200">
                   <EventVideoStage
                     event={activeEvent}
@@ -637,7 +637,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
 
               {/* Mobile: video top, chat bottom */}
-              <div className="lg:hidden flex flex-col h-screen">
+              <div className="lg:hidden flex flex-col h-full">
                 <div className="border-b border-gray-200 flex-shrink-0">
                   <EventVideoStage
                     event={activeEvent}
@@ -658,7 +658,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             </>
           ) : (
-            <div className="flex flex-col h-screen bg-white">
+            <div className="flex flex-col h-full bg-white">
               {activeEvent && (
                 <div className="flex-shrink-0">
                   <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
