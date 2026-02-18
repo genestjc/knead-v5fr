@@ -41,8 +41,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasAttemptedJoinRef = useRef(false);
-  const currentRoomRef = useRef<string | null>(null);
+  const hasJoinedRef = useRef(false);
+  const joinedRoomRef = useRef<string | null>(null);
 
   const isHost = event.host?.address?.toLowerCase() === currentUserAddress.toLowerCase();
   const isGuest = event.guestAddresses?.some(
@@ -60,34 +60,47 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       return;
     }
 
-    if (hasAttemptedJoinRef.current && currentRoomRef.current === roomUrl) {
-      console.log('⚠️ [EventVideoStage] Already attempted join for this room, skipping');
+    // ✅ Only block if THIS USER has already joined THIS ROOM
+    if (hasJoinedRef.current && joinedRoomRef.current === roomUrl) {
+      console.log('⚠️ [EventVideoStage] This user already joined this room');
       return;
     }
 
-    if (daily.meetingState() === 'joined-meeting') {
-      console.log('⚠️ [EventVideoStage] Already in a meeting, skipping join');
-      return;
+    // ✅ Allow multiple participants - check if THIS device is already connected
+    // Uses session_id (always present when connected) rather than user_name (could be falsy)
+    const meetingState = daily.meetingState();
+    if (meetingState === 'joined-meeting') {
+      const participants = daily.participants();
+      const localParticipant = participants.local;
+
+      if (localParticipant && localParticipant.session_id) {
+        console.log('⚠️ [EventVideoStage] Already connected to this call');
+        return;
+      }
     }
 
     let isMounted = true;
 
     const joinCall = async () => {
       if (!isMounted) return;
-      
+
       try {
         setJoining(true);
         setError(null);
 
-        console.log('🎥 [EventVideoStage] Joining call...');
-        console.log('   Room URL:', roomUrl);
-        console.log('   Is Host:', isHost);
-        console.log('   Is Guest:', isGuest);
-        console.log('   Is Viewer:', isViewer);
-        console.log('   Meeting State:', daily.meetingState());
-
-        hasAttemptedJoinRef.current = true;
-        currentRoomRef.current = roomUrl;
+        // ✅ Only log wallet address in development for security
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎥 [EventVideoStage] Joining call...', {
+            roomUrl,
+            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
+            address: currentUserAddress.slice(0, 10),
+          });
+        } else {
+          console.log('🎥 [EventVideoStage] Joining call...', {
+            roomUrl,
+            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
+          });
+        }
 
         // ✅ Add timeout with proper cleanup
         let timeoutId: NodeJS.Timeout | undefined;
@@ -117,13 +130,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           return;
         }
 
+        // ✅ Only set joined flags AFTER successful join (not before)
+        hasJoinedRef.current = true;
+        joinedRoomRef.current = roomUrl;
+
         console.log('✅ [EventVideoStage] Joined call successfully');
       } catch (err: any) {
         console.error('❌ [EventVideoStage] Join error:', err);
         if (isMounted) {
           setError(err.message || 'Failed to join call');
-          hasAttemptedJoinRef.current = false;
-          currentRoomRef.current = null;
+          hasJoinedRef.current = false;
+          joinedRoomRef.current = null;
         }
       } finally {
         if (isMounted) {
@@ -151,15 +168,15 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const handleLeaveCall = async () => {
     if (daily) {
       console.log('🚪 [EventVideoStage] User manually leaving call');
-      hasAttemptedJoinRef.current = false;
-      currentRoomRef.current = null;
+      hasJoinedRef.current = false;
+      joinedRoomRef.current = null;
       await daily.leave();
     }
   };
 
   const handleEndEvent = async () => {
     if (!isHost) return;
-    
+
     if (confirm('Are you sure you want to end this event for everyone?')) {
       try {
         const response = await fetch(`/api/admin/events/${event.id}`, {
@@ -194,8 +211,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           <button
             onClick={() => {
               setError(null);
-              hasAttemptedJoinRef.current = false;
-              currentRoomRef.current = null;
+              hasJoinedRef.current = false;
+              joinedRoomRef.current = null;
             }}
             className="px-4 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
           >
@@ -219,18 +236,18 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   const hostSessionId = participantIds.find(id => {
     if (id === localSessionId && isHost) return true;
-    
+
     const participant = daily?.participants()[id];
     if (!participant) return false;
-    
+
     const participantAddress = (
-      participant.userData?.address || 
-      participant.user_name || 
+      participant.userData?.address ||
+      participant.user_name ||
       ''
     ).toLowerCase();
-    
+
     const hostAddress = event.host?.address?.toLowerCase() || '';
-    
+
     return participantAddress.includes(hostAddress.slice(2, 10));
   });
 
@@ -247,9 +264,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   return (
     <div className="h-full flex flex-col bg-gray-100">
       <div className="flex-1 p-4">
-        {/* DESKTOP: Host left, Guest right */}
+        {/* DESKTOP: Host left, Guests right */}
         <div className="hidden lg:grid lg:grid-cols-2 gap-4 h-full">
-          <div>
+          <div className="h-full">
             {hostSessionId ? (
               <DailyVideoTile
                 sessionId={hostSessionId}
@@ -263,13 +280,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             )}
           </div>
 
-          <div className="space-y-2 overflow-y-auto">
+          {/* Guests - scrollable column */}
+          <div className="space-y-2 overflow-y-auto h-full">
             {guestSessionIds.length > 0 ? (
               guestSessionIds.map((guestId, index) => {
                 const participant = daily?.participants()[guestId];
                 // Default to 'viewer' role if userData not available yet (most conservative assumption)
                 const participantRole = participant?.userData?.role || 'viewer';
-                
+
                 // Calculate guest number by counting actual guests before this one, then add 1 for current
                 // Note: This is O(n²) but acceptable since typical events have <10 participants
                 const guestsBeforeThis = guestSessionIds
@@ -277,20 +295,22 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                   .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
                   .length;
                 const guestNumber = guestsBeforeThis + 1;
-                
+
                 return (
-                  <DailyVideoTile
-                    key={guestId}
-                    sessionId={guestId}
-                    label={
-                      guestId === localSessionId
-                        ? "You"
-                        : participantRole === 'guest'
-                          ? `Guest ${guestNumber}`
-                          : "Viewer"
-                    }
-                    isLocal={guestId === localSessionId}
-                  />
+                  <div key={guestId} className="min-h-[200px]">
+                    {/* Desktop: min-height allows tiles to grow in scrollable column */}
+                    <DailyVideoTile
+                      sessionId={guestId}
+                      label={
+                        guestId === localSessionId
+                          ? "You"
+                          : participantRole === 'guest'
+                            ? `Guest ${guestNumber}`
+                            : "Viewer"
+                      }
+                      isLocal={guestId === localSessionId}
+                    />
+                  </div>
                 );
               })
             ) : (
@@ -301,37 +321,35 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
         </div>
 
-        {/* MOBILE: Host top, Guest bottom */}
-        <div className="lg:hidden space-y-4 h-full overflow-y-auto">
-          {hostSessionId ? (
-            <DailyVideoTile
-              sessionId={hostSessionId}
-              label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
-              isLocal={hostSessionId === localSessionId}
-            />
-          ) : (
-            <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
-              <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
+        {/* MOBILE: Stacked, compact tiles with padding to prevent edge-touching */}
+        <div className="lg:hidden space-y-2 h-full overflow-y-auto p-2">
+          {hostSessionId && (
+            <div className="h-[120px]">
+              <DailyVideoTile
+                sessionId={hostSessionId}
+                label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
+                isLocal={hostSessionId === localSessionId}
+              />
             </div>
           )}
-          
-          {guestSessionIds.length > 0 ? (
-            guestSessionIds.map((guestId, index) => {
-              const participant = daily?.participants()[guestId];
-              // Default to 'viewer' role if userData not available yet (most conservative assumption)
-              const participantRole = participant?.userData?.role || 'viewer';
-              
-              // Calculate guest number by counting actual guests before this one, then add 1 for current
-              // Note: This is O(n²) but acceptable since typical events have <10 participants
-              const guestsBeforeThis = guestSessionIds
-                .slice(0, index)
-                .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
-                .length;
-              const guestNumber = guestsBeforeThis + 1;
-              
-              return (
+
+          {guestSessionIds.map((guestId, index) => {
+            const participant = daily?.participants()[guestId];
+            // Default to 'viewer' role if userData not available yet (most conservative assumption)
+            const participantRole = participant?.userData?.role || 'viewer';
+
+            // Calculate guest number by counting actual guests before this one, then add 1 for current
+            // Note: This is O(n²) but acceptable since typical events have <10 participants
+            const guestsBeforeThis = guestSessionIds
+              .slice(0, index)
+              .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
+              .length;
+            const guestNumber = guestsBeforeThis + 1;
+
+            return (
+              <div key={guestId} className="h-[120px]">
+                {/* Mobile: fixed compact height to fit more tiles on small screens */}
                 <DailyVideoTile
-                  key={guestId}
                   sessionId={guestId}
                   label={
                     guestId === localSessionId
@@ -342,13 +360,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                   }
                   isLocal={guestId === localSessionId}
                 />
-              );
-            })
-          ) : (
-            <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
-              <p className="font-georgia-pro text-gray-400">Waiting for guests...</p>
-            </div>
-          )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
