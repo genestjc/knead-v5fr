@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, User, Check, Settings } from 'lucide-react';
-import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { useToast } from '@/hooks/use-toast';
+import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
 interface ContributorSettingsModalProps {
   isOpen: boolean;
@@ -78,16 +78,40 @@ export function ContributorSettingsModal({
 
       if (avatarFile) {
         setIsUploading(true);
-        console.log('📤 Uploading avatar to IPFS...');
+        console.log('📤 Uploading avatar to Supabase Storage...');
         
         try {
-          avatarUrl = await uploadToIPFS(avatarFile);
+          const supabase = createSupabaseClient();
+          
+          // Create a unique filename
+          const fileExt = avatarFile.name.split('.').pop();
+          const fileName = `${userAddress.toLowerCase()}-${Date.now()}.${fileExt}`;
+          const filePath = `avatars/${fileName}`;
+
+          // Upload to Supabase Storage
+          const { data, error } = await supabase.storage
+            .from('chat-assets')
+            .upload(filePath, avatarFile, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) {
+            throw error;
+          }
+
+          // Get the public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('chat-assets')
+            .getPublicUrl(filePath);
+
+          avatarUrl = publicUrl;
           console.log('✅ Avatar uploaded:', avatarUrl);
-        } catch (uploadError) {
-          console.error('❌ IPFS upload failed:', uploadError);
+        } catch (uploadError: any) {
+          console.error('❌ Supabase upload failed:', uploadError);
           toast({
             title: 'Upload failed',
-            description: 'Failed to upload avatar to IPFS. Please try again.',
+            description: uploadError.message || 'Failed to upload avatar. Please try again.',
             variant: 'destructive',
           });
           setIsUploading(false);
@@ -179,9 +203,10 @@ export function ContributorSettingsModal({
               <div className="relative">
                 {avatarPreview ? (
                   <img 
-                    src={avatarPreview.startsWith('ipfs://') 
-                      ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}` 
-                      : avatarPreview
+                    src={
+                      avatarPreview.startsWith('ipfs://') 
+                        ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}` 
+                        : avatarPreview
                     }
                     alt="Avatar preview"
                     className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
