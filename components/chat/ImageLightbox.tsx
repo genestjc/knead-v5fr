@@ -43,19 +43,9 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     console.error('Failed to load image:', imageUrl);
+    console.error('⚠️ This may be due to a CSP violation or network error. Check browser console for details.');
     
-    // Check if it's likely a CSP violation
-    const isCspError = imageUrl.includes('ipfs') || imageUrl.includes('thirdweb');
-    
-    if (isCspError) {
-      console.error('⚠️ Possible CSP violation: Image from IPFS/ThirdWeb may be blocked by Content Security Policy');
-      console.error('Check browser console for CSP violations');
-      setErrorMessage('Image blocked by security policy. This IPFS image may not be allowed. Check browser console for details.');
-    } else {
-      console.error('Check browser console for network errors');
-      setErrorMessage('Unable to load image. This may be due to a network error.');
-    }
-    
+    setErrorMessage('Unable to load image. This may be due to a network error or security policy restriction. Check browser console for details.');
     setImageError(true);
   };
 
