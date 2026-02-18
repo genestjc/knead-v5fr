@@ -140,6 +140,8 @@ export function DirectMessageInterface({
               : '';
             
             // ✅ FIXED: Use useMyMember's userId with fallback
+            // - myUserId (from Towns) matches creatorUserId (from Towns) exactly
+            // - Fallback: currentUserId (wallet address) vs creatorUserId needs case normalization
             const isCurrentUser = myUserId
               ? event.creatorUserId === myUserId
               : currentUserId && event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
