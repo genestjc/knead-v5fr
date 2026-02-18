@@ -39,7 +39,7 @@ export async function getOrCreateChatUser(
       return {
         id: existingUser.id,
         address: existingUser.address,
-        displayName: existingUser.display_name,
+        displayName: existingUser.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
         avatar: existingUser.avatar,
         role: existingUser.role,
         membershipTier: existingUser.membership_tier,
@@ -57,8 +57,8 @@ export async function getOrCreateChatUser(
       .from('chat_users')
       .insert({
         address: address.toLowerCase(),
-        display_name: displayName || address.slice(0, 6) + '...' + address.slice(-4),
-        avatar: avatar,
+        alias: null,
+        avatar: avatar || null,
         role: 'viewer',
         membership_tier: 'freemium',
         is_banned: false,
@@ -74,7 +74,7 @@ export async function getOrCreateChatUser(
     return {
       id: newUser.id,
       address: newUser.address,
-      displayName: newUser.display_name,
+      displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
       avatar: newUser.avatar,
       role: newUser.role,
       membershipTier: newUser.membership_tier,

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     
     const { data: user, error } = await supabase
       .from('chat_users')
-      .select('id, address, display_name, alias, avatar, role, membership_tier, contributor_type, is_banned, bio, created_at, updated_at')
+      .select('id, address, alias, avatar, role, membership_tier, contributor_type, is_banned, bio, created_at, updated_at')
       .eq('address', address.toLowerCase())
       .single();
 
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       user: {
         id: user.id,
         address: user.address,
-        displayName: user.alias || user.display_name || `${address.slice(0, 6)}...${address.slice(-4)}`,
+        displayName: user.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
         alias: user.alias,
         avatar: user.avatar,
         role: user.role,

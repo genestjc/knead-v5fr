@@ -21,7 +21,8 @@ export function middleware(request: NextRequest) {
       https://ipfs.io 
       https://gateway.ipfs.io
       https://cdn.sanity.io
-      https://vercel.com;
+      https://vercel.com
+      https://*.supabase.co;
     font-src 'self' data: 
       https://use.typekit.net 
       https://p.typekit.net;

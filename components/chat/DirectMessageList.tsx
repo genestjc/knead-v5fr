@@ -367,7 +367,7 @@ function DmListItem({
         
         if (data.success && data.user) {
           setUserProfile({
-            displayName: data.user.alias || data.user.displayName || `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`,
+            displayName: data.user.alias || `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`,
             avatar: data.user.avatar,
           });
         }

@@ -6,10 +6,12 @@ import type { ChatUser } from '@/types/chat';
  * Used across 10+ API routes
  */
 export function transformDbUserToChatUser(dbUser: any): ChatUser {
+  const address = dbUser.address;
+  
   return {
     id: dbUser.id,
-    address: dbUser.address,
-    displayName: dbUser.alias || dbUser.display_name,
+    address: address,
+    displayName: dbUser.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
     avatar: dbUser.avatar,
     role: dbUser.role,
     membershipTier: dbUser.membership_tier,

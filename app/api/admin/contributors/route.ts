@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     const formattedContributors = users.map((c) => ({
       id: c.id, 
       address: c.address, 
-      displayName: c.alias || c.display_name,
+      displayName: c.alias || `${c.address.slice(0, 6)}...${c.address.slice(-4)}`,
       avatar: c.avatar, 
       role: c.role, 
       contributorType: c.contributor_type, 
