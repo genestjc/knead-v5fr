@@ -285,6 +285,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const isGuest = event.guestAddresses?.some(
           (addr: string) => addr.toLowerCase() === userAddress,
         );
+        const isViewer = !isHost && !isGuest;
 
         // If no video or no room, bail out
         if (!event.videoEnabled || !event.dailyRoomName) {
@@ -293,8 +294,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         }
 
         // Generate token for everyone (host, guest, or viewer)
-        const isViewer = !isHost && !isGuest;
-        
         const tokenResponse = await fetch('/api/events/generate-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

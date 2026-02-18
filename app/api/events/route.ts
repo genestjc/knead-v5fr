@@ -180,6 +180,9 @@ export async function POST(req: NextRequest) {
 
     if (videoEnabled && process.env.DAILY_API_KEY) {
       try {
+        // Configure Daily room for broadcast mode (few speakers, many viewers)
+        // Note: enable_chat is disabled because the site has its own chat UI
+        // displayed below the video player with integrated features (tipping, etc.)
         const dailyResponse = await fetch('https://api.daily.co/v1/rooms', {
           method: 'POST',
           headers: {
@@ -189,11 +192,13 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             name: `knead-event-${Date.now()}`,
             properties: {
+              owner_only_broadcast: true,         // Only hosts/guests can broadcast video/audio
               enable_screenshare: true,
-              enable_chat: true,
+              enable_chat: false,                 // Site has its own chat UI below the video
+              enable_prejoin_ui: false,           // Skip lobby for smoother join
               start_video_off: false,
               start_audio_off: false,
-              max_participants: 50,
+              max_participants: 100,              // Support larger audiences
             },
           }),
         });
