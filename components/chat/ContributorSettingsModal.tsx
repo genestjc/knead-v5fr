@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, User, Check, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
 interface ContributorSettingsModalProps {
   isOpen: boolean;
@@ -78,44 +77,29 @@ export function ContributorSettingsModal({
 
       if (avatarFile) {
         setIsUploading(true);
-        console.log('📤 Uploading avatar to Supabase Storage...');
+        console.log('📤 Uploading avatar via API route...');
         
         try {
-          const supabase = createSupabaseClient();
-          
-          // Validate file extension
-          const fileExt = avatarFile.name.split('.').pop()?.toLowerCase();
-          const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-          
-          if (!fileExt || !allowedExtensions.includes(fileExt)) {
-            throw new Error('Invalid file type. Please upload a JPG, PNG, GIF, or WebP image.');
-          }
-          
-          // Create a unique filename
-          const fileName = `${userAddress.toLowerCase()}-${Date.now()}.${fileExt}`;
-          const filePath = `avatars/${fileName}`;
+          // Use the new server-side upload API route
+          const formData = new FormData();
+          formData.append('file', avatarFile);
+          formData.append('userAddress', userAddress);
 
-          // Upload to Supabase Storage
-          const { data, error } = await supabase.storage
-            .from('chat-assets')
-            .upload(filePath, avatarFile, {
-              cacheControl: '3600',
-              upsert: false
-            });
+          const uploadResponse = await fetch('/api/contributor/upload-avatar', {
+            method: 'POST',
+            body: formData,
+          });
 
-          if (error) {
-            throw error;
+          const uploadData = await uploadResponse.json();
+
+          if (!uploadData.success || !uploadData.data?.url) {
+            throw new Error(uploadData.error || 'Failed to upload avatar');
           }
 
-          // Get the public URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('chat-assets')
-            .getPublicUrl(filePath);
-
-          avatarUrl = publicUrl;
+          avatarUrl = uploadData.data.url;
           console.log('✅ Avatar uploaded:', avatarUrl);
         } catch (uploadError: any) {
-          console.error('❌ Supabase upload failed:', uploadError);
+          console.error('❌ Avatar upload failed:', uploadError);
           toast({
             title: 'Upload failed',
             description: uploadError.message || 'Failed to upload avatar. Please try again.',
@@ -154,11 +138,10 @@ export function ContributorSettingsModal({
         description: 'Your contributor settings have been saved.',
       });
 
+      // Close modal after a short delay - parent component will handle state refresh
       setTimeout(() => {
-        console.log('🔄 Reloading to re-initialize Towns with updated profile...');
         onClose();
-        window.location.reload();
-      }, 1500);
+      }, 1000);
 
     } catch (error) {
       console.error('❌ Save error:', error);
