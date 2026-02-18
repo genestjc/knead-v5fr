@@ -69,7 +69,7 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
     return (
       <>
         <div 
-          className="mt-2 cursor-pointer overflow-hidden rounded-lg max-w-[300px] md:max-w-[400px] lg:max-w-[480px]"
+          className="mt-2 cursor-pointer overflow-hidden max-w-[300px] md:max-w-[400px] lg:max-w-[480px]"
           onClick={() => setLightboxOpen(true)}
         >
           {/* ✅ Pass ipfs:// URI directly - MediaRenderer handles gateway conversion */}

@@ -59,11 +59,21 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
             className="relative max-w-[90vw] max-h-[90vh] p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={imageUrl}
-              alt=""
-              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            />
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt="Image preview"
+                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onError={(e) => {
+                  console.error('Failed to load image:', imageUrl);
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="text-white text-center p-8">
+                <p>Unable to load image</p>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}
