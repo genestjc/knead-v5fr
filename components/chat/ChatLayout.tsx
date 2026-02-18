@@ -74,7 +74,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const menuItems: MenuItem[] = [
     {
       icon: <Calendar className="w-5 h-5" />,
-      label: 'Events Calendar',
+      label: 'Events',
       onClick: () => {
         setShowEventsModal(true);
         setLogoExpanded(false);
@@ -82,7 +82,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     },
     {
       icon: <BookOpen className="w-5 h-5" />,
-      label: 'About / FAQ',
+      label: 'About',
       onClick: () => {
         setShowAboutModal(true);
         setLogoExpanded(false);
@@ -90,7 +90,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     },
     {
       icon: <Home className="w-5 h-5" />,
-      label: 'Return Home',
+      label: 'Home',
       onClick: () => {
         window.location.href = '/';
       },
