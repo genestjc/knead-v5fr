@@ -91,7 +91,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         console.log('🎥 [EventVideoStage] Joining call...', {
           roomUrl,
           role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
-          address: currentUserAddress.slice(0, 10),
+          ...(process.env.NODE_ENV === 'development' && { address: currentUserAddress.slice(0, 10) }),
         });
 
         hasJoinedRef.current = true;
