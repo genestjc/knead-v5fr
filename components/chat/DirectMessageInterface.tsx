@@ -142,7 +142,7 @@ export function DirectMessageInterface({
             // ✅ FIXED: Use useMyMember's userId with fallback
             const isCurrentUser = myUserId
               ? event.creatorUserId === myUserId
-              : event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
+              : currentUserId && event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
