@@ -220,7 +220,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 {!isContributor ? (
                   <div className="p-4">
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-gray-700 font-georgia-pro">
                         🔒 Direct messages are only available to contributors.
                       </p>
                     </div>
