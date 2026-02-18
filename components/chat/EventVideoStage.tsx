@@ -58,6 +58,8 @@ interface EventVideoStageProps {
   token: string;
 }
 
+const JOIN_TIMEOUT_MS = 10000; // 10 seconds
+
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
   const participantIds = useParticipantIds();
@@ -113,8 +115,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         hasAttemptedJoinRef.current = true;
         currentRoomRef.current = roomUrl;
 
-        // ✅ Add 10-second timeout with proper cleanup
-        let timeoutId: NodeJS.Timeout;
+        // ✅ Add timeout with proper cleanup
+        let timeoutId: NodeJS.Timeout | undefined;
         const joinPromise = daily.join({
           url: roomUrl,
           token: token,
@@ -126,13 +128,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         });
 
         const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('Join timeout after 10 seconds')), 10000);
+          timeoutId = setTimeout(() => reject(new Error(`Join timeout after ${JOIN_TIMEOUT_MS / 1000} seconds`)), JOIN_TIMEOUT_MS);
         });
 
         try {
           await Promise.race([joinPromise, timeoutPromise]);
         } finally {
-          clearTimeout(timeoutId);
+          if (timeoutId) clearTimeout(timeoutId);
         }
 
         if (!isMounted) {

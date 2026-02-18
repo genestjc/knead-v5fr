@@ -66,6 +66,8 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
+              // Daily.js requires unsafe-eval and unsafe-inline for their video SDK
+              // See: https://docs.daily.co/guides/products/prebuilt#content-security-policy
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://c.daily.co",
               "connect-src 'self' https://*.daily.co wss://*.daily.co https://*.pluot.blue wss://*.pluot.blue",
               "media-src 'self' https://*.daily.co blob:",
