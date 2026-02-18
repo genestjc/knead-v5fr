@@ -18,17 +18,21 @@ export function middleware(request: NextRequest) {
       https://*.thirdweb.com 
       https://*.thirdwebcdn.com
       https://ipfs.thirdwebcdn.com
+      https://*.ipfs.thirdwebcdn.com
       https://*.ipfs.dweb.link 
       https://*.ipfscdn.io
       https://ipfs.io 
       https://gateway.ipfs.io
       https://cdn.sanity.io
       https://vercel.com
-      https://*.supabase.co;
+      https://*.supabase.co
+      https://fonts.gstatic.com;
     font-src 'self' data: 
       https://use.typekit.net 
       https://p.typekit.net
-      https://vercel.live;
+      https://vercel.live
+      https://fonts.googleapis.com
+      https://fonts.gstatic.com;
     media-src 'self' blob: data:
       https://*.daily.co
       https://*.pluot.blue;

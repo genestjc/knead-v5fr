@@ -100,7 +100,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
       {/* ✅ Header — always visible, no hide/show animation */}
-      <header className="border-b border-gray-200 px-4 py-4 relative z-50 bg-white flex-shrink-0">
+      <header className="border-b border-gray-200 px-4 pb-2 lg:pb-4 relative z-50 bg-white flex-shrink-0" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between">
           <motion.div
             className="cursor-pointer relative"

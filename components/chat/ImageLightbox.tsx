@@ -43,9 +43,9 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     console.error('Failed to load image:', imageUrl);
-    console.error('Check browser console for CSP violations or network errors');
+    console.error('⚠️ This may be due to a CSP violation or network error. Check browser console for details.');
     
-    setErrorMessage('Unable to load image. This may be due to a network error or security policy restriction.');
+    setErrorMessage('Unable to load image. This may be due to a network error or security policy restriction. Check browser console for details.');
     setImageError(true);
   };
 
