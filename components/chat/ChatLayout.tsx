@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
@@ -27,57 +27,25 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
-  const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string } | null>(null);
+  const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string; otherUserAvatar?: string } | null>(null);
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
+
+  // ✅ NEW: Scroll-direction-aware header visibility
   const [headerVisible, setHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
-  
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
+
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
 
-  // Detect mobile screen size
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Handle scroll behavior for header reveal/hide (mobile only)
-  useEffect(() => {
-    if (!isMobile) {
-      setHeaderVisible(true); // Always visible on desktop
-      return;
-    }
-
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Scrolling up - show header
-      if (currentScrollY < lastScrollY || currentScrollY < 10) {
-        setHeaderVisible(true);
-      } 
-      // Scrolling down - hide header
-      else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setHeaderVisible(false);
-      }
-      
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY, isMobile]);
-  
   // Only swipe left for DMs on main container
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
+    // ✅ NEW: Any upward swipe reveals the header instantly
+    onSwipedUp: () => setHeaderVisible(true),
+    onSwipedDown: () => setHeaderVisible(true),
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
@@ -91,6 +59,74 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
+
+  // ✅ NEW: Listen for scroll events on the main content area
+  const handleScroll = useCallback((e: Event) => {
+    const target = e.target as HTMLElement;
+    const currentScrollY = target.scrollTop;
+    const delta = currentScrollY - lastScrollY.current;
+
+    // Scrolling UP (or near top) → show header immediately
+    if (delta < -2 || currentScrollY < 50) {
+      setHeaderVisible(true);
+      // Clear any pending hide
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current);
+        scrollTimeout.current = null;
+      }
+    }
+    // Scrolling DOWN past threshold → hide header after brief delay
+    else if (delta > 5 && currentScrollY > 80) {
+      if (!scrollTimeout.current) {
+        scrollTimeout.current = setTimeout(() => {
+          setHeaderVisible(false);
+          scrollTimeout.current = null;
+        }, 150);
+      }
+    }
+
+    lastScrollY.current = currentScrollY;
+  }, []);
+
+  // ✅ NEW: Touch-based pull-down detection for mobile
+  const touchStartY = useRef(0);
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    // Pulling down (finger moving down) → reveal header
+    if (deltaY > 15) {
+      setHeaderVisible(true);
+    }
+  }, []);
+
+  // Attach scroll + touch listeners to the main content area
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (!mainEl) return;
+
+    // Listen on the scrollable child inside main (chat message list)
+    const scrollableChild = mainEl.querySelector('[data-chat-scroll]') || mainEl;
+
+    scrollableChild.addEventListener('scroll', handleScroll, { passive: true });
+    mainEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+    mainEl.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      scrollableChild.removeEventListener('scroll', handleScroll);
+      mainEl.removeEventListener('touchstart', handleTouchStart);
+      mainEl.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [handleScroll, handleTouchStart, handleTouchMove]);
+
+  // Always show header when menus/modals are open
+  useEffect(() => {
+    if (dmsOpen || menuOpen || logoExpanded || showEventsModal || showAboutModal) {
+      setHeaderVisible(true);
+    }
+  }, [dmsOpen, menuOpen, logoExpanded, showEventsModal, showAboutModal]);
 
   // Fetch treasury balance
   useEffect(() => {
@@ -107,7 +143,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     };
 
     fetchTreasuryBalance();
-    const interval = setInterval(fetchTreasuryBalance, 60000); // Update every minute
+    const interval = setInterval(fetchTreasuryBalance, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -139,15 +175,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      <motion.header 
-        className="border-b border-gray-200 px-4 py-4 relative z-50 bg-white"
-        initial={{ y: 0, opacity: 1 }}
-        animate={{ 
+      {/* ✅ UPDATED: Header with fast scroll-reveal animation */}
+      <motion.header
+        initial={false}
+        animate={{
           y: headerVisible ? 0 : -100,
-          opacity: headerVisible ? 1 : 0
+          opacity: headerVisible ? 1 : 0,
         }}
-        transition={{ duration: 0.15, ease: 'easeInOut' }}
-        style={isMobile ? { position: 'sticky', top: 0 } : { position: 'relative' }}
+        transition={{
+          duration: headerVisible ? 0.15 : 0.25, // Fast in, slightly slower out
+          ease: 'easeOut',
+        }}
+        className="border-b border-gray-200 px-4 py-4 relative z-50 flex-shrink-0"
       >
         <div className="flex items-center justify-between">
           <motion.div
@@ -166,12 +205,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           </motion.div>
 
           <div className="flex items-center gap-3">
-            <WalletSummary 
+            <WalletSummary
               context="chat"
               onExternalWalletExport={() => setShowExternalWalletMessage(true)}
             />
 
-            {/* Paper Plane Icon for DMs (Contributors Only) */}
+            {/* Paper Plane Icon for DMs (Contributors Only) — hidden when DM panel is open */}
             {isContributor && !dmsOpen && (
               <button
                 onClick={() => setDmsOpen(true)}
@@ -203,10 +242,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                   <span className="font-georgia-pro text-sm">{item.label}</span>
                 </button>
               ))}
-              
+
               {/* Divider */}
               <div className="border-t-2 border-gray-200"></div>
-              
+
               {/* Treasury Balance */}
               <a
                 href="https://basescan.org/address/0xde1338f826055a6311d3bbef292dcb92dfe03cde"
@@ -237,7 +276,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         {children}
       </main>
 
-      {/* Side Menus */}
+      {/* ✅ DM Side Panel — z-[60] to fully cover header on mobile */}
       <AnimatePresence>
         {dmsOpen && (
           <motion.div
@@ -263,7 +302,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                   </button>
                 </div>
               </div>
-              
+
               <div className="flex-1 overflow-auto">
                 {!isContributor ? (
                   <div className="p-4">
@@ -288,13 +327,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                       townsDmId={selectedDm.townsDmId}
                       currentUserId={activeAccount?.address || ''}
                       otherUserName={selectedDm.otherUserName}
+                      otherUserAvatar={selectedDm.otherUserAvatar}
                     />
                   </div>
                 ) : (
                   <DirectMessageList
                     userId={activeAccount?.address || ''}
-                    onSelectDm={(dmId, townsDmId, otherUserName = 'User') => 
-                      setSelectedDm({ dmId, townsDmId, otherUserName })
+                    onSelectDm={(dmId, townsDmId, otherUserName = 'User', otherUserAvatar) =>
+                      setSelectedDm({ dmId, townsDmId, otherUserName, otherUserAvatar })
                     }
                     selectedDmId={selectedDm?.dmId}
                   />
@@ -359,7 +399,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ✅ KEPT: External Wallet Message Modal (for MetaMask, etc.) */}
+      {/* External Wallet Message Modal */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -403,8 +443,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           </div>
         )}
       </AnimatePresence>
-
-      {/* ✅ REMOVED: Export Instructions Modal (redundant with ThirdWeb's built-in) */}
 
       {/* Events Calendar Modal */}
       <EventsCalendarModal
