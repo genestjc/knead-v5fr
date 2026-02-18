@@ -341,16 +341,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
               <span className="font-georgia-pro text-sm font-semibold text-red-600">LIVE</span>
-            </div>
-            {isViewer && (
-              <span className="font-georgia-pro text-xs text-gray-500 italic">
-                👁️ Viewing as audience
-              </span>
-            )}
-            <span className="font-georgia-pro text-sm text-gray-600">
-              {participantIds.length} participant{participantIds.length !== 1 ? 's' : ''}
-            </span>
-          </div>
 
           <div className="flex items-center gap-2">
             {isHost ? (
