@@ -1,16 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
 import { DirectMessageList } from './DirectMessageList';
 import { DirectMessageInterface } from './DirectMessageInterface';
+import { EventsCalendarModal } from './EventsCalendarModal';
+import { AboutFAQModal } from './AboutFAQModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { Home, Calendar, BookOpen, Send } from 'lucide-react';
 
 interface MenuItem {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   onClick: () => void;
 }
@@ -25,23 +28,61 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string } | null>(null);
+  const [showEventsModal, setShowEventsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
   
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
   
+  // Only swipe left for DMs
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
-    onSwipedRight: () => setMenuOpen(true),
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
 
+  // Fetch treasury balance
+  useEffect(() => {
+    const fetchTreasuryBalance = async () => {
+      try {
+        const response = await fetch('/api/treasury/balance');
+        const data = await response.json();
+        if (data.success && typeof data.balance === 'number') {
+          setTreasuryBalance(data.balance.toFixed(2));
+        }
+      } catch (error) {
+        console.error('Error fetching treasury balance:', error);
+      }
+    };
+
+    fetchTreasuryBalance();
+    const interval = setInterval(fetchTreasuryBalance, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
   const menuItems: MenuItem[] = [
     {
-      icon: '🏠',
+      icon: <Home className="w-5 h-5" />,
       label: 'Return Home',
       onClick: () => {
         window.location.href = '/';
+      },
+    },
+    {
+      icon: <Calendar className="w-5 h-5" />,
+      label: 'Events Calendar',
+      onClick: () => {
+        setShowEventsModal(true);
+        setLogoExpanded(false);
+      },
+    },
+    {
+      icon: <BookOpen className="w-5 h-5" />,
+      label: 'About / FAQ',
+      onClick: () => {
+        setShowAboutModal(true);
+        setLogoExpanded(false);
       },
     },
   ];
@@ -66,21 +107,21 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           </motion.div>
 
           <div className="flex items-center gap-3">
-            {/* Paper Plane Icon for DMs (Contributors Only) */}
-            {isContributor && (
-              <button
-                onClick={() => setDmsOpen(true)}
-                className="text-2xl hover:scale-110 transition-transform"
-                title="Direct Messages"
-              >
-                ✈️
-              </button>
-            )}
-
             <WalletSummary 
               context="chat"
               onExternalWalletExport={() => setShowExternalWalletMessage(true)}
             />
+
+            {/* Paper Plane Icon for DMs (Contributors Only) */}
+            {isContributor && (
+              <button
+                onClick={() => setDmsOpen(true)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="Direct Messages"
+              >
+                <Send className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -97,12 +138,30 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 <button
                   key={index}
                   onClick={item.onClick}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
-                  <span className="text-xl">{item.icon}</span>
+                  {item.icon}
                   <span className="font-georgia-pro text-sm">{item.label}</span>
                 </button>
               ))}
+              
+              {/* Divider */}
+              <div className="border-t-2 border-gray-200"></div>
+              
+              {/* Treasury Balance */}
+              <a
+                href="https://basescan.org/address/0xde1338f826055a6311d3bbef292dcb92dfe03cde"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-xl">🏦</span>
+                <div className="flex-1 text-left">
+                  <span className="font-georgia-pro text-sm text-gray-700">
+                    Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
+                  </span>
+                </div>
+              </a>
             </motion.div>
           )}
         </AnimatePresence>
@@ -127,7 +186,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-xl z-40 overflow-hidden"
+            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-40 overflow-hidden"
           >
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200">
@@ -138,7 +197,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                       setDmsOpen(false);
                       setSelectedDm(null);
                     }}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
                   >
                     ✕
                   </button>
@@ -286,6 +345,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       </AnimatePresence>
 
       {/* ✅ REMOVED: Export Instructions Modal (redundant with ThirdWeb's built-in) */}
+
+      {/* Events Calendar Modal */}
+      <EventsCalendarModal
+        isOpen={showEventsModal}
+        onClose={() => setShowEventsModal(false)}
+      />
+
+      {/* About/FAQ Modal */}
+      <AboutFAQModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+      />
     </div>
   );
 }

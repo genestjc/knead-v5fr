@@ -2,7 +2,7 @@
 
 import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
-import { Copy, LogOut, Send, Key, Wallet, AlertTriangle, DollarSign, Download, Settings } from "lucide-react";
+import { Copy, LogOut, ArrowUpFromLine, Key, Wallet, AlertTriangle, DollarSign, Download, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getContract, sendTransaction, prepareContractCall, readContract } from "thirdweb";
 import { transfer } from "thirdweb/extensions/erc20";
@@ -624,7 +624,7 @@ export function WalletSummary({
                     onClick={handleWithdrawClick}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
                   >
-                    <Send className="w-4 h-4 mr-2" />
+                    <ArrowUpFromLine className="w-4 h-4 mr-2" />
                     Send $TOWNS
                   </button>
 

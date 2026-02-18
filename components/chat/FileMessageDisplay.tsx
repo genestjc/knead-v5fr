@@ -4,6 +4,7 @@ import { MediaRenderer } from "thirdweb/react";
 import { isImageFile } from '@/lib/thirdweb/storage';
 import { client } from '@/thirdweb-client';
 import { useState } from 'react';
+import { ImageLightbox } from './ImageLightbox';
 
 interface FileMessageDisplayProps {
   fileName: string;
@@ -30,6 +31,7 @@ function ipfsToGatewayUrl(ipfsUri: string): string {
 
 export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMessageDisplayProps) {
   const [hasError, setHasError] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const isImage = isImageFile(fileName);
   
   // Gateway URL for fallback links only
@@ -65,20 +67,29 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
 
   if (isImage) {
     return (
-      <div className="mt-2">
-        {/* ✅ Pass ipfs:// URI directly - MediaRenderer handles gateway conversion */}
-        <MediaRenderer
-          client={client}
-          src={ipfsUri} // ✅ Pass raw ipfs:// URI
-          alt={fileName}
-          className="max-w-full max-h-64 rounded-lg object-contain"
-          style={{ maxWidth: '100%', maxHeight: '16rem' }}
-          onError={() => setHasError(true)} // ✅ Trigger fallback on error
+      <>
+        <div 
+          className="mt-2 cursor-pointer overflow-hidden rounded-lg"
+          onClick={() => setLightboxOpen(true)}
+        >
+          {/* ✅ Pass ipfs:// URI directly - MediaRenderer handles gateway conversion */}
+          <MediaRenderer
+            client={client}
+            src={ipfsUri} // ✅ Pass raw ipfs:// URI
+            alt={fileName}
+            className="w-full h-auto object-cover hover:opacity-90 transition-opacity"
+            style={{ maxWidth: '100%' }}
+            onError={() => setHasError(true)} // ✅ Trigger fallback on error
+          />
+        </div>
+        
+        {/* Image Lightbox */}
+        <ImageLightbox
+          isOpen={lightboxOpen}
+          imageUrl={gatewayUrl}
+          onClose={() => setLightboxOpen(false)}
         />
-        <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
-          {fileName}
-        </p>
-      </div>
+      </>
     );
   }
 

@@ -20,6 +20,7 @@ interface ChatMessage {
   timestamp: number | string;
   townsAwarded?: number;
   isOwn?: boolean;
+  isContributor?: boolean;
 }
 
 interface MessageBubbleProps {
@@ -33,8 +34,8 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// Bread Loaf Counter Badge
-function BreadCounterBadge({
+// New Bread Icon Tipping Button
+function BreadTipButton({
   totalTips,
   isActive,
   isReacting
@@ -43,59 +44,30 @@ function BreadCounterBadge({
   isActive: boolean;
   isReacting: boolean;
 }) {
-  const stroke = isActive ? '#374151' : '#9ca3af';
-  const text = isActive ? 'text-gray-700' : 'text-gray-400';
+  const iconColor = isActive ? '#374151' : '#9ca3af';
+  const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
+  const borderColor = isActive ? 'border-gray-300' : 'border-gray-200';
+  
   return (
-    <div className="relative w-[120px] h-[64px]">
-      <svg viewBox="0 0 120 64" className="absolute inset-0" fill="none">
-        {/* back loaf */}
-        <path
-          d="
-          M62 10
-          C80 10 110 10 110 26
-          V56
-          H62
-          Z"
-          stroke={stroke}
-          strokeWidth="2"
-          opacity="0.6"
-        />
-        {/* back slit */}
-        <line
-          x1="78"
-          y1="30"
-          x2="98"
-          y2="28"
-          stroke={stroke}
-          strokeWidth="2"
-          strokeLinecap="round"
-          opacity="0.6"
-        />
-        {/* FRONT LOAF */}
-        <path
-          d="
-          M8 30
-          C8 12 26 6 44 6
-          C60 6 78 12 78 30
-          V56
-          H8
-          Z"
-          fill="white"
-          stroke={stroke}
-          strokeWidth="2"
-        />
-        {/* crumbs */}
-        <circle cx="36" cy="40" r="1.6" fill={stroke} opacity="0.35" />
-        <circle cx="30" cy="46" r="1.6" fill={stroke} opacity="0.35" />
-        <circle cx="42" cy="46" r="1.6" fill={stroke} opacity="0.35" />
-      </svg>
-      {/* text centered in loaf body */}
-      <div
-        className={`absolute left-[10px] top-[14px] w-[68px] h-[36px]
-        flex items-center justify-center text-[12px] font-medium ${text}`}
+    <div className={`flex items-center gap-2 px-3 py-1.5 border ${borderColor} rounded-full bg-white ${isActive ? 'shadow-sm' : 'opacity-60'}`}>
+      {/* Bread Icon */}
+      <svg 
+        width="20" 
+        height="20" 
+        viewBox="0 0 1200 1200" 
+        xmlns="http://www.w3.org/2000/svg"
+        className="flex-shrink-0"
       >
+        <path 
+          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.078 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z" 
+          fill={iconColor}
+        />
+      </svg>
+      
+      {/* Counter Text */}
+      <span className={`text-xs font-medium ${textColor} font-georgia-pro whitespace-nowrap`}>
         {isReacting ? '⏳' : `${totalTips || 0} $TOWNS`}
-      </div>
+      </span>
     </div>
   );
 }
@@ -243,10 +215,10 @@ export function MessageBubble({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%]`}>
-          {/* Avatar (only for other users) */}
-          {!isOwn && (
-            <div className="flex-shrink-0">
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
+          {/* Avatar — only visible for contributors */}
+          {!isOwn && message.isContributor && (
+            <div className="flex-shrink-0 mb-6">
               {message.sender.avatar ? (
                 <img
                   src={convertIpfsToGatewayUrl(message.sender.avatar)}
@@ -259,6 +231,11 @@ export function MessageBubble({
                 </div>
               )}
             </div>
+          )}
+          
+          {/* No avatar placeholder for non-contributors */}
+          {!isOwn && !message.isContributor && (
+            <div className="flex-shrink-0 w-0"></div>
           )}
 
           {/* Message content */}
@@ -293,7 +270,7 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* ✅ NEW: Bread Loaf Counter Badge Button */}
+            {/* ✅ Bread Tip Button */}
             {!isOwn && streamId && (
               <div className="relative mt-1.5">
                 <button
@@ -303,30 +280,23 @@ export function MessageBubble({
                   onTouchStart={() => !canAwardTokens && setShowTooltip(true)}
                   onTouchEnd={() => setTimeout(() => setShowTooltip(false), 2000)}
                   disabled={!canAwardTokens || isReacting}
-                  className={`transition-transform ${
+                  className={`transition-all ${
                     canAwardTokens
                       ? 'cursor-pointer hover:scale-105 active:scale-95'
-                      : 'cursor-not-allowed opacity-60'
+                      : 'cursor-not-allowed'
                   }`}
                   aria-label={canAwardTokens ? `Tip 10 TOWNS (currently ${totalTips} TOWNS)` : "Tipping is only available to Contributors"}
                 >
-                  <BreadCounterBadge 
+                  <BreadTipButton 
                     totalTips={totalTips}
                     isActive={canAwardTokens}
                     isReacting={isReacting}
                   />
-                  
-                  {/* Lock icon overlay for non-contributors */}
-                  {!canAwardTokens && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="text-sm opacity-60">🔒</span>
-                    </div>
-                  )}
                 </button>
                 
                 {/* Tooltip for non-contributors */}
                 {showTooltip && !canAwardTokens && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg">
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg font-georgia-pro">
                     Tipping is only available to Contributors
                     <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
                   </div>
