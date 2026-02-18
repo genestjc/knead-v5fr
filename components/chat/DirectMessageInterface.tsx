@@ -274,9 +274,10 @@ export function DirectMessageInterface({
             disabled={isSending || isUploading || !messageInput.trim()}
             className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Send message"
+            aria-label={isSending || isUploading ? "Sending message..." : "Send message"}
           >
             {isSending || isUploading ? (
-              <span className="text-sm">⏳</span>
+              <span className="text-sm" aria-hidden="true">⏳</span>
             ) : (
               <ArrowUp className="w-5 h-5" />
             )}

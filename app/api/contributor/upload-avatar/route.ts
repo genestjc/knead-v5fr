@@ -4,6 +4,10 @@ import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
+// Configuration constants
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
 /**
  * POST /api/contributor/upload-avatar
  * Upload avatar file to Supabase Storage using server-side admin client
@@ -30,16 +34,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Invalid file type. Please upload JPG, PNG, GIF, or WebP' },
         { status: 400 }
       );
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'File too large. Maximum size is 5MB' },
         { status: 400 }

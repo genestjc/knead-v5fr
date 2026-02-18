@@ -433,7 +433,7 @@ function DmListItem({
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, otherUserId)}
+      onClick={() => onSelect(streamId, streamId, displayName)}
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
         ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
