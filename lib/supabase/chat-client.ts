@@ -40,7 +40,7 @@ export async function getOrCreateChatUser(
       return {
         id: existingUser.id,
         address: existingUser.address,
-        displayName: existingUser.alias || formatAddressForDisplay(address),
+        displayName: existingUser.alias || formatAddressForDisplay(existingUser.address),
         avatar: existingUser.avatar,
         role: existingUser.role,
         membershipTier: existingUser.membership_tier,
@@ -79,7 +79,7 @@ export async function getOrCreateChatUser(
     return {
       id: newUser.id,
       address: newUser.address,
-      displayName: formatAddressForDisplay(address),
+      displayName: formatAddressForDisplay(newUser.address),
       avatar: newUser.avatar,
       role: newUser.role,
       membershipTier: newUser.membership_tier,
