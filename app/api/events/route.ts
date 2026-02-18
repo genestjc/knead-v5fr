@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
         if (event.host_id) {
           const { data: hostData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias, avatar')
+            .select('id, address, alias, avatar')
             .eq('id', event.host_id)
             .single();
           host = hostData;
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.display_name,
+                displayName: host.alias || `${host.address.slice(0, 6)}...${host.address.slice(-4)}`,
                 alias: host.alias,
                 avatar: host.avatar,
               }

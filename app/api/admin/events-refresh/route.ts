@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         if (event.host_id) {
           const { data: hostData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, alias')
             .eq('id', event.host_id)
             .single();
           host = hostData;
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
           const { data: guestData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, alias')
             .in('id', event.guest_ids);
           guests = guestData || [];
         }
@@ -99,14 +99,14 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.display_name,
+                displayName: host.alias || `${host.address.slice(0, 6)}...${host.address.slice(-4)}`,
                 alias: host.alias,
               }
             : null,
           guests: guests.map((g) => ({
             id: g.id,
             address: g.address,
-            displayName: g.display_name,
+            displayName: g.alias || `${g.address.slice(0, 6)}...${g.address.slice(-4)}`,
             alias: g.alias,
           })),
           createdAt: event.created_at,

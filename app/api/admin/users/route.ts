@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     const formattedUsers = users.map((user) => ({
       id: user.id,
       address: user.address,
-      displayName: user.display_name,
+      displayName: user.alias || `${user.address.slice(0, 6)}...${user.address.slice(-4)}`,
       alias: user.alias,
       role: user.role,
       membershipTier: user.membership_tier,

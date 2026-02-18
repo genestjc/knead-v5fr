@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         user_id,
         chat_users!inner (
           id,
-          display_name,
+          address,
           alias,
           avatar
         )
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
 
     const typers = data.map((item) => ({
       userId: item.user_id,
-      displayName: item.chat_users.alias || item.chat_users.display_name,
+      displayName: item.chat_users.alias || `${item.chat_users.address.slice(0, 6)}...${item.chat_users.address.slice(-4)}`,
       avatar: item.chat_users.avatar,
     }));
 
