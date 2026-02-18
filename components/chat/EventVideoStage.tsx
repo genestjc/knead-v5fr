@@ -73,7 +73,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       const participants = daily.participants();
       const localParticipant = participants.local;
       
-      if (localParticipant && localParticipant.user_name) {
+      if (localParticipant && localParticipant.session_id) {
         console.log('⚠️ [EventVideoStage] Already connected to this call');
         return;
       }
@@ -93,9 +93,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
           address: currentUserAddress.slice(0, 10),
         });
-
-        hasJoinedRef.current = true;
-        joinedRoomRef.current = roomUrl;
 
         // ✅ Add timeout with proper cleanup
         let timeoutId: NodeJS.Timeout | undefined;
@@ -124,6 +121,10 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           await daily.leave();
           return;
         }
+
+        // ✅ Only set joined flags after successful join
+        hasJoinedRef.current = true;
+        joinedRoomRef.current = roomUrl;
 
         console.log('✅ [EventVideoStage] Joined call successfully');
       } catch (err: any) {
