@@ -14,7 +14,7 @@ import { useDm, useSendMessage, useTimeline, useMyMember } from '@towns-protocol
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
-import { Paperclip, ArrowUp } from 'lucide-react';
+import { Paperclip, ArrowUp, ArrowRight } from 'lucide-react';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -139,8 +139,10 @@ export function DirectMessageInterface({
               ? event.content.body 
               : '';
             
-            // ✅ FIXED: Use useMyMember's userId — exact match, no normalization needed
-            const isCurrentUser = event.creatorUserId === myUserId;
+            // ✅ FIXED: Use useMyMember's userId with fallback
+            const isCurrentUser = myUserId
+              ? event.creatorUserId === myUserId
+              : event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
@@ -253,7 +255,7 @@ export function DirectMessageInterface({
             {isSending || isUploading ? (
               <span className="text-sm">⏳</span>
             ) : (
-              <ArrowUp className="w-5 h-5" />
+              <ArrowRight className="w-5 h-5" />
             )}
           </button>
         </div>
