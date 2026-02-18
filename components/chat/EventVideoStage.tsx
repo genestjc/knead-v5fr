@@ -130,7 +130,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         currentRoomRef.current = null;
       }
     };
-  }, [daily, roomUrl, token, isHost, isGuest, isViewer, currentUserAddress]);
+  }, [daily, roomUrl, token, isHost, isGuest, currentUserAddress]);
 
   // Monitor connection state and errors
   useEffect(() => {
@@ -266,11 +266,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     isHost,
   });
 
+  // Determine desktop grid layout: 2 columns when guests present, 1 column when solo
+  const desktopGridCols = guestSessionIds.length > 0 ? 'lg:grid-cols-2' : 'lg:grid-cols-1';
+
   return (
     <div className="h-full flex flex-col bg-gray-100">
       <div className="flex-1 p-4">
         {/* ✅ DESKTOP: Dynamic layout - single column when solo, two columns when guests present */}
-        <div className={`hidden lg:grid gap-4 h-full ${guestSessionIds.length > 0 ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
+        <div className={`hidden lg:grid gap-4 h-full ${desktopGridCols}`}>
           {/* LEFT/CENTER: Always Host */}
           <div>
             {hostSessionId ? (
