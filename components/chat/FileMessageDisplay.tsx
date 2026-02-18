@@ -19,12 +19,10 @@ interface FileMessageDisplayProps {
 function ipfsToGatewayUrl(ipfsUri: string): string {
   if (!ipfsUri) return '';
   
-  // If already an HTTP URL, return as-is
   if (ipfsUri.startsWith('http://') || ipfsUri.startsWith('https://')) {
     return ipfsUri;
   }
   
-  // ✅ Use thirdweb's CDN gateway (most reliable and performant)
   const cid = ipfsUri.replace('ipfs://', '');
   return `https://ipfs.thirdwebcdn.com/ipfs/${cid}`;
 }
@@ -34,10 +32,8 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const isImage = isImageFile(fileName);
   
-  // Gateway URL for fallback links only
   const gatewayUrl = ipfsToGatewayUrl(ipfsUri);
 
-  // If MediaRenderer failed, show download link
   if (hasError) {
     return (
       <a
@@ -68,22 +64,21 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
   if (isImage) {
     return (
       <>
+        {/* ✅ No rounded-lg — clean flush image like Instagram/Signal */}
         <div 
           className="mt-2 cursor-pointer overflow-hidden max-w-[300px] md:max-w-[400px] lg:max-w-[480px]"
           onClick={() => setLightboxOpen(true)}
         >
-          {/* ✅ Pass ipfs:// URI directly - MediaRenderer handles gateway conversion */}
           <MediaRenderer
             client={client}
-            src={ipfsUri} // ✅ Pass raw ipfs:// URI
+            src={ipfsUri}
             alt={fileName}
             className="w-full h-auto object-cover hover:opacity-90 transition-opacity"
             style={{ maxWidth: '100%' }}
-            onError={() => setHasError(true)} // ✅ Trigger fallback on error
+            onError={() => setHasError(true)}
           />
         </div>
         
-        {/* Image Lightbox */}
         <ImageLightbox
           isOpen={lightboxOpen}
           imageUrl={gatewayUrl}
@@ -93,7 +88,6 @@ export function FileMessageDisplay({ fileName, ipfsUri, isCurrentUser }: FileMes
     );
   }
 
-  // Non-image files: Direct download link
   return (
     <a
       href={gatewayUrl}
