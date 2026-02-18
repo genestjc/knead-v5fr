@@ -14,6 +14,7 @@ import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { Paperclip } from 'lucide-react';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -141,12 +142,13 @@ export function DirectMessageInterface({
               >
                 <div
                   className={`
-                    max-w-[70%] rounded-lg px-4 py-2
+                    max-w-[70%] rounded-[18px] px-4 py-2.5
                     ${isCurrentUser 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-900 border'
+                      ? 'bg-[#007AFF] text-white' 
+                      : 'bg-[#E5E5EA] text-gray-900'
                     }
                   `}
+                  style={{ fontFamily: 'Georgia Pro, serif' }}
                 >
                   {isFileMessage && fileName && ipfsUri ? (
                     <FileMessageDisplay 
@@ -155,9 +157,9 @@ export function DirectMessageInterface({
                       isCurrentUser={isCurrentUser}
                     />
                   ) : (
-                    <p className="text-sm">{messageText}</p>
+                    <p className="text-sm leading-relaxed">{messageText}</p>
                   )}
-                  <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-gray-500'}`}>
+                  <p className={`text-xs mt-1 ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
                     {new Date(timestamp).toLocaleTimeString([], { 
                       hour: '2-digit', 
                       minute: '2-digit' 
@@ -190,7 +192,7 @@ export function DirectMessageInterface({
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
             title="Upload file"
           >
-            📎
+            <Paperclip className="w-5 h-5" />
           </button>
           
           <input
