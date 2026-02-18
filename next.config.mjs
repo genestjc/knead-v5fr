@@ -62,6 +62,19 @@ const nextConfig = {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin-allow-popups',
           },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://c.daily.co",
+              "connect-src 'self' https://*.daily.co wss://*.daily.co https://*.pluot.blue wss://*.pluot.blue",
+              "media-src 'self' https://*.daily.co blob:",
+              "worker-src 'self' blob:",
+              "child-src 'self' blob:",
+              "img-src 'self' data: https:",
+              "style-src 'self' 'unsafe-inline'",
+            ].join('; '),
+          },
         ],
       },
     ];
