@@ -81,6 +81,8 @@ export function middleware(request: NextRequest) {
       https://social.thirdweb.com
       https://1.rpc.thirdweb.com
       https://8453.rpc.thirdweb.com
+      https://ipfs.thirdwebcdn.com
+      https://*.ipfs.thirdwebcdn.com
       https://*.ipfscdn.io
       https://ipfs.io
       https://gateway.ipfs.io
