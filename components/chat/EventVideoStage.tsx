@@ -276,6 +276,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 const participantRole = participant?.userData?.role || 'viewer';
                 
                 // Calculate guest number by counting actual guests before this one, then add 1 for current
+                // Note: This is O(n²) but acceptable since typical events have <10 participants
                 const guestsBeforeThis = guestSessionIds
                   .slice(0, index)
                   .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
@@ -326,6 +327,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               const participantRole = participant?.userData?.role || 'viewer';
               
               // Calculate guest number by counting actual guests before this one, then add 1 for current
+              // Note: This is O(n²) but acceptable since typical events have <10 participants
               const guestsBeforeThis = guestSessionIds
                 .slice(0, index)
                 .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
