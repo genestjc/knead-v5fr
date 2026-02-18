@@ -38,6 +38,32 @@ interface UserProfile {
   avatar: string | null;
   displayName: string;
   walletAddress: string | null;
+  role?: string;
+}
+
+function PermissionDebugBanner({
+  permissions,
+  userRole,
+  activeEvent,
+}: {
+  permissions: any;
+  userRole: string;
+  activeEvent: any;
+}) {
+  if (process.env.NODE_ENV !== 'development') return null;
+
+  return (
+    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
+      <div className="flex items-center justify-between text-xs font-mono">
+        <div className="flex gap-4">
+          <span>Role: <strong>{userRole}</strong></span>
+          <span>Can post: <strong>{permissions?.canPost ? '✅' : '❌'}</strong></span>
+          <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
+        </div>
+        <span className="text-gray-600">{permissions?.reason}</span>
+      </div>
+    </div>
+  );
 }
 
 function RetryMessageBanner({
@@ -155,6 +181,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             avatar: data.user.avatar,
             displayName: data.user.displayName,
             walletAddress,
+            role: data.user.role,
           },
         }));
       }
@@ -188,11 +215,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          senderRole: userRole, // Add role info - simplified, in production you'd look this up per user
+          isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address, getProfile, userRole]);
+  }, [events, profileCache, activeAccount?.address, getProfile]);
 
   // -- All useEffect hooks --
   useEffect(() => {
@@ -320,9 +347,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
-        alert('👀 Freemium users can only watch. Upgrade to Knead Monthly to participate!');
+        alert('Free Members can enjoy viewing for 1 hour per month. Sign-up for Knead Monthly to participate in events.');
       } else if (userRole === 'participant' && !activeEvent) {
-        alert('💬 Participants can chat during live events only. Check back when an event starts!');
+        alert('Messaging is available to Knead Monthly members during events. Check the calendar in the top left corner to see what\'s happening.');
       } else {
         alert(`Cannot send message: ${permissions?.reason || 'Unknown reason'}`);
       }
@@ -370,9 +397,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     if (!permissions?.canPost) {
       if (userRole === 'freemium') {
-        alert('👀 Freemium users can only watch.');
+        alert('Free Members can only view. Sign-up for Knead Monthly to participate.');
       } else {
-        alert('💬 Participants can upload files during events only.');
+        alert('Messaging is available to Knead Monthly members during events.');
       }
       return;
     }
@@ -477,57 +504,99 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   };
 
-  const renderChatInput = () => (
-    <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-      <input
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileSelect}
-        className="hidden"
-        disabled={!permissions?.canPost || isUploading}
-      />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={!permissions?.canPost || isUploading}
-        className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Attach file"
-      >
-        <Paperclip className="w-5 h-5" />
-      </button>
+  // -- Disabled messaging display --
+  const renderDisabledMessageBanner = () => {
+    if (permissions?.canPost) return null;
 
-      <input
-        type="text"
-        value={messageInput}
-        onChange={(e) => setMessageInput(e.target.value)}
-        placeholder={
-          isUploading ? "Uploading..." :
-          !permissions?.canPost && userRole === 'participant' && !activeEvent ? "Messaging is available to Knead Monthly members during events. Check the calendar in the menu to see what's happening." :
-          !permissions?.canPost && userRole === 'freemium' ? "Free Members can enjoy viewing for 1 hour per month. Sign-up for Knead Monthly to participate in events" :
-          channelId ? "Type a message..." : "Loading..."
-        }
-        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro text-sm ${
-          permissions?.canPost ? 'focus:ring-[#007AFF] border-gray-300' : 'bg-gray-100 border-gray-200 cursor-not-allowed'
-        }`}
-        disabled={!permissions?.canPost || isSending || isUploading || !channelId}
-      />
-      <button
-        type="submit"
-        disabled={!permissions?.canPost || !messageInput.trim() || isSending || isUploading || !channelId}
-        className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-        </svg>
-      </button>
-    </form>
-  );
+    if (userRole === 'freemium') {
+      return (
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+          <p className="font-georgia-pro text-sm text-gray-600 text-center">
+            Free Members can enjoy viewing for 1 hour per month.{' '}
+            <a
+              href="/join"
+              className="text-[#007AFF] underline hover:text-[#0051D5] transition-colors"
+            >
+              Sign-up for Knead Monthly
+            </a>{' '}
+            to participate in events.
+          </p>
+        </div>
+      );
+    }
+
+    if (userRole === 'participant' && !activeEvent) {
+      return (
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+          <p className="font-georgia-pro text-sm text-gray-600 text-center">
+            Messaging is available to Knead Monthly members during events. Check the calendar in the top left corner to see what's happening.
+          </p>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderChatInput = () => {
+    // If user can't post, show the styled banner instead of the input
+    if (!permissions?.canPost) {
+      return renderDisabledMessageBanner();
+    }
+
+    return (
+      <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileSelect}
+          className="hidden"
+          disabled={isUploading}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Attach file"
+        >
+          <Paperclip className="w-5 h-5" />
+        </button>
+
+        <input
+          type="text"
+          value={messageInput}
+          onChange={(e) => setMessageInput(e.target.value)}
+          placeholder={
+            isUploading ? "Uploading..." :
+            channelId ? "Type a message..." : "Loading..."
+          }
+          className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300"
+          disabled={isSending || isUploading || !channelId}
+        />
+        <button
+          type="submit"
+          disabled={!messageInput.trim() || isSending || isUploading || !channelId}
+          className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+            <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+          </svg>
+        </button>
+      </form>
+    );
+  };
 
   // -- Main render --
   return (
     <>
       <DailyProvider>
         <ChatLayout>
+          <PermissionDebugBanner
+            permissions={permissions}
+            userRole={userRole}
+            activeEvent={activeEvent}
+          />
 
           {failedMessage && (
             <RetryMessageBanner
@@ -586,7 +655,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             </>
           ) : (
             <div className="flex flex-col h-screen bg-white">
-
               {activeEvent && (
                 <div className="flex-shrink-0">
                   <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
