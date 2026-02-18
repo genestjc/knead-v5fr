@@ -88,11 +88,18 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         setJoining(true);
         setError(null);
 
-        console.log('🎥 [EventVideoStage] Joining call...', {
-          roomUrl,
-          role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
-          ...(process.env.NODE_ENV === 'development' && { address: currentUserAddress.slice(0, 10) }),
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎥 [EventVideoStage] Joining call...', {
+            roomUrl,
+            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
+            address: currentUserAddress.slice(0, 10),
+          });
+        } else {
+          console.log('🎥 [EventVideoStage] Joining call...', {
+            roomUrl,
+            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
+          });
+        }
 
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
@@ -289,6 +296,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 
                 return (
                   <div key={guestId} className="min-h-[200px]">
+                    {/* Desktop: min-height allows tiles to grow in scrollable column */}
                     <DailyVideoTile
                       sessionId={guestId}
                       label={
@@ -338,6 +346,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             
             return (
               <div key={guestId} className="h-[120px]">
+                {/* Mobile: fixed compact height to fit more tiles on small screens */}
                 <DailyVideoTile
                   sessionId={guestId}
                   label={

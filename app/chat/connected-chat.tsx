@@ -619,7 +619,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               <div className="flex flex-col lg:flex-row w-full h-full">
                 
                 {/* Video Section */}
-                <div className="h-[35vh] w-full md:h-1/2 md:w-full lg:h-full lg:w-2/5 xl:w-2/5 flex-shrink-0 bg-gray-900 border-b lg:border-b-0 lg:border-r border-gray-200">
+                <div className="h-[35vh] w-full md:h-1/2 lg:h-full lg:w-2/5 flex-shrink-0 bg-gray-900 border-b lg:border-b-0 lg:border-r border-gray-200">
                   <EventVideoStage
                     event={activeEvent}
                     currentUserAddress={activeAccount?.address || ''}
@@ -629,7 +629,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 {/* Chat Section */}
-                <div className="flex-1 h-[65vh] md:h-1/2 lg:h-full lg:w-3/5 xl:w-3/5 flex flex-col overflow-hidden">
+                <div className="flex-1 h-[65vh] md:h-1/2 lg:h-full lg:w-3/5 flex flex-col overflow-hidden">
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
