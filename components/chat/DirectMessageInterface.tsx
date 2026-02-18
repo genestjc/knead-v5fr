@@ -145,7 +145,7 @@ export function DirectMessageInterface({
             const senderId = event.sender?.id || '';
             const isCurrentUser = myUserId
               ? senderId === myUserId
-              : currentUserId && senderId.toLowerCase() === currentUserId.toLowerCase();
+              : Boolean(currentUserId && senderId?.toLowerCase() === currentUserId.toLowerCase());
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
