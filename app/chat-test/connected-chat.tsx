@@ -40,31 +40,6 @@ interface UserProfile {
   walletAddress: string | null;
 }
 
-function PermissionDebugBanner({
-  permissions,
-  userRole,
-  activeEvent,
-}: {
-  permissions: any;
-  userRole: string;
-  activeEvent: any;
-}) {
-  if (process.env.NODE_ENV !== 'development') return null;
-
-  return (
-    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-      <div className="flex items-center justify-between text-xs font-mono">
-        <div className="flex gap-4">
-          <span>Role: <strong>{userRole}</strong></span>
-          <span>Can post: <strong>{permissions?.canPost ? '✅' : '❌'}</strong></span>
-          <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
-        </div>
-        <span className="text-gray-600">{permissions?.reason}</span>
-      </div>
-    </div>
-  );
-}
-
 function RetryMessageBanner({
   message,
   onRetry,
@@ -213,10 +188,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+          senderRole: userRole, // Add role info - simplified, in production you'd look this up per user
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address, getProfile]);
+  }, [events, profileCache, activeAccount?.address, getProfile, userRole]);
 
   // -- All useEffect hooks --
   useEffect(() => {
@@ -526,11 +502,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         onChange={(e) => setMessageInput(e.target.value)}
         placeholder={
           isUploading ? "Uploading..." :
-          !permissions?.canPost && userRole === 'participant' ? "💬 Messaging available during live events only" :
-          !permissions?.canPost && userRole === 'freemium' ? "🔒 Upgrade to Premium to participate in events" :
+          !permissions?.canPost && userRole === 'participant' && !activeEvent ? "Messaging is available to Knead Monthly members during events. Check the calendar in the top left corner to see what's happening." :
+          !permissions?.canPost && userRole === 'freemium' ? "Free Members can enjoy viewing for 1 hour per month. Sign-up for Knead Monthly to participate in events" :
           channelId ? "Type a message..." : "Loading..."
         }
-        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro ${
+        className={`flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro text-sm ${
           permissions?.canPost ? 'focus:ring-[#007AFF] border-gray-300' : 'bg-gray-100 border-gray-200 cursor-not-allowed'
         }`}
         disabled={!permissions?.canPost || isSending || isUploading || !channelId}
@@ -547,40 +523,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     </form>
   );
 
-  // -- Role badge helper --
-  const roleBadge = (
-    <span className={`text-xs px-2 py-1 rounded-full font-georgia-pro ${
-      userRole === 'contributor' ? 'bg-purple-100 text-purple-800' :
-      userRole === 'participant' ? 'bg-blue-100 text-blue-800' :
-      'bg-gray-100 text-gray-800'
-    }`}>
-      {userRole === 'contributor' && '⭐ Contributor'}
-      {userRole === 'participant' && '💬 Participant'}
-      {userRole === 'freemium' && '👀 Freemium'}
-    </span>
-  );
-
-  const spaceHeader = (
-    <div className="bg-gray-50 px-4 py-2 border-b flex-shrink-0">
-      <div className="flex items-center justify-between">
-        <p className="font-georgia-pro text-sm text-gray-600">
-          <strong>{space?.metadata?.name || 'Knead Space'}</strong>
-        </p>
-        {roleBadge}
-      </div>
-    </div>
-  );
-
   // -- Main render --
   return (
     <>
       <DailyProvider>
         <ChatLayout>
-          <PermissionDebugBanner
-            permissions={permissions}
-            userRole={userRole}
-            activeEvent={activeEvent}
-          />
 
           {failedMessage && (
             <RetryMessageBanner
@@ -607,7 +554,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 <div className="flex flex-col overflow-hidden">
-                  {spaceHeader}
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
@@ -629,7 +575,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  {spaceHeader}
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
                   </div>
@@ -641,7 +586,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             </>
           ) : (
             <div className="flex flex-col h-screen bg-white">
-              {spaceHeader}
 
               {activeEvent && (
                 <div className="flex-shrink-0">
