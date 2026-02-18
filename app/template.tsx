@@ -5,7 +5,7 @@ import { Footer } from "@/components/footer";
 
 export default function Template({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideFooter = pathname?.startsWith('/chat-test');
+  const hideFooter = pathname?.startsWith('/chat');
 
   return (
     <>

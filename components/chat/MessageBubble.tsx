@@ -215,7 +215,7 @@ export function MessageBubble({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-start`}>
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
           {/* Avatar — only visible for contributors */}
           {!isOwn && message.isContributor && (
             <div className="flex-shrink-0">
@@ -223,10 +223,10 @@ export function MessageBubble({
                 <img
                   src={convertIpfsToGatewayUrl(message.sender.avatar)}
                   alt={message.sender.name}
-                  className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                  className="w-6 h-6 rounded-full object-cover border-2 border-gray-200"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-semibold">
                   {message.sender.name.substring(0, 2).toUpperCase()}
                 </div>
               )}

@@ -14,11 +14,11 @@ const LoadingSpinner = () => (
 );
 
 // Dynamically import ALL Towns logic with ssr: false
-const ChatTestClient = nextDynamic(() => import('./chat-test-client'), {
+const ChatClient = nextDynamic(() => import('./chat-client'), {
   ssr: false,
   loading: () => <LoadingSpinner />,
 });
 
-export default function ChatTestPage() {
-  return <ChatTestClient />;
+export default function ChatPage() {
+  return <ChatClient />;
 }

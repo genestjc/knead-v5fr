@@ -219,7 +219,7 @@ After deployment, test these critical flows:
 # Use a tool like Artillery or k6
 
 # Example Artillery test:
-artillery quick --count 10 --num 100 https://your-domain.com/chat-test
+artillery quick --count 10 --num 100 https://your-domain.com/chat
 ```
 
 ### 3. Security Audit

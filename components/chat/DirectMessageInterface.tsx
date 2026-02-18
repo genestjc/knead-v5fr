@@ -14,13 +14,14 @@ import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, ArrowUp } from 'lucide-react';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
   townsDmId: string;
   currentUserId: string;
   otherUserName: string;
+  otherUserAvatar?: string;
 }
 
 export function DirectMessageInterface({
@@ -28,14 +29,41 @@ export function DirectMessageInterface({
   townsDmId,
   currentUserId,
   otherUserName,
+  otherUserAvatar,
 }: DirectMessageInterfaceProps) {
   const { data: dm } = useDm(townsDmId);
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [otherUserProfile, setOtherUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch other user's profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        // Extract the other user's address from the DM
+        // For now, use otherUserName as it may be the address
+        const response = await fetch(`/api/chat/user?address=${otherUserName}`);
+        const data = await response.json();
+        
+        if (data.success && data.user) {
+          setOtherUserProfile({
+            displayName: data.user.alias || data.user.displayName,
+            avatar: data.user.avatar,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      }
+    };
+
+    if (otherUserName) {
+      fetchUserProfile();
+    }
+  }, [otherUserName]);
 
   // ✅ FIXED: Filter for ChannelMessage events only
   const messages = (events || []).filter(
@@ -90,17 +118,34 @@ export function DirectMessageInterface({
     }
   };
 
+  const convertIpfsToGatewayUrl = (uri: string): string => {
+    if (uri && uri.startsWith('ipfs://')) {
+      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
+    }
+    return uri || '';
+  };
+
+  const displayName = otherUserProfile?.displayName || otherUserName;
+  const displayAvatar = otherUserProfile?.avatar || otherUserAvatar;
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header - No "Contributor" label */}
       <div className="border-b px-6 py-4 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-            {otherUserName.slice(0, 2).toUpperCase()}
-          </div>
+          {displayAvatar ? (
+            <img
+              src={convertIpfsToGatewayUrl(displayAvatar)}
+              alt={displayName}
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+              {displayName.slice(0, 2).toUpperCase()}
+            </div>
+          )}
           <div>
-            <h2 className="font-semibold text-lg">{otherUserName}</h2>
-            <p className="text-sm text-gray-500">Contributor</p>
+            <h2 className="font-adonis text-lg">{displayName}</h2>
           </div>
         </div>
       </div>
@@ -140,31 +185,49 @@ export function DirectMessageInterface({
                 key={event.eventId || index}
                 className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
               >
-                <div
-                  className={`
-                    max-w-[70%] rounded-[18px] px-4 py-2.5
-                    ${isCurrentUser 
-                      ? 'bg-[#007AFF] text-white' 
-                      : 'bg-[#E5E5EA] text-gray-900'
-                    }
-                  `}
-                  style={{ fontFamily: 'Georgia Pro, serif' }}
-                >
-                  {isFileMessage && fileName && ipfsUri ? (
-                    <FileMessageDisplay 
-                      fileName={fileName}
-                      ipfsUri={ipfsUri}
-                      isCurrentUser={isCurrentUser}
-                    />
-                  ) : (
-                    <p className="text-sm leading-relaxed">{messageText}</p>
+                <div className={`flex gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%]`}>
+                  {/* Profile picture for other user */}
+                  {!isCurrentUser && (
+                    <div className="flex-shrink-0">
+                      {displayAvatar ? (
+                        <img
+                          src={convertIpfsToGatewayUrl(displayAvatar)}
+                          alt={displayName}
+                          className="w-6 h-6 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-semibold">
+                          {displayName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  <p className={`text-xs mt-1 ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
-                    {new Date(timestamp).toLocaleTimeString([], { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </p>
+                  
+                  <div
+                    className={`
+                      rounded-[18px] px-4 py-2.5
+                      ${isCurrentUser 
+                        ? 'bg-[#007AFF] text-white' 
+                        : 'bg-[#E5E5EA] text-gray-900'
+                      }
+                    `}
+                  >
+                    {isFileMessage && fileName && ipfsUri ? (
+                      <FileMessageDisplay 
+                        fileName={fileName}
+                        ipfsUri={ipfsUri}
+                        isCurrentUser={isCurrentUser}
+                      />
+                    ) : (
+                      <p className="font-georgia-pro text-sm leading-relaxed">{messageText}</p>
+                    )}
+                    <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
+                      {new Date(timestamp).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </p>
+                  </div>
                 </div>
               </div>
             );
@@ -175,7 +238,7 @@ export function DirectMessageInterface({
 
       {/* Input */}
       <div className="border-t p-4 bg-white">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -189,7 +252,7 @@ export function DirectMessageInterface({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isSending}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
             title="Upload file"
           >
             <Paperclip className="w-5 h-5" />
@@ -200,16 +263,24 @@ export function DirectMessageInterface({
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={isUploading ? "Uploading file..." : "Type a message..."}
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={isUploading ? "Uploading file..." : "Type a message"}
+            className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro"
             disabled={isSending || isUploading}
           />
+          
+          {/* Blue arrow send button */}
           <button
             onClick={handleSendMessage}
             disabled={isSending || isUploading || !messageInput.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Send message"
+            aria-label={isSending || isUploading ? "Sending message..." : "Send message"}
           >
-            {isSending ? 'Sending...' : isUploading ? 'Uploading...' : 'Send'}
+            {isSending || isUploading ? (
+              <span className="text-sm" aria-hidden="true">⏳</span>
+            ) : (
+              <ArrowUp className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>

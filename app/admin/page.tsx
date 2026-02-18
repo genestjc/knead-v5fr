@@ -89,7 +89,7 @@ export default function AdminPage() {
                 client={client}
                 theme="light"
               />
-              <a href="/chat-test" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">
+              <a href="/chat" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">
                 ← Back to Chat
               </a>
             </div>

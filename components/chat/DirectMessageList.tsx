@@ -312,7 +312,7 @@ export function DirectMessageList({
       <div className="p-4">
         <button
           onClick={() => setShowNewDmModal(true)}
-          className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm mb-4"
+          className="w-full py-3 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro font-medium text-sm mb-4"
         >
           + New Message
         </button>
@@ -343,7 +343,7 @@ export function DirectMessageList({
       <div className="p-3 border-b border-gray-200">
         <button
           onClick={() => setShowNewDmModal(true)}
-          className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+          className="w-full py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro text-sm font-medium"
         >
           + New Message
         </button>
@@ -379,6 +379,8 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string) => void;
   isSelected: boolean;
 }) {
+  const [userProfile, setUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
+  
   // Get DM metadata
   const { data: dm } = useDm(streamId);
   
@@ -390,14 +392,44 @@ function DmListItem({
     (id) => id.toLowerCase() !== currentUserId.toLowerCase()
   ) || currentUserId;
   
-  // Format display name - show wallet address shortened
-  const displayName = otherUserId 
+  // Fetch user profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch(`/api/chat/user?address=${otherUserId}`);
+        const data = await response.json();
+        
+        if (data.success && data.user) {
+          setUserProfile({
+            displayName: data.user.alias || data.user.displayName,
+            avatar: data.user.avatar,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      }
+    };
+
+    if (otherUserId) {
+      fetchProfile();
+    }
+  }, [otherUserId]);
+  
+  // Format display name - show wallet address shortened as fallback
+  const displayName = userProfile?.displayName || (otherUserId 
     ? `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`
-    : 'Unknown User';
+    : 'Unknown User');
   
   const avatarInitials = otherUserId 
     ? otherUserId.slice(2, 4).toUpperCase() 
     : '??';
+  
+  const convertIpfsToGatewayUrl = (uri: string): string => {
+    if (uri && uri.startsWith('ipfs://')) {
+      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
+    }
+    return uri || '';
+  };
   
   return (
     <button
@@ -408,18 +440,23 @@ function DmListItem({
       `}
     >
       <div className="flex items-center gap-3">
-        {/* Avatar placeholder */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-          {avatarInitials}
-        </div>
-
-        {/* User info */}
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">
-            {displayName}
+        {/* Avatar */}
+        {userProfile?.avatar ? (
+          <img
+            src={convertIpfsToGatewayUrl(userProfile.avatar)}
+            alt={displayName}
+            className="w-10 h-10 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+            {avatarInitials}
           </div>
-          <div className="text-xs text-gray-500">
-            ✓ Contributor
+        )}
+
+        {/* User info - No "Contributor" subtitle */}
+        <div className="flex-1 min-w-0">
+          <div className="font-adonis text-sm truncate">
+            {displayName}
           </div>
         </div>
 

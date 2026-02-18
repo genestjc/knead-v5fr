@@ -108,7 +108,7 @@ Participants will automatically receive Token IDs 0 & 1 when they subscribe via 
 Verify the reward system works:
 
 1. Log in as a contributor (with Token ID 10/11/12)
-2. Go to `/chat-test`
+2. Go to `/chat`
 3. Send a test message as a participant
 4. As contributor, click "🤍 Like (8 $TOWNS)" on the participant's message
 5. Verify the participant receives $TOWNS tokens
