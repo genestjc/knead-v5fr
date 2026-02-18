@@ -272,7 +272,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             {guestSessionIds.length > 0 ? (
               guestSessionIds.map((guestId, index) => {
                 const participant = daily?.participants()[guestId];
+                // Default to 'viewer' role if userData not available yet (most conservative assumption)
                 const participantRole = participant?.userData?.role || 'viewer';
+                
+                // Calculate guest number by counting actual guests before this one
+                const guestNumber = guestSessionIds
+                  .slice(0, index + 1)
+                  .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
+                  .length;
                 
                 return (
                   <DailyVideoTile
@@ -282,7 +289,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                       guestId === localSessionId
                         ? "You"
                         : participantRole === 'guest'
-                          ? `Guest ${index + 1}`
+                          ? `Guest ${guestNumber}`
                           : "Viewer"
                     }
                     isLocal={guestId === localSessionId}
@@ -314,7 +321,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           {guestSessionIds.length > 0 ? (
             guestSessionIds.map((guestId, index) => {
               const participant = daily?.participants()[guestId];
+              // Default to 'viewer' role if userData not available yet (most conservative assumption)
               const participantRole = participant?.userData?.role || 'viewer';
+              
+              // Calculate guest number by counting actual guests before this one
+              const guestNumber = guestSessionIds
+                .slice(0, index + 1)
+                .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
+                .length;
               
               return (
                 <DailyVideoTile
@@ -324,7 +338,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                     guestId === localSessionId
                       ? "You"
                       : participantRole === 'guest'
-                        ? `Guest ${index + 1}`
+                        ? `Guest ${guestNumber}`
                         : "Viewer"
                   }
                   isLocal={guestId === localSessionId}

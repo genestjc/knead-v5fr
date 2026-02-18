@@ -180,6 +180,9 @@ export async function POST(req: NextRequest) {
 
     if (videoEnabled && process.env.DAILY_API_KEY) {
       try {
+        // Configure Daily room for broadcast mode (few speakers, many viewers)
+        // Note: enable_chat is disabled because the site has its own chat UI
+        // displayed below the video player with integrated features (tipping, etc.)
         const dailyResponse = await fetch('https://api.daily.co/v1/rooms', {
           method: 'POST',
           headers: {
