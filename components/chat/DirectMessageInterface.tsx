@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMemberList } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -34,36 +34,31 @@ export function DirectMessageInterface({
   const { data: dm } = useDm(townsDmId);
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
+  const { data: members } = useMemberList(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [otherUserProfile, setOtherUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch other user's profile data
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        // Extract the other user's address from the DM
-        // For now, use otherUserName as it may be the address
-        const response = await fetch(`/api/chat/user?address=${otherUserName}`);
-        const data = await response.json();
-        
-        if (data.success && data.user) {
-          setOtherUserProfile({
-            displayName: data.user.alias || data.user.displayName,
-            avatar: data.user.avatar,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch user profile:', error);
-      }
-    };
+  // ✅ Build a set of IDs that belong to the current user
+  // Towns SDK creatorUserId may be a Towns-internal ID, not the raw wallet address.
+  // In a 2-person DM, whichever member ID is NOT the other user must be us.
+  const selfIds = useRef(new Set<string>());
 
-    if (otherUserName) {
-      fetchUserProfile();
+  useEffect(() => {
+    if (!members?.userIds || members.userIds.length === 0) return;
+    const ids = new Set<string>();
+    // Always include the raw wallet address (lowercased)
+    ids.add(currentUserId.toLowerCase());
+    // In a 2-person DM, the member that isn't "other" is "self"
+    for (const uid of members.userIds) {
+      // If the uid is clearly different from otherUserName/address, it's us
+      if (uid.toLowerCase() !== otherUserName.toLowerCase()) {
+        ids.add(uid.toLowerCase());
+      }
     }
-  }, [otherUserName]);
+    selfIds.current = ids;
+  }, [members, currentUserId, otherUserName]);
 
   // ✅ FIXED: Filter for ChannelMessage events only
   const messages = (events || []).filter(
@@ -101,12 +96,8 @@ export function DirectMessageInterface({
     setIsUploading(true);
     try {
       const ipfsUri = await uploadToIPFS(file);
-      
-      // Send message with file info
       const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
       await sendMessage(fileMessage);
-      
-      // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -125,12 +116,13 @@ export function DirectMessageInterface({
     return uri || '';
   };
 
-  const displayName = otherUserProfile?.displayName || otherUserName;
-  const displayAvatar = otherUserProfile?.avatar || otherUserAvatar;
+  // ✅ Use otherUserName directly — no duplicate profile fetch
+  const displayName = otherUserName;
+  const displayAvatar = otherUserAvatar;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header - No "Contributor" label */}
+      {/* Header */}
       <div className="border-b px-6 py-4 bg-white">
         <div className="flex items-center gap-3">
           {displayAvatar ? (
@@ -153,28 +145,26 @@ export function DirectMessageInterface({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
         {isLoading ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-500 py-8 font-georgia-pro">
             Loading messages...
           </div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-500 py-8 font-georgia-pro">
             <p>No messages yet.</p>
             <p className="text-sm mt-2">Start the conversation!</p>
           </div>
         ) : (
           messages.map((event, index) => {
-            // ✅ FIXED: Access message body from event.content.body
             const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage 
               ? event.content.body 
               : '';
             
-            // ✅ FIXED: Use event.creatorUserId for author
-            const isCurrentUser = event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
+            // ✅ FIXED: Check against our set of known self IDs
+            const creatorId = (event.creatorUserId || '').toLowerCase();
+            const isCurrentUser = selfIds.current.has(creatorId);
             
-            // Use timestamp from event
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
-            // Check if message contains a file
             const fileMatch = messageText.match(/\[FILE:(.+?)\]\((.+?)\)/);
             const isFileMessage = !!fileMatch;
             const fileName = fileMatch?.[1];
@@ -203,31 +193,40 @@ export function DirectMessageInterface({
                     </div>
                   )}
                   
-                  <div
-                    className={`
-                      rounded-[18px] px-4 py-2.5
-                      ${isCurrentUser 
-                        ? 'bg-[#007AFF] text-white' 
-                        : 'bg-[#E5E5EA] text-gray-900'
-                      }
-                    `}
-                  >
-                    {isFileMessage && fileName && ipfsUri ? (
+                  {/* ✅ FIXED: No bubble wrapper around images — render clean */}
+                  {isFileMessage && fileName && ipfsUri ? (
+                    <div>
                       <FileMessageDisplay 
                         fileName={fileName}
                         ipfsUri={ipfsUri}
                         isCurrentUser={isCurrentUser}
                       />
-                    ) : (
+                      <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-right text-gray-400' : 'text-gray-500'}`}>
+                        {new Date(timestamp).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className={`
+                        rounded-[18px] px-4 py-2.5
+                        ${isCurrentUser 
+                          ? 'bg-[#007AFF] text-white' 
+                          : 'bg-[#E5E5EA] text-gray-900'
+                        }
+                      `}
+                    >
                       <p className="font-georgia-pro text-sm leading-relaxed">{messageText}</p>
-                    )}
-                    <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
-                      {new Date(timestamp).toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </p>
-                  </div>
+                      <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
+                        {new Date(timestamp).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -239,7 +238,6 @@ export function DirectMessageInterface({
       {/* Input */}
       <div className="border-t p-4 bg-white">
         <div className="flex gap-2 items-center">
-          {/* Hidden file input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -248,7 +246,6 @@ export function DirectMessageInterface({
             accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
           />
           
-          {/* Paperclip button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isSending}
@@ -268,16 +265,14 @@ export function DirectMessageInterface({
             disabled={isSending || isUploading}
           />
           
-          {/* Blue arrow send button */}
           <button
             onClick={handleSendMessage}
             disabled={isSending || isUploading || !messageInput.trim()}
             className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Send message"
-            aria-label={isSending || isUploading ? "Sending message..." : "Send message"}
           >
             {isSending || isUploading ? (
-              <span className="text-sm" aria-hidden="true">⏳</span>
+              <span className="text-sm">⏳</span>
             ) : (
               <ArrowUp className="w-5 h-5" />
             )}
