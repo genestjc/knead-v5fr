@@ -53,15 +53,20 @@ export async function getOrCreateChatUser(
     }
 
     // Create new user
+    const insertData: any = {
+      address: address.toLowerCase(),
+      role: 'viewer',
+      membership_tier: 'freemium',
+      is_banned: false,
+    };
+    
+    if (avatar) {
+      insertData.avatar = avatar;
+    }
+    
     const { data: newUser, error: createError } = await supabase
       .from('chat_users')
-      .insert({
-        address: address.toLowerCase(),
-        avatar: avatar,
-        role: 'viewer',
-        membership_tier: 'freemium',
-        is_banned: false,
-      })
+      .insert(insertData)
       .select()
       .single();
 
