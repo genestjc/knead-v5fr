@@ -24,6 +24,10 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const currentRoomRef = useRef<string | null>(null);
 
   const isHost = event.host?.address?.toLowerCase() === currentUserAddress.toLowerCase();
+  const isGuest = event.guestAddresses?.some(
+    (addr: string) => addr.toLowerCase() === currentUserAddress.toLowerCase()
+  );
+  const isViewer = !isHost && !isGuest;
 
   // ✅ Join call with duplicate prevention
   useEffect(() => {
@@ -65,6 +69,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         console.log('🎥 [EventVideoStage] Joining call...');
         console.log('   Room URL:', roomUrl);
         console.log('   Is Host:', isHost);
+        console.log('   Is Guest:', isGuest);
+        console.log('   Is Viewer:', isViewer);
         console.log('   Meeting State:', daily.meetingState());
 
         // Mark as attempting BEFORE join
@@ -74,12 +80,19 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         await daily.join({
           url: roomUrl,
           token: token,
-          userName: isHost ? 'Host' : 'Guest',
+          userName: isHost ? 'Host' : isGuest ? 'Guest' : 'Viewer',
           userData: {
-            role: isHost ? 'host' : 'guest',
+            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
             address: currentUserAddress,
           },
         });
+
+        // For viewers, ensure camera and mic are off after joining
+        if (isViewer) {
+          console.log('👁️ [EventVideoStage] Setting camera/mic OFF for viewer');
+          await daily.setLocalVideo(false);
+          await daily.setLocalAudio(false);
+        }
 
         if (!isMounted) {
           console.log('⚠️ [EventVideoStage] Component unmounted during join, leaving...');
@@ -117,7 +130,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         currentRoomRef.current = null;
       }
     };
-  }, [daily, roomUrl, token, isHost, currentUserAddress]);
+  }, [daily, roomUrl, token, isHost, isGuest, currentUserAddress]);
 
   // Monitor connection state and errors
   useEffect(() => {
@@ -253,18 +266,22 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     isHost,
   });
 
+  // Determine desktop grid layout: 2 columns when guests present, 1 column when solo
+  const desktopGridCols = guestSessionIds.length > 0 ? 'lg:grid-cols-2' : 'lg:grid-cols-1';
+
   return (
     <div className="h-full flex flex-col bg-gray-100">
       <div className="flex-1 p-4">
-        {/* ✅ DESKTOP: Host left, Guest right */}
-        <div className="hidden lg:grid lg:grid-cols-2 gap-4 h-full">
-          {/* LEFT: Always Host */}
+        {/* ✅ DESKTOP: Dynamic layout - single column when solo, two columns when guests present */}
+        <div className={`hidden lg:grid gap-4 h-full ${desktopGridCols}`}>
+          {/* LEFT/CENTER: Always Host */}
           <div>
             {hostSessionId ? (
               <DailyVideoTile
                 sessionId={hostSessionId}
-                label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
+                label={hostSessionId === localSessionId ? (isViewer ? "You (Viewer)" : "You (Host)") : "Host"}
                 isLocal={hostSessionId === localSessionId}
+                isViewer={isViewer && hostSessionId === localSessionId}
               />
             ) : (
               <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
@@ -273,20 +290,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             )}
           </div>
 
-          {/* RIGHT: Always Guest */}
-          <div>
-            {guestSessionIds.length > 0 ? (
+          {/* RIGHT: Guest (only shown when guests are present) */}
+          {guestSessionIds.length > 0 && (
+            <div>
               <DailyVideoTile
                 sessionId={guestSessionIds[0]}
-                label={guestSessionIds[0] === localSessionId ? "You (Guest)" : "Guest"}
+                label={guestSessionIds[0] === localSessionId ? (isViewer ? "You (Viewer)" : "You (Guest)") : "Guest"}
                 isLocal={guestSessionIds[0] === localSessionId}
+                isViewer={isViewer && guestSessionIds[0] === localSessionId}
               />
-            ) : (
-              <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="font-georgia-pro text-gray-400">Waiting for guest...</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ✅ MOBILE: Host top, Guest bottom */}
@@ -295,8 +309,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           {hostSessionId ? (
             <DailyVideoTile
               sessionId={hostSessionId}
-              label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
+              label={hostSessionId === localSessionId ? (isViewer ? "You (Viewer)" : "You (Host)") : "Host"}
               isLocal={hostSessionId === localSessionId}
+              isViewer={isViewer && hostSessionId === localSessionId}
             />
           ) : (
             <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
@@ -304,20 +319,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             </div>
           )}
           
-          {/* Guests (below host on mobile) */}
-          {guestSessionIds.length > 0 ? (
+          {/* Guests (below host on mobile, only shown when guests are present) */}
+          {guestSessionIds.length > 0 && (
             guestSessionIds.map(guestId => (
               <DailyVideoTile
                 key={guestId}
                 sessionId={guestId}
-                label={guestId === localSessionId ? "You (Guest)" : "Guest"}
+                label={guestId === localSessionId ? (isViewer ? "You (Viewer)" : "You (Guest)") : "Guest"}
                 isLocal={guestId === localSessionId}
+                isViewer={isViewer && guestId === localSessionId}
               />
             ))
-          ) : (
-            <div className="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
-              <p className="font-georgia-pro text-gray-400">Waiting for guest...</p>
-            </div>
           )}
         </div>
       </div>
@@ -329,11 +341,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
               <span className="font-georgia-pro text-sm font-semibold text-red-600">LIVE</span>
-            </div>
-            <span className="font-georgia-pro text-sm text-gray-600">
-              {participantIds.length} participant{participantIds.length !== 1 ? 's' : ''}
-            </span>
-          </div>
 
           <div className="flex items-center gap-2">
             {isHost ? (

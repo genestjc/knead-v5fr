@@ -35,9 +35,19 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
   
-  // Only swipe left for DMs
+  // Only swipe left for DMs on main container
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => setDmsOpen(true),
+    trackMouse: true,
+    preventScrollOnSwipe: true,
+  });
+
+  // Swipe right to close DM panel
+  const dmSwipeHandlers = useSwipeable({
+    onSwipedRight: () => {
+      setDmsOpen(false);
+      setSelectedDm(null);
+    },
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
@@ -182,11 +192,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <AnimatePresence>
         {dmsOpen && (
           <motion.div
+            {...dmSwipeHandlers}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-[60] overflow-hidden"
+            className="fixed top-0 right-0 h-full w-full lg:w-96 bg-white lg:border-l border-gray-200 shadow-xl z-[60] overflow-hidden"
           >
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200">

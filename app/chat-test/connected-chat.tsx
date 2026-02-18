@@ -286,11 +286,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           (addr: string) => addr.toLowerCase() === userAddress,
         );
 
-        if ((!isHost && !isGuest) || !event.videoEnabled || !event.dailyRoomName) {
+        // If no video or no room, bail out
+        if (!event.videoEnabled || !event.dailyRoomName) {
           setDailyToken(null);
           return;
         }
 
+        // Generate token for everyone (host, guest, or viewer)
+        const isViewer = !isHost && !isGuest;
+        
         const tokenResponse = await fetch('/api/events/generate-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -298,6 +302,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             roomName: event.dailyRoomName,
             walletAddress: activeAccount.address,
             isHost,
+            isViewer,
           }),
         });
         const tokenData = await tokenResponse.json();

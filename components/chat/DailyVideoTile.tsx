@@ -7,13 +7,14 @@ interface DailyVideoTileProps {
   sessionId: string;
   label: string;
   isLocal?: boolean;
+  isViewer?: boolean;
 }
 
 /**
  * DailyVideoTile - Individual video tile for a participant
  * Shows video/audio, participant name, and controls
  */
-export function DailyVideoTile({ sessionId, label, isLocal = false }: DailyVideoTileProps) {
+export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = false }: DailyVideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const daily = useDaily();
@@ -89,8 +90,8 @@ export function DailyVideoTile({ sessionId, label, isLocal = false }: DailyVideo
             )}
           </div>
           
-          {/* Local Controls */}
-          {isLocal && (
+          {/* Local Controls (hidden for viewers) */}
+          {isLocal && !isViewer && (
             <div className="flex gap-2">
               <button
                 onClick={toggleMicrophone}

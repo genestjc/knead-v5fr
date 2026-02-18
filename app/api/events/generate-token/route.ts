@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
         roomName: body?.roomName,
         walletAddress: body?.walletAddress?.substring(0, 8),
         isHost: body?.isHost,
+        isViewer: body?.isViewer,
       });
     } catch (parseError) {
       console.error('❌ [generate-token] Failed to parse JSON:', parseError);
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { roomName, walletAddress, isHost } = body;
+    const { roomName, walletAddress, isHost, isViewer } = body;
 
     // ✅ STEP 2: Validate required fields
     if (!roomName || !walletAddress) {
@@ -50,14 +51,16 @@ export async function POST(req: NextRequest) {
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
     // ✅ STEP 4: Build token payload
+    // For viewers: camera/mic off by default, no screenshare, not owner
+    // For guests/hosts: normal permissions
     const tokenPayload = {
       properties: {
         room_name: roomName,
         user_name: walletAddress.slice(0, 8),
-        is_owner: isHost || false,
-        enable_screenshare: isHost || false,
-        start_video_off: false,
-        start_audio_off: false,
+        is_owner: isViewer ? false : (isHost || false),
+        enable_screenshare: isViewer ? false : (isHost || false),
+        start_video_off: isViewer ? true : false,
+        start_audio_off: isViewer ? true : false,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
       },
     };
