@@ -31,9 +31,49 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle scroll behavior for header reveal/hide (mobile only)
+  useEffect(() => {
+    if (!isMobile) {
+      setHeaderVisible(true); // Always visible on desktop
+      return;
+    }
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Scrolling up - show header
+      if (currentScrollY < lastScrollY || currentScrollY < 10) {
+        setHeaderVisible(true);
+      } 
+      // Scrolling down - hide header
+      else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setHeaderVisible(false);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY, isMobile]);
   
   // Only swipe left for DMs on main container
   const swipeHandlers = useSwipeable({
@@ -99,7 +139,16 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      <header className="border-b border-gray-200 px-4 py-4 relative z-50">
+      <motion.header 
+        className="border-b border-gray-200 px-4 py-4 relative z-50 bg-white"
+        initial={{ y: 0, opacity: 1 }}
+        animate={{ 
+          y: headerVisible ? 0 : -100,
+          opacity: headerVisible ? 1 : 0
+        }}
+        transition={{ duration: 0.15, ease: 'easeInOut' }}
+        style={isMobile ? { position: 'sticky', top: 0 } : { position: 'relative' }}
+      >
         <div className="flex items-center justify-between">
           <motion.div
             className="cursor-pointer relative"
@@ -182,7 +231,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             onClick={() => setLogoExpanded(false)}
           />
         )}
-      </header>
+      </motion.header>
 
       <main className="flex-1 overflow-hidden relative">
         {children}
