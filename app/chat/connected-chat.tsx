@@ -19,6 +19,7 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { Paperclip } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const LoadingSpinner = () => (
   <div className="text-center py-10">
@@ -614,49 +615,41 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           )}
 
           {activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl ? (
-            <>
-              {/* Desktop: video top, chat bottom */}
-              <div className="hidden lg:grid lg:grid-rows-2 h-full">
-                <div className="border-b border-gray-200">
-                  <EventVideoStage
-                    event={activeEvent}
-                    currentUserAddress={activeAccount?.address || ''}
-                    roomUrl={activeEvent.dailyRoomUrl}
-                    token={dailyToken}
-                  />
-                </div>
-
-                <div className="flex flex-col overflow-hidden">
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    {renderMessages()}
-                  </div>
-                  <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
-                    {renderChatInput()}
-                  </div>
-                </div>
+            <div className="flex flex-col lg:flex-row w-full h-full overflow-hidden">
+              {/* Video Section */}
+              <div className={cn(
+                // Mobile: 35vh compact at top
+                "h-[35vh] w-full",
+                // Tablet: 50% height split
+                "md:h-1/2 md:w-full",
+                // Desktop: 40% width side-by-side
+                "lg:h-full lg:w-2/5",
+                "flex-shrink-0 bg-gray-900"
+              )}>
+                <EventVideoStage
+                  event={activeEvent}
+                  currentUserAddress={activeAccount?.address || ''}
+                  roomUrl={activeEvent.dailyRoomUrl}
+                  token={dailyToken}
+                />
               </div>
 
-              {/* Mobile: video top, chat bottom */}
-              <div className="lg:hidden flex flex-col h-full">
-                <div className="border-b border-gray-200 flex-shrink-0">
-                  <EventVideoStage
-                    event={activeEvent}
-                    currentUserAddress={activeAccount?.address || ''}
-                    roomUrl={activeEvent.dailyRoomUrl}
-                    token={dailyToken}
-                  />
+              {/* Chat Section */}
+              <div className={cn(
+                // Mobile: remaining space
+                "flex-1 min-h-0",
+                // Desktop: 60% width
+                "lg:w-3/5",
+                "flex flex-col overflow-hidden"
+              )}>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {renderMessages()}
                 </div>
-
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    {renderMessages()}
-                  </div>
-                  <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
-                    {renderChatInput()}
-                  </div>
+                <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
+                  {renderChatInput()}
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex flex-col h-full bg-white">
               {activeEvent && (
