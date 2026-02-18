@@ -142,7 +142,7 @@ export function DirectMessageInterface({
             // ✅ FIXED: Use event.sender?.id (following connected-chat.tsx pattern)
             // - event.creatorUserId doesn't exist on timeline events from Towns SDK
             // - event.sender?.id is the correct property for sender identification
-            const senderId = event.sender?.id || event.creatorUserId || '';
+            const senderId = event.sender?.id || '';
             const isCurrentUser = myUserId
               ? senderId === myUserId
               : currentUserId && senderId.toLowerCase() === currentUserId.toLowerCase();
