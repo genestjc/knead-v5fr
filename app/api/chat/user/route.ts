@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       user: {
         id: user.id,
         address: user.address,
-        displayName: user.alias || formatAddressForDisplay(address),
+        displayName: user.alias || formatAddressForDisplay(user.address),
         alias: user.alias,
         avatar: user.avatar,
         role: user.role,
