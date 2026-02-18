@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -99,14 +100,14 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.alias || `${host.address.slice(0, 6)}...${host.address.slice(-4)}`,
+                displayName: host.alias || formatAddressForDisplay(host.address),
                 alias: host.alias,
               }
             : null,
           guests: guests.map((g) => ({
             id: g.id,
             address: g.address,
-            displayName: g.alias || `${g.address.slice(0, 6)}...${g.address.slice(-4)}`,
+            displayName: g.alias || formatAddressForDisplay(g.address),
             alias: g.alias,
           })),
           createdAt: event.created_at,

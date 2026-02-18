@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
 // Constants
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.alias || `${host.address.slice(0, 6)}...${host.address.slice(-4)}`,
+                displayName: host.alias || formatAddressForDisplay(host.address),
                 alias: host.alias,
                 avatar: host.avatar,
               }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
         success: true,
         user: {
           address: address.toLowerCase(),
-          displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+          displayName: formatAddressForDisplay(address),
           alias: null,
           avatar: null,
         },
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       user: {
         id: user.id,
         address: user.address,
-        displayName: user.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
+        displayName: user.alias || formatAddressForDisplay(address),
         alias: user.alias,
         avatar: user.avatar,
         role: user.role,

@@ -1,6 +1,14 @@
 import type { ChatUser } from '@/types/chat';
 
 /**
+ * Format wallet address for display
+ * Truncates address to show first 6 and last 4 characters
+ */
+export function formatAddressForDisplay(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+/**
  * Transform database user object to ChatUser type
  * Centralizes user transformation logic to ensure consistency
  * Used across 10+ API routes
@@ -11,7 +19,7 @@ export function transformDbUserToChatUser(dbUser: any): ChatUser {
   return {
     id: dbUser.id,
     address: address,
-    displayName: dbUser.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
+    displayName: dbUser.alias || formatAddressForDisplay(address),
     avatar: dbUser.avatar,
     role: dbUser.role,
     membershipTier: dbUser.membership_tier,

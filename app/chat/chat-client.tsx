@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 
 declare global {
   interface Window {
@@ -303,7 +304,7 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
     return {
       id: address,
       address,
-      displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+      displayName: formatAddressForDisplay(address),
       role: 'viewer',
       membershipTier: 'freemium',
       isBanned: false,

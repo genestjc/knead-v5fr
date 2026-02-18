@@ -3,6 +3,7 @@ import type { ChatUser, UserPermissions, ActionType, EventType, ParticipantTier 
 import { getTierFromPoints } from '@/lib/chat/config';
 import { getSupabaseAdmin } from './server';
 import { logger } from '../logger';
+import { formatAddressForDisplay } from '../utils/transformers';
 
 // Admin client for server-side operations - use centralized singleton
 export function createSupabaseAdmin() {
@@ -39,7 +40,7 @@ export async function getOrCreateChatUser(
       return {
         id: existingUser.id,
         address: existingUser.address,
-        displayName: existingUser.alias || `${address.slice(0, 6)}...${address.slice(-4)}`,
+        displayName: existingUser.alias || formatAddressForDisplay(address),
         avatar: existingUser.avatar,
         role: existingUser.role,
         membershipTier: existingUser.membership_tier,
@@ -78,7 +79,7 @@ export async function getOrCreateChatUser(
     return {
       id: newUser.id,
       address: newUser.address,
-      displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+      displayName: formatAddressForDisplay(address),
       avatar: newUser.avatar,
       role: newUser.role,
       membershipTier: newUser.membership_tier,
