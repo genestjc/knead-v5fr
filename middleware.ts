@@ -9,7 +9,8 @@ export function middleware(request: NextRequest) {
     script-src 'self' 'unsafe-eval' 'unsafe-inline' 
       https://vercel.live 
       https://va.vercel-scripts.com 
-      https://js.stripe.com;
+      https://js.stripe.com
+      https://c.daily.co;
     style-src 'self' 'unsafe-inline' 
       https://use.typekit.net 
       https://p.typekit.net;
@@ -26,6 +27,9 @@ export function middleware(request: NextRequest) {
     font-src 'self' data: 
       https://use.typekit.net 
       https://p.typekit.net;
+    media-src 'self' blob: data:
+      https://*.daily.co
+      https://*.pluot.blue;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
@@ -117,15 +121,3 @@ export function middleware(request: NextRequest) {
 
   return response;
 }
-
-export const config = {
-  matcher: [
-    {
-      source: '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-      missing: [
-        { type: 'header', key: 'next-router-prefetch' },
-        { type: 'header', key: 'purpose', value: 'prefetch' },
-      ],
-    },
-  ],
-};
