@@ -58,6 +58,8 @@ interface EventVideoStageProps {
   token: string;
 }
 
+const JOIN_TIMEOUT_MS = 10000; // 10 seconds
+
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
   const participantIds = useParticipantIds();
@@ -75,7 +77,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const isViewer = !isHost && !isGuest;
 
   useEffect(() => {
-    if (!daily || !roomUrl || !token) return;
+    if (!daily || !roomUrl || !token) {
+      console.log('⚠️ [EventVideoStage] Missing requirements:', {
+        hasDaily: !!daily,
+        hasRoomUrl: !!roomUrl,
+        hasToken: !!token,
+      });
+      return;
+    }
 
     if (hasAttemptedJoinRef.current && currentRoomRef.current === roomUrl) {
       console.log('⚠️ [EventVideoStage] Already attempted join for this room, skipping');
@@ -106,7 +115,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         hasAttemptedJoinRef.current = true;
         currentRoomRef.current = roomUrl;
 
-        await daily.join({
+        // ✅ Add timeout with proper cleanup
+        let timeoutId: NodeJS.Timeout | undefined;
+        const joinPromise = daily.join({
           url: roomUrl,
           token: token,
           userName: isHost ? 'Host' : isGuest ? 'Guest' : 'Viewer',
@@ -115,6 +126,16 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             address: currentUserAddress,
           },
         });
+
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`Join timeout after ${JOIN_TIMEOUT_MS / 1000} seconds`)), JOIN_TIMEOUT_MS);
+        });
+
+        try {
+          await Promise.race([joinPromise, timeoutPromise]);
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
 
         if (!isMounted) {
           console.log('⚠️ [EventVideoStage] Component unmounted during join, leaving...');
@@ -371,14 +392,15 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
 
           <div className="flex items-center gap-2">
-            {isHost ? (
+            {isHost && (
               <button
                 onClick={handleEndEvent}
                 className="px-6 py-2 bg-red-600 text-white rounded-full font-georgia-pro hover:bg-red-700 transition"
               >
                 End Event
               </button>
-            ) : (
+            )}
+            {isGuest && (
               <button
                 onClick={handleLeaveCall}
                 className="px-6 py-2 bg-gray-600 text-white rounded-full font-georgia-pro hover:bg-gray-700 transition"
@@ -386,6 +408,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 Leave Call
               </button>
             )}
+            {/* Viewers (audience) see no controls - passive watching */}
           </div>
         </div>
       </div>
