@@ -189,11 +189,13 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             name: `knead-event-${Date.now()}`,
             properties: {
+              owner_only_broadcast: true,
               enable_screenshare: true,
-              enable_chat: true,
+              enable_chat: false,
+              enable_prejoin_ui: false,
               start_video_off: false,
               start_audio_off: false,
-              max_participants: 50,
+              max_participants: 100,
             },
           }),
         });
