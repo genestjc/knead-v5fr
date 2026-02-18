@@ -215,10 +215,10 @@ export function MessageBubble({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-start`}>
           {/* Avatar — only visible for contributors */}
           {!isOwn && message.isContributor && (
-            <div className="flex-shrink-0 mb-6">
+            <div className="flex-shrink-0">
               {message.sender.avatar ? (
                 <img
                   src={convertIpfsToGatewayUrl(message.sender.avatar)}
@@ -270,8 +270,8 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* ✅ Bread Tip Button */}
-            {!isOwn && streamId && (
+            {/* ✅ Bread Tip Button - Only for non-contributors */}
+            {!isOwn && !message.isContributor && streamId && (
               <div className="relative mt-1.5">
                 <button
                   onClick={canAwardTokens ? handleLike : undefined}

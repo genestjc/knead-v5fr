@@ -61,7 +61,7 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
           >
             <img
               src={imageUrl}
-              alt="Expanded view"
+              alt=""
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
           </motion.div>

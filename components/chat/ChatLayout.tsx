@@ -10,7 +10,7 @@ import { EventsCalendarModal } from './EventsCalendarModal';
 import { AboutFAQModal } from './AboutFAQModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
-import { Home, Calendar, BookOpen, Send } from 'lucide-react';
+import { Home, Calendar, BookOpen, Send, Landmark } from 'lucide-react';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -63,13 +63,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   const menuItems: MenuItem[] = [
     {
-      icon: <Home className="w-5 h-5" />,
-      label: 'Return Home',
-      onClick: () => {
-        window.location.href = '/';
-      },
-    },
-    {
       icon: <Calendar className="w-5 h-5" />,
       label: 'Events Calendar',
       onClick: () => {
@@ -85,11 +78,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         setLogoExpanded(false);
       },
     },
+    {
+      icon: <Home className="w-5 h-5" />,
+      label: 'Return Home',
+      onClick: () => {
+        window.location.href = '/';
+      },
+    },
   ];
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      <header className="border-b border-gray-200 px-4 py-3 relative z-50">
+      <header className="border-b border-gray-200 px-4 py-4 relative z-50">
         <div className="flex items-center justify-between">
           <motion.div
             className="cursor-pointer relative"
@@ -98,7 +98,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             whileTap={{ scale: 0.98 }}
           >
             <motion.h1
-              className="font-adonis text-2xl tracking-tight"
+              className="font-adonis text-3xl tracking-tight"
               animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
               transition={{ duration: 0.2 }}
             >
@@ -113,7 +113,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             />
 
             {/* Paper Plane Icon for DMs (Contributors Only) */}
-            {isContributor && (
+            {isContributor && !dmsOpen && (
               <button
                 onClick={() => setDmsOpen(true)}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -155,7 +155,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 rel="noopener noreferrer"
                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
               >
-                <span className="text-xl">🏦</span>
+                <Landmark className="w-5 h-5 text-gray-700" />
                 <div className="flex-1 text-left">
                   <span className="font-georgia-pro text-sm text-gray-700">
                     Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
@@ -186,7 +186,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-40 overflow-hidden"
+            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-[60] overflow-hidden"
           >
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200">
