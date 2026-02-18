@@ -57,8 +57,7 @@ export async function getOrCreateChatUser(
       .from('chat_users')
       .insert({
         address: address.toLowerCase(),
-        alias: null,
-        avatar: avatar || null,
+        avatar: avatar,
         role: 'viewer',
         membership_tier: 'freemium',
         is_banned: false,
