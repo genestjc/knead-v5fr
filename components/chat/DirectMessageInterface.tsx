@@ -139,12 +139,13 @@ export function DirectMessageInterface({
               ? event.content.body 
               : '';
             
-            // ✅ FIXED: Use useMyMember's userId with fallback
-            // - myUserId (from Towns) matches creatorUserId (from Towns) exactly
-            // - Fallback: currentUserId (wallet address) vs creatorUserId needs case normalization
+            // ✅ FIXED: Use event.sender?.id (following connected-chat.tsx pattern)
+            // - event.creatorUserId doesn't exist on timeline events from Towns SDK
+            // - event.sender?.id is the correct property for sender identification
+            const senderId = event.sender?.id || event.creatorUserId || '';
             const isCurrentUser = myUserId
-              ? event.creatorUserId === myUserId
-              : currentUserId && event.creatorUserId?.toLowerCase() === currentUserId.toLowerCase();
+              ? senderId === myUserId
+              : currentUserId && senderId.toLowerCase() === currentUserId.toLowerCase();
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
