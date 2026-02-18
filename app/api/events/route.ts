@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
 // Constants
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
         if (event.host_id) {
           const { data: hostData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias, avatar')
+            .select('id, address, alias, avatar')
             .eq('id', event.host_id)
             .single();
           host = hostData;
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.display_name,
+                displayName: host.alias || formatAddressForDisplay(host.address),
                 alias: host.alias,
                 avatar: host.avatar,
               }

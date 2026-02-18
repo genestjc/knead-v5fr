@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js'; // ✅ Direct import
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
         if (event.host_id) {
           const { data: hostData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, alias')
             .eq('id', event.host_id)
             .single();
           host = hostData;
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
           const { data: guestData } = await supabase
             .from('chat_users')
-            .select('id, address, display_name, alias')
+            .select('id, address, alias')
             .in('id', event.guest_ids);
           guests = guestData || [];
         }
@@ -110,14 +111,14 @@ export async function GET(req: NextRequest) {
             ? {
                 id: host.id,
                 address: host.address,
-                displayName: host.display_name,
+                displayName: host.alias || formatAddressForDisplay(host.address),
                 alias: host.alias,
               }
             : null,
           guests: guests.map((g) => ({
             id: g.id,
             address: g.address,
-            displayName: g.display_name,
+            displayName: g.alias || formatAddressForDisplay(g.address),
             alias: g.alias,
           })),
           createdAt: event.created_at,

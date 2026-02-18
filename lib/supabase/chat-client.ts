@@ -3,6 +3,7 @@ import type { ChatUser, UserPermissions, ActionType, EventType, ParticipantTier 
 import { getTierFromPoints } from '@/lib/chat/config';
 import { getSupabaseAdmin } from './server';
 import { logger } from '../logger';
+import { formatAddressForDisplay } from '../utils/transformers';
 
 // Admin client for server-side operations - use centralized singleton
 export function createSupabaseAdmin() {
@@ -39,7 +40,7 @@ export async function getOrCreateChatUser(
       return {
         id: existingUser.id,
         address: existingUser.address,
-        displayName: existingUser.display_name,
+        displayName: existingUser.alias || formatAddressForDisplay(existingUser.address),
         avatar: existingUser.avatar,
         role: existingUser.role,
         membershipTier: existingUser.membership_tier,
@@ -53,16 +54,20 @@ export async function getOrCreateChatUser(
     }
 
     // Create new user
+    const insertData: any = {
+      address: address.toLowerCase(),
+      role: 'viewer',
+      membership_tier: 'freemium',
+      is_banned: false,
+    };
+    
+    if (avatar) {
+      insertData.avatar = avatar;
+    }
+    
     const { data: newUser, error: createError } = await supabase
       .from('chat_users')
-      .insert({
-        address: address.toLowerCase(),
-        display_name: displayName || address.slice(0, 6) + '...' + address.slice(-4),
-        avatar: avatar,
-        role: 'viewer',
-        membership_tier: 'freemium',
-        is_banned: false,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -74,7 +79,7 @@ export async function getOrCreateChatUser(
     return {
       id: newUser.id,
       address: newUser.address,
-      displayName: newUser.display_name,
+      displayName: formatAddressForDisplay(newUser.address),
       avatar: newUser.avatar,
       role: newUser.role,
       membershipTier: newUser.membership_tier,

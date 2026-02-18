@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
     const formattedUsers = users.map((user) => ({
       id: user.id,
       address: user.address,
-      displayName: user.display_name,
+      displayName: user.alias || formatAddressForDisplay(user.address),
       alias: user.alias,
       role: user.role,
       membershipTier: user.membership_tier,

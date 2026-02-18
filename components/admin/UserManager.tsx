@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 
 interface User {
   id: string;
@@ -218,10 +219,10 @@ export function UserManager({ adminAddress }: UserManagerProps) {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <div className="text-sm font-medium text-gray-900 font-georgia-pro">
-                          {user.alias || user.displayName || 'Anonymous'}
+                          {user.alias || formatAddressForDisplay(user.address)}
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
-                          {user.address.slice(0, 6)}...{user.address.slice(-4)}
+                          {formatAddressForDisplay(user.address)}
                         </div>
                       </div>
                     </td>

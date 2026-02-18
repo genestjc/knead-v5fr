@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { useUserDms, useCreateDm, useDm, useMemberList } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
 
 interface Contributor {
@@ -367,7 +368,7 @@ function DmListItem({
         
         if (data.success && data.user) {
           setUserProfile({
-            displayName: data.user.alias || data.user.displayName || `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`,
+            displayName: data.user.alias || formatAddressForDisplay(data.user.address || otherUserId),
             avatar: data.user.avatar,
           });
         }
@@ -380,7 +381,7 @@ function DmListItem({
   }, [otherUserId]);
   
   const displayName = userProfile?.displayName || (otherUserId 
-    ? `${otherUserId.slice(0, 6)}...${otherUserId.slice(-4)}`
+    ? formatAddressForDisplay(otherUserId)
     : 'Unknown User');
   
   const avatarInitials = (displayName.length >= 2 
