@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMemberList } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -34,33 +34,13 @@ export function DirectMessageInterface({
   const { data: dm } = useDm(townsDmId);
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
-  const { data: members } = useMemberList(townsDmId);
+  const { userId: myUserId } = useMyMember(townsDmId);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Build a set of IDs that belong to the current user
-  // Towns SDK creatorUserId may be a Towns-internal ID, not the raw wallet address.
-  // In a 2-person DM, whichever member ID is NOT the other user must be us.
-  const selfIds = useRef(new Set<string>());
-
-  useEffect(() => {
-    if (!members?.userIds || members.userIds.length === 0) return;
-    const ids = new Set<string>();
-    // Always include the raw wallet address (lowercased)
-    ids.add(currentUserId.toLowerCase());
-    // In a 2-person DM, the member that isn't "other" is "self"
-    for (const uid of members.userIds) {
-      // If the uid is clearly different from otherUserName/address, it's us
-      if (uid.toLowerCase() !== otherUserName.toLowerCase()) {
-        ids.add(uid.toLowerCase());
-      }
-    }
-    selfIds.current = ids;
-  }, [members, currentUserId, otherUserName]);
-
-  // ✅ FIXED: Filter for ChannelMessage events only
+  // ✅ Filter for ChannelMessage events only
   const messages = (events || []).filter(
     (event) => event.content?.kind === RiverTimelineEvent.ChannelMessage
   );
@@ -159,9 +139,8 @@ export function DirectMessageInterface({
               ? event.content.body 
               : '';
             
-            // ✅ FIXED: Check against our set of known self IDs
-            const creatorId = (event.creatorUserId || '').toLowerCase();
-            const isCurrentUser = selfIds.current.has(creatorId);
+            // ✅ FIXED: Use useMyMember's userId — exact match, no normalization needed
+            const isCurrentUser = event.creatorUserId === myUserId;
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
@@ -193,7 +172,7 @@ export function DirectMessageInterface({
                     </div>
                   )}
                   
-                  {/* ✅ FIXED: No bubble wrapper around images — render clean */}
+                  {/* ✅ No bubble wrapper around images — render clean */}
                   {isFileMessage && fileName && ipfsUri ? (
                     <div>
                       <FileMessageDisplay 
