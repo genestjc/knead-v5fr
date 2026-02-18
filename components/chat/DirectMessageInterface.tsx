@@ -14,7 +14,7 @@ import { useDm, useSendMessage, useTimeline, useMyMember } from '@towns-protocol
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
-import { Paperclip, ArrowUp, ArrowRight } from 'lucide-react';
+import { Paperclip, ArrowRight } from 'lucide-react';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
