@@ -275,11 +275,12 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 // Default to 'viewer' role if userData not available yet (most conservative assumption)
                 const participantRole = participant?.userData?.role || 'viewer';
                 
-                // Calculate guest number by counting actual guests before this one
-                const guestNumber = guestSessionIds
-                  .slice(0, index + 1)
+                // Calculate guest number by counting actual guests before this one, then add 1 for current
+                const guestsBeforeThis = guestSessionIds
+                  .slice(0, index)
                   .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
                   .length;
+                const guestNumber = guestsBeforeThis + 1;
                 
                 return (
                   <DailyVideoTile
@@ -324,11 +325,12 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               // Default to 'viewer' role if userData not available yet (most conservative assumption)
               const participantRole = participant?.userData?.role || 'viewer';
               
-              // Calculate guest number by counting actual guests before this one
-              const guestNumber = guestSessionIds
-                .slice(0, index + 1)
+              // Calculate guest number by counting actual guests before this one, then add 1 for current
+              const guestsBeforeThis = guestSessionIds
+                .slice(0, index)
                 .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
                 .length;
+              const guestNumber = guestsBeforeThis + 1;
               
               return (
                 <DailyVideoTile
