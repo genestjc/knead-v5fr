@@ -186,7 +186,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-50 overflow-hidden"
+            className="fixed top-0 right-0 h-full md:w-96 w-full bg-white md:border-l border-gray-200 shadow-xl z-[60] overflow-hidden"
           >
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200">
