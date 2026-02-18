@@ -23,7 +23,7 @@ await sendMessage('Hello'); // No custom metadata
 ```
 
 #### 2. Fixed Channel ID Initialization
-**File: `app/chat-test/chat-test-client.tsx`**
+**File: `app/chat/chat-client.tsx`**
 - ❌ Removed: Using `spaceId` as `defaultChannelId`
 - ✅ Added: `useSpace(spaceId)` hook to fetch actual channel ID from space
 - **Why**: SpaceId and ChannelId are different. Using wrong ID caused chat to fail.

@@ -146,7 +146,7 @@ Successfully transformed the Knead chat system from a Supabase-dependent archite
 }
 ```
 
-#### Updated `app/chat-test/connected-chat.tsx`
+#### Updated `app/chat/connected-chat.tsx`
 **Changes:**
 - Integrated `useFreemiumChatTimer` hook
 - Added role detection via `getUserRole()`

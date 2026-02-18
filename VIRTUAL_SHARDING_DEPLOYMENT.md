@@ -179,7 +179,7 @@ Add the `ADMIN_PRIVATE_KEY` environment variable to Vercel with your wallet's pr
 - `app/admin/setup/page.tsx` - Admin setup UI
 
 **Updated Files:**
-- `app/chat-test/connected-chat.tsx` - Message routing and timeline
+- `app/chat/connected-chat.tsx` - Message routing and timeline
 - `components/chat/AdminContextMenu.tsx` - Virtual admin redact
 
 ### How It Works

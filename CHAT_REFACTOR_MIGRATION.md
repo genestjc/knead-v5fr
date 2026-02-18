@@ -269,7 +269,7 @@ CREATE TABLE transaction_logs (
 
 - Historical points data remains in database
 - Old API endpoints return `410 Gone` status
-- Gradual migration from `/chat` to `/chat-test`
+- Gradual migration from `/chat` to `/chat`
 
 ## Support
 

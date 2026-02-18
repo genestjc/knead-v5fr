@@ -1,7 +1,7 @@
 # Daily.co Video Integration Implementation Summary
 
 ## Overview
-This PR implements Daily.co video integration into the `/chat-test` page, moving live events from the separate `/events/[id]` page into the main chat interface with a responsive split-screen layout.
+This PR implements Daily.co video integration into the `/chat` page, moving live events from the separate `/events/[id]` page into the main chat interface with a responsive split-screen layout.
 
 ## Changes Made
 
@@ -70,7 +70,7 @@ This PR implements Daily.co video integration into the `/chat-test` page, moving
 
 ### 4. Updated Chat Interface
 
-#### `app/chat-test/connected-chat.tsx`
+#### `app/chat/connected-chat.tsx`
 **Major Changes:**
 - Added event polling (every 30 seconds) to detect live events
 - Generates Daily.co tokens automatically when event is live
@@ -111,7 +111,7 @@ This PR implements Daily.co video integration into the `/chat-test` page, moving
 
 ### 6. Removed Old Event Page
 **Deleted:** `app/events/[id]/page.tsx`
-- Events now fully integrated into `/chat-test`
+- Events now fully integrated into `/chat`
 - No more separate event pages
 
 ## Technical Flow
@@ -124,7 +124,7 @@ This PR implements Daily.co video integration into the `/chat-test` page, moving
 5. Event appears in admin dashboard with Daily.co link
 
 ### Event Join Flow
-1. User visits `/chat-test`
+1. User visits `/chat`
 2. Frontend polls `GET /api/events?status=live` every 30 seconds
 3. If live event found:
    - Determine user role (host vs viewer)
@@ -185,7 +185,7 @@ The project already has the required Daily.co SDK packages:
 - [ ] Manual testing:
   - [ ] Create event with video enabled → Daily room created
   - [ ] Start event → Status changes to 'live'
-  - [ ] Visit `/chat-test` → Split-screen appears
+  - [ ] Visit `/chat` → Split-screen appears
   - [ ] Join as host → Owner permissions, camera on
   - [ ] Join as viewer → Limited permissions, camera off
   - [ ] Send chat messages → Appear in bottom panel
@@ -213,7 +213,7 @@ The project already has the required Daily.co SDK packages:
 - `components/chat/EventVideoStage.tsx`
 
 ### Modified (3 files)
-- `app/chat-test/connected-chat.tsx` (split-screen layout)
+- `app/chat/connected-chat.tsx` (split-screen layout)
 - `app/api/admin/events/[id]/route.ts` (Daily room cleanup)
 - `components/admin/EventsManager.tsx` (remove manual URL input)
 

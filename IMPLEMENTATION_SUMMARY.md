@@ -16,7 +16,7 @@ Fix Towns Protocol integration issues and prepare infrastructure for on-chain re
 - **Impact**: Eliminated custom metadata support (not supported by SDK)
 
 ### 2. Fixed Channel ID Initialization Bug
-- **File**: `app/chat-test/chat-test-client.tsx`
+- **File**: `app/chat/chat-client.tsx`
 - **Bug**: Using `spaceId` as `defaultChannelId` (incorrect)
 - **Fix**: Added `useSpace()` hook to fetch actual channel ID from space
 - **Impact**: Chat should now connect to correct channel
