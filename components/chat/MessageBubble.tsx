@@ -20,7 +20,7 @@ interface ChatMessage {
   timestamp: number | string;
   townsAwarded?: number;
   isOwn?: boolean;
-  senderRole?: 'freemium' | 'participant' | 'contributor' | 'admin' | 'master-admin';
+  isContributor?: boolean;
 }
 
 interface MessageBubbleProps {
@@ -216,8 +216,8 @@ export function MessageBubble({
         onTouchEnd={handleTouchEnd}
       >
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
-          {/* Avatar (only for contributors and own messages) */}
-          {!isOwn && message.senderRole === 'contributor' && (
+          {/* Avatar — only visible for contributors */}
+          {!isOwn && message.isContributor && (
             <div className="flex-shrink-0 mb-6">
               {message.sender.avatar ? (
                 <img
@@ -233,8 +233,8 @@ export function MessageBubble({
             </div>
           )}
           
-          {/* Empty placeholder for participants (no avatar) */}
-          {!isOwn && message.senderRole !== 'contributor' && (
+          {/* No avatar placeholder for non-contributors */}
+          {!isOwn && !message.isContributor && (
             <div className="flex-shrink-0 w-0"></div>
           )}
 
