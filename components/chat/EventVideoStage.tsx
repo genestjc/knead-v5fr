@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDaily, useParticipantIds, useLocalSessionId, DailyVideo } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
@@ -228,81 +228,85 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  // ✅ Find the host's session — check all address sources, full + partial match
-  const hostAddress = event.host?.address?.toLowerCase() || '';
+  // ✅ useMemo: Re-evaluates every time participantIds, daily, or localSessionId changes
+  // This fixes the race condition where tiles were calculated before Daily connected
+  const { hostSessionId, guestSessionIds, hasGuests } = useMemo(() => {
+    const hostAddress = event.host?.address?.toLowerCase() || '';
+    const invitedGuestAddresses = (event.guestAddresses || []).map(
+      (addr: string) => addr.toLowerCase()
+    );
 
-  const hostSessionId = participantIds.find(id => {
-    if (id === localSessionId && isHost) return true;
+    // Find host session
+    const foundHostId = participantIds.find(id => {
+      if (id === localSessionId && isHost) return true;
 
-    const participant = daily?.participants()[id];
-    if (!participant) return false;
+      const participant = daily?.participants()?.[id];
+      if (!participant) return false;
 
-    const participantAddress = (
-      participant.userData?.address ||
-      participant.user_name ||
-      ''
-    ).toLowerCase();
+      const participantAddress = (
+        participant.userData?.address ||
+        participant.user_name ||
+        ''
+      ).toLowerCase();
 
-    if (!participantAddress) return false;
+      if (!participantAddress) return false;
 
-    if (participantAddress === hostAddress) return true;
-    if (hostAddress && participantAddress.includes(hostAddress.slice(2, 10))) return true;
-    if (hostAddress && hostAddress.includes(participantAddress.slice(2, 10))) return true;
+      if (participantAddress === hostAddress) return true;
+      if (hostAddress && participantAddress.includes(hostAddress.slice(2, 10))) return true;
+      if (hostAddress && hostAddress.includes(participantAddress.slice(2, 10))) return true;
 
-    return false;
-  });
-
-  // ✅ Only show tiles for INVITED GUESTS from the admin panel
-  // Viewers join the Daily room to watch/listen, but do NOT get a video tile
-  const invitedGuestAddresses = (event.guestAddresses || []).map(
-    (addr: string) => addr.toLowerCase()
-  );
-
-  const guestSessionIds = participantIds.filter(id => {
-    if (id === hostSessionId) return false;
-
-    const participant = daily?.participants()[id];
-    if (!participant) return false;
-
-    // Check ALL possible sources for the wallet address
-    const participantAddress = (
-      participant.userData?.address ||
-      participant.user_name ||
-      ''
-    ).toLowerCase();
-
-    if (!participantAddress) return false;
-
-    // Check if this person's wallet is in the invited guest list
-    return invitedGuestAddresses.some((guestAddr: string) => {
-      if (participantAddress === guestAddr) return true;
-      if (participantAddress.includes(guestAddr.slice(2, 10))) return true;
-      if (guestAddr.includes(participantAddress.slice(2, 10))) return true;
       return false;
     });
-  });
 
-  const hasGuests = guestSessionIds.length > 0;
+    // Find invited guest sessions — only wallets from admin panel
+    const foundGuestIds = participantIds.filter(id => {
+      if (id === foundHostId) return false;
 
-  console.log('🎬 [EventVideoStage] Participants:', {
-    totalInRoom: participantIds.length,
-    hostSessionId,
-    hostAddress,
-    invitedGuestTiles: guestSessionIds.length,
-    invitedGuestAddresses,
-    viewersWatching: participantIds.length - (hostSessionId ? 1 : 0) - guestSessionIds.length,
-    localSessionId,
-    isHost,
-    // Debug: show what address each person in the room has
-    roomMembers: participantIds.map(id => {
-      const p = daily?.participants()[id];
-      return {
-        sessionId: id,
-        userData: p?.userData?.address || 'none',
-        userName: p?.user_name || 'none',
-      };
-    }),
-  });
+      const participant = daily?.participants()?.[id];
+      if (!participant) return false;
+
+      const participantAddress = (
+        participant.userData?.address ||
+        participant.user_name ||
+        ''
+      ).toLowerCase();
+
+      if (!participantAddress) return false;
+
+      return invitedGuestAddresses.some((guestAddr: string) => {
+        if (participantAddress === guestAddr) return true;
+        if (participantAddress.includes(guestAddr.slice(2, 10))) return true;
+        if (guestAddr.includes(participantAddress.slice(2, 10))) return true;
+        return false;
+      });
+    });
+
+    console.log('🎬 [EventVideoStage] Participants (recalculated):', {
+      totalInRoom: participantIds.length,
+      hostSessionId: foundHostId,
+      hostAddress,
+      invitedGuestTiles: foundGuestIds.length,
+      invitedGuestAddresses,
+      viewersWatching: participantIds.length - (foundHostId ? 1 : 0) - foundGuestIds.length,
+      localSessionId,
+      isHost,
+      roomMembers: participantIds.map(id => {
+        const p = daily?.participants()?.[id];
+        return {
+          sessionId: id,
+          userData: p?.userData?.address || 'none',
+          userName: p?.user_name || 'none',
+          role: p?.userData?.role || 'unknown',
+        };
+      }),
+    });
+
+    return {
+      hostSessionId: foundHostId,
+      guestSessionIds: foundGuestIds,
+      hasGuests: foundGuestIds.length > 0,
+    };
+  }, [participantIds, daily, localSessionId, isHost, event.host?.address, event.guestAddresses]);
 
   return (
     <div className="relative h-full bg-gray-900">
