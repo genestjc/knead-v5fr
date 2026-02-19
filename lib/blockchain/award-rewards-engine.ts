@@ -3,6 +3,8 @@
  * 
  * Engine wallet functions for awarding tokens without user signatures.
  * Uses ThirdWeb Engine to execute transactions on behalf of users.
+ * 
+ * ⚠️ SERVER-ONLY: This file uses secret keys and must never be imported in client components!
  */
 
 import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
@@ -162,9 +164,16 @@ export async function getContributorPoolBalance(): Promise<number> {
       throw new Error('SERVER_WALLET_ADDRESS not set in environment variables');
     }
     
-    const stats = await getParticipantStats(engineWalletAddress);
+    // Read participant stats for engine wallet (server-side only)
+    const rewardsContract = getRewardsContract();
     
-    return stats.claimable;
+    const stats = await readContract({
+      contract: rewardsContract,
+      method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
+      params: [engineWalletAddress],
+    });
+    
+    return Number(stats[5]) / 1e18; // stats[5] is claimable
   } catch (error) {
     console.error('Error fetching contributor pool balance:', error);
     throw new Error(
@@ -207,117 +216,6 @@ export async function getContractBalance(): Promise<number> {
     console.error('Error fetching contract balance:', error);
     throw new Error(
       `Failed to fetch contract balance: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-/**
- * Get participant's stats from the rewards contract
- * 
- * @param participantAddress - Participant's wallet address
- * @returns Participant statistics
- */
-export async function getParticipantStats(participantAddress: string): Promise<{
-  totalEarned: number;
-  claimed: number;
-  tier: number;
-  cohort: number;
-  graduated: boolean;
-  claimable: number;
-  availableToClaim: number;
-}> {
-  try {
-    const rewardsContract = getRewardsContract();
-    
-    const stats = await readContract({
-      contract: rewardsContract,
-      method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
-      params: [participantAddress],
-    });
-    
-    return {
-      totalEarned: Number(stats[0]) / 1e18,
-      claimed: Number(stats[1]) / 1e18,
-      tier: Number(stats[2]),
-      cohort: Number(stats[3]),
-      graduated: Boolean(stats[4]),
-      claimable: Number(stats[5]) / 1e18,
-      availableToClaim: Number(stats[5]) / 1e18,
-    };
-  } catch (error) {
-    console.error('Error fetching participant stats:', error);
-    throw new Error(
-      `Failed to fetch participant stats: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-/**
- * Get contributor's stats from the rewards contract
- * 
- * @param contributorAddress - Contributor's wallet address
- * @returns Contributor statistics
- */
-export async function getContributorStats(contributorAddress: string): Promise<{
-  lockedAllowance: number;
-  cashbackEarnings: number;
-  totalTipped: number;
-}> {
-  try {
-    const rewardsContract = getRewardsContract();
-    
-    const stats = await readContract({
-      contract: rewardsContract,
-      method: 'function getContributorStats(address _contributor) view returns (uint256 lockedAllowance, uint256 cashbackEarnings, uint256 totalTipped)',
-      params: [contributorAddress],
-    });
-    
-    return {
-      lockedAllowance: Number(stats[0]) / 1e18,
-      cashbackEarnings: Number(stats[1]) / 1e18,
-      totalTipped: Number(stats[2]) / 1e18,
-    };
-  } catch (error) {
-    console.error('Error fetching contributor stats:', error);
-    throw new Error(
-      `Failed to fetch contributor stats: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-/**
- * Get contract constants (graduation threshold, weekly allowance)
- * 
- * @returns Contract constants
- */
-export async function getContractConstants(): Promise<{
-  graduationThreshold: number;
-  weeklyAllowance: number;
-}> {
-  try {
-    const rewardsContract = getRewardsContract();
-    
-    const [graduationThreshold, weeklyAllowance] = await Promise.all([
-      readContract({
-        contract: rewardsContract,
-        method: 'function GRADUATION_THRESHOLD() view returns (uint256)',
-        params: [],
-      }),
-      readContract({
-        contract: rewardsContract,
-        method: 'function WEEKLY_CONTRIBUTOR_ALLOWANCE() view returns (uint256)',
-        params: [],
-      }),
-    ]);
-    
-    return {
-      graduationThreshold: Number(graduationThreshold) / 1e18,
-      weeklyAllowance: Number(weeklyAllowance) / 1e18,
-    };
-  } catch (error) {
-    console.error('Error fetching contract constants:', error);
-    throw new Error(
-      `Failed to fetch contract constants: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
