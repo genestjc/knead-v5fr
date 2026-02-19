@@ -9,6 +9,7 @@ import { createThirdwebClient, getContract, prepareContractCall, readContract } 
 import { base } from 'thirdweb/chains';
 import { sendTransaction as sendEngineTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
+import { ethers } from 'ethers';
 
 const client = createThirdwebClient({
   secretKey: process.env.THIRDWEB_SECRET_KEY!,
@@ -34,16 +35,124 @@ function getRewardsContract() {
 }
 
 /**
- * Award $TOWNS tokens via Engine wallet (no user signature required)
+ * Award $TOWNS tokens via contributor tipping (80/20 split)
  * 
- * This function uses the Engine wallet to award tokens on behalf of admins.
- * The Engine wallet must have ADMIN_ROLE and ORACLE_ROLE on the rewards contract.
+ * This function uses the Engine wallet to execute contributor tips.
+ * The contributor receives 20% cashback, participant receives 80%.
+ * The Engine wallet must have ADMIN_ROLE on the rewards contract.
+ * 
+ * @param contributorAddress - Contributor's wallet address
+ * @param participantAddress - Recipient's wallet address
+ * @param amount - Amount in $TOWNS tokens (not wei)
+ * @param messageId - Towns Protocol message ID (eventId)
+ * @param actionType - Type of action (e.g., "message_like")
+ * @returns Transaction hash
+ */
+export async function awardTownsViaEngine(
+  contributorAddress: string,
+  participantAddress: string,
+  amount: number,
+  messageId: string,
+  actionType: string = 'message_like'
+): Promise<{ transactionHash: string }> {
+  try {
+    const rewardsContract = getRewardsContract();
+    
+    // Convert amount to wei (18 decimals)
+    const amountInWei = BigInt(Math.floor(amount * 1e18));
+    
+    // ✅ FIXED: Convert Towns Protocol messageId to bytes32 using keccak256
+    // Towns eventIds can be long strings, so we hash them instead of truncating
+    const messageIdBytes32 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(messageId));
+    
+    // Use awardTip for contributor tipping (80/20 split)
+    const transaction = prepareContractCall({
+      contract: rewardsContract,
+      method: 'function awardTip(address _contributor, address _participant, uint256 _tipAmount, bytes32 _messageId, string _actionType)',
+      params: [contributorAddress, participantAddress, amountInWei, messageIdBytes32, actionType],
+    });
+    
+    const receipt = await sendEngineTransaction({
+      transaction,
+      account: serverWallet,
+    });
+    
+    console.log('✅ Tip awarded via Engine:', {
+      contributor: contributorAddress,
+      recipient: participantAddress,
+      amount,
+      messageId,
+      messageIdHash: messageIdBytes32,
+      actionType,
+      txHash: receipt.transactionHash,
+    });
+    
+    return {
+      transactionHash: receipt.transactionHash,
+    };
+  } catch (error) {
+    console.error('Error awarding tip via Engine:', error);
+    throw new Error(
+      `Failed to award tip: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Award admin bonus (100% to participant, bypasses allowances)
+ * 
+ * This function uses the Engine wallet to award admin bonuses.
+ * The participant receives 100% of the amount.
+ * The Engine wallet must have ADMIN_ROLE on the rewards contract.
  * 
  * @param participantAddress - Recipient's wallet address
  * @param amount - Amount in $TOWNS tokens (not wei)
- * @param actionType - Type of action (e.g., "message_like", "admin_bonus")
- * @param eventId - Optional event ID for event-specific bonuses
+ * @param bonusType - Type of bonus (e.g., "outstanding_contribution")
  * @returns Transaction hash
+ */
+export async function awardAdminBonus(
+  participantAddress: string,
+  amount: number,
+  bonusType: string
+): Promise<{ transactionHash: string }> {
+  try {
+    const rewardsContract = getRewardsContract();
+    
+    // Convert amount to wei (18 decimals)
+    const amountInWei = BigInt(Math.floor(amount * 1e18));
+    
+    // Use adminAwardBonus for special admin rewards (100% payout)
+    const transaction = prepareContractCall({
+      contract: rewardsContract,
+      method: 'function adminAwardBonus(address _participant, uint256 _amount, string _bonusType)',
+      params: [participantAddress, amountInWei, bonusType],
+    });
+    
+    const receipt = await sendEngineTransaction({
+      transaction,
+      account: serverWallet,
+    });
+    
+    console.log('✅ Admin bonus awarded via Engine:', {
+      recipient: participantAddress,
+      amount,
+      bonusType,
+      txHash: receipt.transactionHash,
+    });
+    
+    return {
+      transactionHash: receipt.transactionHash,
+    };
+  } catch (error) {
+    console.error('Error awarding admin bonus via Engine:', error);
+    throw new Error(
+      `Failed to award admin bonus: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Get contributor pool balance (Engine wallet's claimable balance)
  */
 export async function getContributorPoolBalance(): Promise<number> {
   try {
@@ -53,7 +162,6 @@ export async function getContributorPoolBalance(): Promise<number> {
       throw new Error('SERVER_WALLET_ADDRESS not set in environment variables');
     }
     
-    // Get the Engine wallet's participant stats to find claimable amount
     const stats = await getParticipantStats(engineWalletAddress);
     
     return stats.claimable;
@@ -61,57 +169,6 @@ export async function getContributorPoolBalance(): Promise<number> {
     console.error('Error fetching contributor pool balance:', error);
     throw new Error(
       `Failed to fetch pool balance: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-export async function awardTownsViaEngine(
-  participantAddress: string,
-  amount: number,
-  actionType: string = 'message_like',
-  eventId?: number
-): Promise<{ transactionHash: string }> {
-  try {
-    const rewardsContract = getRewardsContract();
-    
-    // Convert amount to wei (18 decimals)
-    const amountInWei = BigInt(Math.floor(amount * 1e18));
-    
-    // ✅ Use different function based on whether eventId is provided
-    const transaction = eventId !== undefined
-      ? // For event bonuses: use awardEventBonus (ORACLE_ROLE)
-        prepareContractCall({
-          contract: rewardsContract,
-          method: 'function awardEventBonus(uint256 _eventId, address _participant, uint256 _bonusAmount, string _bonusType)',
-          params: [BigInt(eventId), participantAddress, amountInWei, actionType],
-        })
-      : // For general admin bonuses: use adminAwardTowns (ADMIN_ROLE) - NEW!
-        prepareContractCall({
-          contract: rewardsContract,
-          method: 'function adminAwardTowns(address _participant, uint256 _amount, string _bonusType)',
-          params: [participantAddress, amountInWei, actionType],
-        });
-    
-    const receipt = await sendEngineTransaction({
-      transaction,
-      account: serverWallet,
-    });
-    
-    console.log('✅ Tokens awarded via Engine:', {
-      recipient: participantAddress,
-      amount,
-      actionType,
-      eventId: eventId !== undefined ? eventId : 'general',
-      txHash: receipt.transactionHash,
-      method: eventId !== undefined ? 'awardEventBonus' : 'adminAwardTowns',
-    });
-    
-    return {
-      transactionHash: receipt.transactionHash,
-    };
-  } catch (error) {
-    console.error('Error awarding tokens via Engine:', error);
-    throw new Error(
-      `Failed to award tokens: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -133,7 +190,6 @@ export async function getContractBalance(): Promise<number> {
       throw new Error('Contract addresses not configured');
     }
 
-    // Query the $TOWNS token contract for the rewards contract's balance
     const townsContract = getContract({
       client,
       address: townsContractAddress,
@@ -146,7 +202,6 @@ export async function getContractBalance(): Promise<number> {
       params: [rewardsContractAddress],
     });
     
-    // Convert from wei to $TOWNS
     return Number(balance) / 1e18;
   } catch (error) {
     console.error('Error fetching contract balance:', error);
@@ -187,12 +242,82 @@ export async function getParticipantStats(participantAddress: string): Promise<{
       cohort: Number(stats[3]),
       graduated: Boolean(stats[4]),
       claimable: Number(stats[5]) / 1e18,
-      availableToClaim: Number(stats[5]) / 1e18, // Alias for backward compatibility
+      availableToClaim: Number(stats[5]) / 1e18,
     };
   } catch (error) {
     console.error('Error fetching participant stats:', error);
     throw new Error(
       `Failed to fetch participant stats: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Get contributor's stats from the rewards contract
+ * 
+ * @param contributorAddress - Contributor's wallet address
+ * @returns Contributor statistics
+ */
+export async function getContributorStats(contributorAddress: string): Promise<{
+  lockedAllowance: number;
+  cashbackEarnings: number;
+  totalTipped: number;
+}> {
+  try {
+    const rewardsContract = getRewardsContract();
+    
+    const stats = await readContract({
+      contract: rewardsContract,
+      method: 'function getContributorStats(address _contributor) view returns (uint256 lockedAllowance, uint256 cashbackEarnings, uint256 totalTipped)',
+      params: [contributorAddress],
+    });
+    
+    return {
+      lockedAllowance: Number(stats[0]) / 1e18,
+      cashbackEarnings: Number(stats[1]) / 1e18,
+      totalTipped: Number(stats[2]) / 1e18,
+    };
+  } catch (error) {
+    console.error('Error fetching contributor stats:', error);
+    throw new Error(
+      `Failed to fetch contributor stats: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Get contract constants (graduation threshold, weekly allowance)
+ * 
+ * @returns Contract constants
+ */
+export async function getContractConstants(): Promise<{
+  graduationThreshold: number;
+  weeklyAllowance: number;
+}> {
+  try {
+    const rewardsContract = getRewardsContract();
+    
+    const [graduationThreshold, weeklyAllowance] = await Promise.all([
+      readContract({
+        contract: rewardsContract,
+        method: 'function GRADUATION_THRESHOLD() view returns (uint256)',
+        params: [],
+      }),
+      readContract({
+        contract: rewardsContract,
+        method: 'function WEEKLY_CONTRIBUTOR_ALLOWANCE() view returns (uint256)',
+        params: [],
+      }),
+    ]);
+    
+    return {
+      graduationThreshold: Number(graduationThreshold) / 1e18,
+      weeklyAllowance: Number(weeklyAllowance) / 1e18,
+    };
+  } catch (error) {
+    console.error('Error fetching contract constants:', error);
+    throw new Error(
+      `Failed to fetch contract constants: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
