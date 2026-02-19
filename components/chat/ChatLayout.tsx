@@ -231,13 +231,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 ) : selectedDm ? (
                   <div className="h-full flex flex-col">
                     <div className="p-3 bg-gray-50 border-b border-gray-200">
-                      <button
-                        onClick={() => setSelectedDm(null)}
-                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
-                      >
-                        ← Back to DMs
-                      </button>
-                    </div>
+                    <button
+                    onClick={() => setSelectedDm(null)}
+                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1 font-georgia-pro"
+                  >
+                      ← Back to DMs
+                    </button>
+                  </div>
+                    
                     <DirectMessageInterface
                       dmId={selectedDm.dmId}
                       townsDmId={selectedDm.townsDmId}
