@@ -33,18 +33,6 @@ function getRewardsContract() {
   });
 }
 
-/**
- * Award $TOWNS tokens via Engine wallet (no user signature required)
- * 
- * This function uses the Engine wallet to award tokens on behalf of admins.
- * The Engine wallet must have ADMIN_ROLE and ORACLE_ROLE on the rewards contract.
- * 
- * @param participantAddress - Recipient's wallet address
- * @param amount - Amount in $TOWNS tokens (not wei)
- * @param actionType - Type of action (e.g., "message_like", "admin_bonus")
- * @param eventId - Optional event ID for event-specific bonuses
- * @returns Transaction hash
- */
 export async function getContributorPoolBalance(): Promise<number> {
   try {
     const engineWalletAddress = process.env.SERVER_WALLET_ADDRESS || process.env.ENGINE_SERVER_WALLET_ADDRESS;
@@ -64,54 +52,99 @@ export async function getContributorPoolBalance(): Promise<number> {
     );
   }
 }
-export async function awardTownsViaEngine(
+/**
+ * Award a tip from a contributor to a participant (80/20 split)
+ *
+ * @param contributorAddress - Contributor's wallet address (tipper)
+ * @param participantAddress - Recipient's wallet address
+ * @param amount - Amount in $TOWNS tokens (not wei)
+ * @param messageId - Hex message ID (bytes32)
+ * @param actionType - Type of action (e.g., "message_like")
+ * @returns Transaction hash
+ */
+export async function awardTipViaEngine(
+  contributorAddress: string,
   participantAddress: string,
   amount: number,
+  messageId: string,
   actionType: string = 'message_like',
-  eventId?: number
 ): Promise<{ transactionHash: string }> {
   try {
     const rewardsContract = getRewardsContract();
-    
-    // Convert amount to wei (18 decimals)
+
     const amountInWei = BigInt(Math.floor(amount * 1e18));
-    
-    // ✅ Use different function based on whether eventId is provided
-    const transaction = eventId !== undefined
-      ? // For event bonuses: use awardEventBonus (ORACLE_ROLE)
-        prepareContractCall({
-          contract: rewardsContract,
-          method: 'function awardEventBonus(uint256 _eventId, address _participant, uint256 _bonusAmount, string _bonusType)',
-          params: [BigInt(eventId), participantAddress, amountInWei, actionType],
-        })
-      : // For general admin bonuses: use adminAwardTowns (ADMIN_ROLE) - NEW!
-        prepareContractCall({
-          contract: rewardsContract,
-          method: 'function adminAwardTowns(address _participant, uint256 _amount, string _bonusType)',
-          params: [participantAddress, amountInWei, actionType],
-        });
-    
+    const hexId = messageId.replace(/^0x/, '');
+    const messageIdBytes = `0x${hexId.replace(/[^0-9a-fA-F]/g, '0').padStart(64, '0')}` as `0x${string}`;
+
+    const transaction = prepareContractCall({
+      contract: rewardsContract,
+      method: 'function awardTip(address _contributor, address _participant, uint256 _tipAmount, bytes32 _messageId, string _actionType)',
+      params: [contributorAddress, participantAddress, amountInWei, messageIdBytes, actionType],
+    });
+
     const receipt = await sendEngineTransaction({
       transaction,
       account: serverWallet,
     });
-    
-    console.log('✅ Tokens awarded via Engine:', {
+
+    console.log('✅ Tip awarded via Engine:', {
+      contributor: contributorAddress,
       recipient: participantAddress,
       amount,
       actionType,
-      eventId: eventId !== undefined ? eventId : 'general',
       txHash: receipt.transactionHash,
-      method: eventId !== undefined ? 'awardEventBonus' : 'adminAwardTowns',
     });
-    
-    return {
-      transactionHash: receipt.transactionHash,
-    };
+
+    return { transactionHash: receipt.transactionHash };
   } catch (error) {
-    console.error('Error awarding tokens via Engine:', error);
+    console.error('Error awarding tip via Engine:', error);
     throw new Error(
-      `Failed to award tokens: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to award tip: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Award an admin bonus to a participant (100% to participant)
+ *
+ * @param participantAddress - Recipient's wallet address
+ * @param amount - Amount in $TOWNS tokens (not wei)
+ * @param bonusType - Type of bonus (e.g., "great_contribution")
+ * @returns Transaction hash
+ */
+export async function adminAwardBonusViaEngine(
+  participantAddress: string,
+  amount: number,
+  bonusType: string,
+): Promise<{ transactionHash: string }> {
+  try {
+    const rewardsContract = getRewardsContract();
+
+    const amountInWei = BigInt(Math.floor(amount * 1e18));
+
+    const transaction = prepareContractCall({
+      contract: rewardsContract,
+      method: 'function adminAwardBonus(address _participant, uint256 _amount, string _bonusType)',
+      params: [participantAddress, amountInWei, bonusType],
+    });
+
+    const receipt = await sendEngineTransaction({
+      transaction,
+      account: serverWallet,
+    });
+
+    console.log('✅ Admin bonus awarded via Engine:', {
+      recipient: participantAddress,
+      amount,
+      bonusType,
+      txHash: receipt.transactionHash,
+    });
+
+    return { transactionHash: receipt.transactionHash };
+  } catch (error) {
+    console.error('Error awarding admin bonus via Engine:', error);
+    throw new Error(
+      `Failed to award bonus: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }

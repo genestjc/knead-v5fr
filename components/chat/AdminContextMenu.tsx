@@ -15,7 +15,6 @@ interface AdminContextMenuProps {
     };
     content: string;
   };
-  eventId?: number;
   channelId: string;
   spaceId: string;
   position: { x: number; y: number };
@@ -24,7 +23,6 @@ interface AdminContextMenuProps {
 
 export function AdminContextMenu({ 
   message, 
-  eventId, 
   channelId, 
   spaceId, 
   position, 
@@ -104,15 +102,12 @@ export function AdminContextMenu({
         participant: message.sender.id,
         amount,
         bonusType,
-        eventId,
       });
 
       const response = await fetch('/api/chat/award-bonus', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminAddress: activeAccount.address,
-          eventId,
           participantAddress: message.sender.id,
           bonusAmount: amount,
           bonusType,

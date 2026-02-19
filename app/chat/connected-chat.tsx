@@ -501,7 +501,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             isAdmin={isAdmin}
             channelId={channelId}
             spaceId={spaceId}
-            eventId={activeEvent?.id}
           />
         ))}
         <div ref={messagesEndRef} />

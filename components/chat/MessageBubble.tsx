@@ -29,7 +29,6 @@ interface MessageBubbleProps {
   streamId?: string;
   canAwardTokens?: boolean;
   isAdmin?: boolean;
-  eventId?: number;
   channelId?: string;
   spaceId?: string;
 }
@@ -85,7 +84,6 @@ export function MessageBubble({
   streamId, 
   canAwardTokens,
   isAdmin = false,
-  eventId,
   channelId,
   spaceId
 }: MessageBubbleProps) {
@@ -133,7 +131,6 @@ export function MessageBubble({
         message.sender.walletAddress,
         10,
         '❤️',
-        eventId
       );
       
       toast.success('🍞 Tipped 10 TOWNS!');
@@ -327,7 +324,6 @@ export function MessageBubble({
       {showContextMenu && isAdmin && channelId && spaceId && (
         <AdminContextMenu
           message={message}
-          eventId={eventId}
           channelId={channelId}
           spaceId={spaceId}
           position={contextMenuPosition}

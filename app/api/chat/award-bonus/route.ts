@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  awardTownsViaEngine,
+  adminAwardBonusViaEngine,
   isParticipant,
 } from '@/lib/blockchain/award-rewards-engine';
 
 export async function POST(req: NextRequest) {
   try {
-    const { adminAddress, eventId, participantAddress, bonusAmount, bonusType } =
+    const { participantAddress, bonusAmount, bonusType } =
       await req.json();
 
     // Validate required fields
@@ -39,12 +39,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Award tokens via Engine
-    const result = await awardTownsViaEngine(
+    // Award bonus via Engine (100% to participant)
+    const result = await adminAwardBonusViaEngine(
       participantAddress,
       bonusAmount,
       bonusType,
-      eventId,
     );
 
     return NextResponse.json({

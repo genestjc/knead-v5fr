@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markEventAttendance } from '@/lib/blockchain/event-management';
-import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
+import { adminAwardBonusViaEngine } from '@/lib/blockchain/award-rewards-engine';
 import { hasKneadMonthly } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ const DEFAULT_ATTENDANCE_BONUS = 50; // TOWNS tokens awarded for event attendanc
  * This endpoint:
  * 1. Verifies user has Knead Monthly NFT
  * 2. Marks attendance on-chain (if contract supports it)
- * 3. Awards attendance bonus via awardEventBonus
+ * 3. Awards attendance bonus via adminAwardBonus
  */
 export async function POST(req: NextRequest) {
   try {
@@ -63,11 +63,10 @@ export async function POST(req: NextRequest) {
       const bonusAmount = attendanceBonus || DEFAULT_ATTENDANCE_BONUS;
       
       try {
-        const bonusResult = await awardTownsViaEngine(
+        const bonusResult = await adminAwardBonusViaEngine(
           participantAddress,
           bonusAmount,
           'event_attendance',
-          eventIdNum
         );
         
         transactionHash = bonusResult.transactionHash;

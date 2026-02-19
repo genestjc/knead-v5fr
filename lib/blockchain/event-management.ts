@@ -1,8 +1,8 @@
 /**
  * Event Management System
  * 
- * Utilities for managing on-chain events and syncing with Daily.co events.
- * Handles event creation, attendance tracking, and event ID mapping.
+ * @deprecated The KneadRewardsV5 contract does not support on-chain events.
+ * This file is kept for reference only. Do not use these functions.
  */
 
 import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
