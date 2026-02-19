@@ -49,17 +49,16 @@ export async function isParticipantRegistered(address: string): Promise<boolean>
  * Register a participant in the rewards contract
  * 
  * @param address - Participant's wallet address
- * @param cohort - Cohort number (defaults to 1 = general cohort, NOT 0!)
  */
-export async function registerParticipant(address: string, cohort: number = 1): Promise<{ transactionHash: string }> {
-  //                                                                                  ↑ CHANGE TO 1
+export async function registerParticipant(address: string): Promise<{ transactionHash: string }> {
   try {
     const contract = getRewardsContract();
     
+    // ✅ UPDATED: Your new contract only takes address (no cohort parameter)
     const transaction = prepareContractCall({
       contract,
-      method: 'function registerParticipant(address _participant, uint256 _cohort)',
-      params: [address, BigInt(cohort)],
+      method: 'function registerParticipant(address _participant)',
+      params: [address],
     });
     
     const receipt = await sendTransaction({
@@ -69,7 +68,6 @@ export async function registerParticipant(address: string, cohort: number = 1): 
     
     console.log('✅ Participant registered:', {
       address,
-      cohort,
       txHash: receipt.transactionHash,
     });
     
@@ -84,7 +82,13 @@ export async function registerParticipant(address: string, cohort: number = 1): 
       return { transactionHash: 'already-registered' };
     }
     
-    console.error('Error registering participant:', error);
+    // Log more details for debugging
+    console.error('❌ Error registering participant:', {
+      address,
+      error: error.message,
+      fullError: error,
+    });
+    
     throw new Error(
       `Failed to register participant: ${error instanceof Error ? error.message : String(error)}`
     );
