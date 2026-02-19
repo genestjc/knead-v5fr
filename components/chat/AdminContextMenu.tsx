@@ -4,7 +4,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
-import { useAdminRedact } from '@towns-protocol/react-sdk';
+import { useAdminRedact, useSyncAgent } from '@towns-protocol/react-sdk';
+import { createTownsSigner } from '@/lib/towns-signer-adapter';
+import { client, activeChain } from '@/thirdweb-client';
 
 interface AdminContextMenuProps {
   message: {
@@ -37,6 +39,9 @@ export function AdminContextMenu({
   
   // ✅ CORRECT: Use useAdminRedact for admin message deletion
   const { adminRedact, isPending: isRedacting, error: redactError } = useAdminRedact(channelId);
+  
+  // ✅ Towns SyncAgent for on-chain banning via spaceDapp
+  const sync = useSyncAgent();
 
   // Adjust position to prevent off-screen menu
   useEffect(() => {
@@ -266,13 +271,44 @@ export function AdminContextMenu({
   const handleBanUser = async () => {
     if (!confirm(`Ban ${message.sender.name}? They will be banned from the chat.`)) return;
 
+    if (!activeAccount) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
     setIsProcessing(true);
     try {
+      // Step 1: Ban on-chain via Towns Protocol (user signs with connected wallet)
+      try {
+        const signer = await createTownsSigner(activeAccount, client, activeChain);
+        const tx = await sync.riverConnection.spaceDapp.banWalletAddress(
+          spaceId,
+          message.sender.id,
+          signer,
+        );
+        await tx.wait();
+      } catch (onChainError: any) {
+        const errorMsg = onChainError?.message?.toLowerCase() || '';
+        if (errorMsg.includes('permission') || errorMsg.includes('not entitled') || errorMsg.includes('unauthorized')) {
+          toast.error('❌ Permission Denied', {
+            description: 'You don\'t have ModifyBanning permission. Run setup-moderator-permissions script.',
+            duration: 8000,
+          });
+        } else {
+          toast.error('On-chain ban failed', {
+            description: onChainError.message || 'Transaction could not be submitted.',
+            duration: 8000,
+          });
+        }
+        return;
+      }
+
+      // Step 2: Update Supabase (only if on-chain ban succeeded)
       const response = await fetch('/api/admin/ban-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminAddress: activeAccount?.address,
+          adminAddress: activeAccount.address,
           userAddress: message.sender.id,
           ban: true,
           spaceId: spaceId,
@@ -285,7 +321,7 @@ export function AdminContextMenu({
         toast.success(`${message.sender.name} has been banned`);
         onClose();
       } else {
-        toast.error(data.error || 'Failed to ban user');
+        toast.error(data.error || 'Failed to update ban status in database');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to ban user');
