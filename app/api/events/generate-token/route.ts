@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
         roomName: body?.roomName,
         walletAddress: body?.walletAddress?.substring(0, 8),
         isHost: body?.isHost,
+        isGuest: body?.isGuest,
         isViewer: body?.isViewer,
       });
     } catch (parseError) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { roomName, walletAddress, isHost, isViewer } = body;
+    const { roomName, walletAddress, isHost, isGuest, isViewer } = body;
 
     // ✅ STEP 2: Validate required fields
     if (!roomName || !walletAddress) {
@@ -50,29 +51,33 @@ export async function POST(req: NextRequest) {
     }
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
-    // ✅ STEP 4: Build token payload
+    // ✅ STEP 4: Build token payload based on role
     // Host: full owner permissions (camera, mic, screenshare)
-    // Invited guest: camera + mic, no screenshare, not owner
+    // Guest: camera + mic enabled, no screenshare, not owner
     // Viewer: receive-only — can watch/listen but CANNOT broadcast
+    const isActualViewer = !isHost && !isGuest;
+
     const tokenPayload: any = {
       properties: {
         room_name: roomName,
         user_name: walletAddress,
         is_owner: isHost || false,
         enable_screenshare: isHost || false,
-        start_video_off: isViewer ? true : false,
-        start_audio_off: isViewer ? true : false,
+        start_video_off: isActualViewer ? true : false,
+        start_audio_off: isActualViewer ? true : false,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
       },
     };
 
-    // ✅ Lock down viewers at the token level — they physically cannot broadcast
-    if (isViewer) {
+    // ✅ Lock down ONLY actual viewers — hosts and guests get full camera/mic
+    if (isActualViewer) {
       tokenPayload.properties.permissions = {
-        canSend: false,          // cannot send video, audio, or screenshare
-        hasPresence: true,       // still counts in participant list
+        canSend: false,
+        hasPresence: true,
       };
     }
+
+    const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER (receive-only)';
 
     console.log('🎫 [generate-token] Calling Daily.co with payload:', {
       ...tokenPayload,
@@ -80,6 +85,7 @@ export async function POST(req: NextRequest) {
         ...tokenPayload.properties,
         user_name: tokenPayload.properties.user_name.substring(0, 8) + '...',
       },
+      role,
     });
 
     // ✅ STEP 5: Call Daily.co API
@@ -127,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ STEP 7: Return token
-    console.log('✅ [generate-token] Token generated successfully for', isHost ? 'HOST' : isViewer ? 'VIEWER (receive-only)' : 'GUEST');
+    console.log(`✅ [generate-token] Token generated successfully for ${role}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     return NextResponse.json({
