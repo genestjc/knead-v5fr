@@ -98,9 +98,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   ];
 
   return (
-    <div {...swipeHandlers} className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* ✅ STICKY HEADER — Always visible on mobile and desktop */}
-      <header className="sticky top-0 border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white flex-shrink-0">
+    <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
+      {/* ✅ FIXED HEADER — No overflow-hidden on parent, header stays visible */}
+      <header className="border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white flex-shrink-0">
         <div className="flex items-center justify-between">
           <motion.div
             className="cursor-pointer relative"
@@ -185,7 +185,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </header>
 
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative min-h-0">
         {children}
       </main>
 
