@@ -19,7 +19,6 @@ export function middleware(request: NextRequest) {
       https://*.thirdwebcdn.com
       https://ipfs.thirdwebcdn.com
       https://*.ipfs.thirdwebcdn.com
-      https://*.thirdwebcdn.com          // ← NEW catch-all for ThirdWeb CDN
       https://*.ipfs.dweb.link 
       https://*.ipfscdn.io
       https://ipfs.io 
@@ -84,6 +83,7 @@ export function middleware(request: NextRequest) {
       https://8453.rpc.thirdweb.com
       https://ipfs.thirdwebcdn.com
       https://*.ipfs.thirdwebcdn.com
+      https://*.thirdwebcdn.com
       https://*.ipfscdn.io
       https://ipfs.io
       https://gateway.ipfs.io
@@ -96,7 +96,6 @@ export function middleware(request: NextRequest) {
       https://api.sanity.io
       https://api.thirdweb.com
       https://*.thirdweb.com
-      https://*.thirdwebcdn.com
       https://*.alchemy.com
       https://base-mainnet.g.alchemy.com
       https://mainnet.base.org
