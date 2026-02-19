@@ -98,96 +98,99 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   ];
 
   return (
-    <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
-      {/* ✅ FIXED HEADER — No overflow-hidden on parent, header stays visible */}
-      <header className="border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <motion.div
-            className="cursor-pointer relative"
-            onClick={() => setLogoExpanded(!logoExpanded)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+  <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
+    {/* ✅ FIXED HEADER — position: fixed keeps it on screen at all times */}
+    <header className="fixed top-0 left-0 right-0 border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white">
+      <div className="flex items-center justify-between">
+        <motion.div
+          className="cursor-pointer relative"
+          onClick={() => setLogoExpanded(!logoExpanded)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <motion.h1
+            className="font-adonis text-3xl tracking-tight"
+            animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
+            transition={{ duration: 0.2 }}
           >
-            <motion.h1
-              className="font-adonis text-3xl tracking-tight"
-              animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
-              transition={{ duration: 0.2 }}
-            >
-              {logoExpanded ? 'Knead' : 'K'}
-            </motion.h1>
-          </motion.div>
+            {logoExpanded ? 'Knead' : 'K'}
+          </motion.h1>
+        </motion.div>
 
-          <div className="flex items-center gap-3">
-            <WalletSummary
-              context="chat"
-              onExternalWalletExport={() => setShowExternalWalletMessage(true)}
-            />
-
-            {/* Paper Plane Icon for DMs (Contributors Only) — hidden when DM panel is open */}
-            {isContributor && !dmsOpen && (
-              <button
-                onClick={() => setDmsOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                title="Direct Messages"
-              >
-                <Send className="w-5 h-5 text-gray-700" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {logoExpanded && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
-            >
-              {menuItems.map((item, index) => (
-                <button
-                  key={index}
-                  onClick={item.onClick}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
-                >
-                  {item.icon}
-                  <span className="font-georgia-pro text-sm">{item.label}</span>
-                </button>
-              ))}
-
-              {/* Divider */}
-              <div className="border-t-2 border-gray-200"></div>
-
-              {/* Treasury Balance */}
-              <a
-                href="https://basescan.org/address/0xde1338f826055a6311d3bbef292dcb92dfe03cde"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
-              >
-                <Landmark className="w-5 h-5 text-gray-700" />
-                <div className="flex-1 text-left">
-                  <span className="font-georgia-pro text-sm text-gray-700">
-                    Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
-                  </span>
-                </div>
-              </a>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {logoExpanded && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setLogoExpanded(false)}
+        <div className="flex items-center gap-3">
+          <WalletSummary
+            context="chat"
+            onExternalWalletExport={() => setShowExternalWalletMessage(true)}
           />
-        )}
-      </header>
 
-      <main className="flex-1 overflow-hidden relative min-h-0">
-        {children}
-      </main>
+          {/* Paper Plane Icon for DMs (Contributors Only) — hidden when DM panel is open */}
+          {isContributor && !dmsOpen && (
+            <button
+              onClick={() => setDmsOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              title="Direct Messages"
+            >
+              <Send className="w-5 h-5 text-gray-700" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {logoExpanded && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
+          >
+            {menuItems.map((item, index) => (
+              <button
+                key={index}
+                onClick={item.onClick}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
+              >
+                {item.icon}
+                <span className="font-georgia-pro text-sm">{item.label}</span>
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div className="border-t-2 border-gray-200"></div>
+
+            {/* Treasury Balance */}
+            <a
+              href="https://basescan.org/address/0xde1338f826055a6311d3bbef292dcb92dfe03cde"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            >
+              <Landmark className="w-5 h-5 text-gray-700" />
+              <div className="flex-1 text-left">
+                <span className="font-georgia-pro text-sm text-gray-700">
+                  Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
+                </span>
+              </div>
+            </a>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {logoExpanded && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setLogoExpanded(false)}
+        />
+      )}
+    </header>
+
+    {/* Spacer to prevent content from hiding under fixed header */}
+    <div className="h-[72px] lg:h-[88px] flex-shrink-0" />
+
+    <main className="flex-1 overflow-hidden relative min-h-0">
+      {children}
+    </main>
 
       {/* ✅ DM Side Panel — z-[60] to fully cover header on mobile */}
       <AnimatePresence>
