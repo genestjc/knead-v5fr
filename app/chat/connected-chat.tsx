@@ -293,7 +293,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           return;
         }
 
-        // Generate token for everyone (host, guest, or viewer)
+        // ✅ Generate token — pass isGuest so the endpoint knows to give them camera/mic
         const tokenResponse = await fetch('/api/events/generate-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -301,6 +301,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             roomName: event.dailyRoomName,
             walletAddress: activeAccount.address,
             isHost,
+            isGuest,
             isViewer,
           }),
         });
