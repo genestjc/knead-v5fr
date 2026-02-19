@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { ContributorPoolWidget } from './ContributorPoolWidget';
 
@@ -11,6 +11,28 @@ interface Contributor {
   avatar?: string;
   role: string;
   contributorType: string;
+}
+
+interface ContributorStats {
+  address: string;
+  typeLabel: string;
+  cType: number;
+  weeklyBudget: number;
+  lockedAllowance: number;
+  cashbackEarnings: number;
+  cashbackClaimed: number;
+  totalTipped: number;
+  daysUntilReset: number;
+}
+
+function getNextSundayDate(): string {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0 = Sunday
+  const daysUntilSunday = (7 - day) % 7;
+  const nextSunday = new Date(now);
+  nextSunday.setUTCDate(now.getUTCDate() + daysUntilSunday);
+  nextSunday.setUTCHours(0, 0, 0, 0);
+  return nextSunday.toUTCString();
 }
 
 // Minting Form Component
@@ -159,6 +181,234 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
   );
 }
 
+// Weekly Allowance Management Section
+function WeeklyAllowanceManager({ onStatsRefreshed }: { onStatsRefreshed?: () => void }) {
+  const [isAllocating, setIsAllocating] = useState(false);
+  const [allocationResult, setAllocationResult] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
+
+  const handleAllocateToAll = async () => {
+    if (!confirm('Allocate weekly allowances to all contributors? This sends a blockchain transaction.')) {
+      return;
+    }
+    setIsAllocating(true);
+    setAllocationResult(null);
+    setIsError(false);
+    try {
+      const response = await fetch('/api/admin/allocate-allowances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contributorAddresses: [] }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAllocationResult(`✅ ${data.message} Tx: ${data.transactionHash?.slice(0, 10)}...`);
+        onStatsRefreshed?.();
+      } else {
+        throw new Error(data.error || 'Allocation failed');
+      }
+    } catch (error) {
+      setIsError(true);
+      setAllocationResult(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAllocating(false);
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mt-8">
+      <h3 className="font-adonis text-2xl mb-4">⚡ Weekly Allowance Management</h3>
+      <div className="flex gap-4 mb-4 flex-wrap">
+        <button
+          onClick={handleAllocateToAll}
+          disabled={isAllocating}
+          className="py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isAllocating ? 'Allocating...' : 'Allocate to All Contributors'}
+        </button>
+        {onStatsRefreshed && (
+          <button
+            onClick={onStatsRefreshed}
+            className="py-2 px-4 border border-gray-300 text-gray-700 font-semibold rounded-md hover:bg-gray-50"
+          >
+            Refresh Stats
+          </button>
+        )}
+      </div>
+      <p className="text-sm text-gray-600">
+        Next auto-allocation: {getNextSundayDate()}
+      </p>
+      {allocationResult && (
+        <div className={`mt-4 p-3 rounded-md ${isError ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+          <p className="text-sm break-words">{allocationResult}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Contributor Stats Table
+function ContributorStatsTable({ stats, onBudgetUpdated }: {
+  stats: ContributorStats[];
+  onBudgetUpdated: () => void;
+}) {
+  const [editingAddress, setEditingAddress] = useState<string | null>(null);
+  const [newBudgetValue, setNewBudgetValue] = useState('');
+  const [updatingAddress, setUpdatingAddress] = useState<string | null>(null);
+  const [allocatingAddress, setAllocatingAddress] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const handleUpdateBudget = async (address: string) => {
+    const budget = parseFloat(newBudgetValue);
+    if (isNaN(budget) || budget <= 0) {
+      alert('Budget must be a positive number.');
+      return;
+    }
+    setUpdatingAddress(address);
+    setStatusMessage(null);
+    try {
+      const response = await fetch('/api/admin/contributors/update-budget', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contributorAddress: address, newBudget: budget }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setStatusMessage(`✅ Budget updated. Tx: ${data.transactionHash?.slice(0, 10)}...`);
+        setEditingAddress(null);
+        onBudgetUpdated();
+      } else {
+        throw new Error(data.error || 'Failed to update budget');
+      }
+    } catch (error) {
+      setStatusMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setUpdatingAddress(null);
+    }
+  };
+
+  const handleAllocateNow = async (address: string) => {
+    setAllocatingAddress(address);
+    setStatusMessage(null);
+    try {
+      const response = await fetch('/api/admin/allocate-allowances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contributorAddresses: [address] }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setStatusMessage(`✅ Allowance allocated. Tx: ${data.transactionHash?.slice(0, 10)}...`);
+        onBudgetUpdated();
+      } else {
+        throw new Error(data.error || 'Allocation failed');
+      }
+    } catch (error) {
+      setStatusMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAllocatingAddress(null);
+    }
+  };
+
+  if (stats.length === 0) {
+    return <p className="text-gray-500 mt-4">No contributor stats available.</p>;
+  }
+
+  return (
+    <div className="mt-4">
+      {statusMessage && (
+        <div className={`mb-4 p-3 rounded-md text-sm ${statusMessage.startsWith('✅') ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          {statusMessage}
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm border border-gray-200 rounded-md">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Weekly Budget</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Remaining</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cashback</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Tipped</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Days Until Reset</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {stats.map((s) => (
+              <tr key={s.address} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-700">
+                  {`${s.address.slice(0, 6)}...${s.address.slice(-4)}`}
+                </td>
+                <td className="px-3 py-2">
+                  <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                    {s.typeLabel}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {editingAddress === s.address ? (
+                    <input
+                      type="number"
+                      value={newBudgetValue}
+                      onChange={(e) => setNewBudgetValue(e.target.value)}
+                      className="w-20 px-1 py-0.5 border border-gray-300 rounded text-right"
+                      min="1"
+                    />
+                  ) : (
+                    `${s.weeklyBudget.toFixed(0)} TOWNS`
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right">{s.lockedAllowance.toFixed(2)} TOWNS</td>
+                <td className="px-3 py-2 text-right">{(s.cashbackEarnings - s.cashbackClaimed).toFixed(2)} TOWNS</td>
+                <td className="px-3 py-2 text-right">{s.totalTipped.toFixed(2)} TOWNS</td>
+                <td className="px-3 py-2 text-right">{s.daysUntilReset}d</td>
+                <td className="px-3 py-2">
+                  <div className="flex gap-1 flex-wrap">
+                    {editingAddress === s.address ? (
+                      <>
+                        <button
+                          onClick={() => handleUpdateBudget(s.address)}
+                          disabled={updatingAddress === s.address}
+                          className="px-2 py-1 text-xs bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+                        >
+                          {updatingAddress === s.address ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditingAddress(null)}
+                          className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setEditingAddress(s.address); setNewBudgetValue(String(s.weeklyBudget.toFixed(0))); }}
+                          className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
+                        >
+                          Update Budget
+                        </button>
+                        <button
+                          onClick={() => handleAllocateNow(s.address)}
+                          disabled={allocatingAddress === s.address}
+                          className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 disabled:opacity-50"
+                        >
+                          {allocatingAddress === s.address ? 'Allocating...' : 'Allocate Now'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // List of On-Chain Contributors
 function ContributorList({ contributors, onRevokeSuccess }: { contributors: Contributor[], onRevokeSuccess: () => void }) {
     const account = useActiveAccount();
@@ -223,8 +473,10 @@ function ContributorList({ contributors, onRevokeSuccess }: { contributors: Cont
 export function ContributorManager({ adminAddress }: { adminAddress: string }) {
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [contributorStats, setContributorStats] = useState<ContributorStats[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  const fetchContributors = async () => {
+  const fetchContributors = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/admin/contributors?adminAddress=${adminAddress}`);
@@ -239,17 +491,53 @@ export function ContributorManager({ adminAddress }: { adminAddress: string }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [adminAddress]);
+
+  const fetchContributorStats = useCallback(async () => {
+    setIsLoadingStats(true);
+    try {
+      const response = await fetch('/api/admin/contributors/stats');
+      const data = await response.json();
+      if (data.success) {
+        setContributorStats(data.data);
+      } else {
+        console.error('Failed to fetch contributor stats:', data.error);
+      }
+    } catch (error) {
+      console.error('Failed to fetch contributor stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchContributors();
-  }, [adminAddress]);
+    fetchContributorStats();
+  }, [fetchContributors, fetchContributorStats]);
 
   return (
     <div>
       <h2 className="font-adonis text-3xl mb-6">On-Chain Contributor Management</h2>
       <ContributorPoolWidget />
       <AddContributorForm onMintSuccess={fetchContributors} />
+      <WeeklyAllowanceManager onStatsRefreshed={fetchContributorStats} />
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-adonis text-2xl">📊 Contributor Stats (On-Chain)</h3>
+          <button
+            onClick={fetchContributorStats}
+            disabled={isLoadingStats}
+            className="py-1 px-3 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isLoadingStats ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+        {isLoadingStats ? (
+          <p className="text-center text-gray-500">Loading stats...</p>
+        ) : (
+          <ContributorStatsTable stats={contributorStats} onBudgetUpdated={fetchContributorStats} />
+        )}
+      </div>
       {isLoading ? (
         <p className="text-center mt-8">Loading contributors...</p>
       ) : (
