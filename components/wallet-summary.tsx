@@ -2,7 +2,7 @@
 
 import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
 import { useState, useRef, useEffect } from "react";
-import { Copy, LogOut, ArrowUpFromLine, Key, Wallet, AlertTriangle, DollarSign, Download, Settings } from "lucide-react";
+import { Copy, LogOut, ArrowUpFromLine, Key, Wallet, AlertTriangle, DollarSign, Download, Settings, Zap, HelpCircle, Award, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getContract, sendTransaction, prepareContractCall, readContract } from "thirdweb";
 import { transfer } from "thirdweb/extensions/erc20";
@@ -11,6 +11,7 @@ import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
+import { getContributorStats, getParticipantStats, getContractConstants } from "@/lib/blockchain/award-rewards-engine";
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
@@ -42,6 +43,17 @@ export function WalletSummary({
   const [claimableBalance, setClaimableBalance] = useState<string>("0");
   const [isLoadingClaimable, setIsLoadingClaimable] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  
+  // NEW: Contributor allowance states
+  const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
+  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("25");
+  const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
+  
+  // NEW: Participant earnings states
+  const [totalEarned, setTotalEarned] = useState<string>("0");
+  const [graduationThreshold, setGraduationThreshold] = useState<string>("3334");
+  const [hasGraduated, setHasGraduated] = useState(false);
+  const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
   
   // Contributor Settings Modal states
   const [showContributorSettings, setShowContributorSettings] = useState(false);
@@ -198,7 +210,72 @@ export function WalletSummary({
     return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
 
-  // Fetch claimable balance (contributors only)
+  // NEW: Fetch contract constants (graduation threshold, weekly allowance cap)
+  useEffect(() => {
+    if (!isChatContext) return;
+    
+    const fetchConstants = async () => {
+      try {
+        const constants = await getContractConstants();
+        setGraduationThreshold(constants.graduationThreshold.toFixed(0));
+        setWeeklyAllowanceCap(constants.weeklyAllowance.toFixed(0));
+        console.log('✅ Contract constants loaded:', constants);
+      } catch (error) {
+        console.error('Failed to fetch contract constants:', error);
+      }
+    };
+    
+    fetchConstants();
+  }, [isChatContext]);
+
+  // NEW: Fetch contributor stats (weekly allowance)
+  useEffect(() => {
+    if (!isContributor || !account?.address || !isChatContext) return;
+    
+    const fetchContributorStats = async () => {
+      setIsLoadingAllowance(true);
+      try {
+        const stats = await getContributorStats(account.address);
+        setWeeklyAllowance(stats.lockedAllowance.toFixed(0));
+        console.log('✅ Contributor stats loaded:', stats);
+      } catch (error) {
+        console.error('Failed to fetch contributor stats:', error);
+        setWeeklyAllowance('0');
+      } finally {
+        setIsLoadingAllowance(false);
+      }
+    };
+    
+    fetchContributorStats();
+    const interval = setInterval(fetchContributorStats, 30000);
+    return () => clearInterval(interval);
+  }, [isContributor, account?.address, isChatContext]);
+
+  // NEW: Fetch participant stats (total earned, graduation status)
+  useEffect(() => {
+    if (!account?.address || !isChatContext) return;
+    
+    const fetchParticipantStats = async () => {
+      setIsLoadingEarnings(true);
+      try {
+        const stats = await getParticipantStats(account.address);
+        setTotalEarned(stats.totalEarned.toFixed(2));
+        setHasGraduated(stats.graduated);
+        console.log('✅ Participant stats loaded:', stats);
+      } catch (error) {
+        console.error('Failed to fetch participant stats:', error);
+        setTotalEarned('0');
+      } finally {
+        setIsLoadingEarnings(false);
+      }
+    };
+    
+    fetchParticipantStats();
+    const interval = setInterval(fetchParticipantStats, 30000);
+    return () => clearInterval(interval);
+  }, [account?.address, isChatContext]);
+
+  // UPDATED: Fetch claimable balance using cashbackEarnings from getContributorStats
   useEffect(() => {
     console.log('🔍 Claimable balance useEffect triggered');
     console.log('🔍 isContributor:', isContributor);
@@ -214,34 +291,11 @@ export function WalletSummary({
     const fetchClaimableBalance = async () => {
       setIsLoadingClaimable(true);
       try {
-        const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-        
-        console.log('🔍 Rewards contract address:', rewardsContractAddress);
-        
-        if (!rewardsContractAddress) {
-          console.warn('❌ Rewards contract address not configured');
-          return;
-        }
-        
-        const rewardsContract = getContract({
-          client,
-          chain: activeChain,
-          address: rewardsContractAddress,
-        });
-        
-        const stats = await readContract({
-          contract: rewardsContract,
-          method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
-          params: [account.address],
-        });
-        
-        // stats[5] is claimable
-        const claimable = Number(stats[5]) / 1e18;
-        const displayClaimable = claimable.toLocaleString('en-US', {
+        const stats = await getContributorStats(account.address);
+        const displayClaimable = stats.cashbackEarnings.toLocaleString('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,
         });
-        
         setClaimableBalance(displayClaimable);
         console.log(`✅ Claimable balance: ${displayClaimable} TOWNS`);
       } catch (error) {
@@ -467,71 +521,71 @@ export function WalletSummary({
     });
   };
 
- const handleSignOut = async () => {
-  if (isSigningOut) return;
-  
-  try {
-    setIsSigningOut(true);
-    setIsDropdownOpen(false);
-    
-    // ✅ CLEAR TOWNS BEARER TOKEN
-    console.log('🧹 Clearing Towns authentication...');
-    try {
-      localStorage.removeItem('knead_towns_bearer_token');
-      localStorage.removeItem('knead_towns_token_expiry');
-      console.log('✅ Cleared Towns authentication');
-    } catch (error) {
-      console.error('❌ Failed to clear Towns auth:', error);
-    }
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
     
     try {
-      await disconnect();
-      console.log("ThirdWeb disconnect successful");
-    } catch (disconnectError) {
-      console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
-    }
-    
-    // ✅ Clear membership cache
-    localStorage.removeItem("knead_membership_cache");
-    
-    // ✅ Clear ThirdWeb keys
-    const thirdwebKeys = Object.keys(localStorage).filter(key => 
-      key.includes('thirdweb') || 
-      key.includes('walletconnect') || 
-      key.startsWith('email_') ||
-      key.startsWith('tw-') ||
-      key.includes('wallet')
-    );
-    
-    thirdwebKeys.forEach(key => localStorage.removeItem(key));
-    
-    const sessionKeys = Object.keys(sessionStorage).filter(key => 
-      key.includes('thirdweb') || 
-      key.includes('walletconnect') || 
-      key.startsWith('tw-') ||
-      key.includes('wallet')
-    );
-    
-    sessionKeys.forEach(key => sessionStorage.removeItem(key));
-    
-    // ✅ Clear cookies
-    document.cookie.split(";").forEach(cookie => {
-      const [name] = cookie.trim().split("=");
-      if (name.includes("thirdweb") || name.includes("wallet")) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+      setIsSigningOut(true);
+      setIsDropdownOpen(false);
+      
+      // ✅ CLEAR TOWNS BEARER TOKEN
+      console.log('🧹 Clearing Towns authentication...');
+      try {
+        localStorage.removeItem('knead_towns_bearer_token');
+        localStorage.removeItem('knead_towns_token_expiry');
+        console.log('✅ Cleared Towns authentication');
+      } catch (error) {
+        console.error('❌ Failed to clear Towns auth:', error);
       }
-    });
-    
-    console.log('✅ All authentication cleared - redirecting...');
-    
-    setTimeout(() => {
-      window.location.href = '/?nocache=' + new Date().getTime();
-    }, 500);
-  } catch (error) {
-    console.error("Failed to sign out:", error);
-    window.location.href = '/?forcereload=' + new Date().getTime();
-  }
-};
+      
+      try {
+        await disconnect();
+        console.log("ThirdWeb disconnect successful");
+      } catch (disconnectError) {
+        console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
+      }
+      
+      // ✅ Clear membership cache
+      localStorage.removeItem("knead_membership_cache");
+      
+      // ✅ Clear ThirdWeb keys
+      const thirdwebKeys = Object.keys(localStorage).filter(key => 
+        key.includes('thirdweb') || 
+        key.includes('walletconnect') || 
+        key.startsWith('email_') ||
+        key.startsWith('tw-') ||
+        key.includes('wallet')
+      );
+      
+      thirdwebKeys.forEach(key => localStorage.removeItem(key));
+      
+      const sessionKeys = Object.keys(sessionStorage).filter(key => 
+        key.includes('thirdweb') || 
+        key.includes('walletconnect') || 
+        key.startsWith('tw-') ||
+        key.includes('wallet')
+      );
+      
+      sessionKeys.forEach(key => sessionStorage.removeItem(key));
+      
+      // ✅ Clear cookies
+      document.cookie.split(";").forEach(cookie => {
+        const [name] = cookie.trim().split("=");
+        if (name.includes("thirdweb") || name.includes("wallet")) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+        }
+      });
+      
+      console.log('✅ All authentication cleared - redirecting...');
+      
+      setTimeout(() => {
+        window.location.href = '/?nocache=' + new Date().getTime();
+      }, 500);
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+      window.location.href = '/?forcereload=' + new Date().getTime();
+    }
+  };
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -593,14 +647,36 @@ export function WalletSummary({
                     </div>
                   </div>
 
-                  {/* Claim $TOWNS - Contributors only */}
+                  {/* CONTRIBUTOR SECTION */}
                   {isContributor && (
                     <>
+                      {/* Weekly Allowance - NEW */}
+                      <div className="px-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm font-adonis text-gray-700">
+                            <Zap className="w-4 h-4 mr-2" />
+                            Weekly Allowance
+                          </div>
+                          <span className="text-sm font-adonis font-semibold text-blue-600">
+                            {isLoadingAllowance ? "..." : `${weeklyAllowance} / ${weeklyAllowanceCap}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Claimable with tooltip - UPDATED */}
                       <div className="px-4 py-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center text-sm font-adonis text-gray-700">
                             <DollarSign className="w-4 h-4 mr-2" />
-                            Claimable
+                            <span>Claimable</span>
+                            <div className="relative group">
+                              <HelpCircle className="w-3 h-3 ml-1 text-gray-400 cursor-help" />
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                <p className="font-semibold mb-1">Contributor Cashback</p>
+                                <p>When you tip messages, you receive 20% cashback. Your cashback accumulates here and can be claimed to your wallet balance.</p>
+                                <p className="mt-1 text-gray-300">Weekly allowance resets Sunday.</p>
+                              </div>
+                            </div>
                           </div>
                           <span className="text-sm font-adonis font-semibold text-green-600">
                             {isLoadingClaimable ? "..." : claimableBalance}
@@ -616,6 +692,48 @@ export function WalletSummary({
                         <Download className="w-4 h-4 mr-2" />
                         {isClaiming ? 'Claiming...' : 'Claim TOWNS'}
                       </button>
+                    </>
+                  )}
+
+                  {/* PARTICIPANT SECTION (Non-Contributors) - NEW */}
+                  {!isContributor && (
+                    <>
+                      {/* Total Earned */}
+                      <div className="px-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm font-adonis text-gray-700">
+                            <Award className="w-4 h-4 mr-2" />
+                            Total Earned
+                          </div>
+                          <span className="text-sm font-adonis font-semibold text-gray-900">
+                            {isLoadingEarnings ? "..." : totalEarned}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress to Graduation */}
+                      {!hasGraduated && (
+                        <div className="px-4 py-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center text-sm font-adonis text-gray-700">
+                              <TrendingUp className="w-4 h-4 mr-2" />
+                              Progress
+                            </div>
+                            <span className="text-sm font-adonis font-semibold text-purple-600">
+                              {isLoadingEarnings ? "..." : `${totalEarned} / ${graduationThreshold}`}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Graduated Badge */}
+                      {hasGraduated && (
+                        <div className="px-4 py-2 bg-gradient-to-r from-yellow-50 to-yellow-100">
+                          <div className="flex items-center justify-center text-sm font-adonis text-yellow-800">
+                            🎓 Graduated!
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
 
