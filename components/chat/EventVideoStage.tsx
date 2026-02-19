@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useDaily, useParticipantIds, useLocalSessionId, DailyVideo } from '@daily-co/daily-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  useDaily,
+  useParticipantIds,
+  useLocalSessionId,
+  useParticipantProperty,
+  DailyVideo,
+} from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
   sessionId: string;
@@ -25,6 +31,66 @@ function DailyVideoTile({ sessionId, label, isLocal }: DailyVideoTileProps) {
   );
 }
 
+// ✅ Helper component that uses Daily's reactive hook to read participant data
+// This re-renders automatically when the participant's data changes
+function ParticipantTile({
+  sessionId,
+  localSessionId,
+  hostAddress,
+  invitedGuestAddresses,
+  guestIndex,
+}: {
+  sessionId: string;
+  localSessionId: string;
+  hostAddress: string;
+  invitedGuestAddresses: string[];
+  guestIndex: number;
+}) {
+  const [userName, userData] = useParticipantProperty(sessionId, [
+    'user_name',
+    'userData',
+  ]);
+
+  const participantAddress = (
+    (userData as any)?.address ||
+    userName ||
+    ''
+  ).toLowerCase();
+
+  const isLocal = sessionId === localSessionId;
+
+  // Determine if this is the host
+  const isHostTile = participantAddress && hostAddress && (
+    participantAddress === hostAddress ||
+    (hostAddress.length > 10 && participantAddress.includes(hostAddress.slice(2, 10))) ||
+    (participantAddress.length > 10 && hostAddress.includes(participantAddress.slice(2, 10)))
+  );
+
+  // Determine if this is an invited guest
+  const isGuestTile = !isHostTile && participantAddress && invitedGuestAddresses.some((guestAddr) => {
+    if (participantAddress === guestAddr) return true;
+    if (guestAddr.length > 10 && participantAddress.includes(guestAddr.slice(2, 10))) return true;
+    if (participantAddress.length > 10 && guestAddr.includes(participantAddress.slice(2, 10))) return true;
+    return false;
+  });
+
+  // Build label
+  let label = 'Viewer';
+  if (isHostTile) {
+    label = isLocal ? 'You (Host)' : 'Host';
+  } else if (isGuestTile) {
+    label = isLocal ? 'You (Guest)' : `Guest ${guestIndex + 1}`;
+  }
+
+  return (
+    <DailyVideoTile
+      sessionId={sessionId}
+      label={label}
+      isLocal={isLocal}
+    />
+  );
+}
+
 interface EventVideoStageProps {
   event: any;
   currentUserAddress: string;
@@ -36,7 +102,6 @@ const JOIN_TIMEOUT_MS = 10000;
 
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
-  const participantIds = useParticipantIds();
   const localSessionId = useLocalSessionId();
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +114,74 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     (addr: string) => addr.toLowerCase() === currentUserAddress.toLowerCase()
   );
   const isViewer = !isHost && !isGuest;
+
+  const hostAddress = event.host?.address?.toLowerCase() || '';
+  const invitedGuestAddresses = useMemo(
+    () => (event.guestAddresses || []).map((addr: string) => addr.toLowerCase()),
+    [event.guestAddresses]
+  );
+
+  // ✅ Use Daily's built-in filtering: only get IDs whose user_name (wallet) matches
+  // host or invited guests. This is reactive and updates automatically.
+  const allParticipantIds = useParticipantIds();
+
+  const hostFilter = useCallback(
+    (p: any) => {
+      const addr = (p.userData?.address || p.user_name || '').toLowerCase();
+      if (!addr || !hostAddress) return false;
+      if (addr === hostAddress) return true;
+      if (hostAddress.length > 10 && addr.includes(hostAddress.slice(2, 10))) return true;
+      if (addr.length > 10 && hostAddress.includes(addr.slice(2, 10))) return true;
+      return false;
+    },
+    [hostAddress]
+  );
+
+  const guestFilter = useCallback(
+    (p: any) => {
+      const addr = (p.userData?.address || p.user_name || '').toLowerCase();
+      if (!addr) return false;
+      // Exclude the host
+      if (hostAddress && (
+        addr === hostAddress ||
+        (hostAddress.length > 10 && addr.includes(hostAddress.slice(2, 10))) ||
+        (addr.length > 10 && hostAddress.includes(addr.slice(2, 10)))
+      )) return false;
+      // Check invited list
+      return invitedGuestAddresses.some((guestAddr: string) => {
+        if (addr === guestAddr) return true;
+        if (guestAddr.length > 10 && addr.includes(guestAddr.slice(2, 10))) return true;
+        if (addr.length > 10 && guestAddr.includes(addr.slice(2, 10))) return true;
+        return false;
+      });
+    },
+    [hostAddress, invitedGuestAddresses]
+  );
+
+  // ✅ Also match local user by role (handles case where userData isn't populated yet)
+  const hostSessionIds = useParticipantIds({ filter: hostFilter });
+  const guestSessionIds = useParticipantIds({ filter: guestFilter });
+
+  // Fallback: if local user is host but address matching hasn't caught them yet
+  const effectiveHostId = hostSessionIds[0] || (isHost && localSessionId ? localSessionId : undefined);
+  const effectiveGuestIds = guestSessionIds.length > 0
+    ? guestSessionIds
+    : (isGuest && localSessionId && !effectiveHostId ? [localSessionId] : []);
+
+  const hasGuests = effectiveGuestIds.length > 0;
+
+  useEffect(() => {
+    console.log('🎬 [EventVideoStage] Tile state:', {
+      totalInRoom: allParticipantIds.length,
+      hostId: effectiveHostId,
+      guestIds: effectiveGuestIds,
+      hostAddress,
+      invitedGuestAddresses,
+      localSessionId,
+      isHost,
+      isGuest,
+    });
+  }, [allParticipantIds, effectiveHostId, effectiveGuestIds, hostAddress, invitedGuestAddresses, localSessionId, isHost, isGuest]);
 
   useEffect(() => {
     if (!daily || !roomUrl || !token) {
@@ -68,7 +201,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     const meetingState = daily.meetingState();
     if (meetingState === 'joined-meeting') {
       const participants = daily.participants();
-      const localParticipant = participants.local;
+      const localParticipant = participants?.local;
 
       if (localParticipant && localParticipant.session_id) {
         console.log('⚠️ [EventVideoStage] Already connected to this call');
@@ -102,7 +235,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         const joinPromise = daily.join({
           url: roomUrl,
           token: token,
-          userName: isHost ? 'Host' : isGuest ? 'Guest' : 'Viewer',
+          userName: currentUserAddress,
           userData: {
             role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
             address: currentUserAddress,
@@ -228,86 +361,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  // ✅ useMemo: Re-evaluates every time participantIds, daily, or localSessionId changes
-  // This fixes the race condition where tiles were calculated before Daily connected
-  const { hostSessionId, guestSessionIds, hasGuests } = useMemo(() => {
-    const hostAddress = event.host?.address?.toLowerCase() || '';
-    const invitedGuestAddresses = (event.guestAddresses || []).map(
-      (addr: string) => addr.toLowerCase()
-    );
-
-    // Find host session
-    const foundHostId = participantIds.find(id => {
-      if (id === localSessionId && isHost) return true;
-
-      const participant = daily?.participants()?.[id];
-      if (!participant) return false;
-
-      const participantAddress = (
-        participant.userData?.address ||
-        participant.user_name ||
-        ''
-      ).toLowerCase();
-
-      if (!participantAddress) return false;
-
-      if (participantAddress === hostAddress) return true;
-      if (hostAddress && participantAddress.includes(hostAddress.slice(2, 10))) return true;
-      if (hostAddress && hostAddress.includes(participantAddress.slice(2, 10))) return true;
-
-      return false;
-    });
-
-    // Find invited guest sessions — only wallets from admin panel
-    const foundGuestIds = participantIds.filter(id => {
-      if (id === foundHostId) return false;
-
-      const participant = daily?.participants()?.[id];
-      if (!participant) return false;
-
-      const participantAddress = (
-        participant.userData?.address ||
-        participant.user_name ||
-        ''
-      ).toLowerCase();
-
-      if (!participantAddress) return false;
-
-      return invitedGuestAddresses.some((guestAddr: string) => {
-        if (participantAddress === guestAddr) return true;
-        if (participantAddress.includes(guestAddr.slice(2, 10))) return true;
-        if (guestAddr.includes(participantAddress.slice(2, 10))) return true;
-        return false;
-      });
-    });
-
-    console.log('🎬 [EventVideoStage] Participants (recalculated):', {
-      totalInRoom: participantIds.length,
-      hostSessionId: foundHostId,
-      hostAddress,
-      invitedGuestTiles: foundGuestIds.length,
-      invitedGuestAddresses,
-      viewersWatching: participantIds.length - (foundHostId ? 1 : 0) - foundGuestIds.length,
-      localSessionId,
-      isHost,
-      roomMembers: participantIds.map(id => {
-        const p = daily?.participants()?.[id];
-        return {
-          sessionId: id,
-          userData: p?.userData?.address || 'none',
-          userName: p?.user_name || 'none',
-          role: p?.userData?.role || 'unknown',
-        };
-      }),
-    });
-
-    return {
-      hostSessionId: foundHostId,
-      guestSessionIds: foundGuestIds,
-      hasGuests: foundGuestIds.length > 0,
-    };
-  }, [participantIds, daily, localSessionId, isHost, event.host?.address, event.guestAddresses]);
-
   return (
     <div className="relative h-full bg-gray-900">
       {/* Video tiles — only host + invited guests */}
@@ -318,12 +371,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             : 'grid grid-cols-1 md:grid-cols-2'
         }`}>
           {/* Host tile */}
-          {hostSessionId ? (
+          {effectiveHostId ? (
             <div className="h-full min-h-[120px]">
-              <DailyVideoTile
-                sessionId={hostSessionId}
-                label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
-                isLocal={hostSessionId === localSessionId}
+              <ParticipantTile
+                sessionId={effectiveHostId}
+                localSessionId={localSessionId}
+                hostAddress={hostAddress}
+                invitedGuestAddresses={invitedGuestAddresses}
+                guestIndex={0}
               />
             </div>
           ) : (
@@ -333,16 +388,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           )}
 
           {/* Invited guest tiles — only wallets from event.guestAddresses */}
-          {hasGuests && guestSessionIds.map((guestId, index) => (
+          {hasGuests && effectiveGuestIds.map((guestId, index) => (
             <div key={guestId} className="h-full min-h-[120px]">
-              <DailyVideoTile
+              <ParticipantTile
                 sessionId={guestId}
-                label={
-                  guestId === localSessionId
-                    ? "You (Guest)"
-                    : `Guest ${index + 1}`
-                }
-                isLocal={guestId === localSessionId}
+                localSessionId={localSessionId}
+                hostAddress={hostAddress}
+                invitedGuestAddresses={invitedGuestAddresses}
+                guestIndex={index}
               />
             </div>
           ))}
@@ -358,7 +411,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               <span className="font-georgia-pro text-sm font-semibold text-red-400">LIVE</span>
             </div>
             <span className="font-georgia-pro text-sm text-gray-300">
-              {participantIds.length} watching
+              {allParticipantIds.length} watching
             </span>
           </div>
 
