@@ -231,12 +231,12 @@ export function WalletSummary({
         
         const stats = await readContract({
           contract: rewardsContract,
-          method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
+          method: 'function getParticipantStats(address _participant) view returns (uint256 totalTownsEarned, uint256 townsClaimed, uint8 tier, bool hasGraduated, uint256 claimable)',
           params: [account.address],
         });
         
-        // stats[5] is claimable
-        const claimable = Number(stats[5]) / 1e18;
+        // stats[4] is claimable
+        const claimable = Number(stats[4]) / 1e18;
         const displayClaimable = claimable.toLocaleString('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,

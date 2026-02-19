@@ -17,8 +17,7 @@ interface UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number,
-    reaction?: string,
-    eventId?: number
+    reaction?: string
   ) => Promise<void>;
   isReacting: boolean;
 }
@@ -38,8 +37,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number = 10,
-    reaction: string = '❤️',
-    eventId?: number
+    reaction: string = '❤️'
   ): Promise<void> {
     // ✅ VALIDATION: Check all required parameters
     console.log('🎯 awardTokensOnLike called with:', {
@@ -47,7 +45,6 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       recipientAddress,
       amount,
       reaction,
-      eventId: eventId !== undefined ? eventId : 'none',
       activeAccount: activeAccount?.address,
     });
 
@@ -91,14 +88,14 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       console.log('   From (contributor):', activeAccount.address);
       console.log('   To (participant):', recipientAddress);
       console.log('   Amount:', amount);
-      console.log('   Event ID:', eventId !== undefined ? eventId : 'general');
+      console.log('   Message ID (Towns event):', messageId);
       
       const requestBody = {
         contributorAddress: activeAccount.address,
         participantAddress: recipientAddress,
         amount: amount.toString(),
         actionType: 'message_like',
-        eventId: eventId,
+        messageId: messageId, // Towns Protocol event ID (message identifier)
       };
 
       console.log('📤 [BLOCKCHAIN] Request body:', requestBody);
@@ -148,11 +145,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // SHOW SUCCESS (based on blockchain, not River)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      const awardTypeMessage = eventId !== undefined 
-        ? `Event bonus of ${amount} $TOWNS awarded! ${reaction}`
-        : `Tipped ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`;
-      
-      toast.success(awardTypeMessage);
+      toast.success(`Tipped ${amount} $TOWNS! ${reaction}`);
 
     } catch (error: any) {
       // This only catches BLOCKCHAIN errors now

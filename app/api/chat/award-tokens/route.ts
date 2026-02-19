@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contributorAddress, participantAddress, amount, actionType, eventId } = await req.json();
+    const { contributorAddress, participantAddress, amount, actionType, messageId } = await req.json();
 
     // Validate inputs
     if (!contributorAddress || !participantAddress || !amount) {
@@ -67,28 +67,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Award tokens via Engine wallet (no user signature required)
-    // Pass eventId if provided for event-specific bonuses
+    // 3. Award tokens via Engine wallet using awardTip (80/20 split)
+    // messageId is the Towns Protocol message/event identifier
     const result = await awardTownsViaEngine(
+      contributorAddress,
       participantAddress,
       amountNum,
       actionType || 'message_like',
-      eventId
+      messageId || ''
     );
-
-    const awardType = eventId !== undefined ? 'event bonus' : 'general tip';
-    const message = eventId !== undefined 
-      ? `Event bonus awarded successfully! (Event #${eventId})`
-      : 'Tokens awarded successfully! 25% contributed to the weekly pool for all contributors.';
 
     return NextResponse.json({
       success: true,
       transactionHash: result.transactionHash,
       amount: amountNum,
-      awardType,
-      eventId: eventId !== undefined ? eventId : null,
+      awardType: 'tip',
+      messageId: messageId || null,
       wasAutoRegistered: !isRegistered,
-      message,
+      message: 'Tip awarded successfully! (80% to participant, 20% cashback to contributor)',
     });
 
   } catch (error: any) {

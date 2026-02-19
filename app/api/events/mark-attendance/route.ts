@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markEventAttendance } from '@/lib/blockchain/event-management';
-import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
+import { adminAwardBonus } from '@/lib/blockchain/award-rewards-engine';
 import { hasKneadMonthly } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
@@ -63,11 +63,10 @@ export async function POST(req: NextRequest) {
       const bonusAmount = attendanceBonus || DEFAULT_ATTENDANCE_BONUS;
       
       try {
-        const bonusResult = await awardTownsViaEngine(
+        const bonusResult = await adminAwardBonus(
           participantAddress,
           bonusAmount,
-          'event_attendance',
-          eventIdNum
+          'event_attendance'
         );
         
         transactionHash = bonusResult.transactionHash;
