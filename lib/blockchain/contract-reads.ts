@@ -72,23 +72,31 @@ export async function getParticipantStats(participantAddress: string): Promise<{
  * Get contributor's stats from the rewards contract
  */
 export async function getContributorStats(contributorAddress: string): Promise<{
+  cType: number;
+  weeklyBudget: number;
   lockedAllowance: number;
   cashbackEarnings: number;
+  cashbackClaimed: number;
   totalTipped: number;
+  daysUntilReset: number;
 }> {
   try {
     const rewardsContract = getRewardsContract();
     
     const stats = await readContract({
       contract: rewardsContract,
-      method: 'function getContributorStats(address _contributor) view returns (uint256 lockedAllowance, uint256 cashbackEarnings, uint256 totalTipped)',
+      method: 'function getContributorStats(address _contributor) view returns (uint8 cType, uint256 weeklyBudget, uint256 lockedAllowance, uint256 cashbackEarnings, uint256 cashbackClaimed, uint256 totalTipped, uint256 daysUntilReset)',
       params: [contributorAddress],
     });
     
     return {
-      lockedAllowance: Number(stats[0]) / 1e18,
-      cashbackEarnings: Number(stats[1]) / 1e18,
-      totalTipped: Number(stats[2]) / 1e18,
+      cType: Number(stats[0]),
+      weeklyBudget: Number(stats[1]) / 1e18,
+      lockedAllowance: Number(stats[2]) / 1e18,
+      cashbackEarnings: Number(stats[3]) / 1e18,
+      cashbackClaimed: Number(stats[4]) / 1e18,
+      totalTipped: Number(stats[5]) / 1e18,
+      daysUntilReset: Number(stats[6]),
     };
   } catch (error) {
     console.error('Error fetching contributor stats:', error);
