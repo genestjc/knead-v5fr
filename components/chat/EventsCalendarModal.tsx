@@ -2,12 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar as CalendarIcon, Clock, MapPin, Users } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
-import { useActiveAccount } from 'thirdweb/react';
-import { getContract, prepareContractCall } from 'thirdweb';
-import { sendTransaction } from 'thirdweb';
-import { client, activeChain } from '@/thirdweb-client';
 import { toast } from 'sonner';
 
 interface Event {
@@ -35,8 +31,6 @@ interface EventsCalendarModalProps {
 export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rsvpingEventId, setRsvpingEventId] = useState<string | null>(null);
-  const account = useActiveAccount();
 
   useEffect(() => {
     if (isOpen) {
@@ -63,53 +57,6 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
     }
   };
 
-  const handleRSVP = async (eventId: string) => {
-    if (!account) {
-      toast.error('Please connect your wallet to RSVP');
-      return;
-    }
-
-    try {
-      setRsvpingEventId(eventId);
-      
-      // Get the rewards contract
-      const contractAddress = '0xde1338F826055A6311D3BBEf292dcb92dFe03CdE';
-      const contract = getContract({
-        client,
-        address: contractAddress,
-        chain: activeChain,
-      });
-
-      // Prepare the RSVP transaction
-      const transaction = prepareContractCall({
-        contract,
-        method: 'function rsvpToEvent(uint256 eventId)',
-        params: [BigInt(eventId)],
-      });
-
-      // Send the transaction
-      const result = await sendTransaction({
-        transaction,
-        account,
-      });
-
-      toast.success('RSVP successful! See you at the event 🎉');
-    } catch (error: any) {
-      console.error('RSVP error:', error);
-      
-      // Handle specific error cases
-      if (error.message?.includes('Already RSVP')) {
-        toast.error('You have already RSVP\'d to this event');
-      } else if (error.message?.includes('Event not found')) {
-        toast.error('Event not found on-chain');
-      } else {
-        toast.error('Failed to RSVP. Please try again.');
-      }
-    } finally {
-      setRsvpingEventId(null);
-    }
-  };
-
   const getStatusBadge = (status: string) => {
     const colors = {
       scheduled: 'bg-blue-100 text-blue-800',
@@ -123,10 +70,6 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
-  };
-
-  const isUpcoming = (event: Event) => {
-    return event.status === 'scheduled' || event.status === 'live';
   };
 
   return (
@@ -192,16 +135,6 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                           </h3>
                           {getStatusBadge(event.status)}
                         </div>
-                        
-                        {isUpcoming(event) && (
-                          <button
-                            onClick={() => handleRSVP(event.id)}
-                            disabled={rsvpingEventId === event.id}
-                            className="ml-4 px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-georgia-pro text-sm"
-                          >
-                            {rsvpingEventId === event.id ? 'RSVPing...' : 'RSVP'}
-                          </button>
-                        )}
                       </div>
 
                       {event.description && (
@@ -225,7 +158,29 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                             <span>Video event</span>
                           </div>
                         )}
+
+                        {event.host && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Hosted by</span>
+                            <span className="font-semibold">
+                              {event.host.alias || event.host.displayName}
+                            </span>
+                          </div>
+                        )}
                       </div>
+
+                      {event.status === 'live' && event.dailyRoomUrl && (
+                        <div className="mt-4">
+                          <a
+                            href={event.dailyRoomUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors font-georgia-pro text-sm"
+                          >
+                            🔴 Join Live Event
+                          </a>
+                        </div>
+                      )}
                     </motion.div>
                   ))}
                 </div>
