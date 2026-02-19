@@ -32,7 +32,7 @@ interface EventVideoStageProps {
   token: string;
 }
 
-const JOIN_TIMEOUT_MS = 10000; // 10 seconds
+const JOIN_TIMEOUT_MS = 10000;
 
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
@@ -60,14 +60,11 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       return;
     }
 
-    // ✅ Only block if THIS USER has already joined THIS ROOM
     if (hasJoinedRef.current && joinedRoomRef.current === roomUrl) {
       console.log('⚠️ [EventVideoStage] This user already joined this room');
       return;
     }
 
-    // ✅ Allow multiple participants - check if THIS device is already connected
-    // Uses session_id (always present when connected) rather than user_name (could be falsy)
     const meetingState = daily.meetingState();
     if (meetingState === 'joined-meeting') {
       const participants = daily.participants();
@@ -88,7 +85,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         setJoining(true);
         setError(null);
 
-        // ✅ Only log wallet address in development for security
         if (process.env.NODE_ENV === 'development') {
           console.log('🎥 [EventVideoStage] Joining call...', {
             roomUrl,
@@ -102,7 +98,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           });
         }
 
-        // ✅ Add timeout with proper cleanup
         let timeoutId: NodeJS.Timeout | undefined;
         const joinPromise = daily.join({
           url: roomUrl,
@@ -130,7 +125,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           return;
         }
 
-        // ✅ Only set joined flags AFTER successful join (not before)
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
 
@@ -205,16 +199,16 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-100">
+      <div className="h-full flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <p className="font-georgia-pro text-red-500 mb-4">❌ {error}</p>
+          <p className="font-georgia-pro text-red-400 mb-4">❌ {error}</p>
           <button
             onClick={() => {
               setError(null);
               hasJoinedRef.current = false;
               joinedRoomRef.current = null;
             }}
-            className="px-4 py-2 bg-black text-white rounded-full font-georgia-pro hover:bg-gray-800 transition"
+            className="px-4 py-2 bg-white text-black rounded-full font-georgia-pro hover:bg-gray-200 transition"
           >
             Retry
           </button>
@@ -225,10 +219,10 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   if (joining) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-100">
+      <div className="h-full flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="font-georgia-pro text-gray-600">Joining video call...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="font-georgia-pro text-gray-300">Joining video call...</p>
         </div>
       </div>
     );
@@ -252,6 +246,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   });
 
   const guestSessionIds = participantIds.filter(id => id !== hostSessionId);
+  const hasGuests = guestSessionIds.length > 0;
 
   console.log('🎬 [EventVideoStage] Identified participants:', {
     total: participantIds.length,
@@ -262,84 +257,40 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   });
 
   return (
-    <div className="h-full flex flex-col bg-gray-100">
-      <div className="flex-1 p-4">
-        {/* DESKTOP: Host left, Guests right */}
-        <div className="hidden lg:grid lg:grid-cols-2 gap-4 h-full">
-          <div className="h-full">
-            {hostSessionId ? (
-              <DailyVideoTile
-                sessionId={hostSessionId}
-                label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
-                isLocal={hostSessionId === localSessionId}
-              />
-            ) : (
-              <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
-              </div>
-            )}
-          </div>
-
-          {/* Guests - scrollable column */}
-          <div className="space-y-2 overflow-y-auto h-full">
-            {guestSessionIds.length > 0 ? (
-              guestSessionIds.map((guestId, index) => {
-                const participant = daily?.participants()[guestId];
-                // Default to 'viewer' role if userData not available yet (most conservative assumption)
-                const participantRole = participant?.userData?.role || 'viewer';
-
-                // Calculate guest number by counting actual guests before this one, then add 1 for current
-                // Note: This is O(n²) but acceptable since typical events have <10 participants
-                const guestsBeforeThis = guestSessionIds
-                  .slice(0, index)
-                  .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
-                  .length;
-                const guestNumber = guestsBeforeThis + 1;
-
-                return (
-                  <div key={guestId} className="min-h-[200px]">
-                    {/* Desktop: min-height allows tiles to grow in scrollable column */}
-                    <DailyVideoTile
-                      sessionId={guestId}
-                      label={
-                        guestId === localSessionId
-                          ? "You"
-                          : participantRole === 'guest'
-                            ? `Guest ${guestNumber}`
-                            : "Viewer"
-                      }
-                      isLocal={guestId === localSessionId}
-                    />
-                  </div>
-                );
-              })
-            ) : (
-              <div className="h-full bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="font-georgia-pro text-gray-400">Waiting for guests...</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MOBILE: Stacked, compact tiles with padding to prevent edge-touching */}
-        <div className="lg:hidden space-y-2 h-full overflow-y-auto p-2">
-          {hostSessionId && (
-            <div className="h-[120px]">
+    <div className="relative h-full bg-gray-900">
+      {/* Video tiles fill the entire stage area */}
+      <div className="h-full p-2">
+        {/*
+          Layout logic:
+          - 1 participant (solo): flex → single tile fills 100%
+          - 2 participants: 1 col mobile, 2 col desktop → 50/50 split
+          - 3+: wrapping 2-col grid
+        */}
+        <div className={`h-full gap-2 ${
+          !hasGuests
+            ? 'flex'
+            : 'grid grid-cols-1 md:grid-cols-2'
+        }`}>
+          {/* Host tile */}
+          {hostSessionId ? (
+            <div className={hasGuests ? 'min-h-[120px]' : 'h-full'}>
               <DailyVideoTile
                 sessionId={hostSessionId}
                 label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
                 isLocal={hostSessionId === localSessionId}
               />
             </div>
+          ) : (
+            <div className={`${hasGuests ? 'min-h-[120px]' : 'h-full'} bg-gray-800 rounded-lg flex items-center justify-center`}>
+              <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
+            </div>
           )}
 
-          {guestSessionIds.map((guestId, index) => {
+          {/* Guest / viewer tiles — only render when guests actually exist */}
+          {hasGuests && guestSessionIds.map((guestId, index) => {
             const participant = daily?.participants()[guestId];
-            // Default to 'viewer' role if userData not available yet (most conservative assumption)
             const participantRole = participant?.userData?.role || 'viewer';
 
-            // Calculate guest number by counting actual guests before this one, then add 1 for current
-            // Note: This is O(n²) but acceptable since typical events have <10 participants
             const guestsBeforeThis = guestSessionIds
               .slice(0, index)
               .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
@@ -347,8 +298,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             const guestNumber = guestsBeforeThis + 1;
 
             return (
-              <div key={guestId} className="h-[120px]">
-                {/* Mobile: fixed compact height to fit more tiles on small screens */}
+              <div key={guestId} className="min-h-[120px]">
                 <DailyVideoTile
                   sessionId={guestId}
                   label={
@@ -366,15 +316,15 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         </div>
       </div>
 
-      {/* Bottom controls bar */}
-      <div className="p-4 bg-white border-t border-gray-200">
+      {/* ✅ OVERLAY: Controls bar pinned to bottom of video section */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="font-georgia-pro text-sm font-semibold text-red-600">LIVE</span>
+              <span className="font-georgia-pro text-sm font-semibold text-red-400">LIVE</span>
             </div>
-            <span className="font-georgia-pro text-sm text-gray-600">
+            <span className="font-georgia-pro text-sm text-gray-300">
               {participantIds.length} participant{participantIds.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -383,7 +333,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             {isHost && (
               <button
                 onClick={handleEndEvent}
-                className="px-6 py-2 bg-red-600 text-white rounded-full font-georgia-pro hover:bg-red-700 transition"
+                className="px-5 py-1.5 bg-red-600 text-white rounded-full text-sm font-georgia-pro hover:bg-red-700 transition"
               >
                 End Event
               </button>
@@ -391,12 +341,11 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             {isGuest && (
               <button
                 onClick={handleLeaveCall}
-                className="px-6 py-2 bg-gray-600 text-white rounded-full font-georgia-pro hover:bg-gray-700 transition"
+                className="px-5 py-1.5 bg-gray-600 text-white rounded-full text-sm font-georgia-pro hover:bg-gray-700 transition"
               >
                 Leave Call
               </button>
             )}
-            {/* Viewers (audience) see no controls - passive watching */}
           </div>
         </div>
       </div>
