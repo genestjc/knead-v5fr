@@ -6,6 +6,7 @@ import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { MessageEarnings } from './MessageEarnings';
 import { toast } from 'sonner';
 
 interface ChatMessage {
@@ -263,11 +264,12 @@ export function MessageBubble({
             </div>
 
             {/* Timestamp */}
-            <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
+            <div className={`flex items-center gap-2 text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
               <span className="font-georgia-pro">
                 {!isOwn && `${message.sender.name} • `}
                 {formatTime(message.timestamp)}
               </span>
+              <MessageEarnings messageId={message.id} />
             </div>
 
             {/* ✅ Bread Tip Button - Only for non-contributors */}

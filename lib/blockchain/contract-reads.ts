@@ -107,6 +107,32 @@ export async function getContributorStats(contributorAddress: string): Promise<{
 }
 
 /**
+ * Get total earnings for a specific message
+ */
+export async function getMessageEarnings(messageId: string): Promise<number> {
+  try {
+    const rewardsContract = getRewardsContract();
+
+    // Convert messageId to bytes32
+    const messageIdBytes32 = messageId.startsWith('0x') && messageId.length === 66
+      ? messageId as `0x${string}`
+      : `0x${messageId.padStart(64, '0')}` as `0x${string}`;
+
+    const result = await readContract({
+      contract: rewardsContract,
+      method: 'function getMessageEarnings(bytes32 _messageId) view returns (uint256)',
+      params: [messageIdBytes32],
+    });
+
+    // Convert from wei to TOWNS
+    return Number(result) / 1e18;
+  } catch (error) {
+    console.error('Error reading message earnings:', error);
+    return 0;
+  }
+}
+
+/**
  * Get contract constants (graduation threshold)
  */
 export async function getContractConstants(): Promise<{

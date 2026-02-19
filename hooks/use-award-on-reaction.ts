@@ -147,6 +147,11 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       toast.success(`Tipped ${amount} $TOWNS! ${reaction} (You get 20% cashback)`);
 
+      // Notify earnings counters to refresh for this message
+      window.dispatchEvent(new CustomEvent('message-tipped', {
+        detail: { messageId }
+      }));
+
     } catch (error: any) {
       // This only catches BLOCKCHAIN errors now
       console.error('❌ [BLOCKCHAIN] Error awarding tokens:', error);
