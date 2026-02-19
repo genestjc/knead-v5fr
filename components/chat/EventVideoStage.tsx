@@ -260,12 +260,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     <div className="relative h-full bg-gray-900">
       {/* Video tiles fill the entire stage area */}
       <div className="h-full p-2">
-        {/*
-          Layout logic:
-          - 1 participant (solo): flex → single tile fills 100%
-          - 2 participants: 1 col mobile, 2 col desktop → 50/50 split
-          - 3+: wrapping 2-col grid
-        */}
         <div className={`h-full gap-2 ${
           !hasGuests
             ? 'flex'
@@ -273,7 +267,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         }`}>
           {/* Host tile */}
           {hostSessionId ? (
-            <div className={hasGuests ? 'min-h-[120px]' : 'h-full'}>
+            <div className="h-full min-h-[120px]">
               <DailyVideoTile
                 sessionId={hostSessionId}
                 label={hostSessionId === localSessionId ? "You (Host)" : "Host"}
@@ -281,7 +275,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               />
             </div>
           ) : (
-            <div className={`${hasGuests ? 'min-h-[120px]' : 'h-full'} bg-gray-800 rounded-lg flex items-center justify-center`}>
+            <div className="h-full min-h-[120px] bg-gray-800 rounded-lg flex items-center justify-center">
               <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
             </div>
           )}
@@ -298,7 +292,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             const guestNumber = guestsBeforeThis + 1;
 
             return (
-              <div key={guestId} className="min-h-[120px]">
+              <div key={guestId} className="h-full min-h-[120px]">
                 <DailyVideoTile
                   sessionId={guestId}
                   label={
