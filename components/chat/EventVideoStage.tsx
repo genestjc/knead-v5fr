@@ -228,7 +228,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  // ✅ Find the host's session by matching wallet address
+  // ✅ Find the host's session — check all address sources, full + partial match
+  const hostAddress = event.host?.address?.toLowerCase() || '';
+
   const hostSessionId = participantIds.find(id => {
     if (id === localSessionId && isHost) return true;
 
@@ -241,9 +243,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       ''
     ).toLowerCase();
 
-    const hostAddress = event.host?.address?.toLowerCase() || '';
+    if (!participantAddress) return false;
 
-    return participantAddress.includes(hostAddress.slice(2, 10));
+    if (participantAddress === hostAddress) return true;
+    if (hostAddress && participantAddress.includes(hostAddress.slice(2, 10))) return true;
+    if (hostAddress && hostAddress.includes(participantAddress.slice(2, 10))) return true;
+
+    return false;
   });
 
   // ✅ Only show tiles for INVITED GUESTS from the admin panel
@@ -253,23 +259,27 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   );
 
   const guestSessionIds = participantIds.filter(id => {
-    // Exclude the host — they have their own tile
     if (id === hostSessionId) return false;
 
     const participant = daily?.participants()[id];
     if (!participant) return false;
 
-    // Match this participant's wallet against the invited guest list
+    // Check ALL possible sources for the wallet address
     const participantAddress = (
-      participant.userData?.address || ''
+      participant.userData?.address ||
+      participant.user_name ||
+      ''
     ).toLowerCase();
 
-    // Skip if no address available (can't verify they're an invited guest)
     if (!participantAddress) return false;
 
-    return invitedGuestAddresses.some(
-      (guestAddr: string) => participantAddress.includes(guestAddr.slice(2, 10))
-    );
+    // Check if this person's wallet is in the invited guest list
+    return invitedGuestAddresses.some((guestAddr: string) => {
+      if (participantAddress === guestAddr) return true;
+      if (participantAddress.includes(guestAddr.slice(2, 10))) return true;
+      if (guestAddr.includes(participantAddress.slice(2, 10))) return true;
+      return false;
+    });
   });
 
   const hasGuests = guestSessionIds.length > 0;
@@ -277,22 +287,27 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   console.log('🎬 [EventVideoStage] Participants:', {
     totalInRoom: participantIds.length,
     hostSessionId,
+    hostAddress,
     invitedGuestTiles: guestSessionIds.length,
-    invitedGuestAddresses: invitedGuestAddresses.length,
+    invitedGuestAddresses,
     viewersWatching: participantIds.length - (hostSessionId ? 1 : 0) - guestSessionIds.length,
     localSessionId,
     isHost,
+    // Debug: show what address each person in the room has
+    roomMembers: participantIds.map(id => {
+      const p = daily?.participants()[id];
+      return {
+        sessionId: id,
+        userData: p?.userData?.address || 'none',
+        userName: p?.user_name || 'none',
+      };
+    }),
   });
 
   return (
     <div className="relative h-full bg-gray-900">
       {/* Video tiles — only host + invited guests */}
       <div className="h-full p-2">
-        {/*
-          Layout logic:
-          - Host alone (no invited guests joined yet): flex → 100% fill
-          - Host + guests: responsive grid — stacked mobile, side-by-side desktop
-        */}
         <div className={`h-full gap-2 ${
           !hasGuests
             ? 'flex'
