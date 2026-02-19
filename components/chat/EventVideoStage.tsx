@@ -228,6 +228,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
+  // ✅ Find the host's session by matching wallet address
   const hostSessionId = participantIds.find(id => {
     if (id === localSessionId && isHost) return true;
 
@@ -245,21 +246,53 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     return participantAddress.includes(hostAddress.slice(2, 10));
   });
 
-  const guestSessionIds = participantIds.filter(id => id !== hostSessionId);
+  // ✅ Only show tiles for INVITED GUESTS from the admin panel
+  // Viewers join the Daily room to watch/listen, but do NOT get a video tile
+  const invitedGuestAddresses = (event.guestAddresses || []).map(
+    (addr: string) => addr.toLowerCase()
+  );
+
+  const guestSessionIds = participantIds.filter(id => {
+    // Exclude the host — they have their own tile
+    if (id === hostSessionId) return false;
+
+    const participant = daily?.participants()[id];
+    if (!participant) return false;
+
+    // Match this participant's wallet against the invited guest list
+    const participantAddress = (
+      participant.userData?.address || ''
+    ).toLowerCase();
+
+    // Skip if no address available (can't verify they're an invited guest)
+    if (!participantAddress) return false;
+
+    return invitedGuestAddresses.some(
+      (guestAddr: string) => participantAddress.includes(guestAddr.slice(2, 10))
+    );
+  });
+
   const hasGuests = guestSessionIds.length > 0;
 
-  console.log('🎬 [EventVideoStage] Identified participants:', {
-    total: participantIds.length,
+  console.log('🎬 [EventVideoStage] Participants:', {
+    totalInRoom: participantIds.length,
     hostSessionId,
-    guestCount: guestSessionIds.length,
+    invitedGuestTiles: guestSessionIds.length,
+    invitedGuestAddresses: invitedGuestAddresses.length,
+    viewersWatching: participantIds.length - (hostSessionId ? 1 : 0) - guestSessionIds.length,
     localSessionId,
     isHost,
   });
 
   return (
     <div className="relative h-full bg-gray-900">
-      {/* Video tiles fill the entire stage area */}
+      {/* Video tiles — only host + invited guests */}
       <div className="h-full p-2">
+        {/*
+          Layout logic:
+          - Host alone (no invited guests joined yet): flex → 100% fill
+          - Host + guests: responsive grid — stacked mobile, side-by-side desktop
+        */}
         <div className={`h-full gap-2 ${
           !hasGuests
             ? 'flex'
@@ -280,33 +313,20 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             </div>
           )}
 
-          {/* Guest / viewer tiles — only render when guests actually exist */}
-          {hasGuests && guestSessionIds.map((guestId, index) => {
-            const participant = daily?.participants()[guestId];
-            const participantRole = participant?.userData?.role || 'viewer';
-
-            const guestsBeforeThis = guestSessionIds
-              .slice(0, index)
-              .filter(id => daily?.participants()[id]?.userData?.role === 'guest')
-              .length;
-            const guestNumber = guestsBeforeThis + 1;
-
-            return (
-              <div key={guestId} className="h-full min-h-[120px]">
-                <DailyVideoTile
-                  sessionId={guestId}
-                  label={
-                    guestId === localSessionId
-                      ? "You"
-                      : participantRole === 'guest'
-                        ? `Guest ${guestNumber}`
-                        : "Viewer"
-                  }
-                  isLocal={guestId === localSessionId}
-                />
-              </div>
-            );
-          })}
+          {/* Invited guest tiles — only wallets from event.guestAddresses */}
+          {hasGuests && guestSessionIds.map((guestId, index) => (
+            <div key={guestId} className="h-full min-h-[120px]">
+              <DailyVideoTile
+                sessionId={guestId}
+                label={
+                  guestId === localSessionId
+                    ? "You (Guest)"
+                    : `Guest ${index + 1}`
+                }
+                isLocal={guestId === localSessionId}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -319,7 +339,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               <span className="font-georgia-pro text-sm font-semibold text-red-400">LIVE</span>
             </div>
             <span className="font-georgia-pro text-sm text-gray-300">
-              {participantIds.length} participant{participantIds.length !== 1 ? 's' : ''}
+              {participantIds.length} watching
             </span>
           </div>
 
