@@ -32,8 +32,6 @@ function DailyVideoTile({ sessionId, label, isLocal }: DailyVideoTileProps) {
   );
 }
 
-// ✅ Helper component that uses Daily's reactive hook to read participant data
-// This re-renders automatically when the participant's data changes
 function ParticipantTile({
   sessionId,
   localSessionId,
@@ -60,14 +58,12 @@ function ParticipantTile({
 
   const isLocal = sessionId === localSessionId;
 
-  // Determine if this is the host
   const isHostTile = participantAddress && hostAddress && (
     participantAddress === hostAddress ||
     (hostAddress.length > 10 && participantAddress.includes(hostAddress.slice(2, 10))) ||
     (participantAddress.length > 10 && hostAddress.includes(participantAddress.slice(2, 10)))
   );
 
-  // Determine if this is an invited guest
   const isGuestTile = !isHostTile && participantAddress && invitedGuestAddresses.some((guestAddr) => {
     if (participantAddress === guestAddr) return true;
     if (guestAddr.length > 10 && participantAddress.includes(guestAddr.slice(2, 10))) return true;
@@ -75,7 +71,6 @@ function ParticipantTile({
     return false;
   });
 
-  // Build label
   let label = 'Viewer';
   if (isHostTile) {
     label = isLocal ? 'You (Host)' : 'Host';
@@ -99,7 +94,7 @@ interface EventVideoStageProps {
   token: string;
 }
 
-const JOIN_TIMEOUT_MS = 10000;
+const JOIN_TIMEOUT_MS = 15000;
 
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
   const daily = useDaily();
@@ -122,8 +117,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     [event.guestAddresses]
   );
 
-  // ✅ Use Daily's built-in filtering: only get IDs whose user_name (wallet) matches
-  // host or invited guests. This is reactive and updates automatically.
   const allParticipantIds = useParticipantIds();
 
   const hostFilter = useCallback(
@@ -142,13 +135,11 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     (p: any) => {
       const addr = (p.userData?.address || p.user_name || '').toLowerCase();
       if (!addr) return false;
-      // Exclude the host
       if (hostAddress && (
         addr === hostAddress ||
         (hostAddress.length > 10 && addr.includes(hostAddress.slice(2, 10))) ||
         (addr.length > 10 && hostAddress.includes(addr.slice(2, 10)))
       )) return false;
-      // Check invited list
       return invitedGuestAddresses.some((guestAddr: string) => {
         if (addr === guestAddr) return true;
         if (guestAddr.length > 10 && addr.includes(guestAddr.slice(2, 10))) return true;
@@ -159,11 +150,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     [hostAddress, invitedGuestAddresses]
   );
 
-  // ✅ Also match local user by role (handles case where userData isn't populated yet)
   const hostSessionIds = useParticipantIds({ filter: hostFilter });
   const guestSessionIds = useParticipantIds({ filter: guestFilter });
 
-  // Fallback: if local user is host but address matching hasn't caught them yet
   const effectiveHostId = hostSessionIds[0] || (isHost && localSessionId ? localSessionId : undefined);
   const effectiveGuestIds = guestSessionIds.length > 0
     ? guestSessionIds
@@ -219,28 +208,43 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         setJoining(true);
         setError(null);
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🎥 [EventVideoStage] Joining call...', {
-            roomUrl,
-            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
-            address: currentUserAddress.slice(0, 10),
-          });
-        } else {
-          console.log('🎥 [EventVideoStage] Joining call...', {
-            roomUrl,
-            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
-          });
+        const role = isHost ? 'host' : isGuest ? 'guest' : 'viewer';
+        console.log('🎥 [EventVideoStage] Joining call...', { roomUrl, role });
+
+        // ✅ STEP 1: startCamera() — triggers browser permission prompt for camera/mic
+        // This MUST be called before join() so the browser grants access
+        if (!isViewer) {
+          console.log('📷 [EventVideoStage] Requesting camera/mic permissions...');
+          try {
+            await daily.startCamera({
+              url: roomUrl,
+              token: token,
+              userName: currentUserAddress,
+              userData: {
+                role,
+                address: currentUserAddress,
+              },
+            });
+            console.log('✅ [EventVideoStage] Camera/mic permissions granted');
+          } catch (camError: any) {
+            console.warn('⚠️ [EventVideoStage] Camera/mic request failed:', camError.message);
+            // Continue anyway — they can still join without camera/mic
+          }
         }
 
+        // ✅ STEP 2: join() — connect to the Daily room
         let timeoutId: NodeJS.Timeout | undefined;
         const joinPromise = daily.join({
           url: roomUrl,
           token: token,
           userName: currentUserAddress,
           userData: {
-            role: isHost ? 'host' : isGuest ? 'guest' : 'viewer',
+            role,
             address: currentUserAddress,
           },
+          // Explicitly request media tracks for host/guest
+          startVideoOff: isViewer,
+          startAudioOff: isViewer,
         });
 
         const timeoutPromise = new Promise((_, reject) => {
@@ -261,6 +265,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
+
+        // ✅ STEP 3: Ensure camera/mic are ON for host/guest after joining
+        if (!isViewer) {
+          try {
+            await daily.setLocalAudio(true);
+            await daily.setLocalVideo(true);
+            console.log('✅ [EventVideoStage] Audio and video enabled');
+          } catch (mediaError: any) {
+            console.warn('⚠️ [EventVideoStage] Could not enable media:', mediaError.message);
+          }
+        }
 
         console.log('✅ [EventVideoStage] Joined call successfully');
       } catch (err: any) {
@@ -365,7 +380,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   return (
     <div className="relative h-full bg-gray-900">
       {/* ✅ DailyAudio: renders hidden <audio> elements for all remote participants */}
-      {/* Without this, you see video but hear NOTHING */}
       <DailyAudio />
 
       {/* Video tiles — only host + invited guests */}
@@ -394,7 +408,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             </div>
           )}
 
-          {/* Invited guest tiles — only wallets from event.guestAddresses */}
+          {/* Invited guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
             <div key={guestId} className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
@@ -409,7 +423,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         </div>
       </div>
 
-      {/* ✅ OVERLAY: Controls bar pinned to bottom of video section */}
+      {/* ✅ OVERLAY: Controls bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
