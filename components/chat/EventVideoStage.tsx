@@ -7,6 +7,7 @@ import {
   useLocalSessionId,
   useParticipantProperty,
   DailyVideo,
+  DailyAudio,
 } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
@@ -363,6 +364,10 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   return (
     <div className="relative h-full bg-gray-900">
+      {/* ✅ DailyAudio: renders hidden <audio> elements for all remote participants */}
+      {/* Without this, you see video but hear NOTHING */}
+      <DailyAudio />
+
       {/* Video tiles — only host + invited guests */}
       <div className="h-full p-2">
         <div className={`h-full gap-2 ${
