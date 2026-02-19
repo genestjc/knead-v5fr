@@ -368,11 +368,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         <div className={`h-full gap-2 ${
           !hasGuests
             ? 'flex'
-            : 'grid grid-cols-1 md:grid-cols-2'
+            : hasGuests && effectiveGuestIds.length === 1
+              ? 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1'
+              : 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr'
         }`}>
           {/* Host tile */}
           {effectiveHostId ? (
-            <div className="h-full min-h-[120px]">
+            <div className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
                 sessionId={effectiveHostId}
                 localSessionId={localSessionId}
@@ -382,14 +384,14 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               />
             </div>
           ) : (
-            <div className="h-full min-h-[120px] bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
               <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
             </div>
           )}
 
           {/* Invited guest tiles — only wallets from event.guestAddresses */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
-            <div key={guestId} className="h-full min-h-[120px]">
+            <div key={guestId} className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
                 sessionId={guestId}
                 localSessionId={localSessionId}
