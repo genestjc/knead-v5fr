@@ -7,11 +7,11 @@ import {
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
-import { verifyVipToken } from "@/lib/verify-vip-token";
 import { createClient } from "@supabase/supabase-js";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
+const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase() || '';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,23 +20,15 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const { user_address, email, adminAddress } = await req.json();
+
+    // ✅ Verify admin authentication
+    if (!adminAddress || adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS) {
       return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
+        { error: "Unauthorized: Admin access required" },
         { status: 401 },
       );
     }
-
-    const token = authHeader.substring(7);
-    if (!verifyVipToken(token)) {
-      return NextResponse.json(
-        { error: "Invalid or expired VIP access token" },
-        { status: 401 },
-      );
-    }
-
-    const { user_address, email } = await req.json();
 
     if (!user_address) {
       return NextResponse.json(
@@ -59,6 +51,7 @@ export async function POST(req: NextRequest) {
       abi: kneadMembershipABI,
     });
 
+    // Check if user already has premium membership
     const balance = await balanceOf({
       contract,
       owner: user_address,
@@ -73,6 +66,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Prepare mint transaction
     const transaction = prepareContractCall({
       contract,
       method: "function mint(address to, uint256 id, uint256 amount)",
@@ -80,6 +74,7 @@ export async function POST(req: NextRequest) {
       gasLimit: 300000n,
     });
 
+    // Execute transaction via Engine
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
@@ -89,6 +84,7 @@ export async function POST(req: NextRequest) {
       transactionId,
     });
 
+    // Update Supabase if email provided
     if (email) {
       await supabase.from("users").upsert(
         {
