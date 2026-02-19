@@ -51,21 +51,36 @@ export async function POST(req: NextRequest) {
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
     // ✅ STEP 4: Build token payload
-    // For viewers: camera/mic off by default, no screenshare, not owner
-    // For guests/hosts: normal permissions
-    const tokenPayload = {
+    // Host: full owner permissions (camera, mic, screenshare)
+    // Invited guest: camera + mic, no screenshare, not owner
+    // Viewer: receive-only — can watch/listen but CANNOT broadcast
+    const tokenPayload: any = {
       properties: {
         room_name: roomName,
-        user_name: walletAddress.slice(0, 8),
-        is_owner: isViewer ? false : (isHost || false),
-        enable_screenshare: isViewer ? false : (isHost || false),
+        user_name: walletAddress,
+        is_owner: isHost || false,
+        enable_screenshare: isHost || false,
         start_video_off: isViewer ? true : false,
         start_audio_off: isViewer ? true : false,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
       },
     };
 
-    console.log('🎫 [generate-token] Calling Daily.co with payload:', tokenPayload);
+    // ✅ Lock down viewers at the token level — they physically cannot broadcast
+    if (isViewer) {
+      tokenPayload.properties.permissions = {
+        canSend: false,          // cannot send video, audio, or screenshare
+        hasPresence: true,       // still counts in participant list
+      };
+    }
+
+    console.log('🎫 [generate-token] Calling Daily.co with payload:', {
+      ...tokenPayload,
+      properties: {
+        ...tokenPayload.properties,
+        user_name: tokenPayload.properties.user_name.substring(0, 8) + '...',
+      },
+    });
 
     // ✅ STEP 5: Call Daily.co API
     let dailyResponse;
@@ -112,7 +127,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ STEP 7: Return token
-    console.log('✅ [generate-token] Token generated successfully');
+    console.log('✅ [generate-token] Token generated successfully for', isHost ? 'HOST' : isViewer ? 'VIEWER (receive-only)' : 'GUEST');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     return NextResponse.json({
