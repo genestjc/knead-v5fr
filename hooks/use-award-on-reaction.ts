@@ -17,8 +17,7 @@ interface UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number,
-    reaction?: string,
-    eventId?: number
+    reaction?: string
   ) => Promise<void>;
   isReacting: boolean;
 }
@@ -38,8 +37,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
     messageId: string,
     recipientAddress: string,
     amount: number = 10,
-    reaction: string = '❤️',
-    eventId?: number
+    reaction: string = '❤️'
   ): Promise<void> {
     // ✅ VALIDATION: Check all required parameters
     console.log('🎯 awardTokensOnLike called with:', {
@@ -47,7 +45,6 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       recipientAddress,
       amount,
       reaction,
-      eventId: eventId !== undefined ? eventId : 'none',
       activeAccount: activeAccount?.address,
     });
 
@@ -86,19 +83,19 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
     try {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // STEP 1 (CRITICAL): Award $TOWNS tokens via blockchain
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━━
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━
       console.log('💰 [BLOCKCHAIN] Awarding $TOWNS tokens via Engine...');
       console.log('   From (contributor):', activeAccount.address);
       console.log('   To (participant):', recipientAddress);
       console.log('   Amount:', amount);
-      console.log('   Event ID:', eventId !== undefined ? eventId : 'general');
+      console.log('   Message ID (Towns eventId):', messageId);
       
       const requestBody = {
         contributorAddress: activeAccount.address,
         participantAddress: recipientAddress,
         amount: amount.toString(),
         actionType: 'message_like',
-        eventId: eventId,
+        messageId: messageId, // Towns Protocol message ID (their eventId)
       };
 
       console.log('📤 [BLOCKCHAIN] Request body:', requestBody);
@@ -121,14 +118,14 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
 
       console.log('✅ [BLOCKCHAIN] Tokens awarded successfully:', data.transactionHash);
 
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // STEP 2 (OPTIONAL): Send reaction to River Protocol
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // This is NOT critical - if it fails, the blockchain transaction
       // already succeeded, so we still show success to the user.
       try {
         console.log('📨 [RIVER] Sending reaction to Towns Protocol...');
-        await sendReaction(messageId, reaction);  // ✅ Use positional args
+        await sendReaction(messageId, reaction);
         console.log('✅ [RIVER] Reaction sent successfully');
       } catch (riverError: any) {
         // River failed, but blockchain succeeded - that's OK!
@@ -148,11 +145,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // SHOW SUCCESS (based on blockchain, not River)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      const awardTypeMessage = eventId !== undefined 
-        ? `Event bonus of ${amount} $TOWNS awarded! ${reaction}`
-        : `Tipped ${amount} $TOWNS! ${reaction} (25% goes to contributor pool)`;
-      
-      toast.success(awardTypeMessage);
+      toast.success(`Tipped ${amount} $TOWNS! ${reaction} (You get 20% cashback)`);
 
     } catch (error: any) {
       // This only catches BLOCKCHAIN errors now
@@ -166,7 +159,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       } else if (error.message?.includes('Exceeds weekly budget')) {
         toast.error('You have exceeded your weekly token budget');
       } else if (error.message?.includes('Cooldown')) {
-        toast.error('Please wait before tipping this user again (2 hour cooldown)');
+        toast.error('Please wait before tipping this user again (cooldown active)');
       } else if (error.message?.includes('Participant not registered')) {
         toast.error('Recipient not registered (auto-registration failed)');
       } else {
