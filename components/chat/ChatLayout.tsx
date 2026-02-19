@@ -161,7 +161,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
             {/* Treasury Balance */}
             <a
-              href="https://basescan.org/address/0xde1338f826055a6311d3bbef292dcb92dfe03cde"
+              href="https://basescan.org/address/0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
