@@ -11,7 +11,7 @@ import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
-import { getContributorStats, getParticipantStats, getContractConstants } from "@/lib/blockchain/award-rewards-engine";
+import { getContributorStats, getParticipantStats, getContractConstants } from "@/lib/blockchain/contract-reads";
 
 interface WalletSummaryProps {
   context?: "default" | "chat";
