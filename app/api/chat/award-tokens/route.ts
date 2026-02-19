@@ -14,12 +14,12 @@ export const dynamic = 'force-dynamic';
  * This endpoint:
  * 1. Verifies contributor has NFT permission
  * 2. Auto-registers participant if needed
- * 3. Awards tokens via Engine wallet
+ * 3. Awards tokens via Engine wallet (80/20 split)
  * 4. Returns transaction hash
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contributorAddress, participantAddress, amount, actionType, eventId } = await req.json();
+    const { contributorAddress, participantAddress, amount, actionType, messageId } = await req.json();
 
     // Validate inputs
     if (!contributorAddress || !participantAddress || !amount) {
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
     // 2. Check if participant is registered
     const isRegistered = await isParticipantRegistered(participantAddress);
     
-    // If not registered, register them first
+    // If not registered, register them first (auto-registration on first tip)
     if (!isRegistered) {
-      console.log('🔄 Participant not registered, registering now:', participantAddress);
+      console.log('🔄 Participant not registered, auto-registering:', participantAddress);
       
       try {
         await registerParticipant(participantAddress);
@@ -67,28 +67,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Award tokens via Engine wallet (no user signature required)
-    // Pass eventId if provided for event-specific bonuses
+    // 3. Award tokens via Engine wallet (80/20 split)
+    // messageId is the Towns Protocol message ID (eventId in Towns SDK)
     const result = await awardTownsViaEngine(
+      contributorAddress,
       participantAddress,
       amountNum,
-      actionType || 'message_like',
-      eventId
+      messageId || 'no-message-id',
+      actionType || 'message_like'
     );
-
-    const awardType = eventId !== undefined ? 'event bonus' : 'general tip';
-    const message = eventId !== undefined 
-      ? `Event bonus awarded successfully! (Event #${eventId})`
-      : 'Tokens awarded successfully! 25% contributed to the weekly pool for all contributors.';
 
     return NextResponse.json({
       success: true,
       transactionHash: result.transactionHash,
       amount: amountNum,
-      awardType,
-      eventId: eventId !== undefined ? eventId : null,
+      contributorCashback: amountNum * 0.2, // 20% cashback
+      participantReceived: amountNum * 0.8, // 80% to participant
+      messageId: messageId || null,
       wasAutoRegistered: !isRegistered,
-      message,
+      message: 'Tokens awarded successfully! Contributor receives 20% cashback.',
     });
 
   } catch (error: any) {
