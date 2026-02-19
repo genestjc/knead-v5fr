@@ -48,6 +48,7 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
         },
         body: JSON.stringify({
           user_address: recipientAddress,
+          adminAddress: adminAddress, // ✅ Send admin address for verification
         }),
       });
 
