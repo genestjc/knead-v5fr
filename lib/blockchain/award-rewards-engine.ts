@@ -119,16 +119,31 @@ export async function awardTownsViaEngine(
 /**
  * Get the contract's $TOWNS balance
  * 
+ * Queries the $TOWNS token contract to get the actual ERC20 balance
+ * held by the rewards contract address.
+ * 
  * @returns Contract balance in $TOWNS tokens
  */
 export async function getContractBalance(): Promise<number> {
   try {
-    const rewardsContract = getRewardsContract();
+    const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
     
+    if (!rewardsContractAddress || !townsContractAddress) {
+      throw new Error('Contract addresses not configured');
+    }
+
+    // Query the $TOWNS token contract for the rewards contract's balance
+    const townsContract = getContract({
+      client,
+      address: townsContractAddress,
+      chain: base,
+    });
+
     const balance = await readContract({
-      contract: rewardsContract,
-      method: 'function getContractBalance() view returns (uint256)',
-      params: [],
+      contract: townsContract,
+      method: 'function balanceOf(address account) view returns (uint256)',
+      params: [rewardsContractAddress],
     });
     
     // Convert from wei to $TOWNS
@@ -154,6 +169,7 @@ export async function getParticipantStats(participantAddress: string): Promise<{
   cohort: number;
   graduated: boolean;
   claimable: number;
+  availableToClaim: number;
 }> {
   try {
     const rewardsContract = getRewardsContract();
@@ -171,6 +187,7 @@ export async function getParticipantStats(participantAddress: string): Promise<{
       cohort: Number(stats[3]),
       graduated: Boolean(stats[4]),
       claimable: Number(stats[5]) / 1e18,
+      availableToClaim: Number(stats[5]) / 1e18, // Alias for backward compatibility
     };
   } catch (error) {
     console.error('Error fetching participant stats:', error);
