@@ -17,10 +17,9 @@ const nextConfig = {
   ],
 
   // ✅ ADD THIS (uses public Base RPC):
-  env: {
-  // Let Towns SDK use Base's public RPC for read operations
-  BASE_MAINNET_RPC_URL: 'https://mainnet.base.org',
-  },
+env: {
+  BASE_MAINNET_RPC_URL: 'https://8453.rpc.thirdweb.com', // Thirdweb's Base RPC
+},
   
   // ✅ WEBPACK CONFIG FOR .mjs FILES
   webpack: (config, { isServer }) => {
