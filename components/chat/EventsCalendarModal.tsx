@@ -116,7 +116,7 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                 <div className="text-center py-12">
                   <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <p className="font-georgia-pro text-gray-500">No events scheduled at the moment</p>
-                  <p className="font-georgia-pro text-sm text-gray-400 mt-2">Check back soon for upcoming events!</p>
+                  <p className="font-georgia-pro text-sm text-gray-400 mt-2">Check back soon.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
