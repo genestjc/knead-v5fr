@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen } from 'lucide-react';
+import { X, BookOpen, Instagram, Twitter } from 'lucide-react';
 import { FAQDropdown } from '@/components/faq-dropdown';
 
 interface AboutFAQModalProps {
@@ -49,46 +49,63 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
             <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
               {/* About Section */}
               <section className="mb-8">
-                <h3 className="text-2xl font-adonis mb-4">About Knead Chat</h3>
+                <h3 className="text-2xl font-adonis mb-4">About</h3>
                 <div className="space-y-4 font-georgia-pro text-gray-700 leading-relaxed">
                   <p>
-                    Welcome to Knead's community chat – a space where creative minds connect, 
-                    share ideas, and build relationships around art, music, food, tech, and culture.
+                    Welcome to our chat– a space to share ideas, stories, random musings, and 
+                    connect with like-minded creatives across an array of disciplines.
                   </p>
                   <p>
-                    Our chat is powered by blockchain technology and $TOWNS tokens, creating 
-                    a community where engagement is rewarded and quality contributions are valued.
+                    Every week we'll host events including live video/audio interviews, portfolio 
+                    reviews, open discussions, product reviews, and more.
+                  </p>
+                  <p>
+                    The chat is designed to encourage thoughtful conversations using a gamified 
+                    system powered by the Towns Protocol, using its $TOWNS token for rewards. As 
+                    members elevate their status, they'll unlock more permissions in the chat. 
+                    Here's how it works:
                   </p>
                 </div>
               </section>
 
-              {/* Membership Tiers Section */}
+              {/* Tiers Section */}
               <section className="mb-8">
-                <h3 className="text-2xl font-adonis mb-4">Membership Tiers</h3>
+                <h3 className="text-2xl font-adonis mb-4">Tiers</h3>
                 <div className="space-y-4">
                   <div className="border border-gray-200 rounded-xl p-4">
-                    <h4 className="font-adonis text-lg mb-2">🆓 Free Members</h4>
+                    <h4 className="font-adonis text-lg mb-2">Free</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      Browse and read messages for 1 hour per month. Perfect for discovering 
-                      what Knead is all about before committing.
+                      <span className="font-semibold">Permissions:</span> Allowed to read messages + watch chat events for 1 hour per month.
                     </p>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-4">
-                    <h4 className="font-adonis text-lg mb-2">📅 Knead Monthly (Participants)</h4>
+                    <h4 className="font-adonis text-lg mb-2">Knead Monthly</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      Unlimited viewing access and the ability to participate during live events. 
-                      Join discussions when events are happening and connect with the community.
+                      <span className="font-semibold">Permissions:</span> Unlimited viewing access + the ability to chat during live events.
+                    </p>
+                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
+                      Knead Monthly members earn $TOWNS for noteworthy comments (with bonuses 
+                      available from Admins), available instantly in the account/wallet they signed 
+                      up with. The amount of $TOWNS a Knead Monthly member has earned with their 
+                      wallet is accounted for in the chat's Treasury Contract, which automatically 
+                      'graduates' them to becoming a Contributor.
                     </p>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-4">
-                    <h4 className="font-adonis text-lg mb-2">✨ Contributors</h4>
+                    <h4 className="font-adonis text-lg mb-2">Contributors</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      Full access including anytime messaging, direct messages with other contributors, 
-                      custom profiles with avatars and aliases, and the ability to tip other members 
-                      with $TOWNS tokens. Contributors are the core community members who keep 
-                      conversations flowing.
+                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs with other Contributors, 
+                      custom profiles with avatars/aliases, and the ability to spend $TOWNS from 
+                      the Treasury (earning 20% back on every transaction).
+                    </p>
+                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
+                      Contributors are either special guests or graduated Knead Monthly members. 
+                      Each week, Contributors are allocated a weekly budget of $TOWNS to spend on 
+                      comments, earning 20% back in $TOWNS for each transaction. Contributor $TOWNS 
+                      become available only from spending (use it or lose it) a week after 
+                      allocation, encouraging them to passively engage in the chat.
                     </p>
                   </div>
                 </div>
@@ -96,88 +113,124 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
               {/* FAQ Section */}
               <section>
-                <h3 className="text-2xl font-adonis mb-4">Frequently Asked Questions</h3>
+                <h3 className="text-2xl font-adonis mb-4 text-center">Frequently Asked Questions</h3>
                 <div className="space-y-2">
                   <FAQDropdown
-                    question="What are $TOWNS tokens?"
-                    answer="$TOWNS is our community token built on Base (Ethereum L2). You can earn $TOWNS by receiving tips from other contributors when you share valuable messages. Tokens can be used to tip others, participate in events, and more."
+                    question="What's the goal of this chat?"
+                    answer="The goal of the Knead chat is to create a digital community that's built around more mindful interactions.\n\nWe care more about the quality of our member participation than we do the quantity. That doesn't necessarily mean everything needs to be thought-provoking; for example, sharing a photo of a wonderful Caesar salad questioning how such a popular item has so many renditions can be a great conversation starter.\n\nWe want Knead Monthly members and Contributors to feel a sense of ownership in writing the content of the chat by encouraging better-quality conversation."
                   />
 
                   <FAQDropdown
-                    question="How does tipping work?"
-                    answer="Contributors can tip any message by clicking the bread icon next to it. Each tip awards $TOWNS tokens to the message sender. Tipping is a way to show appreciation for valuable contributions and helps build a quality-focused community."
+                    question="What is the chat built on?"
+                    answer="Knead's chat is built on the Towns Protocol for messaging. We also use $TOWNS for rewards to support the protocol's initiative and development. Towns is a venture-backed startup from the same team that created popular apps like Houseparty."
                   />
 
                   <FAQDropdown
-                    question="What types of events do you host?"
-                    answer="Knead hosts various events including live video discussions, essay releases, and community gatherings. Check the Events Calendar (accessible from the menu) to see upcoming events and RSVP. Knead Monthly members can participate during events."
+                    question="What's the Treasury Contract?"
+                    answer="The Treasury Contract is where the chat's reward system and rules are written. Knead never actually touches the $TOWNS that ends up in your wallet, instead it's automatically distributed via the Treasury Contract's rules. If you'd like to donate, the Treasury address is: 0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
                   />
 
                   <FAQDropdown
-                    question="How do I become a Contributor?"
-                    answer="Contributors hold a special Contributor NFT. You can become a contributor by purchasing the NFT through our join page. Contributors get full chat access, DMs, custom profiles, and tipping abilities."
+                    question="How do you establish the amount of $TOWNS distributed for 'likes' and Contributor balances?"
+                    answer="We cycle through the amount of events we're forecasting against the total amount of $TOWNS in our treasury. As Knead doesn't control the funds, the more $TOWNS in the treasury means more rewards for users."
                   />
 
                   <FAQDropdown
-                    question="Can I customize my profile?"
-                    answer="Yes! Contributors can set a custom alias and upload an avatar image. Click the settings icon in the wallet dropdown to customize your profile. Your profile will be visible to all chat members."
+                    question="What do you mean that 'Knead doesn't control the funds'?"
+                    answer="Knead is a decentralized platform, which means that no $TOWNS actually passes through us. Instead, the funds are kept in the Treasury contract, which automatically distributes. Knead members own their account, which is why they have the ability to export their private keys."
                   />
 
                   <FAQDropdown
-                    question="How do Direct Messages work?"
-                    answer="Direct Messages (DMs) are available exclusively to Contributors. Click the paper plane icon in the top right to access your DMs. You can message other contributors privately, share files, and build deeper connections."
+                    question="What does 'Export Private Key' mean?"
+                    answer="When anyone signs up for Knead, we create a digital wallet on the backend that automatically is minted a free-tier membership. You own this wallet and are free to do with it as you please, Knead does not 'own' your account- you do. The main identifier of your ownership is your private key, which enables you to send funds, port your wallet elsewhere, etc. IMPORTANT: NEVER SHARE YOUR PRIVATE KEY."
                   />
 
                   <FAQDropdown
-                    question="What is the Treasury?"
-                    answer="The Treasury is the smart contract that holds and distributes $TOWNS tokens for rewards and events. You can view the treasury balance in the menu and check its activity on Basescan."
+                    question="What should I do with the $TOWNS I earn? Where should I send it?"
+                    answer="$TOWNS is available on popular exchanges like Coinbase or Binance. We highly recommend creating an account with a company like Coinbase or Binance to send your $TOWNS from Knead's chat to, enabling you to exchange it for other cryptocurrencies or local currency. These services are helpful in connecting your bank to Web3."
+                  />
+
+                  <FAQDropdown
+                    question="How do I become a Contributor? Do I get more $TOWNS if I 'graduate' to one?"
+                    answer="The graduation threshold for Contributor status is determined by the Treasury balance, however, is usually established to identify people who've been active in the chat for a couple of months. The ideal path is someone attends 1-2 events every week and at least makes a comment or two. Those that graduated to become Contributors are allocated a larger weekly allowance than those who are appointed by Knead."
+                  />
+
+                  <FAQDropdown
+                    question="Why's it saying I can't participate or DM?"
+                    answer="Knead Monthly members are only able to participate in the chat during events (live interviews, AMAs, portfolio reviews, open periods, etc). DMs are only open to those who've earned Contributor status."
                   />
 
                   <FAQDropdown
                     question="How do I get support?"
-                    answer="For support, reach out to us on Instagram @knead.mag, Twitter @kneadmag, or through our other social channels. Contributors can also ask questions directly in the chat."
+                    answer="For support, email help@kneadmag.com"
                   />
                 </div>
               </section>
 
               {/* Connect Section */}
-              <section className="mt-8 pt-6 border-t border-gray-200">
-                <h3 className="text-xl font-adonis mb-3">Connect with Knead</h3>
-                <p className="font-georgia-pro text-gray-700 text-sm mb-4">
-                  Follow us on social media for updates, announcements, and creative inspiration:
-                </p>
-                <div className="flex flex-wrap gap-3">
+              <section className="mt-8 pt-6 border-t border-gray-200 text-center">
+                <h3 className="text-xl font-adonis mb-6">Connect With Knead</h3>
+                <div className="flex justify-center space-x-12">
                   <a
                     href="https://www.instagram.com/knead.mag/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-georgia-pro transition-colors"
+                    className="text-gray-600 hover:text-black transition-colors"
+                    aria-label="Instagram"
                   >
-                    Instagram
+                    <Instagram size={36} />
                   </a>
                   <a
                     href="https://x.com/kneadmag"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-georgia-pro transition-colors"
+                    className="text-gray-600 hover:text-black transition-colors"
+                    aria-label="X (Twitter)"
                   >
-                    X (Twitter)
+                    <Twitter size={36} />
                   </a>
                   <a
                     href="https://warpcast.com/knead"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-georgia-pro transition-colors"
+                    className="text-gray-600 hover:text-black transition-colors"
+                    aria-label="Farcaster"
                   >
-                    Farcaster
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor">
+                      <g transform="translate(4, 6)">
+                        <rect x="2" y="4" width="3" height="16" />
+                        <rect x="0" y="18" width="7" height="2" />
+                        <rect x="1" y="20" width="5" height="2" />
+                        <rect x="0.5" y="22" width="6" height="2" />
+                        <rect x="23" y="4" width="3" height="16" />
+                        <rect x="21" y="18" width="7" height="2" />
+                        <rect x="22" y="20" width="5" height="2" />
+                        <rect x="21.5" y="22" width="6" height="2" />
+                        <rect x="2" y="2" width="24" height="2" />
+                        <rect x="0" y="0" width="28" height="2" />
+                        <path d="M 8 20 Q 14 8 20 20" stroke="none" fill="white" />
+                        <ellipse cx="14" cy="16" rx="6" ry="8" fill="white" />
+                      </g>
+                    </svg>
                   </a>
                   <a
                     href="https://zora.co/@knead"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-georgia-pro transition-colors"
+                    className="text-gray-600 hover:text-black transition-colors"
+                    aria-label="Zora"
                   >
-                    Zora
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor">
+                      <defs>
+                        <radialGradient id="zoraGradient" cx="0.3" cy="0.3" r="0.8">
+                          <stop offset="0%" stopColor="currentColor" stopOpacity="0.9" />
+                          <stop offset="50%" stopColor="currentColor" stopOpacity="0.7" />
+                          <stop offset="100%" stopColor="currentColor" stopOpacity="0.5" />
+                        </radialGradient>
+                      </defs>
+                      <circle cx="18" cy="18" r="16" fill="url(#zoraGradient)" />
+                      <ellipse cx="14" cy="14" rx="4" ry="6" fill="currentColor" opacity="0.3" />
+                    </svg>
                   </a>
                 </div>
               </section>
