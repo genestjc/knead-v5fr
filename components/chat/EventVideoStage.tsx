@@ -6,31 +6,9 @@ import {
   useParticipantIds,
   useLocalSessionId,
   useParticipantProperty,
-  DailyVideo,
   DailyAudio,
 } from '@daily-co/daily-react';
-
-interface DailyVideoTileProps {
-  sessionId: string;
-  label: string;
-  isLocal: boolean;
-}
-
-function DailyVideoTile({ sessionId, label, isLocal }: DailyVideoTileProps) {
-  return (
-    <div className="relative h-full bg-gray-900 rounded-lg overflow-hidden">
-      <DailyVideo
-        sessionId={sessionId}
-        automirror={isLocal}
-        type="video"
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded font-georgia-pro">
-        {label}
-      </div>
-    </div>
-  );
-}
+import { DailyVideoTile } from './DailyVideoTile';
 
 function ParticipantTile({
   sessionId,
@@ -38,12 +16,14 @@ function ParticipantTile({
   hostAddress,
   invitedGuestAddresses,
   guestIndex,
+  isViewer,
 }: {
   sessionId: string;
   localSessionId: string;
   hostAddress: string;
   invitedGuestAddresses: string[];
   guestIndex: number;
+  isViewer: boolean;
 }) {
   const [userName, userData] = useParticipantProperty(sessionId, [
     'user_name',
@@ -83,6 +63,7 @@ function ParticipantTile({
       sessionId={sessionId}
       label={label}
       isLocal={isLocal}
+      isViewer={isViewer}
     />
   );
 }
@@ -400,6 +381,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 hostAddress={hostAddress}
                 invitedGuestAddresses={invitedGuestAddresses}
                 guestIndex={0}
+                isViewer={isViewer}
               />
             </div>
           ) : (
@@ -417,6 +399,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 hostAddress={hostAddress}
                 invitedGuestAddresses={invitedGuestAddresses}
                 guestIndex={index}
+                isViewer={isViewer}
               />
             </div>
           ))}
