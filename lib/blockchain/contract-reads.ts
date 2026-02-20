@@ -1,6 +1,6 @@
 /**
  * Contract Read Operations (Client-Safe)
- * 
+ *
  * Read-only functions that can be used in client components.
  * Uses public client (no secret key required).
  */
@@ -9,6 +9,7 @@
 
 import { createThirdwebClient, getContract, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
+import { keccak256, toHex } from 'viem'; // ✅ viem is already a thirdweb dependency
 
 // ✅ Public client - safe for browser
 const client = createThirdwebClient({
@@ -20,11 +21,11 @@ const client = createThirdwebClient({
  */
 function getRewardsContract() {
   const address = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-  
+
   if (!address) {
     throw new Error('NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS not set');
   }
-  
+
   return getContract({
     client,
     address,
@@ -45,13 +46,13 @@ export async function getParticipantStats(participantAddress: string): Promise<{
 }> {
   try {
     const rewardsContract = getRewardsContract();
-    
+
     const stats = await readContract({
       contract: rewardsContract,
       method: 'function getParticipantStats(address _participant) view returns (uint256 totalEarned, uint256 claimed, uint8 tier, uint256 cohort, bool graduated, uint256 claimable)',
       params: [participantAddress],
     });
-    
+
     return {
       totalEarned: Number(stats[0]) / 1e18,
       claimed: Number(stats[1]) / 1e18,
@@ -82,13 +83,13 @@ export async function getContributorStats(contributorAddress: string): Promise<{
 }> {
   try {
     const rewardsContract = getRewardsContract();
-    
+
     const stats = await readContract({
       contract: rewardsContract,
-      method: 'function getContributorStats(address _contributor) view returns (uint8 cType, uint256 weeklyBudget, uint256 lockedAllowance, uint256 cashbackEarnings, uint256 cashbackClaimed, uint256 totalTipped, uint256 daysUntilReset)',
+      method: 'function getContributorStats(address _contributor) view returns (uint8 cType, uint256 weeklyBudget, uint256 lockedAllowance, uint256 cashbackEarnings, uint256 cashbackClaimed, uint256 t[...]',
       params: [contributorAddress],
     });
-    
+
     return {
       cType: Number(stats[0]),
       weeklyBudget: Number(stats[1]) / 1e18,
@@ -115,13 +116,13 @@ export async function getContractConstants(): Promise<{
 }> {
   try {
     const rewardsContract = getRewardsContract();
-    
+
     const graduationThreshold = await readContract({
       contract: rewardsContract,
       method: 'function graduationThreshold() view returns (uint256)',
       params: [],
     });
-    
+
     return {
       graduationThreshold: Number(graduationThreshold) / 1e18,
       weeklyAllowance: 25, // Hardcoded since not in contract
@@ -136,24 +137,23 @@ export async function getContractConstants(): Promise<{
 
 /**
  * Get total $TOWNS earned for a specific message (on-chain)
- * 
- * @param messageId - Towns Protocol message ID (hex string)
+ *
+ * FIX: The write side (award-rewards-engine.ts) stores the messageId as
+ *   keccak256(toUtf8Bytes(messageId))
+ * so the read side MUST apply the same hash to look up the correct slot.
+ * Previously this function was padding the raw hex string, which produced
+ * a different bytes32 value and always returned 0.
+ *
+ * @param messageId - Towns Protocol message ID (any string / hex)
  * @returns Total earnings in $TOWNS tokens
  */
 export async function getMessageEarnings(messageId: string): Promise<number> {
   try {
     const rewardsContract = getRewardsContract();
-    
-    // Towns Protocol message IDs are hex strings - convert to bytes32
-    let messageIdBytes32: `0x${string}`;
-    
-    if (messageId.startsWith('0x')) {
-      // Already has 0x prefix
-      messageIdBytes32 = messageId.padEnd(66, '0') as `0x${string}`;
-    } else {
-      // Add 0x prefix and pad
-      messageIdBytes32 = `0x${messageId.padEnd(64, '0')}` as `0x${string}`;
-    }
+
+    // ✅ MUST match award-rewards-engine.ts: keccak256(toUtf8Bytes(messageId))
+    // viem's keccak256 hashes a Uint8Array / hex; toHex converts the UTF-8 string bytes.
+    const messageIdBytes32 = keccak256(toHex(messageId)) as `0x${string}`;
 
     const earnings = await readContract({
       contract: rewardsContract,
