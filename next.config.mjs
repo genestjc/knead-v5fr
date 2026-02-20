@@ -17,9 +17,9 @@ const nextConfig = {
   ],
 
   // ✅ ADD THIS (uses public Base RPC):
-env: {
-  BASE_MAINNET_RPC_URL: 'https://8453.rpc.thirdweb.com', // Thirdweb's Base RPC
-},
+  env: {
+    BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
+  },
   
   // ✅ WEBPACK CONFIG FOR .mjs FILES
   webpack: (config, { isServer }) => {
