@@ -1,4 +1,12 @@
 // app/api/admin/ban-user/route.ts
+//
+// BAN FLOW (two steps):
+//   Step 1 (client-side): AdminContextMenu calls spaceDapp.banWalletAddress() on-chain.
+//                         The admin signs the transaction with their connected wallet.
+//   Step 2 (this route):  If on-chain ban succeeded, this route updates Supabase so the
+//                         app-level ban tracking stays in sync.
+//
+// NO private keys are used here. On-chain banning is handled client-side only.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
