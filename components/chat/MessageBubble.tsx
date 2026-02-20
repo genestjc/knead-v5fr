@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getMessageEarnings } from '@/lib/blockchain/contract-reads';
 import { motion } from 'framer-motion';
 import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact } from '@towns-protocol/react-sdk';
@@ -36,14 +37,40 @@ interface MessageBubbleProps {
 
 // New Bread Icon Tipping Button
 function BreadTipButton({
-  totalTips,
+  messageId,
   isActive,
   isReacting
 }: {
-  totalTips: number;
+  messageId: string;
   isActive: boolean;
   isReacting: boolean;
 }) {
+  const [earnings, setEarnings] = useState<number>(0);
+
+  const fetchEarnings = useCallback(async () => {
+    try {
+      const total = await getMessageEarnings(messageId);
+      setEarnings(total);
+    } catch (error) {
+      console.error('Error fetching earnings:', error);
+    }
+  }, [messageId]);
+
+  useEffect(() => {
+    fetchEarnings();
+
+    // Listen for tip events on this message
+    const handleTip = (event: Event) => {
+      const customEvent = event as CustomEvent<{ messageId: string }>;
+      if (customEvent.detail.messageId === messageId) {
+        fetchEarnings();
+      }
+    };
+
+    window.addEventListener('message-tipped', handleTip);
+    return () => window.removeEventListener('message-tipped', handleTip);
+  }, [messageId, fetchEarnings]);
+
   const iconColor = isActive ? '#374151' : '#9ca3af';
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
   const borderColor = isActive ? 'border-gray-300' : 'border-gray-200';
@@ -64,9 +91,9 @@ function BreadTipButton({
         />
       </svg>
       
-      {/* Counter Text */}
+      {/* On-chain earnings counter */}
       <span className={`text-xs font-medium ${textColor} font-georgia-pro whitespace-nowrap`}>
-        {isReacting ? '⏳' : `${totalTips || 0} $TOWNS`}
+        {isReacting ? '⏳' : `${earnings.toFixed(0)} $TOWNS`}
       </span>
     </div>
   );
@@ -93,9 +120,6 @@ export function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
-  
-  // ✅ Track local tips (optimistic update)
-  const [localTips, setLocalTips] = useState(0);
   
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
   
@@ -124,9 +148,6 @@ export function MessageBubble({
       return;
     }
     
-    // ✅ Optimistically update the tip counter
-    setLocalTips(prev => prev + 10);
-    
     try {
       await awardTokensOnLike(
         message.id,
@@ -136,10 +157,10 @@ export function MessageBubble({
         eventId
       );
       
+      // Dispatch event so BreadTipButton can refresh earnings
+      window.dispatchEvent(new CustomEvent('message-tipped', { detail: { messageId: message.id } }));
       toast.success('🍞 Tipped 10 TOWNS!');
     } catch (error: any) {
-      // ✅ Revert on error
-      setLocalTips(prev => prev - 10);
       console.error('❌ Tip failed:', error);
       toast.error('Failed to send tip. Please try again.');
     }
@@ -200,9 +221,6 @@ export function MessageBubble({
   const isFileMessage = !!fileMatch;
   const fileName = fileMatch?.[1];
   const ipfsUri = fileMatch?.[2];
-
-  // ✅ Combine server tips + local optimistic tips
-  const totalTips = (message.townsAwarded || 0) + localTips;
 
   return (
     <>
@@ -285,10 +303,10 @@ export function MessageBubble({
                       ? 'cursor-pointer hover:scale-105 active:scale-95'
                       : 'cursor-not-allowed'
                   }`}
-                  aria-label={canAwardTokens ? `Tip 10 TOWNS (currently ${totalTips} TOWNS)` : "Tipping is only available to Contributors"}
+                  aria-label={canAwardTokens ? `Tip 10 TOWNS` : "Tipping is only available to Contributors"}
                 >
                   <BreadTipButton 
-                    totalTips={totalTips}
+                    messageId={message.id}
                     isActive={canAwardTokens}
                     isReacting={isReacting}
                   />
