@@ -164,7 +164,7 @@ export function DirectMessageList({
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
             </div>
-          ) : searchQuery && filteredContributors.length > 0 ? (
+          ) : filteredContributors.length > 0 ? (
             <div className="p-2">
               {filteredContributors.map((contributor) => (
                 <button
@@ -194,11 +194,11 @@ export function DirectMessageList({
                 </button>
               ))}
             </div>
-          ) : searchQuery ? (
+          ) : (
             <div className="p-4 text-center text-sm text-gray-500 font-georgia-pro">
-              No contributors found
+              {searchQuery ? 'No contributors found' : 'No contributors available'}
             </div>
-          ) : null}
+          )}
         </div>
 
         <div className="p-6 border-t border-gray-200">
