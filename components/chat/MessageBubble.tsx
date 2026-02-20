@@ -59,16 +59,23 @@ function BreadTipButton({
   useEffect(() => {
     fetchEarnings();
 
-    // Listen for tip events on this message
+    // Poll every 30 seconds for live on-chain updates (same cadence as WalletSummary)
+    const pollInterval = setInterval(fetchEarnings, 30000);
+
+    // Also refresh immediately when this specific message is tipped
     const handleTip = (event: Event) => {
       const customEvent = event as CustomEvent<{ messageId: string }>;
       if (customEvent.detail.messageId === messageId) {
-        fetchEarnings();
+        // Small delay to allow the chain to index the tx
+        setTimeout(fetchEarnings, 3000);
       }
     };
 
     window.addEventListener('message-tipped', handleTip);
-    return () => window.removeEventListener('message-tipped', handleTip);
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('message-tipped', handleTip);
+    };
   }, [messageId, fetchEarnings]);
 
   const iconColor = isActive ? '#374151' : '#9ca3af';
@@ -86,7 +93,7 @@ function BreadTipButton({
         className="flex-shrink-0"
       >
         <path 
-          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.078 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z" 
+          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39[...]"
           fill={iconColor}
         />
       </svg>
@@ -234,26 +241,25 @@ export function MessageBubble({
         onTouchEnd={handleTouchEnd}
       >
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
-          {/* Avatar — only visible for contributors */}
-          {!isOwn && message.isContributor && (
-            <div className="flex-shrink-0">
-              {message.sender.avatar ? (
+          
+          {/* FIX 1: Avatar column — always occupies w-5 width so all bubbles align flush */}
+          {!isOwn && (
+            <div className="flex-shrink-0 w-5">
+              {message.isContributor && message.sender.avatar ? (
                 <img
                   src={convertIpfsToGatewayUrl(message.sender.avatar)}
                   alt={message.sender.name}
                   className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200"
                 />
-              ) : (
+              ) : message.isContributor ? (
                 <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
                   {message.sender.name.substring(0, 2).toUpperCase()}
                 </div>
+              ) : (
+                // Non-contributor: empty placeholder keeps the same width so bubbles line up
+                <div className="w-5 h-5" />
               )}
             </div>
-          )}
-          
-          {/* No avatar placeholder for non-contributors */}
-          {!isOwn && !message.isContributor && (
-            <div className="flex-shrink-0 w-0"></div>
           )}
 
           {/* Message content */}
@@ -288,7 +294,7 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* ✅ Bread Tip Button - Only for non-contributors */}
+            {/* Bread Tip Button - Only for non-contributors */}
             {!isOwn && !message.isContributor && streamId && (
               <div className="relative mt-1.5">
                 <button
@@ -307,7 +313,7 @@ export function MessageBubble({
                 >
                   <BreadTipButton 
                     messageId={message.id}
-                    isActive={canAwardTokens}
+                    isActive={canAwardTokens ?? false}
                     isReacting={isReacting}
                   />
                 </button>
