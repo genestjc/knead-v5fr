@@ -672,8 +672,8 @@ export function WalletSummary({
                             <div className="relative group">
                               <HelpCircle className="w-3 h-3 ml-1 text-gray-400 cursor-help" />
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                <p className="font-semibold mb-1">Contributor Cashback</p>
-                                <p>When you tip messages, you receive 20% cashback. Your cashback accumulates here and can be claimed to your wallet balance.</p>
+                                <p className="font-semibold mb-1">Contributor Earnings</p>
+                                <p>When you tip messages, you receive 20% $TOWNS back. Your $TOWNS accumulates here and can be claimed to your wallet balance.</p>
                                 <p className="mt-1 text-gray-300">Weekly allowance resets Sunday.</p>
                               </div>
                             </div>
