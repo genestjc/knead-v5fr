@@ -10,11 +10,29 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useReactions, useReact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { Paperclip, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
+import data from '@emoji-mart/data';
+import { Picker } from 'emoji-mart';
+
+function EmojiPickerComponent({ onEmojiSelect, onClickOutside }: { onEmojiSelect: (emoji: { native: string }) => void; onClickOutside: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const picker = new Picker({ data, onEmojiSelect, onClickOutside, theme: 'light', previewPosition: 'none', skinTonePosition: 'none' });
+    ref.current.appendChild(picker as unknown as Node);
+    return () => {
+      if (ref.current) ref.current.innerHTML = '';
+    };
+  }, [onEmojiSelect, onClickOutside]);
+
+  return <div ref={ref} />;
+}
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -22,6 +40,186 @@ interface DirectMessageInterfaceProps {
   currentUserId: string;
   otherUserName: string;
   otherUserAvatar?: string;
+}
+
+interface DmMessageItemProps {
+  event: any;
+  isCurrentUser: boolean;
+  timestamp: number;
+  displayAvatar?: string;
+  displayName: string;
+  townsDmId: string;
+  deletingEventId: string | null;
+  showEmojiPickerForEvent: string | null;
+  onDelete: (eventId: string) => void;
+  onToggleEmojiPicker: (eventId: string | null) => void;
+  convertIpfsToGatewayUrl: (uri: string) => string;
+}
+
+function DmMessageItem({
+  event,
+  isCurrentUser,
+  timestamp,
+  displayAvatar,
+  displayName,
+  townsDmId,
+  deletingEventId,
+  showEmojiPickerForEvent,
+  onDelete,
+  onToggleEmojiPicker,
+  convertIpfsToGatewayUrl,
+}: DmMessageItemProps) {
+  const { data: reactions } = useReactions(townsDmId, event.eventId || '');
+  const { react } = useReact(townsDmId);
+
+  const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage
+    ? event.content.body
+    : '';
+  const fileMatch = messageText.match(/\[FILE:(.+?)\]\((.+?)\)/);
+  const isFileMessage = !!fileMatch;
+  const fileName = fileMatch?.[1];
+  const ipfsUri = fileMatch?.[2];
+
+  const handleReactionClick = async (emoji: string) => {
+    try {
+      await react(event.eventId!, emoji);
+    } catch (error: any) {
+      console.error('❌ Failed to toggle reaction:', error);
+      toast.error('Failed to update reaction');
+    }
+  };
+
+  const handleEmojiSelect = async (emoji: { native: string }) => {
+    onToggleEmojiPicker(null);
+    try {
+      await react(event.eventId!, emoji.native);
+    } catch (error: any) {
+      console.error('❌ Failed to add reaction:', error);
+      toast.error('Failed to add reaction');
+    }
+  };
+
+  return (
+    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
+      <div className={`flex gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%] relative`}>
+        {/* Profile picture for other user */}
+        {!isCurrentUser && (
+          <div className="flex-shrink-0">
+            {displayAvatar ? (
+              <img
+                src={convertIpfsToGatewayUrl(displayAvatar)}
+                alt={displayName}
+                className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200"
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
+                {displayName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-col">
+          {/* ✅ No bubble wrapper around images — render clean */}
+          {isFileMessage && fileName && ipfsUri ? (
+            <div>
+              <FileMessageDisplay
+                fileName={fileName}
+                ipfsUri={ipfsUri}
+                isCurrentUser={isCurrentUser}
+              />
+              <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-right text-gray-400' : 'text-gray-500'}`}>
+                {new Date(timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          ) : (
+            <div
+              className={`
+                rounded-[18px] px-4 py-2.5
+                ${isCurrentUser
+                  ? 'bg-[#007AFF] text-white'
+                  : 'bg-[#E5E5EA] text-gray-900'
+                }
+              `}
+            >
+              <p className="font-georgia-pro text-sm leading-relaxed">{messageText}</p>
+              <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
+                {new Date(timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          )}
+
+          {/* Emoji Reactions Display */}
+          {reactions && Object.keys(reactions).length > 0 && (
+            <div className={`flex flex-wrap gap-1 mt-1 px-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+              {Object.entries(reactions).map(([emoji, reactionData]: [string, any]) => {
+                const count = reactionData?.count ?? 0;
+                const hasMyReaction = reactionData?.myReaction ?? false;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={emoji}
+                    onClick={() => handleReactionClick(emoji)}
+                    className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                      hasMyReaction
+                        ? 'bg-blue-100 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                    <span className="font-georgia-pro">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Emoji Reaction Button (shows on hover) */}
+        {event.eventId && (
+          <div className="relative self-center">
+            <button
+              onClick={() => onToggleEmojiPicker(showEmojiPickerForEvent === event.eventId ? null : event.eventId)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded-full"
+              title="Add reaction"
+            >
+              <span className="text-xs">😊</span>
+            </button>
+            {showEmojiPickerForEvent === event.eventId && (
+              <div className={`absolute ${isCurrentUser ? 'right-0' : 'left-0'} bottom-full mb-1 z-20`}>
+                <EmojiPickerComponent
+                  onEmojiSelect={handleEmojiSelect}
+                  onClickOutside={() => onToggleEmojiPicker(null)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Delete button for own messages */}
+        {isCurrentUser && event.eventId && (
+          <button
+            onClick={() => onDelete(event.eventId!)}
+            disabled={deletingEventId === event.eventId}
+            className="self-center opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded-full disabled:opacity-50"
+            title="Delete message"
+          >
+            {deletingEventId === event.eventId ? (
+              <span className="text-xs">⏳</span>
+            ) : (
+              <span className="text-xs">🗑️</span>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function DirectMessageInterface({
@@ -35,6 +233,9 @@ export function DirectMessageInterface({
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
+  const { redact } = useRedact(townsDmId);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [showEmojiPickerForEvent, setShowEmojiPickerForEvent] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -96,6 +297,28 @@ export function DirectMessageInterface({
     return uri || '';
   };
 
+  const handleDeleteMessage = async (eventId: string) => {
+    if (!confirm('Delete your message?')) return;
+
+    setDeletingEventId(eventId);
+    try {
+      await redact(eventId);
+      toast.success('Message deleted');
+    } catch (error: any) {
+      console.error('❌ Failed to delete message:', error);
+      const errorMsg = error?.message?.toLowerCase() || '';
+      if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
+        toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
+      } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+        toast.error('❌ Permission denied');
+      } else {
+        toast.error('Failed to delete message');
+      }
+    } finally {
+      setDeletingEventId(null);
+    }
+  };
+
   // ✅ Use otherUserName directly — no duplicate profile fetch
   const displayName = otherUserName;
   const displayAvatar = otherUserAvatar;
@@ -135,13 +358,6 @@ export function DirectMessageInterface({
           </div>
         ) : (
           messages.map((event, index) => {
-            const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage 
-              ? event.content.body 
-              : '';
-            
-            // ✅ FIXED: Use event.sender?.id (following connected-chat.tsx pattern)
-            // - event.creatorUserId doesn't exist on timeline events from Towns SDK
-            // - event.sender?.id is the correct property for sender identification
             const senderId = event.sender?.id || '';
             const isCurrentUser = myUserId
               ? senderId === myUserId
@@ -149,70 +365,21 @@ export function DirectMessageInterface({
             
             const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
             
-            const fileMatch = messageText.match(/\[FILE:(.+?)\]\((.+?)\)/);
-            const isFileMessage = !!fileMatch;
-            const fileName = fileMatch?.[1];
-            const ipfsUri = fileMatch?.[2];
-            
             return (
-              <div
+              <DmMessageItem
                 key={event.eventId || index}
-                className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`flex gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%]`}>
-                  {/* Profile picture for other user */}
-                  {!isCurrentUser && (
-                    <div className="flex-shrink-0">
-                      {displayAvatar ? (
-                        <img
-                          src={convertIpfsToGatewayUrl(displayAvatar)}
-                          alt={displayName}
-                          className="w-6 h-6 rounded-full object-cover border-2 border-gray-200"
-                        />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-semibold">
-                          {displayName.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* ✅ No bubble wrapper around images — render clean */}
-                  {isFileMessage && fileName && ipfsUri ? (
-                    <div>
-                      <FileMessageDisplay 
-                        fileName={fileName}
-                        ipfsUri={ipfsUri}
-                        isCurrentUser={isCurrentUser}
-                      />
-                      <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-right text-gray-400' : 'text-gray-500'}`}>
-                        {new Date(timestamp).toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </p>
-                    </div>
-                  ) : (
-                    <div
-                      className={`
-                        rounded-[18px] px-4 py-2.5
-                        ${isCurrentUser 
-                          ? 'bg-[#007AFF] text-white' 
-                          : 'bg-[#E5E5EA] text-gray-900'
-                        }
-                      `}
-                    >
-                      <p className="font-georgia-pro text-sm leading-relaxed">{messageText}</p>
-                      <p className={`text-xs mt-1 font-georgia-pro ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
-                        {new Date(timestamp).toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                event={event}
+                isCurrentUser={isCurrentUser}
+                timestamp={timestamp}
+                displayAvatar={displayAvatar}
+                displayName={displayName}
+                townsDmId={townsDmId}
+                deletingEventId={deletingEventId}
+                showEmojiPickerForEvent={showEmojiPickerForEvent}
+                onDelete={handleDeleteMessage}
+                onToggleEmojiPicker={setShowEmojiPickerForEvent}
+                convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
+              />
             );
           })
         )}
