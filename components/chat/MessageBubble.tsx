@@ -35,7 +35,7 @@ interface MessageBubbleProps {
   spaceId?: string;
 }
 
-// New Bread Icon Tipping Button
+// Bread Icon Tipping Button
 function BreadTipButton({
   messageId,
   isActive,
@@ -81,23 +81,23 @@ function BreadTipButton({
   const iconColor = isActive ? '#374151' : '#9ca3af';
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
   const borderColor = isActive ? 'border-gray-300' : 'border-gray-200';
-  
+
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 border ${borderColor} rounded-full bg-white ${isActive ? 'shadow-sm' : 'opacity-60'}`}>
-      {/* Bread Icon */}
-      <svg 
-        width="20" 
-        height="20" 
-        viewBox="0 0 1200 1200" 
+      {/* Bread Icon — full path restored */}
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 1200 1200"
         xmlns="http://www.w3.org/2000/svg"
         className="flex-shrink-0"
       >
-        <path 
-          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39[...]"
+        <path
+          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.0781 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z"
           fill={iconColor}
         />
       </svg>
-      
+
       {/* On-chain earnings counter */}
       <span className={`text-xs font-medium ${textColor} font-georgia-pro whitespace-nowrap`}>
         {isReacting ? '⏳' : `${earnings.toFixed(0)} $TOWNS`}
@@ -113,10 +113,10 @@ const convertIpfsToGatewayUrl = (uri: string): string => {
   return uri;
 };
 
-export function MessageBubble({ 
-  message, 
-  isOwn, 
-  streamId, 
+export function MessageBubble({
+  message,
+  isOwn,
+  streamId,
   canAwardTokens,
   isAdmin = false,
   eventId,
@@ -127,14 +127,14 @@ export function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
-  
+
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
-  
+
   const formatTime = (timestamp: number | string): string => {
-    const date = typeof timestamp === 'number' 
-      ? new Date(timestamp) 
+    const date = typeof timestamp === 'number'
+      ? new Date(timestamp)
       : new Date(timestamp);
-    
+
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -145,16 +145,16 @@ export function MessageBubble({
   const handleLike = async () => {
     if (!message.sender.walletAddress) {
       console.error('❌ No wallet address for sender:', message.sender.id, message.sender.name);
-      
-      const errorMsg = 
-        message.sender.name === 'Anonymous' 
+
+      const errorMsg =
+        message.sender.name === 'Anonymous'
           ? '⚠️ Cannot tip this user: Their wallet address is not available.'
           : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
-      
+
       toast.error(errorMsg, { duration: 5000 });
       return;
     }
-    
+
     try {
       await awardTokensOnLike(
         message.id,
@@ -163,7 +163,7 @@ export function MessageBubble({
         '❤️',
         eventId
       );
-      
+
       // Dispatch event so BreadTipButton can refresh earnings
       window.dispatchEvent(new CustomEvent('message-tipped', { detail: { messageId: message.id } }));
       toast.success('🍞 Tipped 10 TOWNS!');
@@ -182,9 +182,9 @@ export function MessageBubble({
       toast.success('Message deleted');
     } catch (error: any) {
       console.error('❌ Failed to delete message:', error);
-      
+
       const errorMsg = error?.message?.toLowerCase() || '';
-      
+
       if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
         toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
@@ -197,23 +197,23 @@ export function MessageBubble({
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!isAdmin) return;
-    
+
     e.preventDefault();
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
   };
 
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
-  
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isAdmin) return;
-    
+
     const timer = setTimeout(() => {
       const touch = e.touches[0];
       setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
       setShowContextMenu(true);
     }, 500);
-    
+
     setPressTimer(timer);
   };
 
@@ -241,8 +241,8 @@ export function MessageBubble({
         onTouchEnd={handleTouchEnd}
       >
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
-          
-          {/* FIX 1: Avatar column — always occupies w-5 width so all bubbles align flush */}
+
+          {/* Avatar column — always occupies w-5 width so all bubbles align flush */}
           {!isOwn && (
             <div className="flex-shrink-0 w-5">
               {message.isContributor && message.sender.avatar ? (
@@ -266,15 +266,15 @@ export function MessageBubble({
           <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
             <div
               className={`
-                rounded-[18px] px-4 py-2 
-                ${isOwn 
-                  ? 'bg-[#007AFF] text-white' 
+                rounded-[18px] px-4 py-2
+                ${isOwn
+                  ? 'bg-[#007AFF] text-white'
                   : 'bg-[#E5E5EA] text-black'
                 }
               `}
             >
               {isFileMessage && fileName && ipfsUri ? (
-                <FileMessageDisplay 
+                <FileMessageDisplay
                   fileName={fileName}
                   ipfsUri={ipfsUri}
                   isCurrentUser={isOwn}
@@ -309,15 +309,15 @@ export function MessageBubble({
                       ? 'cursor-pointer hover:scale-105 active:scale-95'
                       : 'cursor-not-allowed'
                   }`}
-                  aria-label={canAwardTokens ? `Tip 10 TOWNS` : "Tipping is only available to Contributors"}
+                  aria-label={canAwardTokens ? 'Tip 10 TOWNS' : 'Tipping is only available to Contributors'}
                 >
-                  <BreadTipButton 
+                  <BreadTipButton
                     messageId={message.id}
                     isActive={canAwardTokens ?? false}
                     isReacting={isReacting}
                   />
                 </button>
-                
+
                 {/* Tooltip for non-contributors */}
                 {showTooltip && !canAwardTokens && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg font-georgia-pro">
