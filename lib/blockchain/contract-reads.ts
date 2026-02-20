@@ -9,7 +9,6 @@
 
 import { createThirdwebClient, getContract, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
 // ✅ Public client - safe for browser
 const client = createThirdwebClient({
@@ -137,19 +136,29 @@ export async function getContractConstants(): Promise<{
 
 /**
  * Get total $TOWNS earned for a specific message (on-chain)
- *
- * @param messageId - Towns Protocol message ID (string, will be hashed to bytes32)
+ * 
+ * @param messageId - Towns Protocol message ID (hex string)
  * @returns Total earnings in $TOWNS tokens
  */
 export async function getMessageEarnings(messageId: string): Promise<number> {
   try {
     const rewardsContract = getRewardsContract();
-    const messageIdBytes32 = keccak256(toUtf8Bytes(messageId));
+    
+    // Towns Protocol message IDs are hex strings - convert to bytes32
+    let messageIdBytes32: `0x${string}`;
+    
+    if (messageId.startsWith('0x')) {
+      // Already has 0x prefix
+      messageIdBytes32 = messageId.padEnd(66, '0') as `0x${string}`;
+    } else {
+      // Add 0x prefix and pad
+      messageIdBytes32 = `0x${messageId.padEnd(64, '0')}` as `0x${string}`;
+    }
 
     const earnings = await readContract({
       contract: rewardsContract,
       method: 'function getMessageEarnings(bytes32 _messageId) view returns (uint256)',
-      params: [messageIdBytes32 as `0x${string}`],
+      params: [messageIdBytes32],
     });
 
     return Number(earnings) / 1e18;
