@@ -5,7 +5,7 @@ const SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
 const KEY_SHARER_PRIVATE_KEY = process.env.KEY_SHARER_PRIVATE_KEY!;
 const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 
-const townsConfig = townsEnv().makeTownsConfig('omega', {
+const townsConfig = townsEnv().makeTownsConfig('production', {
   rpcUrl: BASE_RPC_URL,
 });
 

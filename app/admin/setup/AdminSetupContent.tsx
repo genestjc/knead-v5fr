@@ -19,8 +19,8 @@ export default function AdminSetupContent() {
   }, [BASE_RPC_URL]);
   
   const townsConfig = BASE_RPC_URL 
-    ? townsEnv().makeTownsConfig('omega', { rpcUrl: BASE_RPC_URL })
-    : townsEnv().makeTownsConfig('omega');
+    ? townsEnv().makeTownsConfig('production', { rpcUrl: BASE_RPC_URL })
+    : townsEnv().makeTownsConfig('production');
   
   // ✅ ONLY call useAgentConnection here
   const { connect, isAgentConnected } = useAgentConnection();
