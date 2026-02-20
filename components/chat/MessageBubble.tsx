@@ -1,13 +1,30 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getMessageEarnings } from '@/lib/blockchain/contract-reads';
 import { motion } from 'framer-motion';
 import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
-import { useRedact } from '@towns-protocol/react-sdk';
+import { useRedact, useReactions, useReact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { toast } from 'sonner';
+import data from '@emoji-mart/data';
+import { Picker } from 'emoji-mart';
+
+function EmojiPickerComponent({ onEmojiSelect, onClickOutside }: { onEmojiSelect: (emoji: { native: string }) => void; onClickOutside: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const picker = new Picker({ data, onEmojiSelect, onClickOutside, theme: 'light', previewPosition: 'none', skinTonePosition: 'none' });
+    ref.current.appendChild(picker as unknown as Node);
+    return () => {
+      if (ref.current) ref.current.innerHTML = '';
+    };
+  }, [onEmojiSelect, onClickOutside]);
+
+  return <div ref={ref} />;
+}
 
 interface ChatMessage {
   id: string;
@@ -120,8 +137,11 @@ export function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
+  const { data: reactions } = useReactions(channelId || '', message.id);
+  const { react } = useReact(channelId || '');
   
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number' 
@@ -188,6 +208,27 @@ export function MessageBubble({
     }
   };
 
+  const handleEmojiSelect = async (emoji: { native: string }) => {
+    setShowEmojiPicker(false);
+    if (!channelId) return;
+    try {
+      await react(message.id, emoji.native);
+    } catch (error: any) {
+      console.error('❌ Failed to add reaction:', error);
+      toast.error('Failed to add reaction');
+    }
+  };
+
+  const handleReactionClick = async (emoji: string) => {
+    if (!channelId) return;
+    try {
+      await react(message.id, emoji);
+    } catch (error: any) {
+      console.error('❌ Failed to toggle reaction:', error);
+      toast.error('Failed to update reaction');
+    }
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!isAdmin) return;
     
@@ -241,10 +282,10 @@ export function MessageBubble({
                 <img
                   src={convertIpfsToGatewayUrl(message.sender.avatar)}
                   alt={message.sender.name}
-                  className="w-6 h-6 rounded-full object-cover border-2 border-gray-200"
+                  className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200"
                 />
               ) : (
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-semibold">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
                   {message.sender.name.substring(0, 2).toUpperCase()}
                 </div>
               )}
@@ -287,6 +328,52 @@ export function MessageBubble({
                 {formatTime(message.timestamp)}
               </span>
             </div>
+
+            {/* Emoji Reactions Display */}
+            {reactions && Object.keys(reactions).length > 0 && (
+              <div className={`flex flex-wrap gap-1 mt-1 px-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                {Object.entries(reactions).map(([emoji, reactionData]: [string, any]) => {
+                  const count = reactionData?.count ?? 0;
+                  const hasMyReaction = reactionData?.myReaction ?? false;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => handleReactionClick(emoji)}
+                      className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                        hasMyReaction
+                          ? 'bg-blue-100 border-blue-300 text-blue-700'
+                          : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>{emoji}</span>
+                      <span className="font-georgia-pro">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Emoji Reaction Button (shows on hover) */}
+            {channelId && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowEmojiPicker((v) => !v)}
+                  className={`absolute ${isOwn ? '-left-8' : '-right-8'} -top-6 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded-full`}
+                  title="Add reaction"
+                >
+                  <span className="text-xs">😊</span>
+                </button>
+                {showEmojiPicker && (
+                  <div className={`absolute ${isOwn ? 'right-0' : 'left-0'} bottom-full mb-1 z-20`}>
+                    <EmojiPickerComponent
+                      onEmojiSelect={handleEmojiSelect}
+                      onClickOutside={() => setShowEmojiPicker(false)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ✅ Bread Tip Button - Only for non-contributors */}
             {!isOwn && !message.isContributor && streamId && (
