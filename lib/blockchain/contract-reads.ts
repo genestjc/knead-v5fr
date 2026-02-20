@@ -9,6 +9,7 @@
 
 import { createThirdwebClient, getContract, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
+import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
 // ✅ Public client - safe for browser
 const client = createThirdwebClient({
@@ -157,5 +158,29 @@ export async function getContractConstants(): Promise<{
     throw new Error(
       `Failed to fetch contract constants: ${error instanceof Error ? error.message : String(error)}`
     );
+  }
+}
+
+/**
+ * Get total $TOWNS earned for a specific message (on-chain)
+ *
+ * @param messageId - Towns Protocol message ID (string, will be hashed to bytes32)
+ * @returns Total earnings in $TOWNS tokens
+ */
+export async function getMessageEarnings(messageId: string): Promise<number> {
+  try {
+    const rewardsContract = getRewardsContract();
+    const messageIdBytes32 = keccak256(toUtf8Bytes(messageId));
+
+    const earnings = await readContract({
+      contract: rewardsContract,
+      method: 'function getMessageEarnings(bytes32 _messageId) view returns (uint256)',
+      params: [messageIdBytes32 as `0x${string}`],
+    });
+
+    return Number(earnings) / 1e18;
+  } catch (error) {
+    console.error('Error fetching message earnings:', error);
+    return 0;
   }
 }
