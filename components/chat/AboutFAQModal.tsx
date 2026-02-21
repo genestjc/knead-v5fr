@@ -102,7 +102,6 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                       the Treasury (earning 20% back on every transaction).
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
-                      Contributors are either special guests or graduated Knead Monthly members.
                       Each week, Contributors are allocated a weekly budget of $TOWNS to spend on
                       comments, earning 20% back in $TOWNS for each transaction. Contributor $TOWNS
                       become available only from spending (use it or lose it) a week after
@@ -129,7 +128,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
                   <FAQDropdown
                     question="What is the chat built on?"
-                    answer="Knead's chat is built on the Towns Protocol for messaging. We also use $TOWNS for rewards to support the protocol's initiative and development. Towns is a venture-backed startup from the same team that created popular apps like Houseparty."
+                    answer="Knead's chat is built on the Towns Protocol for messaging. We also use $TOWNS for rewards to support the protocol's initiative and development. Towns is a venture-backed startup from the same team that created Houseparty."
                   />
 
                   <FAQDropdown
