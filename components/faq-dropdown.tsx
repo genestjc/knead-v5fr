@@ -8,7 +8,7 @@ export function FAQDropdown({
   answer,
 }: {
   question: string
-  answer: string
+  answer: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
 
