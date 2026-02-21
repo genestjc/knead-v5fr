@@ -142,10 +142,17 @@ export async function getContractConstants(): Promise<{
  * keccak256(toUtf8Bytes(messageId)), so the read side MUST apply the
  * same hash to look up the correct slot.
  *
- * @param messageId - Towns Protocol message ID (any string / hex)
+ * The contract's getMessageEarnings requires BOTH _messageId AND _participant,
+ * and returns (totalEarned, tipCount, timestamp). We return totalEarned.
+ *
+ * @param messageId          - Towns Protocol message ID (any string / hex)
+ * @param participantAddress - Wallet address of the message sender (participant)
  * @returns Total earnings in $TOWNS tokens
  */
-export async function getMessageEarnings(messageId: string): Promise<number> {
+export async function getMessageEarnings(
+  messageId: string,
+  participantAddress: string
+): Promise<number> {
   try {
     const rewardsContract = getRewardsContract();
 
@@ -154,11 +161,12 @@ export async function getMessageEarnings(messageId: string): Promise<number> {
 
     const earnings = await readContract({
       contract: rewardsContract,
-      method: 'function getMessageEarnings(bytes32 _messageId) view returns (uint256)',
-      params: [messageIdBytes32],
+      method: 'function getMessageEarnings(bytes32 _messageId, address _participant) view returns (uint256 totalEarned, uint256 tipCount, uint256 timestamp)',
+      params: [messageIdBytes32, participantAddress as `0x${string}`],
     });
 
-    return Number(earnings) / 1e18;
+    // earnings[0] is totalEarned
+    return Number(earnings[0]) / 1e18;
   } catch (error) {
     console.error('Error fetching message earnings:', error);
     return 0;
