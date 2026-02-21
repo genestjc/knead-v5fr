@@ -47,22 +47,23 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
             {/* Content */}
             <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+
               {/* About Section */}
               <section className="mb-8">
                 <h3 className="text-2xl font-adonis mb-4">About</h3>
                 <div className="space-y-4 font-georgia-pro text-gray-700 leading-relaxed">
                   <p>
-                    Welcome to our chat– a space to share ideas, stories, random musings, and 
+                    Welcome to our chat– a space to share ideas, stories, random musings, and
                     connect with like-minded creatives across an array of disciplines.
                   </p>
                   <p>
-                    Every week we'll host events including live video/audio interviews, portfolio 
+                    Every week we'll host events including live video/audio interviews, portfolio
                     reviews, open discussions, product reviews, and more.
                   </p>
                   <p>
-                    The chat is designed to encourage thoughtful conversations using a gamified 
-                    system powered by the Towns Protocol, using its $TOWNS token for rewards. As 
-                    members elevate their status, they'll unlock more permissions in the chat. 
+                    The chat is designed to encourage thoughtful conversations using a gamified
+                    system powered by the Towns Protocol, using its $TOWNS token for rewards. As
+                    members elevate their status, they'll unlock more permissions in the chat.
                     Here's how it works:
                   </p>
                 </div>
@@ -85,10 +86,10 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                       <span className="font-semibold">Permissions:</span> Unlimited viewing access + the ability to chat during live events.
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
-                      Knead Monthly members earn $TOWNS for noteworthy comments (with bonuses 
-                      available from Admins), available instantly in the account/wallet they signed 
-                      up with. The amount of $TOWNS a Knead Monthly member has earned with their 
-                      wallet is accounted for in the chat's Treasury Contract, which automatically 
+                      Knead Monthly members earn $TOWNS for noteworthy comments (with bonuses
+                      available from Admins), available instantly in the account/wallet they signed
+                      up with. The amount of $TOWNS a Knead Monthly member has earned with their
+                      wallet is accounted for in the chat's Treasury Contract, which automatically
                       'graduates' them to becoming a Contributor.
                     </p>
                   </div>
@@ -96,21 +97,25 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Contributors</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs with other Contributors, 
-                      custom profiles with avatars/aliases, and the ability to spend $TOWNS from 
+                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs with other Contributors,
+                      custom profiles with avatars/aliases, and the ability to spend $TOWNS from
                       the Treasury (earning 20% back on every transaction).
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
-                      Contributors are either special guests or graduated Knead Monthly members. 
-                      Each week, Contributors are allocated a weekly budget of $TOWNS to spend on 
-                      comments, earning 20% back in $TOWNS for each transaction. Contributor $TOWNS 
-                      become available only from spending (use it or lose it) a week after 
+                      Contributors are either special guests or graduated Knead Monthly members.
+                      Each week, Contributors are allocated a weekly budget of $TOWNS to spend on
+                      comments, earning 20% back in $TOWNS for each transaction. Contributor $TOWNS
+                      become available only from spending (use it or lose it) a week after
                       allocation, encouraging them to passively engage in the chat.
                     </p>
                   </div>
                 </div>
               </section>
 
+              {/* FAQ Section */}
+              <section>
+                <h3 className="text-2xl font-adonis mb-4 text-center">Frequently Asked Questions</h3>
+                <div className="space-y-2">
                   <FAQDropdown
                     question="What's the goal of this chat?"
                     answer={
@@ -236,6 +241,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   </a>
                 </div>
               </section>
+
             </div>
           </motion.div>
         </motion.div>
