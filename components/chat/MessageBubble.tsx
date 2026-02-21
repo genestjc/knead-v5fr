@@ -38,23 +38,26 @@ interface MessageBubbleProps {
 // Bread Icon Tipping Button
 function BreadTipButton({
   messageId,
+  participantAddress,
   isActive,
-  isReacting
+  isReacting,
 }: {
   messageId: string;
+  participantAddress: string;
   isActive: boolean;
   isReacting: boolean;
 }) {
   const [earnings, setEarnings] = useState<number>(0);
 
   const fetchEarnings = useCallback(async () => {
+    if (!participantAddress) return;
     try {
-      const total = await getMessageEarnings(messageId);
+      const total = await getMessageEarnings(messageId, participantAddress);
       setEarnings(total);
     } catch (error) {
       console.error('Error fetching earnings:', error);
     }
-  }, [messageId]);
+  }, [messageId, participantAddress]);
 
   useEffect(() => {
     fetchEarnings();
@@ -84,7 +87,7 @@ function BreadTipButton({
 
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 border ${borderColor} rounded-full bg-white ${isActive ? 'shadow-sm' : 'opacity-60'}`}>
-      {/* Bread Icon — full path restored */}
+      {/* Bread Icon */}
       <svg
         width="20"
         height="20"
@@ -121,7 +124,7 @@ export function MessageBubble({
   isAdmin = false,
   eventId,
   channelId,
-  spaceId
+  spaceId,
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -294,8 +297,8 @@ export function MessageBubble({
               </span>
             </div>
 
-            {/* Bread Tip Button - Only for non-contributors */}
-            {!isOwn && !message.isContributor && streamId && (
+            {/* Bread Tip Button — only for non-contributors, requires participant wallet address */}
+            {!isOwn && !message.isContributor && streamId && message.sender.walletAddress && (
               <div className="relative mt-1.5">
                 <button
                   onClick={canAwardTokens ? handleLike : undefined}
@@ -313,6 +316,7 @@ export function MessageBubble({
                 >
                   <BreadTipButton
                     messageId={message.id}
+                    participantAddress={message.sender.walletAddress}
                     isActive={canAwardTokens ?? false}
                     isReacting={isReacting}
                   />
