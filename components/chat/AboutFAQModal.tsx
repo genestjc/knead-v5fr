@@ -103,9 +103,8 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
                       Each week, Contributors are allocated a weekly budget of $TOWNS to spend on
-                      comments, earning 20% back in $TOWNS for each transaction. Contributor $TOWNS
-                      become available only from spending (use it or lose it) a week after
-                      allocation, encouraging them to passively engage in the chat.
+                      comments from the Treasury, earning 20% back for each transaction. A Contributor's $TOWNS
+                      will be sent from the Treasury Contract a week after allocation based on what they spent (use-it-or-lose-it) encouraging them to passively engage in the chat.
                     </p>
                   </div>
                 </div>
