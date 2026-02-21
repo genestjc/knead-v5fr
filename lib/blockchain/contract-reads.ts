@@ -9,7 +9,7 @@
 
 import { createThirdwebClient, getContract, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { keccak256, toHex } from 'viem'; // ✅ viem is already a thirdweb dependency
+import { keccak256, toHex } from 'viem';
 
 // ✅ Public client - safe for browser
 const client = createThirdwebClient({
@@ -86,7 +86,7 @@ export async function getContributorStats(contributorAddress: string): Promise<{
 
     const stats = await readContract({
       contract: rewardsContract,
-      method: 'function getContributorStats(address _contributor) view returns (uint8 cType, uint256 weeklyBudget, uint256 lockedAllowance, uint256 cashbackEarnings, uint256 cashbackClaimed, uint256 t[...]',
+      method: 'function getContributorStats(address _contributor) view returns (uint8 cType, uint256 weeklyBudget, uint256 lockedAllowance, uint256 cashbackEarnings, uint256 cashbackClaimed, uint256 totalTipped, uint256 daysUntilReset)',
       params: [contributorAddress],
     });
 
@@ -138,11 +138,9 @@ export async function getContractConstants(): Promise<{
 /**
  * Get total $TOWNS earned for a specific message (on-chain)
  *
- * FIX: The write side (award-rewards-engine.ts) stores the messageId as
- *   keccak256(toUtf8Bytes(messageId))
- * so the read side MUST apply the same hash to look up the correct slot.
- * Previously this function was padding the raw hex string, which produced
- * a different bytes32 value and always returned 0.
+ * The write side (award-rewards-engine.ts) stores the messageId as
+ * keccak256(toUtf8Bytes(messageId)), so the read side MUST apply the
+ * same hash to look up the correct slot.
  *
  * @param messageId - Towns Protocol message ID (any string / hex)
  * @returns Total earnings in $TOWNS tokens
@@ -151,8 +149,7 @@ export async function getMessageEarnings(messageId: string): Promise<number> {
   try {
     const rewardsContract = getRewardsContract();
 
-    // ✅ MUST match award-rewards-engine.ts: keccak256(toUtf8Bytes(messageId))
-    // viem's keccak256 hashes a Uint8Array / hex; toHex converts the UTF-8 string bytes.
+    // ✅ Matches award-rewards-engine.ts: keccak256(toUtf8Bytes(messageId))
     const messageIdBytes32 = keccak256(toHex(messageId)) as `0x${string}`;
 
     const earnings = await readContract({
