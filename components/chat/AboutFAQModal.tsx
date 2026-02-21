@@ -111,13 +111,15 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                 </div>
               </section>
 
-              {/* FAQ Section */}
-              <section>
-                <h3 className="text-2xl font-adonis mb-4 text-center">Frequently Asked Questions</h3>
-                <div className="space-y-2">
                   <FAQDropdown
                     question="What's the goal of this chat?"
-                    answer="The goal of the Knead chat is to create a digital community that's built around more mindful interactions.\n\nWe care more about the quality of our member participation than we do the quantity. That doesn't necessarily mean everything needs to be thought-provoking; for example, sharing a photo of a wonderful Caesar salad questioning how such a popular item has so many renditions can be a great conversation starter.\n\nWe want Knead Monthly members and Contributors to feel a sense of ownership in writing the content of the chat by encouraging better-quality conversation."
+                    answer={
+                      <div className="space-y-3">
+                        <p>The goal of the Knead chat is to create a digital community that's built around more mindful interactions.</p>
+                        <p>We care more about the quality of our member participation than we do the quantity. That doesn't necessarily mean everything needs to be thought-provoking; for example, sharing a photo of a wonderful Caesar salad questioning how such a popular item has so many renditions can be a great conversation starter.</p>
+                        <p>We want Knead Monthly members and Contributors to feel a sense of ownership in writing the content of the chat by encouraging better-quality conversation.</p>
+                      </div>
+                    }
                   />
 
                   <FAQDropdown
