@@ -17,8 +17,8 @@ import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
-import { uploadToIPFS } from '@/lib/thirdweb/storage';
-import { Paperclip } from 'lucide-react';
+import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
+import { Paperclip, X } from 'lucide-react';
 
 const LoadingSpinner = () => (
   <div className="text-center py-10">
@@ -148,6 +148,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isAdmin, setIsAdmin] = useState(false);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
 
   // -- All useRef hooks --
@@ -366,6 +367,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
+    // Handle pending file upload
+    if (pendingFile) {
+      setIsUploading(true);
+      const previewUrl = pendingFile.previewUrl;
+      try {
+        const ipfsUri = await uploadToIPFS(pendingFile.file);
+        const fileMessage = `[FILE:${pendingFile.file.name}](${ipfsUri})`;
+        setPendingFile(null);
+
+        await Promise.race([
+          sendMessage(fileMessage),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('File upload timeout')), 30000),
+          ),
+        ]);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to upload file. Please try again.');
+      } finally {
+        URL.revokeObjectURL(previewUrl);
+        setIsUploading(false);
+      }
+      return;
+    }
+
     if (!messageInput.trim() || isSending || !channelId) return;
 
     const messageToSend = messageInput.trim();
@@ -401,7 +426,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -414,26 +439,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
-    setIsUploading(true);
-    try {
-      const ipfsUri = await uploadToIPFS(file);
-      const fileMessage = `[FILE:${file.name}](${ipfsUri})`;
+    // Create local preview URL — no upload yet
+    const previewUrl = URL.createObjectURL(file);
+    setPendingFile({ file, previewUrl });
 
-      await Promise.race([
-        sendMessage(fileMessage),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('File upload timeout')), 30000),
-        ),
-      ]);
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to upload file. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
+    // Reset so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // -- Render helpers --
@@ -555,45 +566,81 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     return (
-      <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-        <input
-          ref={fileInputRef}
-          type="file"
-          onChange={handleFileSelect}
-          className="hidden"
-          disabled={isUploading}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-          className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Attach file"
-        >
-          <Paperclip className="w-5 h-5" />
-        </button>
+      <div className="flex flex-col gap-2">
+        {/* File preview strip */}
+        {pendingFile && (
+          <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-2xl">
+            {isImageFile(pendingFile.file.name) ? (
+              <img
+                src={pendingFile.previewUrl}
+                alt={pendingFile.file.name}
+                className="w-16 h-16 object-cover rounded-xl flex-shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-xl flex-shrink-0">
+                <span className="text-2xl">📎</span>
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-georgia-pro font-medium text-gray-800 truncate">{pendingFile.file.name}</p>
+              <p className="text-xs text-gray-500 font-georgia-pro">
+                {(pendingFile.file.size / 1024 / 1024).toFixed(1)} MB · tap send to upload
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                URL.revokeObjectURL(pendingFile.previewUrl);
+                setPendingFile(null);
+              }}
+              className="p-1 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        )}
 
-        <input
-          type="text"
-          value={messageInput}
-          onChange={(e) => setMessageInput(e.target.value)}
-          placeholder={
-            isUploading ? "Uploading..." :
-            channelId ? "Type a message..." : "Loading..."
-          }
-          className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300"
-          disabled={isSending || isUploading || !channelId}
-        />
-        <button
-          type="submit"
-          disabled={!messageInput.trim() || isSending || isUploading || !channelId}
-          className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-            <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-          </svg>
-        </button>
-      </form>
+        <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            disabled={isUploading}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Attach file"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+
+          <input
+            type="text"
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
+            placeholder={
+              isUploading ? "Uploading..." :
+              pendingFile ? "Add a caption or just hit send..." :
+              channelId ? "Type a message..." : "Loading..."
+            }
+            className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300"
+            disabled={isSending || isUploading || !channelId}
+          />
+          <button
+            type="submit"
+            disabled={(!messageInput.trim() && !pendingFile) || isSending || isUploading || !channelId}
+            className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+            </svg>
+          </button>
+        </form>
+      </div>
     );
   };
 

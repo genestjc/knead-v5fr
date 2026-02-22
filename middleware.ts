@@ -23,6 +23,10 @@ export function middleware(request: NextRequest) {
       https://*.ipfscdn.io
       https://ipfs.io 
       https://gateway.ipfs.io
+      https://storage.thirdweb.com
+      https://*.thirdwebstorage.com
+      https://cloudflare-ipfs.com
+      https://*.cloudflare-ipfs.com
       https://cdn.sanity.io
       https://vercel.com
       https://*.supabase.co
@@ -88,6 +92,10 @@ export function middleware(request: NextRequest) {
       https://ipfs.io
       https://gateway.ipfs.io
       https://*.ipfs.dweb.link
+      https://storage.thirdweb.com
+      https://*.thirdwebstorage.com
+      https://cloudflare-ipfs.com
+      https://*.cloudflare-ipfs.com
       https://use.typekit.net
       https://p.typekit.net
       https://fonts.googleapis.com
