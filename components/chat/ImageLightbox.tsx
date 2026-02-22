@@ -13,10 +13,12 @@ interface ImageLightboxProps {
 export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps) {
   const [imageError, setImageError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [currentImageUrl, setCurrentImageUrl] = useState(imageUrl);
 
-  // Reset error state when imageUrl changes
+  // Reset error state and current URL when imageUrl changes
   useEffect(() => {
     if (imageUrl) {
+      setCurrentImageUrl(imageUrl);
       setImageError(false);
       setErrorMessage('');
     }
@@ -41,11 +43,23 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
     };
   }, [isOpen, onClose]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error('Failed to load image:', imageUrl);
-    console.error('⚠️ This may be due to a CSP violation or network error. Check browser console for details.');
-    
-    setErrorMessage('Unable to load image. This may be due to a network error or security policy restriction. Check browser console for details.');
+  const handleImageError = () => {
+    // If the ThirdWeb CDN fails, try the public IPFS gateway as fallback
+    if (currentImageUrl.startsWith('https://ipfs.thirdwebcdn.com/ipfs/')) {
+      const ipfsPath = currentImageUrl.split('/ipfs/')[1];
+      const fallbackUrl = `https://ipfs.io/ipfs/${ipfsPath}`;
+      console.warn('ThirdWeb CDN failed, retrying with ipfs.io fallback:', fallbackUrl);
+      setCurrentImageUrl(fallbackUrl);
+      return; // Don't show error yet — try fallback first
+    }
+
+    // If fallback also fails, show the error state
+    const usedFallback = currentImageUrl.startsWith('https://ipfs.io/ipfs/');
+    setErrorMessage(
+      usedFallback
+        ? 'Unable to load image from primary CDN or fallback gateway. This may be due to a network error or security policy restriction.'
+        : 'Unable to load image. This may be due to a network error or security policy restriction.'
+    );
     setImageError(true);
   };
 
@@ -93,7 +107,7 @@ export function ImageLightbox({ isOpen, imageUrl, onClose }: ImageLightboxProps)
               </div>
             ) : imageUrl ? (
               <img
-                src={imageUrl}
+                src={currentImageUrl}
                 alt="Image preview"
                 className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
                 onError={handleImageError}

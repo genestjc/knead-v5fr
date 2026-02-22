@@ -25,6 +25,10 @@ export function middleware(request: NextRequest) {
       https://gateway.ipfs.io
       https://storage.thirdweb.com
       https://*.thirdwebstorage.com
+      https://nftstorage.link
+      https://*.nftstorage.link
+      https://w3s.link
+      https://*.w3s.link
       https://cloudflare-ipfs.com
       https://*.cloudflare-ipfs.com
       https://cdn.sanity.io
@@ -94,6 +98,10 @@ export function middleware(request: NextRequest) {
       https://*.ipfs.dweb.link
       https://storage.thirdweb.com
       https://*.thirdwebstorage.com
+      https://nftstorage.link
+      https://*.nftstorage.link
+      https://w3s.link
+      https://*.w3s.link
       https://cloudflare-ipfs.com
       https://*.cloudflare-ipfs.com
       https://use.typekit.net
