@@ -324,9 +324,9 @@ export function MessageBubble({
 
                 {/* Tooltip for non-contributors */}
                 {showTooltip && !canAwardTokens && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg font-georgia-pro">
+                  <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg font-georgia-pro">
                     Tipping is only available to Contributors
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                    <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900"></div>
                   </div>
                 )}
               </div>
