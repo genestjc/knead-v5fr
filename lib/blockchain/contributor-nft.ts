@@ -12,11 +12,11 @@ export type ContributorType = 'appointed' | 'earned' | 'invited' | null;
  */
 export async function isContributor(address: string): Promise<boolean> {
   try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     
     // If no NFT contract is configured, fall back to false
     if (!nftContractAddress) {
-      console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS is not set");
+      console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS is not set");
       return false;
     }
 
@@ -60,7 +60,7 @@ export async function isContributor(address: string): Promise<boolean> {
  */
 export async function getContributorTypeId(address: string): Promise<number | null> {
   try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     
     if (!nftContractAddress) {
       return null;
@@ -202,10 +202,10 @@ export async function mintContributorNFT(
   adminAddress: string
 ): Promise<{ transactionHash: string; tokenId: number }> {
   try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+    const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     
     if (!nftContractAddress) {
-      throw new Error('NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS not set');
+      throw new Error('NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS not set');
     }
 
     // Map role to token ID

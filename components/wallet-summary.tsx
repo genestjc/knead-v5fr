@@ -88,13 +88,13 @@ export function WalletSummary({
       try {
         console.log('🔍 Starting contributor status check...');
         
-        const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS;
+        const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
         
         console.log('🔍 NFT Contract Address from env:', nftContractAddress);
         
         if (!nftContractAddress) {
           console.warn('❌ Contributor NFT contract address not configured in .env.local');
-          console.warn('❌ Add: NEXT_PUBLIC_CONTRIBUTOR_NFT_ADDRESS=0xYourContractAddress');
+          console.warn('❌ Add: NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS=0xYourContractAddress');
           return;
         }
         
