@@ -247,7 +247,9 @@ export async function mintContributorNFT(
     });
     
     // ✅ Non-blocking: Engine queues the tx and returns immediately
-    const { transactionHash } = await serverWallet.sendTransaction(transaction);
+    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
+      chain: base,
+    });
     
     console.log('✅ Contributor NFT mint queued:', {
       tokenId,

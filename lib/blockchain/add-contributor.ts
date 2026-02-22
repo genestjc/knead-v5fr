@@ -45,7 +45,9 @@ export async function addContributorToRewards(
     });
     
     // ✅ Non-blocking: Engine queues the tx and returns immediately
-    const { transactionHash } = await serverWallet.sendTransaction(transaction);
+    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
+      chain: base,
+    });
     
     console.log('✅ Contributor add to rewards queued:', {
       address: contributorAddress,
