@@ -9,7 +9,6 @@
 
 import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction as sendEngineTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
 import { ethers } from 'ethers';
 
@@ -74,9 +73,8 @@ export async function awardTownsViaEngine(
       params: [contributorAddress, participantAddress, amountInWei, messageIdBytes32, actionType],
     });
     
-    const receipt = await sendEngineTransaction({
-      transaction,
-      account: serverWallet,
+    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
+      chain: base,
     });
     
     console.log('✅ Tip awarded via Engine:', {
@@ -86,11 +84,11 @@ export async function awardTownsViaEngine(
       messageId,
       messageIdHash: messageIdBytes32,
       actionType,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     return {
-      transactionHash: receipt.transactionHash,
+      transactionHash,
     };
   } catch (error) {
     console.error('Error awarding tip via Engine:', error);
@@ -130,20 +128,19 @@ export async function awardAdminBonus(
       params: [participantAddress, amountInWei, bonusType],
     });
     
-    const receipt = await sendEngineTransaction({
-      transaction,
-      account: serverWallet,
+    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
+      chain: base,
     });
     
     console.log('✅ Admin bonus awarded via Engine:', {
       recipient: participantAddress,
       amount,
       bonusType,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     return {
-      transactionHash: receipt.transactionHash,
+      transactionHash,
     };
   } catch (error) {
     console.error('Error awarding admin bonus via Engine:', error);
