@@ -8,7 +8,7 @@ This guide walks you through the initial setup of the smart contract system for 
 - ThirdWeb account with API credentials
 - Deployed smart contracts:
   - `KneadMembership` (ERC1155) - Token IDs 0 & 1
-  - `KneadContributors` (ERC1155) - Token IDs 10, 11, 12
+  - `KneadContributors` (ERC1155) - Token IDs 1, 2, 3
   - `KneadRewardsV3` - $TOWNS token distribution
 
 ## Environment Variables
@@ -22,7 +22,7 @@ THIRDWEB_SECRET_KEY=your_secret_key
 
 # NFT Contracts
 NEXT_PUBLIC_NFT_CONTRACT_ADDRESS=0x...              # Knead Membership (Token ID 0 & 1)
-NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS=0x...  # Contributor NFT (Token ID 10/11/12)
+NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS=0x...  # Contributor NFT (Token ID 1/2/3)
 NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS=0x...          # KneadRewardsV3
 
 # Towns Protocol
@@ -83,9 +83,9 @@ Give yourself (master admin) a contributor NFT:
 3. Click "Add Contributor"
 4. Enter your wallet address
 5. Select role type:
-   - **Appointed** (Token ID 10) - Admin-appointed contributors
-   - **Invited** (Token ID 11) - Invited by other contributors
-   - **Earned** (Token ID 12) - Earned through community participation
+   - **Appointed** (Token ID 1) - Admin-appointed contributors
+   - **Invited** (Token ID 2) - Invited by other contributors
+   - **Earned** (Token ID 3) - Earned through community participation
 6. Click "Mint Contributor NFT"
 
 ### 4. Register Your First Participant
@@ -107,7 +107,7 @@ Participants will automatically receive Token IDs 0 & 1 when they subscribe via 
 
 Verify the reward system works:
 
-1. Log in as a contributor (with Token ID 10/11/12)
+1. Log in as a contributor (with Token ID 1/2/3)
 2. Go to `/chat`
 3. Send a test message as a participant
 4. As contributor, click "🤍 Like (8 $TOWNS)" on the participant's message
@@ -159,7 +159,7 @@ After setup, verify:
 ### "Unauthorized" error on admin actions
 
 - Verify your wallet address matches `MASTER_ADMIN_WALLET`
-- Check you have contributor NFT (Token ID 10/11/12)
+- Check you have contributor NFT (Token ID 1/2/3)
 
 ### Freemium timer not tracking
 
