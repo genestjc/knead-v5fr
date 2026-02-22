@@ -1,6 +1,5 @@
 import { createThirdwebClient, getContract, prepareContractCall } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
 
 const client = createThirdwebClient({
@@ -45,20 +44,18 @@ export async function addContributorToRewards(
       params: [contributorAddress, contributorType, weeklyBudgetWei],
     });
     
-    const receipt = await sendTransaction({
-      transaction,
-      account: serverWallet,
-    });
+    // ✅ Non-blocking: Engine queues the tx and returns immediately
+    const { transactionHash } = await serverWallet.sendTransaction(transaction);
     
-    console.log('✅ Contributor added to rewards contract:', {
+    console.log('✅ Contributor add to rewards queued:', {
       address: contributorAddress,
       type: contributorType,
       weeklyBudget,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     return {
-      transactionHash: receipt.transactionHash,
+      transactionHash,
     };
   } catch (error: any) {
     console.error('Error adding contributor to rewards:', error);
