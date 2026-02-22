@@ -234,9 +234,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events, channelId]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!channelId) return;
-    scrollback().catch(() => {});
+    const timer = setTimeout(() => {
+      console.log('📜 Loading message history...');
+      scrollback().catch(() => {});
+    }, 1500); // 1.5s delay
+    
+    return () => clearTimeout(timer);
   }, [channelId, scrollback]);
 
   useEffect(() => {
