@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       tokenId: mintResult.tokenId,
       transactionHash: mintResult.transactionHash,
       rewardsTransactionHash: rewardsResult.transactionHash,
-      message: `Contributor added successfully! NFT minted with ${weeklyBudget} TOWNS weekly budget.`,
+      message: `Contributor queued successfully! NFT mint (Token ID ${mintResult.tokenId}) and rewards setup with ${weeklyBudget} TOWNS/week submitted to ThirdWeb Engine. Transactions will confirm on-chain in ~30-60 seconds.`,
       weeklyBudget,
       contributorType: role,
     });
