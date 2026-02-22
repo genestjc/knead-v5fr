@@ -200,7 +200,7 @@ function TownsChat() {
           await new Promise((r) => setTimeout(r, 100)); // 100ms × 5 = 500ms max
         }
 
-        if (alreadyMember) {
+          if (alreadyMember) {
           console.log('✅ Already a member of space, skipping joinSpace transaction');
         } else {
           try {
@@ -224,10 +224,15 @@ function TownsChat() {
                 SAVED_SPACE_ID,
                 signerRef.current,
               );
+              console.log('✅ Membership minted successfully');
             } else {
               throw e;
             }
           }
+          
+          // 🔥 NEW: Brief delay for new members to let device keys upload
+          console.log('⏳ Finalizing connection...');
+          await new Promise(r => setTimeout(r, 1500)); // 1.5s breathing room
         }
       }
 
