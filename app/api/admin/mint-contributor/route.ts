@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { mintContributorNFT } from '@/lib/blockchain/contributor-nft';
 import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   try {
     const { recipientAddress, role, weeklyBudget, adminAddress } = await req.json();
@@ -35,18 +38,14 @@ export async function POST(req: NextRequest) {
       weeklyBudget,
     });
 
-    // Step 1: Mint NFT (gives CONTRIBUTOR_ROLE on NFT contract)
-    console.log('📝 Step 1: Minting NFT...');
-    const mintResult = await mintContributorNFT(recipientAddress, role, adminAddress);
-    console.log('✅ NFT minted:', mintResult);
+    console.log('🚀 Running NFT mint and rewards setup in parallel...');
 
-    // Step 2: Add to rewards contract (sets weekly budget)
-    console.log('📝 Step 2: Adding to rewards contract...');
-    const rewardsResult = await addContributorToRewards(
-      recipientAddress,
-      contributorType,
-      weeklyBudget
-    );
+    const [mintResult, rewardsResult] = await Promise.all([
+      mintContributorNFT(recipientAddress, role, adminAddress),
+      addContributorToRewards(recipientAddress, contributorType, weeklyBudget),
+    ]);
+
+    console.log('✅ NFT minted:', mintResult);
     console.log('✅ Added to rewards contract:', rewardsResult);
 
     return NextResponse.json({
