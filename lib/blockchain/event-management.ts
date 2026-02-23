@@ -5,9 +5,8 @@
  * Handles event creation, attendance tracking, and event ID mapping.
  */
 
-import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, readContract, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction as sendEngineTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
 
 const client = createThirdwebClient({
@@ -75,9 +74,13 @@ export async function createOnChainEvent(
       params: [title, BigInt(startTime), BigInt(endTime), eventType, BigInt(rsvpCap)],
     });
     
-    const receipt = await sendEngineTransaction({
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
-      account: serverWallet,
+    });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ On-chain event created:', {
@@ -86,7 +89,7 @@ export async function createOnChainEvent(
       endTime,
       eventType,
       rsvpCap,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     // TODO: Parse the event ID from the transaction receipt logs
@@ -124,19 +127,23 @@ export async function markEventAttendance(
       params: [BigInt(eventId), participantAddress],
     });
     
-    const receipt = await sendEngineTransaction({
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
-      account: serverWallet,
+    });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Attendance marked:', {
       eventId,
       participant: participantAddress,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     return {
-      transactionHash: receipt.transactionHash,
+      transactionHash,
     };
   } catch (error) {
     console.error('Error marking attendance:', error);
