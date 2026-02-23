@@ -7,7 +7,7 @@
  * ⚠️ SERVER-ONLY: This file uses secret keys and must never be imported in client components!
  */
 
-import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, readContract, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { serverWallet } from '@/thirdweb-server-wallet';
 import { ethers } from 'ethers';
@@ -73,8 +73,13 @@ export async function awardTownsViaEngine(
       params: [contributorAddress, participantAddress, amountInWei, messageIdBytes32, actionType],
     });
     
-    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
-      chain: base,
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Tip awarded via Engine:', {
@@ -128,8 +133,13 @@ export async function awardAdminBonus(
       params: [participantAddress, amountInWei, bonusType],
     });
     
-    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
-      chain: base,
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Admin bonus awarded via Engine:', {
