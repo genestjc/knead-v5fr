@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { mintContributorNFT } from '@/lib/blockchain/contributor-nft';
 import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
 
+/**
+ * FALLBACK: Engine server wallet contributor minting route
+ *
+ * This API route uses ThirdWeb Engine's server wallet to mint contributor NFTs
+ * and register contributors in the rewards contract.
+ * It is kept as a fallback in case direct wallet minting is unavailable.
+ *
+ * PRIMARY path: ContributorManager component uses direct wallet minting via
+ * useSendTransaction hook, which bypasses this route entirely.
+ *
+ * USE THIS ROUTE IF:
+ * - Engine server wallet nonce is healthy (check ThirdWeb dashboard)
+ * - You need to mint programmatically without a connected browser wallet
+ *
+ * KNOWN ISSUE: ThirdWeb Engine server wallet (0x8659...7A10) had a stuck nonce
+ * on Base on 2026-02-23. If minting fails, check Engine dashboard first.
+ */
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
