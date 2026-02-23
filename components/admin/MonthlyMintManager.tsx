@@ -1,30 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useActiveAccount, useSendTransaction } from 'thirdweb/react';
-import { getContract, prepareContractCall, readContract } from 'thirdweb';
-import { base } from 'thirdweb/chains';
-import { client } from '@/thirdweb-client';
+import { useActiveAccount } from 'thirdweb/react';
 
 interface MonthlyMintManagerProps {
   adminAddress: string;
 }
 
-const MEMBERSHIP_ABI = [
-  {"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"mint","outputs":[],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[{"internalType":"address","name":"account","type":"address"},{"internalType":"uint256","name":"id","type":"uint256"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
-] as const;
-
 export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
   const account = useActiveAccount();
-  const { mutateAsync: sendTransaction } = useSendTransaction();
   const [recipientAddress, setRecipientAddress] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState<{
-    type: 'success' | 'error' | 'warning' | null;
-    message: string;
-    txHash?: string;
-  }>({ type: null, message: '' });
+  const [status, setStatus] = useState<{ type: 'success' | 'error' | 'warning' | null; message: string; txHash?: string; }>({ type: null, message: '' });
 
   const handleMint = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,49 +42,39 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
     setStatus({ type: null, message: '' });
 
     try {
-      // PRIMARY: Direct wallet mint (bypasses Engine server wallet). Engine API route at /api/mint-vip kept as fallback - see route.ts
-      const contractAddress = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
-      if (!contractAddress) {
-        setStatus({ type: 'error', message: 'NFT contract address is not configured.' });
-        return;
-      }
-
-      const contract = getContract({
-        client,
-        chain: base,
-        address: contractAddress,
-        abi: MEMBERSHIP_ABI,
+      // Uses Engine server wallet (owner of membership contract) to mint.
+      // Direct wallet minting is not possible as mint() is owner-only on the contract.
+      const response = await fetch('/api/mint-vip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_address: recipientAddress,
+          adminAddress: account.address,
+        }),
       });
 
-      // Check if recipient already has a membership
-      const balance = await readContract({
-        contract,
-        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-        params: [recipientAddress as `0x${string}`, 1n],
-      });
+      const data = await response.json();
 
-      if (balance > 0n) {
+      if (data.success && !data.alreadyMinted) {
+        setStatus({
+          type: 'success',
+          message: 'Premium membership mint enqueued successfully!',
+          txHash: data.transactionHash || data.transactionId,
+        });
+        setRecipientAddress('');
+      } else if (data.alreadyMinted) {
         setStatus({
           type: 'warning',
           message: 'This wallet already has a premium membership!',
         });
-        return;
+      } else {
+        setStatus({
+          type: 'error',
+          message: data.error || 'Minting failed. Please try again.',
+        });
       }
-
-      const transaction = prepareContractCall({
-        contract,
-        method: "function mint(address to, uint256 id, uint256 amount)",
-        params: [recipientAddress as `0x${string}`, 1n, 1n],
-      });
-
-      const result = await sendTransaction(transaction);
-
-      setStatus({
-        type: 'success',
-        message: 'Premium membership minted successfully!',
-        txHash: result.transactionHash,
-      });
-      setRecipientAddress(''); // Clear input on success
     } catch (error: any) {
       console.error('Mint error:', error);
       setStatus({
@@ -162,7 +139,7 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
             disabled={isLoading || !recipientAddress.trim()}
             className="w-full bg-black text-white font-georgia-pro py-3 rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
           >
-            {isLoading ? '⏳ Confirm in MetaMask...' : '🎫 Mint Premium Membership'}
+            {isLoading ? '⏳ Minting...' : '🎫 Mint Premium Membership'}
           </button>
         </form>
       </div>
@@ -194,7 +171,7 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
 
           {status.txHash && (
             <div className="space-y-2">
-              <p className="font-georgia-pro text-sm text-gray-700">Transaction Hash:</p>
+              <p className="font-georgia-pro text-sm text-gray-700">Transaction ID:</p>
               <div className="flex items-center gap-2 bg-white p-3 rounded border border-gray-300">
                 <code className="font-mono text-sm flex-1 break-all">{status.txHash}</code>
                 <button
@@ -205,14 +182,6 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
                   📋 Copy
                 </button>
               </div>
-              <a
-                href={`https://basescan.org/tx/${status.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-georgia-pro text-xs text-blue-600 underline"
-              >
-                View on Basescan ↗
-              </a>
             </div>
           )}
         </div>
@@ -224,8 +193,8 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
         <ol className="font-georgia-pro text-sm space-y-1 list-decimal list-inside text-gray-700">
           <li>Enter the recipient's Ethereum wallet address (0x...)</li>
           <li>Click "Mint Premium Membership"</li>
-          <li>Confirm the transaction in MetaMask</li>
-          <li>Transaction hash will be displayed on success with a Basescan link</li>
+          <li>Wait for Engine server wallet to process (~30-60 seconds)</li>
+          <li>Transaction ID will be displayed on success</li>
           <li>Recipient can now access premium features</li>
         </ol>
       </div>
