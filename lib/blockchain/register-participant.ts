@@ -1,6 +1,5 @@
-import { createThirdwebClient, getContract, prepareContractCall, readContract } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, readContract, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
 
 const client = createThirdwebClient({
@@ -54,25 +53,29 @@ export async function registerParticipant(address: string): Promise<{ transactio
   try {
     const contract = getRewardsContract();
     
-    // ✅ UPDATED: Your new contract only takes address (no cohort parameter)
+    // ✅ UPDATED: KneadRewardsV5 takes address and cohort parameters
     const transaction = prepareContractCall({
       contract,
-      method: 'function registerParticipant(address _participant)',
-      params: [address],
+      method: 'function registerParticipant(address _participant, uint256 _cohort)',
+      params: [address, BigInt(1)],
     });
     
-    const receipt = await sendTransaction({
+    const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
-      account: serverWallet,
+    });
+
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Participant registered:', {
       address,
-      txHash: receipt.transactionHash,
+      txHash: transactionHash,
     });
     
     return {
-      transactionHash: receipt.transactionHash,
+      transactionHash,
     };
   } catch (error: any) {
     const errorMsg = error.message?.toLowerCase() || '';

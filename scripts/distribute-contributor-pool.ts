@@ -16,12 +16,11 @@
  * - Earned (Token ID 3): 3x
  */
 
-import { createThirdwebClient, getContract, prepareContractCall } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction } from 'thirdweb/transaction';
-import { serverWallet, SERVER_WALLET_ADDRESS } from '@/thirdweb-server-wallet';
+import { serverWallet } from '@/thirdweb-server-wallet';
 import { getAllContributorHolders, getTotalContributorWeight } from '@/lib/blockchain/get-contributors';
-import { getContributorPoolBalance, getParticipantStats } from '@/lib/blockchain/award-rewards-engine';
+import { getContributorPoolBalance } from '@/lib/blockchain/award-rewards-engine';
 
 const client = createThirdwebClient({
   secretKey: process.env.THIRDWEB_SECRET_KEY!,
@@ -155,42 +154,10 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
  * Claim accumulated earnings for the Engine wallet from rewards contract
  */
 async function claimEngineEarnings(): Promise<void> {
-  const engineWalletAddress = SERVER_WALLET_ADDRESS;
-  
-  if (!engineWalletAddress) {
-    throw new Error('ENGINE_SERVER_WALLET_ADDRESS not set');
-  }
-
-  const stats = await getParticipantStats(engineWalletAddress);
-  
-  if (stats.availableToClaim < 0.001) {
-    console.log('No earnings to claim (less than 0.001 $TOWNS)');
-    return;
-  }
-
-  const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-  if (!rewardsContractAddress) {
-    throw new Error('NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS not set');
-  }
-
-  const rewardsContract = getContract({
-    client,
-    address: rewardsContractAddress,
-    chain: base,
-  });
-
-  const transaction = prepareContractCall({
-    contract: rewardsContract,
-    method: 'function claimRewards()',
-    params: [],
-  });
-
-  const receipt = await sendTransaction({
-    transaction,
-    account: serverWallet,
-  });
-
-  console.log(`✅ Claimed ${stats.availableToClaim.toFixed(4)} $TOWNS (Tx: ${receipt.transactionHash})`);
+  // TODO: Implement earnings claim for KneadRewardsV5
+  // KneadRewardsV5 uses claimCashback() and claimTowns() instead of claimRewards()
+  console.log('ℹ️ Earnings claim skipped - pending KneadRewardsV5 implementation');
+  return;
 }
 
 /**
@@ -218,12 +185,16 @@ async function sendTownsTokens(recipientAddress: string, amount: number): Promis
     params: [recipientAddress, amountInWei],
   });
 
-  const receipt = await sendTransaction({
+  const { transactionId } = await serverWallet.enqueueTransaction({
     transaction,
-    account: serverWallet,
   });
 
-  return receipt.transactionHash;
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client,
+    transactionId,
+  });
+
+  return transactionHash;
 }
 
 // Allow running as standalone script
