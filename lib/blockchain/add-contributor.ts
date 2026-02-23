@@ -48,6 +48,17 @@ export async function addContributorToRewards(
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
+
+    // Diagnostic: check Engine queue status immediately after enqueue
+    try {
+      const status = await Engine.getTransactionStatus({
+        client,
+        transactionId,
+      });
+      console.log('🔍 Engine transaction status after enqueue:', JSON.stringify(status));
+    } catch (statusErr) {
+      console.warn('⚠️ Could not fetch transaction status:', statusErr);
+    }
     
     const { transactionHash } = await Engine.waitForTransactionHash({
       client,

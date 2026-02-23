@@ -7,9 +7,8 @@
  * ⚠️ SERVER-ONLY: This file uses secret keys and must never be imported in client components!
  */
 
-import { createThirdwebClient, getContract, prepareContractCall } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
-import { sendTransaction } from 'thirdweb/transaction';
 import { serverWallet } from '@/thirdweb-server-wallet';
 import { getAllContributorHolders } from './get-contributors';
 
@@ -52,18 +51,22 @@ export async function allocateWeeklyAllowances(
     params: [contributorAddresses],
   });
 
-  const receipt = await sendTransaction({
+  const { transactionId } = await serverWallet.enqueueTransaction({
     transaction,
-    account: serverWallet,
+  });
+
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client,
+    transactionId,
   });
 
   console.log('✅ Weekly allowances allocated:', {
     count: contributorAddresses.length,
-    txHash: receipt.transactionHash,
+    txHash: transactionHash,
   });
 
   return {
-    transactionHash: receipt.transactionHash,
+    transactionHash,
     count: contributorAddresses.length,
   };
 }
@@ -99,18 +102,22 @@ export async function updateContributorBudget(
     params: [contributorAddress, newBudgetWei],
   });
 
-  const receipt = await sendTransaction({
+  const { transactionId } = await serverWallet.enqueueTransaction({
     transaction,
-    account: serverWallet,
+  });
+
+  const { transactionHash } = await Engine.waitForTransactionHash({
+    client,
+    transactionId,
   });
 
   console.log('✅ Contributor budget updated:', {
     address: contributorAddress,
     newBudget,
-    txHash: receipt.transactionHash,
+    txHash: transactionHash,
   });
 
   return {
-    transactionHash: receipt.transactionHash,
+    transactionHash,
   };
 }
