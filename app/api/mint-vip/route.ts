@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getContract,
   prepareContractCall,
-  Engine,
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
+
+export const maxDuration = 60;
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase() || '';
@@ -79,11 +80,6 @@ export async function POST(req: NextRequest) {
       transaction,
     });
 
-    const { transactionHash } = await Engine.waitForTransactionHash({
-      client,
-      transactionId,
-    });
-
     // Update Supabase if email provided
     if (email) {
       await supabase.from("users").upsert(
@@ -100,9 +96,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      transactionHash,
       transactionId,
-      message: "VIP membership minted successfully",
+      message: "VIP membership mint enqueued successfully. Will confirm on-chain in ~30-60 seconds.",
     });
   } catch (error) {
     console.error("VIP mint error:", error);
