@@ -9,6 +9,23 @@ import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
 
+/**
+ * FALLBACK: Engine server wallet minting route
+ *
+ * This API route uses ThirdWeb Engine's server wallet to mint VIP memberships.
+ * It is kept as a fallback in case direct wallet minting is unavailable.
+ *
+ * PRIMARY path: MonthlyMintManager component uses direct wallet minting via
+ * useSendTransaction hook, which bypasses this route entirely.
+ *
+ * USE THIS ROUTE IF:
+ * - Engine server wallet nonce is healthy (check ThirdWeb dashboard)
+ * - You need to mint programmatically without a connected browser wallet
+ *
+ * KNOWN ISSUE: ThirdWeb Engine server wallet (0x8659...7A10) had a stuck nonce
+ * on Base on 2026-02-23. If minting fails, check Engine dashboard first.
+ */
+
 export const maxDuration = 60;
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;

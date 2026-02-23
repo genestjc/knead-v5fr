@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useSendTransaction } from 'thirdweb/react';
+import { getContract, prepareContractCall } from 'thirdweb';
+import { base } from 'thirdweb/chains';
+import { client } from '@/thirdweb-client';
 import { ContributorPoolWidget } from './ContributorPoolWidget';
 
 interface Contributor {
@@ -38,16 +41,18 @@ function getNextSundayDate(): string {
 // Minting Form Component
 function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
   const account = useActiveAccount();
+  const { mutateAsync: sendTransaction } = useSendTransaction();
   const [recipient, setRecipient] = useState('');
   const [role, setRole] = useState<'appointed' | 'invited' | 'earned'>('invited');
   const [weeklyBudget, setWeeklyBudget] = useState('100');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [txHashes, setTxHashes] = useState<{ mint?: string; rewards?: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!account?.address) {
-      setMessage('Error: Admin wallet not connected.');
+      setMessage('Connect your admin wallet to mint');
       return;
     }
 
@@ -57,31 +62,55 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       return;
     }
 
+    const contributorNftAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+    const rewardsAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+    if (!contributorNftAddress || !rewardsAddress) {
+      setMessage('Error: Contract addresses are not configured.');
+      return;
+    }
+
     setIsLoading(true);
     setMessage('');
+    setTxHashes(null);
 
     try {
-      const response = await fetch('/api/admin/mint-contributor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientAddress: recipient,
-          role: role,
-          weeklyBudget: budgetNum,
-          adminAddress: account.address,
-        }),
+      // PRIMARY: Direct wallet mint (bypasses Engine server wallet). Engine API route at /api/admin/mint-contributor kept as fallback - see route.ts
+      const tokenIdMap = { appointed: 1n, invited: 2n, earned: 3n } as const;
+      const contributorTypeMap = { appointed: 0, invited: 1, earned: 2 } as const;
+
+      const contributorNftContract = getContract({
+        client,
+        chain: base,
+        address: contributorNftAddress,
       });
 
-      const data = await response.json();
+      const rewardsContract = getContract({
+        client,
+        chain: base,
+        address: rewardsAddress,
+      });
 
-      if (data.success) {
-        setMessage(`✅ Submitted! NFT mint queued (Token ID ${data.tokenId}) with ${weeklyBudget} TOWNS/week budget. Engine transaction ID: ${data.mintTransactionId?.slice(0,10) ?? 'N/A'}... — will confirm on-chain in ~30-60 seconds.`);
-        setRecipient('');
-        setWeeklyBudget('100'); // Reset to default
-        onMintSuccess();
-      } else {
-        throw new Error(data.error || 'Failed to add contributor.');
-      }
+      // Step 1: Mint contributor NFT
+      const mintTx = prepareContractCall({
+        contract: contributorNftContract,
+        method: "function adminMintContributor(address to, uint256 tokenId)",
+        params: [recipient as `0x${string}`, tokenIdMap[role]],
+      });
+      const mintResult = await sendTransaction(mintTx);
+
+      // Step 2: Add to rewards contract
+      const addTx = prepareContractCall({
+        contract: rewardsContract,
+        method: "function addContributor(address _contributor, uint8 _type, uint256 _weeklyBudgetTowns)",
+        params: [recipient as `0x${string}`, contributorTypeMap[role], BigInt(Math.round(budgetNum)) * 10n ** 18n],
+      });
+      const addResult = await sendTransaction(addTx);
+
+      setTxHashes({ mint: mintResult.transactionHash, rewards: addResult.transactionHash });
+      setMessage(`✅ Contributor added! NFT minted (Token ID ${tokenIdMap[role]}) with ${weeklyBudget} TOWNS/week budget.`);
+      setRecipient('');
+      setWeeklyBudget('100'); // Reset to default
+      onMintSuccess();
     } catch (error) {
       console.error(error);
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -168,13 +197,37 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
                   disabled={isLoading} 
                   className="w-full py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400"
                 >
-                    {isLoading ? 'Setting up contributor...' : 'Add Contributor'}
+                    {isLoading ? 'Confirm in MetaMask...' : 'Add Contributor'}
                 </button>
             </div>
         </form>
         {message && (
           <div className={`mt-4 p-3 rounded-md ${message.startsWith('✅') ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
             <p className="text-sm break-words">{message}</p>
+            {txHashes && (
+              <div className="mt-2 space-y-1 text-xs">
+                {txHashes.mint && (
+                  <a
+                    href={`https://basescan.org/tx/${txHashes.mint}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-blue-600 underline truncate"
+                  >
+                    Mint tx: {txHashes.mint.slice(0, 10)}... ↗
+                  </a>
+                )}
+                {txHashes.rewards && (
+                  <a
+                    href={`https://basescan.org/tx/${txHashes.rewards}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-blue-600 underline truncate"
+                  >
+                    Rewards tx: {txHashes.rewards.slice(0, 10)}... ↗
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )}
     </div>
