@@ -3,7 +3,7 @@ import { mintContributorNFT } from '@/lib/blockchain/contributor-nft';
 import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       tokenId: mintResult.tokenId,
-      transactionHash: mintResult.transactionHash,
-      rewardsTransactionHash: rewardsResult.transactionHash,
-      message: `Contributor queued successfully! NFT mint (Token ID ${mintResult.tokenId}) and rewards setup with ${weeklyBudget} TOWNS/week submitted to ThirdWeb Engine. Transactions will confirm on-chain in ~30-60 seconds.`,
+      mintTransactionId: mintResult.transactionId,
+      rewardsTransactionId: rewardsResult.transactionId,
+      message: `Contributor minting initiated! NFT mint (Token ID ${mintResult.tokenId}) and rewards setup with ${weeklyBudget} TOWNS/week enqueued in ThirdWeb Engine. Transactions will confirm on-chain in ~30-60 seconds.`,
       weeklyBudget,
       contributorType: role,
     });

@@ -1,4 +1,4 @@
-import { createThirdwebClient, getContract, prepareContractCall, Engine } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { serverWallet } from '@/thirdweb-server-wallet';
 
@@ -31,7 +31,7 @@ export async function addContributorToRewards(
   contributorAddress: string,
   contributorType: 0 | 1 | 2,
   weeklyBudget: number
-): Promise<{ transactionHash: string }> {
+): Promise<{ transactionId: string }> {
   try {
     const contract = getRewardsContract();
     
@@ -49,31 +49,15 @@ export async function addContributorToRewards(
       transaction,
     });
 
-    // Diagnostic: check Engine queue status immediately after enqueue
-    try {
-      const status = await Engine.getTransactionStatus({
-        client,
-        transactionId,
-      });
-      console.log('🔍 Engine transaction status after enqueue:', JSON.stringify(status));
-    } catch (statusErr) {
-      console.warn('⚠️ Could not fetch transaction status:', statusErr);
-    }
-    
-    const { transactionHash } = await Engine.waitForTransactionHash({
-      client,
-      transactionId,
-    });
-    
-    console.log('✅ Contributor add to rewards queued:', {
+    console.log('✅ Contributor add to rewards enqueued:', {
       address: contributorAddress,
       type: contributorType,
       weeklyBudget,
-      txHash: transactionHash,
+      transactionId,
     });
     
     return {
-      transactionHash,
+      transactionId,
     };
   } catch (error: any) {
     console.error('Error adding contributor to rewards:', error);
