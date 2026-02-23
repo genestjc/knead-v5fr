@@ -75,7 +75,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(`✅ Submitted! NFT mint queued (Token ID ${data.tokenId}) with ${weeklyBudget} TOWNS/week budget. Engine tx hash: ${data.transactionHash.slice(0,10)}... — will confirm on-chain in ~30-60 seconds.`);
+        setMessage(`✅ Submitted! NFT mint queued (Token ID ${data.tokenId}) with ${weeklyBudget} TOWNS/week budget. Engine transaction ID: ${data.mintTransactionId?.slice(0,10) ?? 'N/A'}... — will confirm on-chain in ~30-60 seconds.`);
         setRecipient('');
         setWeeklyBudget('100'); // Reset to default
         onMintSuccess();

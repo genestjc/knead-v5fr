@@ -57,8 +57,8 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
       if (data.success) {
         setStatus({
           type: 'success',
-          message: 'Premium membership minted successfully!',
-          txHash: data.transactionHash,
+          message: 'Premium membership mint enqueued successfully!',
+          txHash: data.transactionId,
         });
         setRecipientAddress(''); // Clear input on success
       } else if (data.alreadyMinted) {
@@ -168,7 +168,7 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
 
           {status.txHash && (
             <div className="space-y-2">
-              <p className="font-georgia-pro text-sm text-gray-700">Transaction Hash:</p>
+              <p className="font-georgia-pro text-sm text-gray-700">Engine Transaction ID:</p>
               <div className="flex items-center gap-2 bg-white p-3 rounded border border-gray-300">
                 <code className="font-mono text-sm flex-1 break-all">{status.txHash}</code>
                 <button
@@ -179,15 +179,9 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
                   📋 Copy
                 </button>
               </div>
-
-              <a
-                href={`https://basescan.org/tx/${status.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-2 text-blue-600 hover:text-blue-800 font-georgia-pro text-sm underline"
-              >
-                🔗 View on BaseScan
-              </a>
+              <p className="font-georgia-pro text-xs text-gray-500 mt-1">
+                Transaction will confirm on-chain in ~30-60 seconds. Check BaseScan for the wallet address to confirm.
+              </p>
             </div>
           )}
         </div>
