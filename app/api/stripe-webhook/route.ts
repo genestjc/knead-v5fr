@@ -15,6 +15,7 @@ import {
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -48,7 +49,7 @@ async function mintPremiumNFT(
     tokenId: PAID_TOKEN_ID,
   });
 
-  if (balance. value > 0n) {
+  if (balance > 0n) {
     return { alreadyHasToken: true };
   }
 
@@ -107,7 +108,7 @@ async function burnPremiumNFT(
     tokenId:  PAID_TOKEN_ID,
   });
 
-  if (!balance || balance.value === 0n) {
+  if (!balance || balance === 0n) {
     return { 
       success: true, 
       noTokenToBurn: true,

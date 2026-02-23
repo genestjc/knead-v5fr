@@ -243,6 +243,7 @@ export async function mintContributorNFT(
       contract,
       method: 'function adminMintContributor(address to, uint256 tokenId)',
       params: [recipientAddress, BigInt(tokenId)],
+      gasLimit: 300000n,
     });
     
     // ✅ Correct: enqueueTransaction reads chainId from transaction.chain automatically
