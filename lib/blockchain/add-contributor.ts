@@ -1,4 +1,4 @@
-import { createThirdwebClient, getContract, prepareContractCall } from 'thirdweb';
+import { createThirdwebClient, getContract, prepareContractCall, Engine } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { serverWallet } from '@/thirdweb-server-wallet';
 
@@ -44,9 +44,14 @@ export async function addContributorToRewards(
       params: [contributorAddress, contributorType, weeklyBudgetWei],
     });
     
-    // ✅ Non-blocking: Engine queues the tx and returns immediately
-    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
-      chain: base,
+    // ✅ Correct: enqueueTransaction reads chainId from transaction.chain automatically
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Contributor add to rewards queued:', {

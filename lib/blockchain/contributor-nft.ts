@@ -226,8 +226,7 @@ export async function mintContributorNFT(
 
     // Import server wallet
     const { serverWallet } = await import('@/thirdweb-server-wallet');
-    const { createThirdwebClient } = await import('thirdweb');
-    const { prepareContractCall } = await import('thirdweb');
+    const { createThirdwebClient, prepareContractCall, Engine } = await import('thirdweb');
     
     const client = createThirdwebClient({
       secretKey: process.env.THIRDWEB_SECRET_KEY!,
@@ -246,9 +245,14 @@ export async function mintContributorNFT(
       params: [recipientAddress, BigInt(tokenId)],
     });
     
-    // ✅ Non-blocking: Engine queues the tx and returns immediately
-    const { transactionHash } = await serverWallet.sendTransaction(transaction, {
-      chain: base,
+    // ✅ Correct: enqueueTransaction reads chainId from transaction.chain automatically
+    const { transactionId } = await serverWallet.enqueueTransaction({
+      transaction,
+    });
+    
+    const { transactionHash } = await Engine.waitForTransactionHash({
+      client,
+      transactionId,
     });
     
     console.log('✅ Contributor NFT mint queued:', {
