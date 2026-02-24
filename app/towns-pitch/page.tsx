@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef, type TouchEvent } from "react"
 import Image from "next/image"
-import { motion } from "framer-motion"
+import { motion, type Variants } from "framer-motion"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
-const fadeIn = {
+const fadeIn: Variants = {
   hidden: { opacity: 0, y: 12 },
   visible: {
     opacity: 1,
@@ -15,7 +15,7 @@ const fadeIn = {
   },
 }
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
