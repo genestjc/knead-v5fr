@@ -392,7 +392,7 @@ export default function TownsPitchPage() {
             As Community Manager at Highsnobiety — an audience of 10M+ — the gap was clear.
           </motion.p>
           <motion.p variants={fadeIn} className="text-2xl font-adonis text-black italic">
-            "I don't want to download another app."
+            For both audiences and interview subjects, the answer was often: "I don't want to download another app."
           </motion.p>
           <motion.p variants={fadeIn}>
             Fragmented platforms for different purposes. Building community became guesswork.
