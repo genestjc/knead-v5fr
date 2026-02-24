@@ -363,17 +363,16 @@ export default function TownsPitchPage() {
       {/* ── Screen 2: Vision ───────────────────────────────────────────────── */}
       <Slide id={1} {...slideProps}>
         <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-12 text-center">
-          Every company will have a /chat.
+          Every company will have a /chat
         </motion.h2>
         <motion.div variants={staggerContainer} className="max-w-3xl mx-auto space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
           {[
             "The internet is moving in-house.",
-            "Shifting from platforms to protocols.",
-            "Brands building communities natively on their own websites.",
-            "Custom frameworks for fans — live video, gamified rewards, and more.",
-            "The most engaging spaces are shifting off social media.",
-            '"Every company is a media company" — owning distribution is the competitive edge.',
-            "Knead's /chat is the infrastructure for brands who get it.",
+            "By shifting from platforms to protocols, brands are able to build communities natively on their own website, customizing a framework exclusively for their fans.",
+            "Whether that's a home for live video streaming, a gamified reward system, or a combination of everything in-between, the most engaging spaces will be shifting off social media and into digital experiences directly between companies and their most loyal supporters.",
+            'When our current digital era started, the saying was: "Every company is a media company."',
+            "However, we lost sight of what it meant to own how that media's distributed.",
+            "As a magazine on the forefront of digital culture, Knead's /chat isn't just changing how we engage with our community, but providing the infrastructure for brands to design a custom media experience themselves.",
           ].map((line, i) => (
             <motion.p key={i} variants={fadeIn}>
               {line}
@@ -388,18 +387,18 @@ export default function TownsPitchPage() {
           The problem we noticed.
         </motion.h2>
         <motion.div variants={staggerContainer} className="max-w-3xl space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
-          <motion.p variants={fadeIn}>
-            As Community Manager at Highsnobiety — an audience of 10M+ — the gap was clear.
-          </motion.p>
-          <motion.p variants={fadeIn} className="text-2xl font-adonis text-black italic">
-            For both audiences and interview subjects, the answer was often: "I don't want to download another app."
-          </motion.p>
-          <motion.p variants={fadeIn}>
-            Fragmented platforms for different purposes. Building community became guesswork.
-          </motion.p>
-          <motion.p variants={fadeIn}>
-            The solution: a custom home for community, conversation, and media — embedded in the brand.
-          </motion.p>
+          {[
+            "Working as Community Manager at Highsnobiety, I identified a gap in trying to reach our audience of 10 million+ people:",
+            `For our followers, it was "I don't want to download another app". For our interview subjects, the same hesitation existed, wondering if it was worth the effort and time.`,
+            "Not only did this require people to sign up for separate platforms but ones that would host different technical purposes: one for audio streaming, another for conversation, etc.",
+            "Building community becomes a fragmented practice of guess-work rather than concentrating on identifying and rewarding the most loyal fans.",
+            "Instead, what if we could build everyone a custom home for community, conversation, and media?",
+            "Well, that's exactly what we did.",
+          ].map((para, i) => (
+            <motion.p key={i} variants={fadeIn}>
+              {para}
+            </motion.p>
+          ))}
         </motion.div>
       </Slide>
 
@@ -433,8 +432,7 @@ export default function TownsPitchPage() {
               The Knead Monthly Experience
             </motion.h2>
             <motion.p variants={fadeIn} className="font-georgia-pro text-lg text-gray-700">
-              When a Knead Monthly subscriber joins, they'll be able to comment during events — interviews, AMAs, office
-              hours — which enables them to earn $TOWNS, eventually graduating to Contributor.
+              When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
             </motion.p>
           </div>
           {/* Right: wallet mock */}
@@ -463,20 +461,13 @@ export default function TownsPitchPage() {
             <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
               Upgrading to Contributor
             </motion.h2>
-            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-3">
-              {[
-                "Full access: messaging all the time, persona/profile picture, DMs.",
-                "VIPs + earned members.",
-                "Weekly allowance from Treasury.",
-                "20% $TOWNS cashback on 'likes'.",
-                "Use-it-or-lose-it basis.",
-                "Passive income while retaining highest status.",
-              ].map((line, i) => (
-                <motion.p key={i} variants={fadeIn} className="flex gap-2">
-                  <span className="text-black mt-1">—</span>
-                  <span>{line}</span>
-                </motion.p>
-              ))}
+            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-4">
+              <motion.p variants={fadeIn}>
+                Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose-it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.
+              </motion.p>
             </motion.div>
           </div>
           {/* Right: wallet mock + profile picture placeholder */}
@@ -509,21 +500,18 @@ export default function TownsPitchPage() {
             <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
               Community-Driven, Scalable Compliance
             </motion.h2>
-            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-3">
+            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-4">
               {[
-                "Hub for thoughtful engagement.",
-                "Live video/audio streaming, gamified experiences, file uploads.",
-                "Onboarding: copy/paste wallet address.",
-                "ThirdWeb non-custodial wallets — users own wallets, can export private keys.",
-                "Custom smart contract on Base.",
-                "All transactions on-chain — Knead never touches funds.",
-                "Not a money transmitter.",
-                "Compliance stack with Towns Protocol backbone.",
-                "Knead as proof of concept.",
+                "Knead's chat is designed to be a hub for thoughtful engagement.",
+                "With capabilities for live video/audio streaming, gamified experiences, file uploads, + more, our framework can be the example for hosting enriching experiences for brands and creators alike. Onboarding is as simple as copy/pasting a wallet address.",
+                "These enticing features are paired with a fast, scalable tech stack that's regulatory compliant.",
+                "We use ThirdWeb non-custodial wallets, which means users own their wallets + can export their private keys.",
+                "By designing our reward systems through a custom smart contract on Base, all transactions occur on-chain, meaning Knead never touches the funds.",
+                "This model can be applied to any company who wants a reward system with real-world value without being considered a money transmitter.",
+                "This is a compliance stack with Towns Protocol as the backbone that's easily adoptable, with Knead as the proof of concept.",
               ].map((line, i) => (
-                <motion.p key={i} variants={fadeIn} className="flex gap-2">
-                  <span className="text-black mt-1">—</span>
-                  <span>{line}</span>
+                <motion.p key={i} variants={fadeIn}>
+                  {line}
                 </motion.p>
               ))}
             </motion.div>
