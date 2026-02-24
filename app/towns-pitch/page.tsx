@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, type TouchEvent } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import { ChatLayout } from "@/components/chat/ChatLayout"
+import { WalletSummary } from "@/components/wallet-summary"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
@@ -139,12 +141,14 @@ const Slide = ({
   slideRefs,
   setCurrentSlide,
   className = "",
+  raw = false,
 }: {
   id: number
   children: React.ReactNode
   slideRefs: React.MutableRefObject<(HTMLDivElement | null)[]>
   setCurrentSlide: (id: number) => void
   className?: string
+  raw?: boolean
 }) => {
   const [isVisible, setIsVisible] = useState(false)
 
@@ -166,6 +170,17 @@ const Slide = ({
     return () => observer.unobserve(el)
   }, [id, slideRefs, setCurrentSlide])
 
+  if (raw) {
+    return (
+      <div
+        ref={(el) => { slideRefs.current[id] = el }}
+        className={`min-h-screen relative overflow-hidden ${className}`}
+      >
+        {children}
+      </div>
+    )
+  }
+
   return (
     <div
       ref={(el) => { slideRefs.current[id] = el }}
@@ -182,128 +197,6 @@ const Slide = ({
     </div>
   )
 }
-
-// ─── Chat Mock UI for Screens 4-6 ────────────────────────────────────────────
-
-const ChatMockMenu = ({ visible }: { visible: boolean }) => (
-  <motion.div
-    initial={{ x: -280, opacity: 0 }}
-    animate={{ x: visible ? 0 : -280, opacity: visible ? 1 : 0 }}
-    transition={{ duration: 0.4, ease: "easeOut" }}
-    className="absolute left-0 top-0 bottom-0 w-64 bg-black border-r border-white/20 z-20 flex flex-col p-6 shadow-2xl"
-  >
-    <div className="mb-8">
-      <p className="font-adonis text-white text-xl tracking-wider">Knead /chat</p>
-      <p className="text-white/60 text-xs mt-1 font-georgia-pro">Powered by Towns Protocol</p>
-    </div>
-    <nav className="space-y-1">
-      {["# general", "# announcements", "# events", "# contributors", "# vip-lounge"].map((ch) => (
-        <div key={ch} className="px-3 py-2 rounded-lg hover:bg-white/10 text-white/80 text-sm font-georgia-pro cursor-pointer">
-          {ch}
-        </div>
-      ))}
-    </nav>
-    <div className="mt-auto space-y-2">
-      <div className="px-3 py-2 rounded-lg bg-white/5 text-white/60 text-xs font-georgia-pro">
-        🏛 Treasury: 12,400 $TOWNS
-      </div>
-      <div className="px-3 py-2 rounded-lg hover:bg-white/10 text-white/80 text-sm font-georgia-pro cursor-pointer">
-        ⚙ Settings
-      </div>
-    </div>
-  </motion.div>
-)
-
-const WalletMock = ({
-  mode,
-  visible,
-}: {
-  mode: "participant" | "contributor"
-  visible: boolean
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 20 }}
-    transition={{ duration: 0.5, delay: 0.3 }}
-    className="bg-black border border-white/20 rounded-2xl p-5 shadow-2xl w-72"
-  >
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-adonis">
-        {mode === "contributor" ? "C" : "P"}
-      </div>
-      <div>
-        <p className="text-white font-adonis text-sm">
-          {mode === "contributor" ? "Contributor" : "Knead Monthly"}
-        </p>
-        <p className="text-white/50 text-xs font-georgia-pro">0x3f…a9c2</p>
-      </div>
-      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-georgia-pro ${mode === "contributor" ? "bg-white text-black" : "bg-white/10 text-white/70"}`}>
-        {mode === "contributor" ? "VIP" : "Member"}
-      </span>
-    </div>
-    <div className="border-t border-white/10 pt-4 space-y-3">
-      {mode === "participant" ? (
-        <>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/60 font-georgia-pro">Total Earned</span>
-            <span className="text-white font-adonis">1,240 $TOWNS</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/60 font-georgia-pro">To Graduate</span>
-            <span className="text-white font-adonis">3,334 $TOWNS</span>
-          </div>
-          <div className="w-full bg-white/10 rounded-full h-1.5 mt-1">
-            <div className="bg-white h-1.5 rounded-full" style={{ width: "37%" }} />
-          </div>
-          <p className="text-white/40 text-xs font-georgia-pro text-center">37% to Contributor</p>
-        </>
-      ) : (
-        <>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/60 font-georgia-pro">Weekly Allowance</span>
-            <span className="text-white font-adonis">25 $TOWNS</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/60 font-georgia-pro">Cashback Rate</span>
-            <span className="text-white font-adonis">20%</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/60 font-georgia-pro">Claimable</span>
-            <span className="text-white font-adonis">18.4 $TOWNS</span>
-          </div>
-          <button className="w-full mt-2 py-2 bg-white text-black rounded-lg text-sm font-adonis hover:bg-white/90 transition-colors">
-            Claim Rewards
-          </button>
-        </>
-      )}
-    </div>
-  </motion.div>
-)
-
-const ChatBackground = () => (
-  <div className="absolute inset-0 bg-black overflow-hidden">
-    {/* Simulated chat messages */}
-    <div className="absolute inset-0 opacity-30 flex flex-col justify-end p-6 gap-2">
-      {[
-        { user: "alex.eth", msg: "Just got my first $TOWNS reward 🔥", time: "2:14 PM" },
-        { user: "contributor.knead", msg: "Welcome! The chat's been incredible lately", time: "2:15 PM" },
-        { user: "marina_v", msg: "Watching the interview now – so good", time: "2:16 PM" },
-        { user: "jcool.base", msg: "Who else is watching the AMA?", time: "2:17 PM" },
-        { user: "knead.admin", msg: "🎉 Event starts in 10 minutes", time: "2:18 PM" },
-      ].map((m, i) => (
-        <div key={i} className="flex gap-3 items-start">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex-shrink-0" />
-          <div>
-            <span className="text-white/60 text-xs font-adonis mr-2">{m.user}</span>
-            <span className="text-white/40 text-xs font-georgia-pro">{m.time}</span>
-            <p className="text-white/70 text-sm font-georgia-pro">{m.msg}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-    <div className="absolute inset-0 bg-black/60" />
-  </div>
-)
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -403,92 +296,80 @@ export default function TownsPitchPage() {
       </Slide>
 
       {/* ── Screen 4: Chat Demo – Framework / Menu ─────────────────────────── */}
-      <Slide id={3} {...slideProps} className="bg-white">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Left: copy */}
-          <div className="space-y-6 order-2 md:order-1">
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
+      <Slide id={3} {...slideProps} raw className="bg-white">
+        {/* Dimmed ChatLayout background */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none">
+          <ChatLayout>
+            <div className="h-full bg-gray-100" />
+          </ChatLayout>
+        </div>
+        {/* Overlay content */}
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+          <div className="max-w-4xl bg-white/95 backdrop-blur-sm p-8 md:p-12 rounded-2xl shadow-xl">
+            <h2 className="font-adonis text-4xl md:text-5xl mb-8 text-black">
               The Framework
-            </motion.h2>
-            <motion.p variants={fadeIn} className="font-georgia-pro text-lg text-gray-700">
+            </h2>
+            <p className="font-georgia-pro text-lg md:text-xl text-black">
               Our chat is built entirely on-chain, using Towns Protocol for messaging as well as $TOWNS for rewards.
-            </motion.p>
+            </p>
           </div>
-          {/* Right: chat mock */}
-          <motion.div variants={fadeIn} className="order-1 md:order-2 relative h-[420px] rounded-2xl overflow-hidden shadow-2xl">
-            <ChatBackground />
-            <ChatMockMenu visible={true} />
-            <div className="absolute inset-0 bg-black/40 z-10" />
-          </motion.div>
         </div>
       </Slide>
 
       {/* ── Screen 5: Chat Demo – Participant / Knead Monthly ──────────────── */}
-      <Slide id={4} {...slideProps} className="bg-white">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Left: copy */}
-          <div className="space-y-6">
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
-              The Knead Monthly Experience
-            </motion.h2>
-            <motion.p variants={fadeIn} className="font-georgia-pro text-lg text-gray-700">
-              When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
-            </motion.p>
-          </div>
-          {/* Right: wallet mock */}
-          <motion.div variants={fadeIn} className="flex flex-col items-center gap-8">
-            <div className="relative h-[360px] w-full rounded-2xl overflow-hidden shadow-xl">
-              <ChatBackground />
-              <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                <WalletMock mode="participant" visible={true} />
+      <Slide id={4} {...slideProps} raw className="bg-white">
+        {/* Dimmed ChatLayout background */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none">
+          <ChatLayout>
+            <div className="h-full bg-gray-100" />
+          </ChatLayout>
+        </div>
+        {/* Overlay content */}
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+          <div className="max-w-6xl grid md:grid-cols-2 gap-8 items-center">
+            <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl">
+              <h2 className="font-adonis text-4xl md:text-5xl mb-6 text-black">
+                The Knead Monthly Experience
+              </h2>
+              <p className="font-georgia-pro text-lg md:text-xl text-black">
+                When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
+              </p>
+            </div>
+            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl">
+              <div className="mb-4">
+                <WalletSummary context="chat" />
               </div>
             </div>
-            {/* Earnings placeholder */}
-            <div className="w-full max-w-sm bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
-              <p className="text-xs text-gray-400 font-georgia-pro mb-2">Earnings snapshot</p>
-              <p className="font-adonis text-3xl text-black">1,240 $TOWNS</p>
-              <p className="text-sm text-gray-500 font-georgia-pro mt-1">earned from 14 events</p>
-            </div>
-          </motion.div>
+          </div>
         </div>
       </Slide>
 
       {/* ── Screen 6: Chat Demo – Contributor ──────────────────────────────── */}
-      <Slide id={5} {...slideProps} className="bg-white">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Left: copy */}
-          <div className="space-y-6">
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
-              Upgrading to Contributor
-            </motion.h2>
-            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-4">
-              <motion.p variants={fadeIn}>
-                Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.
-              </motion.p>
-              <motion.p variants={fadeIn}>
-                Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose-it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.
-              </motion.p>
-            </motion.div>
+      <Slide id={5} {...slideProps} raw className="bg-white">
+        {/* Dimmed ChatLayout background */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none">
+          <ChatLayout>
+            <div className="h-full bg-gray-100" />
+          </ChatLayout>
+        </div>
+        {/* Overlay content */}
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+          <div className="max-w-6xl grid md:grid-cols-2 gap-8 items-center">
+            <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl">
+              <h2 className="font-adonis text-4xl md:text-5xl mb-6 text-black">
+                Upgrading to Contributor
+              </h2>
+              <div className="space-y-4 font-georgia-pro text-lg md:text-xl text-black">
+                <p>Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.</p>
+                <p>Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.</p>
+              </div>
+            </div>
+            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl">
+              <div className="mb-4">
+                <WalletSummary context="chat" />
+              </div>
+            </div>
           </div>
-          {/* Right: wallet mock + profile picture placeholder */}
-          <motion.div variants={fadeIn} className="flex flex-col items-center gap-6">
-            <div className="relative h-[340px] w-full rounded-2xl overflow-hidden shadow-xl">
-              <ChatBackground />
-              <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                <WalletMock mode="contributor" visible={true} />
-              </div>
-            </div>
-            {/* Profile picture placeholder */}
-            <div className="w-full max-w-sm bg-gray-50 border border-gray-200 rounded-xl p-5 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-black flex items-center justify-center flex-shrink-0">
-                <span className="font-adonis text-white text-xl">C</span>
-              </div>
-              <div>
-                <p className="font-adonis text-black">contributor.knead</p>
-                <p className="text-sm text-gray-500 font-georgia-pro">Custom persona · DMs unlocked</p>
-              </div>
-            </div>
-          </motion.div>
         </div>
       </Slide>
 
