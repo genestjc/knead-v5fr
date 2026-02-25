@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useRef, type TouchEvent } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { ChatLayout } from "@/components/chat/ChatLayout"
-import { WalletSummary } from "@/components/wallet-summary"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
@@ -299,16 +297,17 @@ export default function TownsPitchPage() {
 
       {/* ── Screen 4: Chat Demo – Framework / Menu ─────────────────────────── */}
       <Slide id={3} {...slideProps} raw className="bg-white">
-        {/* Dimmed ChatLayout background */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none">
-          <ChatLayout>
-            <div className="h-full bg-gray-100" />
-          </ChatLayout>
+        <div className="absolute inset-0">
+          <Image
+            src="/chat-layout-screenshot.png"
+            alt="Chat interface"
+            fill
+            className="object-cover opacity-20"
+          />
         </div>
-        {/* Overlay content */}
         <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
-          <div className="max-w-4xl bg-white/95 backdrop-blur-sm p-8 md:p-12 rounded-2xl shadow-xl">
-            <h2 className="font-adonis text-4xl md:text-5xl mb-8 text-black">
+          <div className="text-center max-w-3xl">
+            <h2 className="font-adonis text-4xl md:text-6xl mb-8 text-black">
               The Framework
             </h2>
             <p className="font-georgia-pro text-lg md:text-xl text-black">
@@ -319,59 +318,49 @@ export default function TownsPitchPage() {
       </Slide>
 
       {/* ── Screen 5: Chat Demo – Participant / Knead Monthly ──────────────── */}
-      <Slide id={4} {...slideProps} raw className="bg-white">
-        {/* Dimmed ChatLayout background */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none">
-          <ChatLayout>
-            <div className="h-full bg-gray-100" />
-          </ChatLayout>
-        </div>
-        {/* Overlay content */}
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
-          <div className="max-w-6xl grid md:grid-cols-2 gap-8 items-center">
-            <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl">
-              <h2 className="font-adonis text-4xl md:text-5xl mb-6 text-black">
-                The Knead Monthly Experience
-              </h2>
-              <p className="font-georgia-pro text-lg md:text-xl text-black">
-                When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
-              </p>
-            </div>
-            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl">
-              <div className="mb-4">
-                <WalletSummary context="chat" />
-              </div>
-            </div>
+      <Slide id={4} {...slideProps} className="bg-white">
+        <div className="max-w-6xl grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl mb-6 text-black">
+              The Knead Monthly Experience
+            </motion.h2>
+            <motion.p variants={fadeIn} className="font-georgia-pro text-lg md:text-xl text-black">
+              When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
+            </motion.p>
           </div>
+          <motion.div variants={fadeIn}>
+            <Image
+              src="/participant-menu-screenshot.png"
+              alt="Participant menu"
+              width={400}
+              height={600}
+              className="rounded-xl shadow-2xl w-full"
+            />
+          </motion.div>
         </div>
       </Slide>
 
       {/* ── Screen 6: Chat Demo – Contributor ──────────────────────────────── */}
-      <Slide id={5} {...slideProps} raw className="bg-white">
-        {/* Dimmed ChatLayout background */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none">
-          <ChatLayout>
-            <div className="h-full bg-gray-100" />
-          </ChatLayout>
-        </div>
-        {/* Overlay content */}
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
-          <div className="max-w-6xl grid md:grid-cols-2 gap-8 items-center">
-            <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl">
-              <h2 className="font-adonis text-4xl md:text-5xl mb-6 text-black">
-                Upgrading to Contributor
-              </h2>
-              <div className="space-y-4 font-georgia-pro text-lg md:text-xl text-black">
-                <p>Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.</p>
-                <p>Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.</p>
-              </div>
-            </div>
-            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-xl">
-              <div className="mb-4">
-                <WalletSummary context="chat" />
-              </div>
-            </div>
+      <Slide id={5} {...slideProps} className="bg-white">
+        <div className="max-w-6xl grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl mb-6 text-black">
+              Upgrading to Contributor
+            </motion.h2>
+            <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg md:text-xl text-black">
+              <motion.p variants={fadeIn}>Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.</motion.p>
+              <motion.p variants={fadeIn}>Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.</motion.p>
+            </motion.div>
           </div>
+          <motion.div variants={fadeIn}>
+            <Image
+              src="/contributor-menu-screenshot.png"
+              alt="Contributor menu"
+              width={400}
+              height={600}
+              className="rounded-xl shadow-2xl w-full"
+            />
+          </motion.div>
         </div>
       </Slide>
 
@@ -433,239 +422,197 @@ export default function TownsPitchPage() {
         </div>
       </Slide>
 
-      {/* ── Screen 8: Ask, Budget, Bonuses ─────────────────────────────────── */}
+      {/* ── Screen 8: Ask, Budget, Bonuses, Timeline ───────────────────────── */}
       <Slide id={7} {...slideProps}>
         <div className="space-y-20">
 
-          {/* Section 1: The Ask */}
+          {/* Header */}
           <div>
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-8">
+            <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-6xl text-black mb-8">
               Our Ask + Timeline
             </motion.h2>
-            <motion.p variants={fadeIn} className="font-georgia-pro text-lg text-gray-700 mb-8 max-w-3xl">
-              Knead would like Towns to engage on a 5-month sprint, funding our /chat activation + relaunch with $TOWNS
-              as a living case study to activate our fashion, art, culture, music, and other audiences. Here's our
-              top-line goals:
-            </motion.p>
-            <motion.div variants={staggerContainer} className="space-y-4 mb-12">
-              {[
-                "A selective group of VIPs/influencers from our time at Highsnobiety + Knead in the chat — across major fashion brands, music labels, galleries, and tech companies.",
-                "Turn 1–2 of these leads into sales prospects for Knead to build them a custom chat platform, working with Towns on strategy to build a stronger portfolio of brands for both companies.",
-                "Create an observable sales audience for Towns to build its media verticals.",
-              ].map((goal, i) => (
-                <motion.div key={i} variants={fadeIn} className="flex gap-4">
-                  <span className="font-adonis text-black text-lg mt-0.5">{i + 1}.</span>
-                  <p className="font-georgia-pro text-lg text-gray-700">{goal}</p>
-                </motion.div>
-              ))}
-            </motion.div>
-
-            <motion.h3 variants={fadeIn} className="text-2xl font-adonis mb-4 text-gray-800">If Successful</motion.h3>
-            <motion.div variants={staggerContainer} className="space-y-3 mb-12">
-              {[
-                "Knead has built enough of a foundation that a larger $TOWNS grant could be used to bolster our platform as the future of media: creating a studio and merchandise arm.",
-                "Knead acquires its own tech clients with our stack, creating an entirely new division of our company as a development agency.",
-              ].map((item, i) => (
-                <motion.div key={i} variants={fadeIn} className="flex gap-4">
-                  <span className="font-adonis text-black text-lg mt-0.5">{i + 1}.</span>
-                  <p className="font-georgia-pro text-lg text-gray-700">{item}</p>
-                </motion.div>
-              ))}
-            </motion.div>
           </div>
 
-          {/* Budget Breakdown */}
+          {/* Goals */}
           <div>
-            <motion.h3 variants={fadeIn} className="text-3xl font-adonis mb-4">Budget Breakdown</motion.h3>
-            <motion.div variants={fadeIn} className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
-              <p className="font-adonis text-2xl text-black mb-2">
-                $10,000/month retainer paid in $TOWNS to Knead
-              </p>
-              <p className="font-adonis text-xl text-gray-600">
-                + $2,000/month in $TOWNS sent directly to Knead Treasury
-              </p>
-            </motion.div>
+            <motion.p variants={fadeIn} className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
+              Knead would like Towns to engage on a 5-month long sprint, funding our /chat activation + relaunch with $TOWNS as a living case study to activate our fashion, art, culture, music, and other audiences. Here's our top-line goals:
+            </motion.p>
+            <motion.ul variants={fadeIn} className="font-georgia-pro text-lg space-y-4 list-disc pl-6 text-black">
+              <li>A selective group of VIPs/influencers from our time at Highsnobiety + Knead in the chat. These include Knead supporters across major fashion brands, music labels, galleries, and tech companies.</li>
+              <li>Turn 1-2 of these leads into sales prospects for Knead to build them a custom chat platform, working with Towns on strategy to build a stronger portfolio of brands for both companies.</li>
+              <li>Create an observable sales audience for Towns to build its media verticals.</li>
+            </motion.ul>
+          </div>
+
+          {/* If Successful */}
+          <div>
+            <motion.p variants={fadeIn} className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
+              If successful, the outcomes would include:
+            </motion.p>
+            <motion.ul variants={fadeIn} className="font-georgia-pro text-lg space-y-4 list-disc pl-6 text-black">
+              <li>Knead has built enough of a foundation that a larger $TOWNS grant could be used to only bolster our platform as the future of media: creating a studio and merchandise arm.</li>
+              <li>Knead acquires its own tech clients with our stack, creating an entirely new division of our company as a development agency.</li>
+            </motion.ul>
+          </div>
+
+          {/* Budget */}
+          <div>
+            <motion.h3 variants={fadeIn} className="font-adonis text-3xl md:text-4xl mb-6 text-black">Our Ask</motion.h3>
+            <motion.p variants={fadeIn} className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
+              $10,000/month retainer paid in $TOWNS to Knead + $2,000/month in $TOWNS sent directly to Knead Treasury. Here's how it'll be spent on a month-to-month basis:
+            </motion.p>
             <motion.div variants={staggerContainer} className="space-y-6">
-              {[
-                {
-                  title: "Magazine operations + editorial",
-                  body: "Original photography/videography/design for 10 stories for relaunch (slated: May 26). Editorial. Website Hosting. Legal Expenses. Coworking.",
-                  estimate: "$4–6k/month",
-                },
-                {
-                  title: "Treasury Budget",
-                  body: "The $2,000/month in $TOWNS for the chat helps strengthen recruitment for VIPs/influencers. Not only do they know there's a real amount they'll be able to start pulling 'cashback' from, but creates intrigue/interest in what Towns Protocol is.",
-                  estimate: "$2k/month",
-                },
-                {
-                  title: "Travel/Lodging",
-                  body: "As part of building anticipation for our relaunch, we'll document what it's like to create the stories we'll be releasing in May, giving the chat teaser content + exclusive looks.",
-                  estimate: "$2–4k/month for Editor + 1 photographer/videographer",
-                },
-              ].map((item, i) => (
-                <motion.div key={i} variants={fadeIn} className="border-l-2 border-black pl-6">
-                  <p className="font-adonis text-xl text-black mb-1">{item.title}</p>
-                  <p className="font-georgia-pro text-gray-700 mb-2">{item.body}</p>
-                  <p className="font-adonis text-sm text-gray-500">Estimated: {item.estimate}</p>
-                </motion.div>
-              ))}
+              <motion.div variants={fadeIn} className="bg-gray-50 p-6 rounded-lg">
+                <p className="font-georgia-pro text-black"><strong>Budget for magazine operations + editorial.</strong> Original photography/videography/design for 10 stories for relaunch (slated: May 26). Editorial. Website Hosting. Legal Expenses. Coworking. Estimated: $4-6k/month</p>
+              </motion.div>
+              <motion.div variants={fadeIn} className="bg-gray-50 p-6 rounded-lg">
+                <p className="font-georgia-pro text-black"><strong>Treasury Budget.</strong> The $2,000/month in $TOWNS for the chat helps strengthen recruitment for VIP/influencers. Not only do they know there's a real amount they'll be able to start pulling 'cashback' from, but create intrigue/interest in what Towns Protocol is.</p>
+              </motion.div>
+              <motion.div variants={fadeIn} className="bg-gray-50 p-6 rounded-lg">
+                <p className="font-georgia-pro text-black"><strong>Travel/Lodging.</strong> As part of building anticipation for our relaunch, we'll document what it's like to create the stories we'll be releasing in May, giving the chat teaser content + exclusive looks. Estimated: $2-4k/month for Editor + 1 photographer/videographer</p>
+              </motion.div>
             </motion.div>
           </div>
 
           {/* Bonuses */}
           <div>
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-4">Bonuses</motion.h2>
-            <motion.p variants={fadeIn} className="font-georgia-pro text-lg text-gray-700 mb-12">
-              Upon reaching benchmarks for Month 3 approvals, $TOWNS bonuses to fund:
+            <motion.h3 variants={fadeIn} className="font-adonis text-3xl md:text-4xl mb-6 text-black">Bonuses</motion.h3>
+            <motion.p variants={fadeIn} className="font-georgia-pro text-lg mb-8 text-black">
+              Upon reaching benchmarks for Month 3 approvals for, $TOWNS bonuses to fund:
             </motion.p>
 
-            {/* Bonus 1: S-Tier */}
-            <motion.div variants={fadeIn} className="grid md:grid-cols-2 gap-10 items-start mb-16">
-              <div className="space-y-4">
-                <h3 className="font-adonis text-2xl">The S-Tier Line</h3>
-                <p className="font-georgia-pro text-gray-700">
-                  NFC-enabled clothing (hoodie, crewneck, pocket t-shirt, and dad hat). Gifted to our Contributors as
-                  our VIP-seeding before Fall line launch, the S-Tier will enable users to tap the S-Tier (S) tag and
-                  give a Contributor membership to a friend (includes an annual Knead membership from the point of
-                  redemption too). This drives another batch of influencers to Knead + Towns, creating more sales leads
-                  from a group we've already been successful with giving a top level experience.
-                </p>
-                <p className="font-georgia-pro text-sm text-gray-500">Partners: IYK for NFC-chips</p>
-                <p className="font-adonis text-gray-700">Estimated: $35–40k for 200–250 people</p>
-              </div>
-              {/* S-Tier hoodie mockup placeholder */}
-              <div className="bg-gray-100 rounded-2xl overflow-hidden aspect-square flex items-center justify-center">
-                <div className="text-center p-8">
-                  <p className="font-adonis text-4xl text-black mb-2">S</p>
-                  <p className="font-georgia-pro text-gray-500 text-sm">S-Tier Hoodie Mockup</p>
-                  <p className="font-georgia-pro text-gray-400 text-xs mt-1">NFC-enabled · Limited Edition</p>
+            {/* S-Tier Line */}
+            <motion.div variants={fadeIn} className="grid md:grid-cols-2 gap-12 mb-12 items-start">
+              <div>
+                <h4 className="font-adonis text-2xl mb-4 text-black">The S-Tier Line</h4>
+                <div className="font-georgia-pro text-base space-y-4 text-black">
+                  <p>NFC-enabled clothing (hoodie, crewneck, pocket t-shirt, and dad hat). Gifted to our Contributors as our VIP-seeding before Fall line launch, the S-Tier will enable users to tap the S-Tier (S) tag and give a Contributor membership to a friend (includes an annual Knead membership from the point of redemption too). This drives another batch of influencers to Knead + Towns, creating more sales leads from a group we've already been successful with giving a top level experience.</p>
+                  <p>IYK for NFC-chips.</p>
+                  <p>Estimated cost: $35-40k for 200-250 people</p>
                 </div>
+              </div>
+              <div>
+                <Image
+                  src="/s-tier-hoodie-mockup.png"
+                  alt="S-Tier hoodie with K logo and S badge"
+                  width={500}
+                  height={600}
+                  className="rounded-xl w-full"
+                />
               </div>
             </motion.div>
 
-            {/* Bonus 2: Blvck Svm Dinner */}
-            <motion.div variants={fadeIn} className="grid md:grid-cols-2 gap-10 items-start mb-16">
-              <div className="space-y-4">
-                <h3 className="font-adonis text-2xl">Blvck Svm Dinner</h3>
-                <p className="font-georgia-pro text-gray-700">
-                  5 spots for our Blvck Svm Dinner in Richmond, VA. Knead will be inviting the rapper Blvck Svm to the
-                  Branch Museum in Richmond for an exclusive michelinman dinner pairing. Partnering with Michelin-star
-                  chefs around the country, Blvck Svm has been offering diners an intimate experience of breaking down
-                  each song off his album michelinman, with the chef defining a dish to accompany. We'd like to fly five
-                  Contributors from the chat in for an all expenses paid experience, highlighting an exclusive
-                  experience only for superfans/VIPs.
-                </p>
-                <p className="font-adonis text-gray-700">Estimated: $15–20k for 5 people</p>
+            {/* Blvck Svm Dinner */}
+            <motion.div variants={fadeIn} className="grid md:grid-cols-2 gap-12 items-start">
+              <div>
+                <h4 className="font-adonis text-2xl mb-4 text-black">5 Spots for our Blvck Svm Dinner in Richmond, VA</h4>
+                <div className="font-georgia-pro text-base space-y-4 text-black">
+                  <p>Knead will be inviting the rapper Blvck Svm to the Branch Museum in Richmond for an exclusive michelinman dinner pairing.</p>
+                  <p>Partnering with Michelin-star chefs around the country, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album michelinman, with the chef defining a dish to accompany.</p>
+                  <p>We'd like to fly five Contributors from the chat in for an all expenses paid experience, highlighting an exclusive experience only for superfans/VIPs.</p>
+                  <p>Estimated costs: $15-20k for 5 people</p>
+                </div>
               </div>
               <SwipeableCarousel
                 images={dinnerPartyPhotos}
                 currentIndex={currentDinnerPhoto}
                 setCurrentIndex={setCurrentDinnerPhoto}
-                height="360px"
+                height="400px"
               />
             </motion.div>
           </div>
 
           {/* Timeline */}
           <div>
-            <motion.h3 variants={fadeIn} className="text-3xl font-adonis mb-10">Timeline</motion.h3>
+            <motion.h3 variants={fadeIn} className="font-adonis text-3xl md:text-4xl mb-8 text-black">Timeline</motion.h3>
             <motion.div variants={staggerContainer} className="space-y-8">
-              {[
-                {
-                  month: "Month 1 — Private Beta (Tentatively March 2026)",
-                  items: [
-                    "Finish testing with friends/family, begin onboarding influencers as Contributors.",
-                    "Schedule 1–2 exclusive events for Contributors.",
-                    "Do 1 reward from PR network (free products).",
-                    "Invite PR companies, especially top-tier who specialize in high-end product samples.",
-                  ],
-                },
-                {
-                  month: "Month 2",
-                  items: [
-                    "Event schedule ramps up (minimum: 1 event per week).",
-                    "With permission, make Contributors a point of conversation.",
-                    "Start teasing content for upcoming Knead relaunch.",
-                    "Engage nearly daily with Contributors.",
-                    "Meetings with PR agencies/brands.",
-                    "Begin outreach for B2B sales.",
-                    "Minimum 100 Contributors in chat.",
-                  ],
-                },
-                {
-                  month: "Month 3 — Tentative Public Release (May 26)",
-                  items: [
-                    "Tease upcoming content.",
-                    "Announce chat + make it public. Announce total Treasury.",
-                    "Have 3 months of events booked (June–Aug).",
-                    "3–5 intro calls established for sales calls.",
-                    "If budget: samples developed + teaser photos of S-Tier clothing.",
-                    "Announce first IRL event: Blvck Svm michelinman dinner.",
-                    "Minimum 150 Contributors in chat.",
-                  ],
-                },
-                {
-                  month: "Month 4",
-                  items: [
-                    "Ongoing events + activations in full effect.",
-                    "Outreach for guest streams/takeovers (Boiler Rooms, etc).",
-                    "1–2 sales calls at meeting 2–3 in the pipeline.",
-                    "Contributors get S-Tier reservations.",
-                    "Photography + teasers for S-Tier drop to general public.",
-                    "Minimum 175 Contributors + 250 Knead Members.",
-                  ],
-                },
-                {
-                  month: "Month 5",
-                  items: [
-                    "Continuing weekly events + activations.",
-                    "First IRL event complete (Blvck Svm dinner).",
-                    "1 quality sales lead for Towns Protocol development.",
-                    "S-Tier line mailed to Contributors + redemption portal established.",
-                    "Larger $TOWNS grant unlocked to ramp up all activations.",
-                    "175+ Contributors, 250+ Members.",
-                  ],
-                },
-              ].map((month, i) => (
-                <motion.div key={i} variants={fadeIn} className="border border-gray-200 rounded-2xl p-6">
-                  <h4 className="font-adonis text-xl text-black mb-4">{month.month}</h4>
-                  <ul className="space-y-2">
-                    {month.items.map((item, j) => (
-                      <li key={j} className="font-georgia-pro text-gray-700 flex gap-2">
-                        <span className="text-gray-300 mt-1">·</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
-              ))}
+
+              {/* Month 1 */}
+              <motion.div variants={fadeIn}>
+                <h4 className="font-adonis text-2xl mb-4 text-black">Month 1 (Tentatively, March 2026 - Private Beta)</h4>
+                <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
+                  <li>Finish testing with friends/family, begin onboarding influencers/noteworthy guests as Contributors</li>
+                  <li>Schedule 1-2 exclusive events for Contributors (can be open hours with video feed, watching a Knead interview live).</li>
+                  <li>Do 1 reward from PR network (free products)</li>
+                  <li>Invite PR companies, especially top-tier who specialize in high-end products/product samples (explain benefit of Contributor group as powerful marketing segment of influencers).</li>
+                </ul>
+              </motion.div>
+
+              {/* Month 2 */}
+              <motion.div variants={fadeIn}>
+                <h4 className="font-adonis text-2xl mb-4 text-black">Month 2</h4>
+                <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
+                  <li>Event schedule ramps up as we onboard more Contributors (by week two, minimum: 1 event per week- can be open hours, interview/AMA, giveaway, portfolio review…anything to get the flow of events up).</li>
+                  <li>With permission, make Contributors a point of conversation: "Tell us about leading marketing initiatives at Pepsi" (the conversation is content).</li>
+                  <li>Starting teasing content for upcoming Knead relaunch- drop exclusive photos from interviews.</li>
+                  <li>Engage nearly daily with Contributors, asking questions and posting photos, encouraging regular contributions.</li>
+                  <li>Meetings with PR agencies/brands for upcoming rollouts of products/services that can be exclusively given away to Contributors in chat.</li>
+                  <li>Begin outreach for b2b sales of selling /chat as a product.</li>
+                  <li>Minimum 100 Contributors in chat</li>
+                </ul>
+              </motion.div>
+
+              {/* Month 3 */}
+              <motion.div variants={fadeIn}>
+                <h4 className="font-adonis text-2xl mb-4 text-black">Month 3 (Tentative Public Release: May 26)</h4>
+                <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
+                  <li>Tease upcoming content for tentative late May relaunch</li>
+                  <li>Announce chat + make it public. Announce total Treasury of $TOWNS/partnership.</li>
+                  <li>Have 3-months of events booked (June-Aug) to continue partnership (minimum: 3 per month)</li>
+                  <li>3-5 intro calls established for sales calls.</li>
+                  <li>If budget, samples developed + teaser photos sent to chat of Knead's first line of NFC-enabled clothing (S-Tier- fall drop).</li>
+                  <li>Announce first IRL event: Blvck Svm michelinman dinner. Depending on budget, RSVP spot to 5 chat members (VIP treatment: flown-in, attend dinner/show after, hotel accommodations).</li>
+                  <li>Minimum 150 Contributors in chat</li>
+                </ul>
+              </motion.div>
+
+              {/* Month 4 */}
+              <motion.div variants={fadeIn}>
+                <h4 className="font-adonis text-2xl mb-4 text-black">Month 4</h4>
+                <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
+                  <li>Ongoing events + activations in chat now full-effect</li>
+                  <li>Outreach for guest streams/takeovers (Boiler Rooms, etc)</li>
+                  <li>1-2 sales calls at meeting 2-3 in the pipeline for Towns Protocol development</li>
+                  <li>Contributor get S-Tier reservations (exclusive merch drop)</li>
+                  <li>Photography + teasers created for S-Tier drop to general public</li>
+                  <li>Minimum 175 Contributors in chat + 250 Knead Members</li>
+                </ul>
+              </motion.div>
+
+              {/* Month 5 */}
+              <motion.div variants={fadeIn}>
+                <h4 className="font-adonis text-2xl mb-4 text-black">Month 5</h4>
+                <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
+                  <li>Continuing weekly events + activations</li>
+                  <li>First IRL event complete (Blvck Svm michelinman dinner)</li>
+                  <li>1 quality sales lead for Towns Protocol development</li>
+                  <li>S-Tier line of merch mailed to Contributors + redemption portal established</li>
+                  <li>Larger $TOWNS grant unlocked to ramp up all activations (Merch, Digital/IRL events, etc)</li>
+                </ul>
+              </motion.div>
+
             </motion.div>
           </div>
 
-          {/* Benchmarks */}
+          {/* Final Benchmarks */}
           <div>
-            <motion.h3 variants={fadeIn} className="text-3xl font-adonis mb-8 text-center">Final Benchmarks</motion.h3>
-            <motion.div variants={staggerContainer} className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[
-                { label: "Contributors", value: "175+" },
-                { label: "Members", value: "250+" },
-                { label: "Enterprise sales leads", value: "1 qualified" },
-                { label: "More leads in pipeline", value: "3–5" },
-              ].map((b, i) => (
-                <motion.div key={i} variants={fadeIn} className="border border-gray-200 rounded-2xl p-6 text-center">
-                  <p className="font-adonis text-3xl text-black mb-2">{b.value}</p>
-                  <p className="font-georgia-pro text-sm text-gray-500">{b.label}</p>
-                </motion.div>
-              ))}
-            </motion.div>
+            <motion.h3 variants={fadeIn} className="font-adonis text-3xl md:text-4xl mb-6 text-black">Final Benchmarks:</motion.h3>
+            <motion.ul variants={fadeIn} className="font-georgia-pro text-xl space-y-2 list-disc pl-6 text-black">
+              <li>175+ Contributors</li>
+              <li>250+ Members</li>
+              <li>1 qualified enterprise sales lead</li>
+              <li>3-5 more sales leads in the pipeline</li>
+            </motion.ul>
           </div>
+
         </div>
       </Slide>
 
       {/* ── Screen 9: The Big Deal ──────────────────────────────────────────── */}
       <Slide id={8} {...slideProps}>
         <div className="max-w-4xl space-y-8">
-          <motion.h2 variants={fadeIn} className="text-5xl md:text-7xl font-adonis mb-12">
+          <motion.h2 variants={fadeIn} className="text-5xl md:text-7xl font-adonis mb-12 text-black">
             The Big Deal
           </motion.h2>
           {[
@@ -674,29 +621,29 @@ export default function TownsPitchPage() {
             "We're returning to an era where a brand can own the full experience on their website. You know, a time where the internet can be fun again.",
             "That's why, together, we can build a place for those memories to exist, starting with /chat.",
           ].map((para, i) => (
-            <motion.p key={i} variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-gray-700 leading-relaxed">
+            <motion.p key={i} variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black leading-relaxed">
               {para}
             </motion.p>
           ))}
-          <motion.p variants={fadeIn} className="pt-8">
-            <a
-              href="https://kneadmag.com/chat"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-georgia-pro text-xl md:text-2xl text-blue-600 hover:text-blue-800 underline"
-            >
-              Check out our chat at kneadmag.com/chat to experience it yourself
-            </a>
-          </motion.p>
         </div>
       </Slide>
 
       {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
       <Slide id={9} {...slideProps}>
         <div className="text-center">
-          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black">
+          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
             Thanks for reading.
           </motion.h2>
+          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black">
+            <a
+              href="https://kneadmag.com/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Check out our chat at kneadmag.com/chat to experience it yourself
+            </a>
+          </motion.p>
         </div>
       </Slide>
     </div>
