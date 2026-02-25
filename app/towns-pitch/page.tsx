@@ -631,15 +631,19 @@ export default function TownsPitchPage() {
 
       {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
       <Slide id={9} {...slideProps}>
-        <div className="text-center">
-          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
-            Thanks for reading.
-          </motion.h2>
-          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
-            Check out our chat at kneadmag.com/chat
-          </motion.p>
-        </div>
-      </Slide>
-    </div>
-  )
-}
+  <div className="text-center">
+    <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
+      Thanks for reading.
+    </motion.h2>
+    <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
+      <a 
+        href="https://kneadmag.com/chat" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="hover:underline"
+      >
+        Check out our chat at kneadmag.com/chat
+      </a>
+    </motion.p>
+  </div>
+</Slide>
