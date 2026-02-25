@@ -634,7 +634,7 @@ export default function TownsPitchPage() {
               rel="noopener noreferrer"
               className="text-black-600 hover:text-black-800 underline"
             >
-              Check out our chat at kneadmag.com/chat to experience it yourself
+              Check out our chat at kneadmag.com/chat
             </a>
           </motion.p>
         </div>
