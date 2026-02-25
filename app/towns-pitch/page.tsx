@@ -204,8 +204,19 @@ export default function TownsPitchPage() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const slideRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Screen 8 – dinner carousel
-  const dinnerPartyPhotos = Array.from({ length: 7 }).map((_, i) => `/dinner-party-${i + 1}.jpg`)
+  // Screen 8 – dinner carousel (using your uploaded photos)
+  const dinnerPartyPhotos = [
+    '/andrew-food-1.jpg',
+    '/andrew-food-2.jpg',
+    '/andrew-food-3.jpg',
+    '/andrew-food-4.jpg',
+    '/chance1.jpg',
+    '/chance2.jpg',
+    '/chance3.jpg',
+    '/chance4.jpg',
+    '/blvck-svm-kitchen.jpg',
+    '/branch-museum-design.jpg',
+  ]
   const [currentDinnerPhoto, setCurrentDinnerPhoto] = useState(0)
 
   const scrollToSlide = (index: number, e?: React.MouseEvent) => {
@@ -299,7 +310,7 @@ export default function TownsPitchPage() {
       <Slide id={3} {...slideProps} raw className="bg-white">
         <div className="absolute inset-0">
           <Image
-            src="/chat-layout-screenshot.png"
+            src="/chatlayout.png"
             alt="Chat interface"
             fill
             className="object-cover opacity-20"
@@ -330,7 +341,7 @@ export default function TownsPitchPage() {
           </div>
           <motion.div variants={fadeIn}>
             <Image
-              src="/participant-menu-screenshot.png"
+              src="/Knead Monthly Settings.png"
               alt="Participant menu"
               width={400}
               height={600}
@@ -354,7 +365,7 @@ export default function TownsPitchPage() {
           </div>
           <motion.div variants={fadeIn}>
             <Image
-              src="/contributor-menu-screenshot.png"
+              src="/Contributor Settings.png"
               alt="Contributor menu"
               width={400}
               height={600}
@@ -393,14 +404,14 @@ export default function TownsPitchPage() {
           </div>
           <motion.div variants={fadeIn} className="space-y-6">
             <Image
-              src="/livestream-screenshot.png"
+              src="/VideoScreenExample.png"
               alt="Live video event"
               width={500}
               height={350}
               className="rounded-xl shadow-lg w-full"
             />
             <Image
-              src="/engagement-button-screenshot.png"
+              src="/Engagement Example.png"
               alt="32 $TOWNS tip example"
               width={500}
               height={250}
@@ -486,7 +497,7 @@ export default function TownsPitchPage() {
                 </div>
                 <div>
                   <Image
-                    src="/s-tier-hoodie-mockup.png"
+                    src="/mock-up.png"
                     alt="S-Tier hoodie with K logo and S badge"
                     width={500}
                     height={600}
@@ -632,9 +643,9 @@ export default function TownsPitchPage() {
               href="https://kneadmag.com/chat"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-black-600 hover:text-black-800 underline"
+              className="text-blue-600 hover:text-blue-800 underline"
             >
-              Check out our chat at kneadmag.com/chat
+              Check out our chat at kneadmag.com/chat to experience it yourself
             </a>
           </motion.p>
         </div>
