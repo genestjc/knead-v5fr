@@ -280,18 +280,20 @@ export default function TownsPitchPage() {
           The problem we noticed.
         </motion.h2>
         <motion.div variants={staggerContainer} className="max-w-3xl space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
-          {[
-            "Working as Community Manager at Highsnobiety, I identified a gap in trying to reach our audience of 10 million+ people:",
-            `For our followers, it was "I don't want to download another app". For our interview subjects, the same hesitation existed, wondering if it was worth the effort and time.`,
-            "Not only did this require people to sign up for separate platforms but ones that would host different technical purposes: one for audio streaming, another for conversation, etc.",
-            "Building community becomes a fragmented practice of guess-work rather than concentrating on identifying and rewarding the most loyal fans.",
-            "Instead, what if we could build everyone a custom home for community, conversation, and media?",
-            "Well, that's exactly what we did.",
-          ].map((para, i) => (
-            <motion.p key={i} variants={fadeIn}>
-              {para}
-            </motion.p>
-          ))}
+          <motion.p variants={fadeIn}>
+            Working as Community Manager at Highsnobiety, I identified a gap in trying to reach our audience of 10 million+ people:
+          </motion.p>
+          <motion.ul variants={fadeIn} className="list-disc pl-6 space-y-4">
+            <li>For our followers, it was &quot;I don&apos;t want to download another app&quot;. For our interview subjects, the same hesitation existed, wondering if it was worth the effort and time.</li>
+            <li>Not only did this require people to sign up for separate platforms but ones that would host different technical purposes: one for audio streaming, another for conversation, etc.</li>
+            <li>Building community becomes a fragmented practice of guess-work rather than concentrating on identifying and rewarding the most loyal fans.</li>
+          </motion.ul>
+          <motion.p variants={fadeIn}>
+            Instead, what if we could build everyone a custom home for community, conversation, and media?
+          </motion.p>
+          <motion.p variants={fadeIn}>
+            Well, that&apos;s exactly what we did.
+          </motion.p>
         </motion.div>
       </Slide>
 
@@ -382,19 +384,23 @@ export default function TownsPitchPage() {
               Community-Driven, Scalable Compliance
             </motion.h2>
             <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-4">
-              {[
-                "Knead's chat is designed to be a hub for thoughtful engagement.",
-                "With capabilities for live video/audio streaming, gamified experiences, file uploads, + more, our framework can be the example for hosting enriching experiences for brands and creators alike. Onboarding is as simple as copy/pasting a wallet address.",
-                "These enticing features are paired with a fast, scalable tech stack that's regulatory compliant.",
-                "We use ThirdWeb non-custodial wallets, which means users own their wallets + can export their private keys.",
-                "By designing our reward systems through a custom smart contract on Base, all transactions occur on-chain, meaning Knead never touches the funds.",
-                "This model can be applied to any company who wants a reward system with real-world value without being considered a money transmitter.",
-                "This is a compliance stack with Towns Protocol as the backbone that's easily adoptable, with Knead as the proof of concept.",
-              ].map((line, i) => (
-                <motion.p key={i} variants={fadeIn}>
-                  {line}
-                </motion.p>
-              ))}
+              <motion.p variants={fadeIn}>
+                Knead&apos;s chat is designed to be a hub for thoughtful engagement.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                With capabilities for live video/audio streaming, gamified experiences, file uploads, + more, our framework can be the example for hosting enriching experiences for brands and creators alike. Onboarding is as simple as copy/pasting a wallet address.
+              </motion.p>
+              <motion.p variants={fadeIn} className="font-bold text-black">
+                These enticing features are paired with a fast, scalable tech stack that&apos;s regulatory compliant.
+              </motion.p>
+              <motion.ul variants={fadeIn} className="list-disc pl-6 space-y-2">
+                <li>We use ThirdWeb non-custodial wallets, which means users own their wallets + can export their private keys.</li>
+                <li>By designing our reward systems through a custom smart contract on Base, all transactions occur on-chain, meaning Knead never touches the funds.</li>
+                <li>This model can be applied to any company who wants a reward system with real-world value without being considered a money transmitter.</li>
+              </motion.ul>
+              <motion.p variants={fadeIn}>
+                This is a compliance stack with Towns Protocol as the backbone that&apos;s easily adoptable, with Knead as the proof of concept.
+              </motion.p>
             </motion.div>
           </div>
           {/* Right: video stage mock */}
@@ -658,8 +664,8 @@ export default function TownsPitchPage() {
 
       {/* ── Screen 9: The Big Deal ──────────────────────────────────────────── */}
       <Slide id={8} {...slideProps}>
-        <div className="text-center max-w-3xl mx-auto space-y-10">
-          <motion.h2 variants={fadeIn} className="text-4xl md:text-6xl font-adonis">
+        <div className="max-w-4xl space-y-8">
+          <motion.h2 variants={fadeIn} className="text-5xl md:text-7xl font-adonis mb-12">
             The Big Deal
           </motion.h2>
           {[
@@ -672,15 +678,25 @@ export default function TownsPitchPage() {
               {para}
             </motion.p>
           ))}
+          <motion.p variants={fadeIn} className="pt-8">
+            <a
+              href="https://kneadmag.com/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-georgia-pro text-xl md:text-2xl text-blue-600 hover:text-blue-800 underline"
+            >
+              Check out our chat at kneadmag.com/chat to experience it yourself
+            </a>
+          </motion.p>
         </div>
       </Slide>
 
       {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
       <Slide id={9} {...slideProps}>
         <div className="text-center">
-          <motion.p variants={fadeIn} className="font-georgia-pro text-3xl md:text-4xl text-gray-600 italic">
+          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black">
             Thanks for reading.
-          </motion.p>
+          </motion.h2>
         </div>
       </Slide>
     </div>
