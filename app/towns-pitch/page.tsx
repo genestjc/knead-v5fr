@@ -630,7 +630,7 @@ export default function TownsPitchPage() {
       </Slide>
 
       {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
-      <Slide id={9} {...slideProps}>
+<Slide id={9} {...slideProps}>
   <div className="text-center">
     <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
       Thanks for reading.
