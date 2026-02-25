@@ -372,7 +372,7 @@ export default function TownsPitchPage() {
         </div>
       </Slide>
 
-      {/* ── Screen 7: Compliance ────────────────────────────────────────────── */}
+      {/* ── Screen 7: Compliance ────────────────────────────────────��───────── */}
       <Slide id={6} {...slideProps}>
         <div className="grid md:grid-cols-2 gap-12 items-start">
           <div className="space-y-6">
@@ -630,20 +630,23 @@ export default function TownsPitchPage() {
       </Slide>
 
       {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
-<Slide id={9} {...slideProps}>
-  <div className="text-center">
-    <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
-      Thanks for reading.
-    </motion.h2>
-    <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
-      <a 
-        href="https://kneadmag.com/chat" 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="hover:underline"
-      >
-        Check out our chat at kneadmag.com/chat
-      </a>
-    </motion.p>
-  </div>
-</Slide>
+      <Slide id={9} {...slideProps}>
+        <div className="text-center">
+          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
+            Thanks for reading.
+          </motion.h2>
+          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
+            <a 
+              href="https://kneadmag.com/chat" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              Check out our chat at kneadmag.com/chat
+            </a>
+          </motion.p>
+        </div>
+      </Slide>
+    </div>
+  )
+}
