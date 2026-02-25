@@ -204,18 +204,15 @@ export default function TownsPitchPage() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const slideRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Screen 8 – dinner carousel (using your uploaded photos)
+  // Screen 8 – dinner carousel
   const dinnerPartyPhotos = [
-    '/andrew-food-1.jpg',
-    '/andrew-food-2.jpg',
-    '/andrew-food-3.jpg',
-    '/andrew-food-4.jpg',
-    '/chance1.jpg',
-    '/chance2.jpg',
-    '/chance3.jpg',
-    '/chance4.jpg',
-    '/blvck-svm-kitchen.jpg',
-    '/branch-museum-design.jpg',
+    '/dinner-party-1.jpg',
+    '/dinner-party-2.jpg',
+    '/dinner-party-3.jpg',
+    '/dinner-party-4.jpg',
+    '/dinner-party-5.jpg',
+    '/dinner-party-6.jpg',
+    '/dinner-party-7.jpg',
   ]
   const [currentDinnerPhoto, setCurrentDinnerPhoto] = useState(0)
 
@@ -339,13 +336,13 @@ export default function TownsPitchPage() {
               When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
             </motion.p>
           </div>
-          <motion.div variants={fadeIn}>
+          <motion.div variants={fadeIn} className="flex justify-center">
             <Image
               src="/Knead Monthly Settings.png"
               alt="Participant menu"
-              width={400}
-              height={600}
-              className="rounded-xl shadow-2xl w-full"
+              width={350}
+              height={500}
+              className="rounded-xl shadow-2xl"
             />
           </motion.div>
         </div>
@@ -363,13 +360,13 @@ export default function TownsPitchPage() {
               <motion.p variants={fadeIn}>Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.</motion.p>
             </motion.div>
           </div>
-          <motion.div variants={fadeIn}>
+          <motion.div variants={fadeIn} className="flex justify-center">
             <Image
               src="/Contributor Settings.png"
               alt="Contributor menu"
-              width={400}
-              height={600}
-              className="rounded-xl shadow-2xl w-full"
+              width={350}
+              height={500}
+              className="rounded-xl shadow-2xl"
             />
           </motion.div>
         </div>
@@ -638,15 +635,8 @@ export default function TownsPitchPage() {
           <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
             Thanks for reading.
           </motion.h2>
-          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black">
-            <a
-              href="https://kneadmag.com/chat"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline"
-            >
-              Check out our chat at kneadmag.com/chat to experience it yourself
-            </a>
+          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
+            Check out our chat at kneadmag.com/chat
           </motion.p>
         </div>
       </Slide>
