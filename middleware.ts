@@ -129,7 +129,10 @@ export function middleware(request: NextRequest) {
       https://vercel.live
       https://vercel.com
       https://va.vercel-scripts.com;
-  `.replace(/\s{2,}/g, ' ').trim();
+  `
+    .replace(/\n/g, '')        // ✅ CRITICAL FIX: Remove newlines first
+    .replace(/\s{2,}/g, ' ')   // Then collapse multiple spaces
+    .trim();
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
