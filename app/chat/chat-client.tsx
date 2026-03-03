@@ -243,25 +243,29 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (only if not already connected)
+      // 2. Connect agent (only if we don't have one yet)
       if (!agentRef.current) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
         });
+        
         if (!agent) {
           throw new Error('Agent connection failed — returned undefined');
         }
+        
         agentRef.current = agent;
+        console.log('✅ Agent connected and ready');
       }
 
       // 3. Join space
       setPhase('joining');
       
-      // Try joining without mint first (for existing members)
       let needsMint = false;
       
       try {
+        // ⚠️ skipMintMembership is documented for useJoinSpace hook
+        // May or may not work on imperative call - we have a fallback
         await agentRef.current.spaces.joinSpace(
           SAVED_SPACE_ID,
           signerRef.current,
@@ -270,13 +274,29 @@ function TownsChat() {
         console.log('✅ Already a member (joined without mint)');
       } catch (e: any) {
         const msg = (e.message || '').toLowerCase();
-        const alreadyJoined = msg.includes('already a member') || msg.includes('already joined');
         
-        if (alreadyJoined) {
+        if (msg.includes('already a member') || msg.includes('already joined')) {
           console.log('✅ Already a member (from error)');
-        } else if (msg.includes('not a member') || msg.includes('no membership') || msg.includes('not entitled')) {
+        } 
+        else if (msg.includes('not a member') || msg.includes('no membership') || msg.includes('not entitled')) {
           needsMint = true;
-        } else {
+        }
+        // Fallback: if skipMintMembership isn't supported imperatively
+        else if (msg.includes('unknown') || msg.includes('invalid option')) {
+          console.warn('⚠️ skipMintMembership not supported, trying regular join...');
+          try {
+            await agentRef.current.spaces.joinSpace(SAVED_SPACE_ID, signerRef.current);
+            console.log('��� Joined successfully');
+          } catch (joinError: any) {
+            const joinMsg = (joinError.message || '').toLowerCase();
+            if (joinMsg.includes('already a member')) {
+              console.log('✅ Already a member');
+            } else {
+              throw joinError;
+            }
+          }
+        }
+        else {
           throw e;
         }
       }
@@ -288,7 +308,7 @@ function TownsChat() {
         setShowProgressiveLoader(true);
         setLoadingStep(0);
         
-        // Force React to re-render
+        // Force React to re-render with progressive loader
         await new Promise(resolve => setTimeout(resolve, 50));
         
         // Step 0: Minting chat membership (cosmetic delay)
@@ -338,6 +358,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = true;
       }
     } catch (e: any) {
+      console.error('❌ Connection flow error:', e);
       setPhase('error');
       setErrorMsg(friendlyError(e));
       flowStartedRef.current = false;
@@ -364,11 +385,14 @@ function TownsChat() {
           <p className="font-georgia-pro text-red-500 mb-4">{errorMsg}</p>
           <button
             onClick={() => {
+              // ✅ Complete cleanup: reset ALL state and refs
               setPhase('idle');
               setErrorMsg('');
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               flowStartedRef.current = false;
+              agentRef.current = null;
+              signerRef.current = null; // ✅ Clear signer to force re-creation
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
           >
@@ -461,11 +485,19 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
+  const [walletChecked, setWalletChecked] = useState(false);
   const wallet = useActiveWallet();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
   useEffect(() => setIsMounted(true), []);
+
+  // ✅ Brief wallet check to prevent flash (200ms)
+  useEffect(() => {
+    if (!isMounted) return;
+    const timer = setTimeout(() => setWalletChecked(true), 200);
+    return () => clearTimeout(timer);
+  }, [isMounted]);
 
   useEffect(() => {
     if (localStorage.getItem('exportKeyIntent') !== '1') return;
@@ -482,7 +514,9 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  if (!isMounted) return <LoadingSpinner message="Loading..." />;
+  if (!isMounted || !walletChecked) {
+    return <LoadingSpinner message="Loading..." />;
+  }
 
   // Bot mode
   if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -545,8 +579,8 @@ function friendlyError(error: any): string {
     return 'Not enough network nodes are available right now. Please try again in a few minutes.';
   if (msg.includes('user rejected') || msg.includes('denied'))
     return 'Wallet signature was cancelled.';
-  if (msg.includes('returned undefined'))
-    return 'Agent connection failed. Please retry.';
+  if (msg.includes('returned undefined') || msg.includes('client is not defined'))
+    return 'Connection failed. Please try again.';
   if (msg.includes('transaction failed after retries'))
     return 'The Towns network is congested. Please try again shortly.';
   return error.message || 'An unexpected error occurred.';
