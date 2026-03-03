@@ -33,7 +33,7 @@ const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
 });
 
 // ---------------------------------------------------------------------------
-// Progressive 5-Dot Loader
+// Progressive 5-Dot Loader (NEW USERS ONLY)
 // ---------------------------------------------------------------------------
 
 interface ProgressiveLoaderProps {
@@ -183,6 +183,15 @@ function useBotAutoConnect() {
 
 type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
 
+const PHASE_LABELS: Record<Phase, string> = {
+  idle: 'Waiting for wallet...',
+  signing: 'Please sign the message...',
+  connecting: 'Connecting to Towns...',
+  joining: 'Joining space...',
+  ready: '',
+  error: 'Something went wrong.',
+};
+
 // New user onboarding steps
 const NEW_USER_STEPS = [
   'Minting chat membership',
@@ -190,13 +199,6 @@ const NEW_USER_STEPS = [
   'Reaching the nodes',
   'Connected to nodes',
   'Kneading the dough',
-];
-
-// Return user steps (faster)
-const RETURN_USER_STEPS = [
-  'Reconnecting to chat...',
-  'Loading your messages...',
-  'Almost there...',
 ];
 
 // ---------------------------------------------------------------------------
@@ -235,14 +237,12 @@ function TownsChat() {
       // 1. Create signer (cached for the session)
       if (!signerRef.current) {
         setPhase('signing');
-        setLoadingStep(0);
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
       // 2. Connect agent
       if (!isAgentConnected) {
         setPhase('connecting');
-        setLoadingStep(1);
         const agent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
         });
@@ -255,7 +255,6 @@ function TownsChat() {
       // 3. Join space — only if not already a member
       if (agentRef.current) {
         setPhase('joining');
-        setLoadingStep(2);
 
         // Wait for persistence to load space memberships
         // SDK loads from IndexedDB after connect() — typically ~0.5ms
@@ -270,9 +269,7 @@ function TownsChat() {
         if (alreadyMember) {
           console.log('✅ Already a member of space, skipping joinSpace transaction');
           setIsNewUser(false);
-          setLoadingStep(2); // Return users finish faster
         } else {
-          setIsNewUser(true);
           try {
             // First attempt: skip mint — covers the case where persistence
             // hadn't loaded yet but user IS already a member on-chain
@@ -290,15 +287,22 @@ function TownsChat() {
               console.log('✅ Already a member (caught from joinSpace)');
               setIsNewUser(false);
             } else if (msg.includes('not a member') || msg.includes('no membership')) {
-              // Genuinely new user — call again WITH mint
+              // Genuinely new user — show progressive loader
               console.log('🆕 New user, minting membership...');
-              setLoadingStep(0); // Start from beginning for new users
+              setIsNewUser(true);
+              setLoadingStep(0);
+              await new Promise(r => setTimeout(r, 500));
               
+              setLoadingStep(1);
+              await new Promise(r => setTimeout(r, 800));
+              
+              setLoadingStep(2);
               await agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
               );
               console.log('✅ Membership minted successfully');
+              
               setLoadingStep(3);
               
               // Also mint freemium NFT for first-time chat visitors
@@ -317,14 +321,17 @@ function TownsChat() {
               }
               
               setLoadingStep(4);
+              await new Promise(r => setTimeout(r, 1000));
             } else {
               throw e;
             }
           }
           
           // Brief delay for new members to let device keys upload
-          console.log('⏳ Finalizing connection...');
-          await new Promise(r => setTimeout(r, 1500)); // 1.5s breathing room
+          if (isNewUser) {
+            console.log('⏳ Finalizing connection...');
+            await new Promise(r => setTimeout(r, 1500)); // 1.5s breathing room
+          }
         }
       }
 
@@ -344,7 +351,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent]);
+  }, [wallet, isAgentConnected, connectAgent, isNewUser]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
@@ -375,9 +382,20 @@ function TownsChat() {
   }
 
   if (phase !== 'ready' || !isAgentConnected) {
-    // Show progressive loader with appropriate steps
-    const steps = isNewUser ? NEW_USER_STEPS : RETURN_USER_STEPS;
-    return <ProgressiveLoader steps={steps} currentStep={loadingStep} />;
+    // NEW users: Show progressive 5-dot loader
+    // RETURN users: Show standard spinner (current experience)
+    if (isNewUser) {
+      return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
+    }
+    
+    return (
+      <LoadingSpinner
+        message={
+          PHASE_LABELS[phase] +
+          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
+        }
+      />
+    );
   }
 
   return <TownsChatReady wallet={wallet} />;
