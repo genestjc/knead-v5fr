@@ -68,7 +68,7 @@ function ProgressiveLoader({ steps, currentStep }: ProgressiveLoaderProps) {
           {steps.map((step, i) => (
             <p
               key={i}
-              className={`font-georgia-pro text-sm transition-all duration-300 ${
+              className={`font-georgia-pro text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
                 i === currentStep
                   ? 'text-black font-medium'
                   : i < currentStep
@@ -76,8 +76,21 @@ function ProgressiveLoader({ steps, currentStep }: ProgressiveLoaderProps) {
                   : 'text-gray-300'
               }`}
             >
-              {i < currentStep ? '✓ ' : i === currentStep ? '→ ' : ''}
-              {step}
+              <span>
+                {i < currentStep ? '✓ ' : i === currentStep ? '→ ' : ''}
+                {step}
+              </span>
+              {step === 'Kneading the dough' && (
+                <svg 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 1200 1200" 
+                  className="inline-block"
+                  fill="currentColor"
+                >
+                  <path d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.0781 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z"/>
+                </svg>
+              )}
             </p>
           ))}
         </div>
@@ -216,7 +229,7 @@ function TownsChat() {
     return 'idle';
   });
   const [errorMsg, setErrorMsg] = useState('');
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [isNewUser, setIsNewUser] = useState<boolean | null>(null); // null = checking
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
@@ -287,16 +300,18 @@ function TownsChat() {
               console.log('✅ Already a member (caught from joinSpace)');
               setIsNewUser(false);
             } else if (msg.includes('not a member') || msg.includes('no membership')) {
-              // Genuinely new user — show progressive loader
-              console.log('🆕 New user, minting membership...');
+              // 🆕 GENUINELY NEW USER — Show progressive loader
+              console.log('🆕 New user detected, starting onboarding...');
               setIsNewUser(true);
+              
               setLoadingStep(0);
-              await new Promise(r => setTimeout(r, 500));
+              await new Promise(r => setTimeout(r, 800));
               
               setLoadingStep(1);
               await new Promise(r => setTimeout(r, 800));
               
               setLoadingStep(2);
+              console.log('🔄 Minting membership...');
               await agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
@@ -321,16 +336,14 @@ function TownsChat() {
               }
               
               setLoadingStep(4);
-              await new Promise(r => setTimeout(r, 1000));
+              await new Promise(r => setTimeout(r, 1200));
+              
+              // Brief delay for new members to let device keys upload
+              console.log('⏳ Finalizing connection...');
+              await new Promise(r => setTimeout(r, 1500));
             } else {
               throw e;
             }
-          }
-          
-          // Brief delay for new members to let device keys upload
-          if (isNewUser) {
-            console.log('⏳ Finalizing connection...');
-            await new Promise(r => setTimeout(r, 1500)); // 1.5s breathing room
           }
         }
       }
@@ -351,7 +364,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent, isNewUser]);
+  }, [wallet, isAgentConnected, connectAgent]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
@@ -370,6 +383,7 @@ function TownsChat() {
             onClick={() => {
               setPhase('idle');
               setErrorMsg('');
+              setIsNewUser(null);
               flowStartedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -382,9 +396,10 @@ function TownsChat() {
   }
 
   if (phase !== 'ready' || !isAgentConnected) {
-    // NEW users: Show progressive 5-dot loader
-    // RETURN users: Show standard spinner (current experience)
-    if (isNewUser) {
+    // NEW users (isNewUser === true): Show progressive 5-dot loader
+    // RETURN users (isNewUser === false): Show standard spinner
+    // CHECKING (isNewUser === null): Show standard spinner
+    if (isNewUser === true) {
       return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
     }
     
@@ -461,11 +476,20 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
+  const [walletChecking, setWalletChecking] = useState(true);
   const wallet = useActiveWallet();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
   useEffect(() => setIsMounted(true), []);
+
+  // Give wallet 500ms to initialize to prevent flash
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setWalletChecking(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (localStorage.getItem('exportKeyIntent') !== '1') return;
@@ -482,7 +506,7 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  if (!isMounted) return <LoadingSpinner />;
+  if (!isMounted || walletChecking) return <LoadingSpinner />;
 
   // Bot mode
   if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
