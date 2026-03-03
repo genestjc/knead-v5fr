@@ -210,7 +210,7 @@ const NEW_USER_STEPS = [
 
 function TownsChat() {
   const wallet = useActiveWallet();
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const { connect: connectAgent, agent, isAgentConnected } = useAgentConnection();
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -223,7 +223,6 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
-  const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
 
   const runFlow = useCallback(async () => {
@@ -243,19 +242,28 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (only if we don't have one yet)
-      if (!agentRef.current) {
+      // 2. Connect agent (only if not already connected)
+      let currentAgent = agent;
+      
+      if (!isAgentConnected) {
         setPhase('connecting');
-        const agent = await connectAgent(signerRef.current, {
+        const newAgent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
         });
         
-        if (!agent) {
+        if (!newAgent) {
           throw new Error('Agent connection failed — returned undefined');
         }
         
-        agentRef.current = agent;
+        currentAgent = newAgent;
         console.log('✅ Agent connected and ready');
+      } else {
+        console.log('✅ Agent already connected');
+      }
+
+      // Make sure we have an agent
+      if (!currentAgent) {
+        throw new Error('No agent available');
       }
 
       // 3. Join space
@@ -264,9 +272,7 @@ function TownsChat() {
       let needsMint = false;
       
       try {
-        // ⚠️ skipMintMembership is documented for useJoinSpace hook
-        // May or may not work on imperative call - we have a fallback
-        await agentRef.current.spaces.joinSpace(
+        await currentAgent.spaces.joinSpace(
           SAVED_SPACE_ID,
           signerRef.current,
           { skipMintMembership: true },
@@ -280,21 +286,6 @@ function TownsChat() {
         } 
         else if (msg.includes('not a member') || msg.includes('no membership') || msg.includes('not entitled')) {
           needsMint = true;
-        }
-        // Fallback: if skipMintMembership isn't supported imperatively
-        else if (msg.includes('unknown') || msg.includes('invalid option')) {
-          console.warn('⚠️ skipMintMembership not supported, trying regular join...');
-          try {
-            await agentRef.current.spaces.joinSpace(SAVED_SPACE_ID, signerRef.current);
-            console.log('��� Joined successfully');
-          } catch (joinError: any) {
-            const joinMsg = (joinError.message || '').toLowerCase();
-            if (joinMsg.includes('already a member')) {
-              console.log('✅ Already a member');
-            } else {
-              throw joinError;
-            }
-          }
         }
         else {
           throw e;
@@ -321,7 +312,7 @@ function TownsChat() {
         
         // Step 2: Reaching the nodes (ACTUAL MINTING)
         console.log('🔄 Minting membership...');
-        await agentRef.current.spaces.joinSpace(
+        await currentAgent.spaces.joinSpace(
           SAVED_SPACE_ID,
           signerRef.current,
         );
@@ -368,7 +359,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, connectAgent]);
+  }, [wallet, connectAgent, agent, isAgentConnected]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
@@ -385,14 +376,12 @@ function TownsChat() {
           <p className="font-georgia-pro text-red-500 mb-4">{errorMsg}</p>
           <button
             onClick={() => {
-              // ✅ Complete cleanup: reset ALL state and refs
               setPhase('idle');
               setErrorMsg('');
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               flowStartedRef.current = false;
-              agentRef.current = null;
-              signerRef.current = null; // ✅ Clear signer to force re-creation
+              signerRef.current = null;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
           >
@@ -404,12 +393,10 @@ function TownsChat() {
   }
 
   if (phase !== 'ready' || !isAgentConnected) {
-    // ✅ NEW USERS: Progressive loader
     if (showProgressiveLoader) {
       return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
     }
     
-    // ✅ RETURN USERS: Standard spinner
     const messages: Record<Phase, string> = {
       idle: 'Initializing...',
       signing: 'Please sign the message in your wallet',
@@ -485,17 +472,17 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
-  const [walletChecked, setWalletChecked] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const wallet = useActiveWallet();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
   useEffect(() => setIsMounted(true), []);
 
-  // ✅ Brief wallet check to prevent flash (200ms)
+  // ✅ Longer delay to fully prevent flash (500ms)
   useEffect(() => {
     if (!isMounted) return;
-    const timer = setTimeout(() => setWalletChecked(true), 200);
+    const timer = setTimeout(() => setInitializing(false), 500);
     return () => clearTimeout(timer);
   }, [isMounted]);
 
@@ -514,7 +501,7 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  if (!isMounted || !walletChecked) {
+  if (!isMounted || initializing) {
     return <LoadingSpinner message="Loading..." />;
   }
 
@@ -579,7 +566,7 @@ function friendlyError(error: any): string {
     return 'Not enough network nodes are available right now. Please try again in a few minutes.';
   if (msg.includes('user rejected') || msg.includes('denied'))
     return 'Wallet signature was cancelled.';
-  if (msg.includes('returned undefined') || msg.includes('client is not defined'))
+  if (msg.includes('returned undefined') || msg.includes('client is not defined') || msg.includes('no agent'))
     return 'Connection failed. Please try again.';
   if (msg.includes('transaction failed after retries'))
     return 'The Towns network is congested. Please try again shortly.';
