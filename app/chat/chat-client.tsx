@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useJoinSpace, useUserSpaces } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -121,7 +121,7 @@ function LoadingSpinner({ message }: { message?: string }) {
 // ---------------------------------------------------------------------------
 
 function useBotAutoConnect() {
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const { connect: connectAgent, disconnect, isAgentConnected } = useAgentConnection();
   const wallet = useActiveWallet();
   const [botWallet, setBotWallet] = useState<any>(null);
   const initRef = useRef(false);
@@ -167,11 +167,7 @@ function useBotAutoConnect() {
           client,
           activeChain,
         );
-        const agent = await connectAgent(signer, { townsConfig: TOWNS_CONFIG });
-        if (!agent) {
-          window.KEY_SHARER_ERROR = 'Agent connection returned undefined';
-          window.KEY_SHARER_CONNECTED = false;
-        }
+        await connectAgent(signer, { townsConfig: TOWNS_CONFIG });
       } catch (e: any) {
         window.KEY_SHARER_ERROR = `Agent connection failed: ${e.message}`;
         window.KEY_SHARER_CONNECTED = false;
@@ -187,6 +183,15 @@ function useBotAutoConnect() {
     if (window.KEY_SHARER_CONNECTED) delete window.KEY_SHARER_ERROR;
   }, [wallet, botWallet, isAgentConnected]);
 
+  // ✅ Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isAgentConnected && disconnect) {
+        disconnect();
+      }
+    };
+  }, [isAgentConnected, disconnect]);
+
   return { botWallet };
 }
 
@@ -194,18 +199,8 @@ function useBotAutoConnect() {
 // Phase types
 // ---------------------------------------------------------------------------
 
-type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
+type Phase = 'idle' | 'signing' | 'connecting' | 'checking' | 'joining' | 'ready' | 'error';
 
-const PHASE_LABELS: Record<Phase, string> = {
-  idle: 'Waiting for wallet...',
-  signing: 'Please sign the message...',
-  connecting: 'Connecting to Towns...',
-  joining: 'Joining space...',
-  ready: '',
-  error: 'Something went wrong.',
-};
-
-// New user onboarding steps
 const NEW_USER_STEPS = [
   'Minting chat membership',
   'Connecting to network',
@@ -215,26 +210,35 @@ const NEW_USER_STEPS = [
 ];
 
 // ---------------------------------------------------------------------------
-// TownsChat — owns connection flow, NO SyncAgent-dependent hooks
+// TownsChat — owns connection flow with proper SDK hooks
 // ---------------------------------------------------------------------------
 
 function TownsChat() {
   const wallet = useActiveWallet();
-  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const { connect: connectAgent, disconnect, isAgentConnected } = useAgentConnection();
+  const { joinSpace } = useJoinSpace(SAVED_SPACE_ID || '');
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-      return 'joining';
+      return 'checking';
     }
     return 'idle';
   });
   const [errorMsg, setErrorMsg] = useState('');
-  const [isNewUser, setIsNewUser] = useState<boolean | null>(null); // null = checking
+  const [showProgressiveLoader, setShowProgressiveLoader] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
-  const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
+
+  // ✅ Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isAgentConnected && disconnect) {
+        disconnect();
+      }
+    };
+  }, [isAgentConnected, disconnect]);
 
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
@@ -256,101 +260,77 @@ function TownsChat() {
       // 2. Connect agent
       if (!isAgentConnected) {
         setPhase('connecting');
-        const agent = await connectAgent(signerRef.current, {
-          townsConfig: TOWNS_CONFIG,
-        });
-        if (!agent) {
-          throw new Error('Agent connection failed — returned undefined');
-        }
-        agentRef.current = agent;
+        await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
       }
 
-      // 3. Join space — only if not already a member
-      if (agentRef.current) {
-        setPhase('joining');
-
-        // Wait for persistence to load space memberships
-        let alreadyMember = false;
-        for (let i = 0; i < 5; i++) {
-          const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
-          alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
-          if (alreadyMember) break;
-          await new Promise((r) => setTimeout(r, 100));
-        }
-
-        if (alreadyMember) {
-          console.log('✅ Already a member of space, skipping joinSpace transaction');
-          setIsNewUser(false);
+      // 3. Check membership and join if needed
+      setPhase('checking');
+      
+      // Try joining without mint first (for existing members)
+      let needsMint = false;
+      
+      try {
+        await joinSpace(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
+        console.log('✅ Already a member (joined without mint)');
+      } catch (e: any) {
+        const msg = (e.message || '').toLowerCase();
+        const alreadyJoined = msg.includes('already a member') || msg.includes('already joined');
+        
+        if (alreadyJoined) {
+          console.log('✅ Already a member (from error)');
+        } else if (msg.includes('not a member') || msg.includes('no membership') || msg.includes('not entitled')) {
+          needsMint = true;
         } else {
-          try {
-            // First attempt: skip mint — covers the case where persistence
-            // hadn't loaded yet but user IS already a member on-chain
-            await agentRef.current.spaces.joinSpace(
-              SAVED_SPACE_ID,
-              signerRef.current,
-              { skipMintMembership: true },
-            );
-            setIsNewUser(false);
-          } catch (e: any) {
-            const msg = (e.message || '').toLowerCase();
-            const alreadyJoined =
-              msg.includes('already a member') || msg.includes('already joined');
-            
-            if (alreadyJoined) {
-              console.log('✅ Already a member (caught from joinSpace)');
-              setIsNewUser(false);
-            } else if (msg.includes('not a member') || msg.includes('no membership')) {
-              // 🆕 GENUINELY NEW USER — Set state first, then show progressive loader
-              console.log('🆕 New user detected, starting onboarding...');
-              setIsNewUser(true);
-              setLoadingStep(0);
-              
-              // Give React time to re-render with progressive loader
-              await new Promise(r => setTimeout(r, 100));
-              
-              // Step 1: Minting chat membership
-              await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(1);
-              
-              // Step 2: Connecting to network
-              await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(2);
-              
-              // Step 3: Reaching the nodes (actual minting happens here)
-              console.log('🔄 Minting membership...');
-              await agentRef.current.spaces.joinSpace(
-                SAVED_SPACE_ID,
-                signerRef.current,
-              );
-              console.log('✅ Membership minted successfully');
-              setLoadingStep(3);
-              
-              // Step 4: Connected to nodes (mint freemium NFT)
-              try {
-                const mintResponse = await fetch('/api/mint-freemium', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ address: account.address }),
-                });
-                const mintData = await mintResponse.json();
-                if (mintData.success) {
-                  console.log('✅ Freemium NFT minted');
-                }
-              } catch (mintError) {
-                console.warn('Freemium NFT mint failed (non-critical):', mintError);
-              }
-              
-              await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(4);
-              
-              // Step 5: Kneading the dough (finalize)
-              console.log('⏳ Finalizing connection...');
-              await new Promise(r => setTimeout(r, 1500));
-            } else {
-              throw e;
-            }
-          }
+          throw e;
         }
+      }
+
+      // 🆕 NEW USER - needs to mint membership
+      if (needsMint) {
+        console.log('🆕 New user detected, starting onboarding...');
+        
+        setPhase('joining');
+        setShowProgressiveLoader(true);
+        setLoadingStep(0);
+        
+        // Force React to re-render
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Step 0: Minting chat membership (cosmetic delay)
+        await new Promise(r => setTimeout(r, 800));
+        setLoadingStep(1);
+        
+        // Step 1: Connecting to network (cosmetic delay)
+        await new Promise(r => setTimeout(r, 800));
+        setLoadingStep(2);
+        
+        // Step 2: Reaching the nodes (ACTUAL MINTING)
+        console.log('🔄 Minting membership...');
+        await joinSpace(SAVED_SPACE_ID, signerRef.current);
+        console.log('✅ Membership minted successfully');
+        setLoadingStep(3);
+        
+        // Step 3: Connected to nodes (mint freemium NFT)
+        try {
+          const mintResponse = await fetch('/api/mint-freemium', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: account.address }),
+          });
+          const mintData = await mintResponse.json();
+          if (mintData.success) {
+            console.log('✅ Freemium NFT minted');
+          }
+        } catch (mintError) {
+          console.warn('Freemium NFT mint failed (non-critical):', mintError);
+        }
+        
+        await new Promise(r => setTimeout(r, 800));
+        setLoadingStep(4);
+        
+        // Step 4: Kneading the dough (finalize)
+        console.log('⏳ Finalizing connection...');
+        await new Promise(r => setTimeout(r, 1500));
       }
 
       setPhase('ready');
@@ -369,11 +349,11 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent]);
+  }, [wallet, isAgentConnected, connectAgent, joinSpace]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
-    if (wallet && (phase === 'idle' || phase === 'joining')) {
+    if (wallet && (phase === 'idle' || phase === 'checking')) {
       runFlow();
     }
   }, [wallet, phase, runFlow]);
@@ -388,7 +368,8 @@ function TownsChat() {
             onClick={() => {
               setPhase('idle');
               setErrorMsg('');
-              setIsNewUser(null);
+              setShowProgressiveLoader(false);
+              setLoadingStep(0);
               flowStartedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -401,21 +382,23 @@ function TownsChat() {
   }
 
   if (phase !== 'ready' || !isAgentConnected) {
-    // NEW users (isNewUser === true): Show progressive 5-dot loader
-    // RETURN users (isNewUser === false): Show standard spinner
-    // CHECKING (isNewUser === null): Show standard spinner
-    if (isNewUser === true) {
+    // ✅ NEW USERS: Progressive loader
+    if (showProgressiveLoader) {
       return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
     }
     
-    return (
-      <LoadingSpinner
-        message={
-          PHASE_LABELS[phase] +
-          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
-        }
-      />
-    );
+    // ✅ RETURN USERS: Standard spinner
+    const messages: Record<Phase, string> = {
+      idle: 'Initializing...',
+      signing: 'Please sign the message in your wallet',
+      connecting: 'Connecting to Towns...',
+      checking: 'Loading chat...',
+      joining: 'Joining space...',
+      ready: '',
+      error: '',
+    };
+    
+    return <LoadingSpinner message={messages[phase]} />;
   }
 
   return <TownsChatReady wallet={wallet} />;
@@ -488,13 +471,13 @@ export default function ChatTestClient() {
 
   useEffect(() => setIsMounted(true), []);
 
-  // Wait for wallet to initialize (or confirm it's not connected)
+  // Wait for wallet to initialize (prevents flash)
   useEffect(() => {
     if (!isMounted) return;
     
     const timer = setTimeout(() => {
       setWalletInitialized(true);
-    }, 800); // Give wallet time to initialize
+    }, 800);
     
     return () => clearTimeout(timer);
   }, [isMounted]);
@@ -514,7 +497,6 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  // Show loading spinner while checking wallet state
   if (!isMounted || !walletInitialized) {
     return <LoadingSpinner message="Loading..." />;
   }
@@ -527,12 +509,12 @@ export default function ChatTestClient() {
     return <TownsChat />;
   }
 
-  // If wallet exists, user is returning - go straight to chat
+  // If wallet exists, go to chat
   if (wallet) {
     return <TownsChat />;
   }
 
-  // No wallet = new user or logged out - show welcome screen
+  // No wallet = show welcome screen
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center max-w-xl px-8">
