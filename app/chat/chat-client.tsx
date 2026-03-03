@@ -472,19 +472,42 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
-  const [initializing, setInitializing] = useState(true);
+  const [walletReady, setWalletReady] = useState(false);
   const wallet = useActiveWallet();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
+  
+  const walletCheckedRef = useRef(false);
 
   useEffect(() => setIsMounted(true), []);
 
-  // ✅ Longer delay to fully prevent flash (500ms)
+  // ✅ Smart wallet detection: wait for wallet to appear OR timeout
   useEffect(() => {
-    if (!isMounted) return;
-    const timer = setTimeout(() => setInitializing(false), 500);
-    return () => clearTimeout(timer);
-  }, [isMounted]);
+    if (!isMounted || walletCheckedRef.current) return;
+
+    // If wallet appears immediately, mark as ready
+    if (wallet) {
+      setWalletReady(true);
+      walletCheckedRef.current = true;
+      return;
+    }
+
+    // Otherwise, wait up to 800ms for wallet to auto-connect
+    const timeout = setTimeout(() => {
+      setWalletReady(true);
+      walletCheckedRef.current = true;
+    }, 800);
+
+    return () => clearTimeout(timeout);
+  }, [isMounted, wallet]);
+
+  // ✅ If wallet appears after initial check, mark as ready immediately
+  useEffect(() => {
+    if (wallet && !walletReady) {
+      setWalletReady(true);
+      walletCheckedRef.current = true;
+    }
+  }, [wallet, walletReady]);
 
   useEffect(() => {
     if (localStorage.getItem('exportKeyIntent') !== '1') return;
@@ -501,7 +524,7 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  if (!isMounted || initializing) {
+  if (!isMounted || !walletReady) {
     return <LoadingSpinner message="Loading..." />;
   }
 
