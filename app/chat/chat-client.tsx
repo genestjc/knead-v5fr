@@ -270,13 +270,12 @@ function TownsChat() {
         setPhase('joining');
 
         // Wait for persistence to load space memberships
-        // SDK loads from IndexedDB after connect() — typically ~0.5ms
         let alreadyMember = false;
         for (let i = 0; i < 5; i++) {
           const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
           alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
           if (alreadyMember) break;
-          await new Promise((r) => setTimeout(r, 100)); // 100ms × 5 = 500ms max
+          await new Promise((r) => setTimeout(r, 100));
         }
 
         if (alreadyMember) {
@@ -296,31 +295,37 @@ function TownsChat() {
             const msg = (e.message || '').toLowerCase();
             const alreadyJoined =
               msg.includes('already a member') || msg.includes('already joined');
+            
             if (alreadyJoined) {
               console.log('✅ Already a member (caught from joinSpace)');
               setIsNewUser(false);
             } else if (msg.includes('not a member') || msg.includes('no membership')) {
-              // 🆕 GENUINELY NEW USER — Show progressive loader
+              // 🆕 GENUINELY NEW USER — Set state first, then show progressive loader
               console.log('🆕 New user detected, starting onboarding...');
               setIsNewUser(true);
-              
               setLoadingStep(0);
-              await new Promise(r => setTimeout(r, 800));
               
+              // Give React time to re-render with progressive loader
+              await new Promise(r => setTimeout(r, 100));
+              
+              // Step 1: Minting chat membership
+              await new Promise(r => setTimeout(r, 800));
               setLoadingStep(1);
-              await new Promise(r => setTimeout(r, 800));
               
+              // Step 2: Connecting to network
+              await new Promise(r => setTimeout(r, 800));
               setLoadingStep(2);
+              
+              // Step 3: Reaching the nodes (actual minting happens here)
               console.log('🔄 Minting membership...');
               await agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
               );
               console.log('✅ Membership minted successfully');
-              
               setLoadingStep(3);
               
-              // Also mint freemium NFT for first-time chat visitors
+              // Step 4: Connected to nodes (mint freemium NFT)
               try {
                 const mintResponse = await fetch('/api/mint-freemium', {
                   method: 'POST',
@@ -335,10 +340,10 @@ function TownsChat() {
                 console.warn('Freemium NFT mint failed (non-critical):', mintError);
               }
               
+              await new Promise(r => setTimeout(r, 800));
               setLoadingStep(4);
-              await new Promise(r => setTimeout(r, 1200));
               
-              // Brief delay for new members to let device keys upload
+              // Step 5: Kneading the dough (finalize)
               console.log('⏳ Finalizing connection...');
               await new Promise(r => setTimeout(r, 1500));
             } else {
@@ -476,20 +481,23 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
 
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
-  const [walletChecking, setWalletChecking] = useState(true);
+  const [walletInitialized, setWalletInitialized] = useState(false);
   const wallet = useActiveWallet();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
   useEffect(() => setIsMounted(true), []);
 
-  // Give wallet 500ms to initialize to prevent flash
+  // Wait for wallet to initialize (or confirm it's not connected)
   useEffect(() => {
+    if (!isMounted) return;
+    
     const timer = setTimeout(() => {
-      setWalletChecking(false);
-    }, 500);
+      setWalletInitialized(true);
+    }, 800); // Give wallet time to initialize
+    
     return () => clearTimeout(timer);
-  }, []);
+  }, [isMounted]);
 
   useEffect(() => {
     if (localStorage.getItem('exportKeyIntent') !== '1') return;
@@ -506,7 +514,10 @@ export default function ChatTestClient() {
     }, 1500);
   }, [wallet, isAgentConnected]);
 
-  if (!isMounted || walletChecking) return <LoadingSpinner />;
+  // Show loading spinner while checking wallet state
+  if (!isMounted || !walletInitialized) {
+    return <LoadingSpinner message="Loading..." />;
+  }
 
   // Bot mode
   if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -516,39 +527,40 @@ export default function ChatTestClient() {
     return <TownsChat />;
   }
 
-  // Normal user — show enhanced welcome screen
-  if (!wallet) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-xl px-8">
-          <div className="mb-12 animate-fade-in-up">
-            <h1 className="font-adonis text-5xl md:text-6xl mb-6">
-              Welcome to our chat
-            </h1>
-            <p className="text-xl md:text-2xl font-adonis italic text-gray-700 mb-8">
-              Our home for community, conversation, and creativity.
-            </p>
-          </div>
-          
-          <div className="mb-8 animate-fade-in-up-delay">
-            <p className="font-georgia-pro text-base md:text-lg text-gray-800">
-              If this is your first time joining, click the button below to sign-up:
-            </p>
-          </div>
-
-          <div className="animate-fade-in-up-delay-3">
-            <ThirdWebConnectButton
-              theme="light"
-              size="wide"
-              className="inline-block"
-            />
-          </div>
-        </div>
-      </div>
-    );
+  // If wallet exists, user is returning - go straight to chat
+  if (wallet) {
+    return <TownsChat />;
   }
 
-  return <TownsChat />;
+  // No wallet = new user or logged out - show welcome screen
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="text-center max-w-xl px-8">
+        <div className="mb-12 animate-fade-in-up">
+          <h1 className="font-adonis text-5xl md:text-6xl mb-6">
+            Welcome to our chat
+          </h1>
+          <p className="text-xl md:text-2xl font-adonis italic text-gray-700 mb-8">
+            Our home for community, conversation, and creativity.
+          </p>
+        </div>
+        
+        <div className="mb-8 animate-fade-in-up-delay">
+          <p className="font-georgia-pro text-base md:text-lg text-gray-800">
+            If this is your first time joining, click the button below to sign-up:
+          </p>
+        </div>
+
+        <div className="animate-fade-in-up-delay-3">
+          <ThirdWebConnectButton
+            theme="light"
+            size="wide"
+            className="inline-block"
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
