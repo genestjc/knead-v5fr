@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -210,7 +210,8 @@ const NEW_USER_STEPS = [
 
 function TownsChat() {
   const wallet = useActiveWallet();
-  const { connect: connectAgent, agent, isAgentConnected } = useAgentConnection();
+  const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const syncAgent = useSyncAgent(); // ✅ Get existing agent from context
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -223,6 +224,7 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
+  const agentRef = useRef<any>(null); // Store newly connected agent
   const flowStartedRef = useRef(false);
 
   const runFlow = useCallback(async () => {
@@ -242,10 +244,10 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (only if not already connected)
-      let currentAgent = agent;
+      // 2. Get agent (either existing from context or connect new one)
+      let currentAgent = syncAgent || agentRef.current;
       
-      if (!isAgentConnected) {
+      if (!isAgentConnected || !currentAgent) {
         setPhase('connecting');
         const newAgent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
@@ -255,10 +257,11 @@ function TownsChat() {
           throw new Error('Agent connection failed — returned undefined');
         }
         
+        agentRef.current = newAgent;
         currentAgent = newAgent;
         console.log('✅ Agent connected and ready');
       } else {
-        console.log('✅ Agent already connected');
+        console.log('✅ Using existing agent from context');
       }
 
       // Make sure we have an agent
@@ -359,7 +362,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, connectAgent, agent, isAgentConnected]);
+  }, [wallet, connectAgent, syncAgent, isAgentConnected]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
@@ -381,6 +384,7 @@ function TownsChat() {
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               flowStartedRef.current = false;
+              agentRef.current = null;
               signerRef.current = null;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
