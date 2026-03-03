@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -211,7 +211,6 @@ const NEW_USER_STEPS = [
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const syncAgent = useSyncAgent(); // ✅ Get existing agent from context
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -224,7 +223,7 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
-  const agentRef = useRef<any>(null); // Store newly connected agent
+  const agentRef = useRef<any>(null); // ✅ Store agent from connectAgent()
   const flowStartedRef = useRef(false);
 
   const runFlow = useCallback(async () => {
@@ -244,28 +243,25 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Get agent (either existing from context or connect new one)
-      let currentAgent = syncAgent || agentRef.current;
-      
-      if (!isAgentConnected || !currentAgent) {
+      // 2. Connect agent (only if not already connected)
+      if (!isAgentConnected || !agentRef.current) {
         setPhase('connecting');
-        const newAgent = await connectAgent(signerRef.current, {
+        const agent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
         });
         
-        if (!newAgent) {
+        if (!agent) {
           throw new Error('Agent connection failed — returned undefined');
         }
         
-        agentRef.current = newAgent;
-        currentAgent = newAgent;
+        agentRef.current = agent;
         console.log('✅ Agent connected and ready');
       } else {
-        console.log('✅ Using existing agent from context');
+        console.log('✅ Agent already connected');
       }
 
       // Make sure we have an agent
-      if (!currentAgent) {
+      if (!agentRef.current) {
         throw new Error('No agent available');
       }
 
@@ -275,7 +271,7 @@ function TownsChat() {
       let needsMint = false;
       
       try {
-        await currentAgent.spaces.joinSpace(
+        await agentRef.current.spaces.joinSpace(
           SAVED_SPACE_ID,
           signerRef.current,
           { skipMintMembership: true },
@@ -315,7 +311,7 @@ function TownsChat() {
         
         // Step 2: Reaching the nodes (ACTUAL MINTING)
         console.log('🔄 Minting membership...');
-        await currentAgent.spaces.joinSpace(
+        await agentRef.current.spaces.joinSpace(
           SAVED_SPACE_ID,
           signerRef.current,
         );
@@ -362,7 +358,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, connectAgent, syncAgent, isAgentConnected]);
+  }, [wallet, connectAgent, isAgentConnected]);
 
   // ---- Trigger the flow when wallet is available ----
   useEffect(() => {
