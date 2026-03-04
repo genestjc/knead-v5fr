@@ -157,6 +157,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const scrollbackCalledRef = useRef(false);
+  const keysArrivedRef = useRef(false);
+  const hasReScrolledRef = useRef(false);
 
   // -- All context/external hooks --
   const activeAccount = useActiveAccount();
@@ -194,7 +196,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ FIX 2: Scrollback with pagination (load 2 pages for proper backlog)
+  // ✅ Initial scrollback (load 2 pages)
   useEffect(() => {
     if (!channelId || scrollbackCalledRef.current) return;
     scrollbackCalledRef.current = true;
@@ -204,7 +206,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         console.log('📜 Loading message history (page 1)...');
         const result = await scrollback();
 
-        // Load a second page if we haven't reached the beginning
         if (result && !result.terminus) {
           console.log('📜 Loading message history (page 2)...');
           await scrollback();
@@ -217,24 +218,26 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     loadHistory();
   }, [channelId, scrollback]);
 
-  // ✅ FIX 2: Reset scrollback tracking when channel changes
+  // ✅ Reset all refs when channel changes
   useEffect(() => {
     scrollbackCalledRef.current = false;
+    keysArrivedRef.current = false;
+    hasReScrolledRef.current = false;
   }, [channelId]);
 
-  // ✅ INCREASED TIMEOUT: Changed from 5s to 30s to allow time for KeyFulfillment
+  // ✅ Timeout increased to 30 seconds
   useEffect(() => {
     if (!channelId) return;
     
     const timeout = setTimeout(() => {
       setScrollbackTimedOut(true);
       console.log('⏱️ Stopped waiting for message history');
-    }, 30000); // ✅ Changed from 5000 to 30000 (30 seconds)
+    }, 30000);
     
     return () => clearTimeout(timeout);
   }, [channelId]);
 
-  // ✅ FIX 1: Profile fetching with deduplication ref
+  // ✅ Profile fetching with deduplication ref
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -253,7 +256,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ FIX 3: Detect if waiting for decryption keys
+  // ✅ Detect if waiting for decryption keys
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -261,13 +264,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       (event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage,
     );
 
-    // Events exist but none have decrypted body = keys haven't arrived
     const awaitingKeys =
       channelMessages.length > 0 &&
       channelMessages.every((event: any) => !event.content?.body);
 
     setIsAwaitingKeys(awaitingKeys);
   }, [events]);
+
+  // ✅ Re-fetch when keys arrive (no infinite loop)
+  useEffect(() => {
+    if (!isAwaitingKeys && keysArrivedRef.current && !hasReScrolledRef.current) {
+      console.log('🔑 Keys arrived! Re-fetching to decrypt messages...');
+      hasReScrolledRef.current = true;
+      
+      scrollback()
+        .then(() => scrollback())
+        .then(() => console.log('✅ Messages re-decrypted successfully'))
+        .catch((err) => console.warn('⚠️ Re-scrollback failed:', err));
+    }
+    
+    if (isAwaitingKeys) {
+      keysArrivedRef.current = true;
+    }
+  }, [isAwaitingKeys, scrollback]);
 
   // useMemo with NO side effects
   const messages = useMemo(() => {
