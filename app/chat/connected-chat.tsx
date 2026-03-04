@@ -172,7 +172,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
   // -- All useCallback hooks --
-  // ✅ FINAL FIX: Do NOT delete from profileFetchingRef
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -193,9 +192,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     } catch {
       // Silent — profile fetch is non-critical
     }
-    // ✅ Do NOT remove from profileFetchingRef here.
-    // The ref acts as a permanent "already attempted" set.
-    // Removing it causes re-fetches when profileCache updates trigger the effect.
   }, []);
 
   // ✅ FIX 2: Scrollback with pagination (load 2 pages for proper backlog)
@@ -226,14 +222,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     scrollbackCalledRef.current = false;
   }, [channelId]);
 
-  // Timeout to stop showing spinner
+  // ✅ INCREASED TIMEOUT: Changed from 5s to 30s to allow time for KeyFulfillment
   useEffect(() => {
     if (!channelId) return;
     
     const timeout = setTimeout(() => {
       setScrollbackTimedOut(true);
       console.log('⏱️ Stopped waiting for message history');
-    }, 5000);
+    }, 30000); // ✅ Changed from 5000 to 30000 (30 seconds)
     
     return () => clearTimeout(timeout);
   }, [channelId]);
