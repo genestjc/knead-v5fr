@@ -223,10 +223,12 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
   
   const signerRef = useRef<any>(null);
-  const agentRef = useRef<any>(null); // ✅ Store agent from connectAgent()
+  const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
+  const joinPhaseStartedRef = useRef(false);
 
-  const runFlow = useCallback(async () => {
+  // Step 1: Connect the agent
+  const connectFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
 
@@ -237,14 +239,14 @@ function TownsChat() {
         return;
       }
 
-      // 1. Create signer (cached for the session)
+      // 1. Create signer
       if (!signerRef.current) {
         setPhase('signing');
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // 2. Connect agent (only if not already connected)
-      if (!isAgentConnected || !agentRef.current) {
+      // 2. Connect agent
+      if (!isAgentConnected) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
           townsConfig: TOWNS_CONFIG,
@@ -255,17 +257,31 @@ function TownsChat() {
         }
         
         agentRef.current = agent;
-        console.log('✅ Agent connected and ready');
-      } else {
-        console.log('✅ Agent already connected');
+        console.log('✅ Agent created, waiting for initialization...');
       }
+    } catch (e: any) {
+      console.error('❌ Connection flow error:', e);
+      setPhase('error');
+      setErrorMsg(friendlyError(e));
+      flowStartedRef.current = false;
 
-      // Make sure we have an agent
-      if (!agentRef.current) {
-        throw new Error('No agent available');
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_ERROR = e.message;
+        window.KEY_SHARER_CONNECTED = false;
       }
+    }
+  }, [wallet, connectAgent, isAgentConnected]);
 
-      // 3. Join space
+  // Step 2: Join the space (only after agent is fully connected)
+  const joinSpaceFlow = useCallback(async () => {
+    if (joinPhaseStartedRef.current || !isAgentConnected || !agentRef.current) return;
+    joinPhaseStartedRef.current = true;
+
+    try {
+      const account = wallet?.getAccount();
+      if (!account || !SAVED_SPACE_ID) return;
+
+      console.log('✅ Agent connected and ready, joining space...');
       setPhase('joining');
       
       let needsMint = false;
@@ -291,25 +307,20 @@ function TownsChat() {
         }
       }
 
-      // 🆕 NEW USER - needs to mint membership
+      // 🆕 NEW USER
       if (needsMint) {
         console.log('🆕 New user detected, starting onboarding...');
         
         setShowProgressiveLoader(true);
         setLoadingStep(0);
-        
-        // Force React to re-render with progressive loader
         await new Promise(resolve => setTimeout(resolve, 50));
         
-        // Step 0: Minting chat membership (cosmetic delay)
         await new Promise(r => setTimeout(r, 800));
         setLoadingStep(1);
         
-        // Step 1: Connecting to network (cosmetic delay)
         await new Promise(r => setTimeout(r, 800));
         setLoadingStep(2);
         
-        // Step 2: Reaching the nodes (ACTUAL MINTING)
         console.log('🔄 Minting membership...');
         await agentRef.current.spaces.joinSpace(
           SAVED_SPACE_ID,
@@ -318,7 +329,6 @@ function TownsChat() {
         console.log('✅ Membership minted successfully');
         setLoadingStep(3);
         
-        // Step 3: Connected to nodes (mint freemium NFT)
         try {
           const mintResponse = await fetch('/api/mint-freemium', {
             method: 'POST',
@@ -336,7 +346,6 @@ function TownsChat() {
         await new Promise(r => setTimeout(r, 800));
         setLoadingStep(4);
         
-        // Step 4: Kneading the dough (finalize)
         console.log('⏳ Finalizing connection...');
         await new Promise(r => setTimeout(r, 1500));
       }
@@ -348,24 +357,31 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = true;
       }
     } catch (e: any) {
-      console.error('❌ Connection flow error:', e);
+      console.error('❌ Join space error:', e);
       setPhase('error');
       setErrorMsg(friendlyError(e));
-      flowStartedRef.current = false;
+      joinPhaseStartedRef.current = false;
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
         window.KEY_SHARER_ERROR = e.message;
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, connectAgent, isAgentConnected]);
+  }, [wallet, isAgentConnected]);
 
-  // ---- Trigger the flow when wallet is available ----
+  // Trigger connection flow when wallet is available
   useEffect(() => {
     if (wallet && (phase === 'idle' || phase === 'joining')) {
-      runFlow();
+      connectFlow();
     }
-  }, [wallet, phase, runFlow]);
+  }, [wallet, phase, connectFlow]);
+
+  // Trigger join flow when agent is connected
+  useEffect(() => {
+    if (isAgentConnected && phase === 'connecting') {
+      joinSpaceFlow();
+    }
+  }, [isAgentConnected, phase, joinSpaceFlow]);
 
   // ---- Render ----
   if (phase === 'error') {
@@ -380,6 +396,7 @@ function TownsChat() {
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               flowStartedRef.current = false;
+              joinPhaseStartedRef.current = false;
               agentRef.current = null;
               signerRef.current = null;
             }}
@@ -481,18 +498,15 @@ export default function ChatTestClient() {
 
   useEffect(() => setIsMounted(true), []);
 
-  // ✅ Smart wallet detection: wait for wallet to appear OR timeout
   useEffect(() => {
     if (!isMounted || walletCheckedRef.current) return;
 
-    // If wallet appears immediately, mark as ready
     if (wallet) {
       setWalletReady(true);
       walletCheckedRef.current = true;
       return;
     }
 
-    // Otherwise, wait up to 800ms for wallet to auto-connect
     const timeout = setTimeout(() => {
       setWalletReady(true);
       walletCheckedRef.current = true;
@@ -501,7 +515,6 @@ export default function ChatTestClient() {
     return () => clearTimeout(timeout);
   }, [isMounted, wallet]);
 
-  // ✅ If wallet appears after initial check, mark as ready immediately
   useEffect(() => {
     if (wallet && !walletReady) {
       setWalletReady(true);
@@ -528,7 +541,6 @@ export default function ChatTestClient() {
     return <LoadingSpinner message="Loading..." />;
   }
 
-  // Bot mode
   if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
     if (!botWallet || !isAgentConnected) {
       return <LoadingSpinner message="Bot Mode: Connecting..." />;
@@ -536,12 +548,10 @@ export default function ChatTestClient() {
     return <TownsChat />;
   }
 
-  // If wallet exists, go to chat
   if (wallet) {
     return <TownsChat />;
   }
 
-  // No wallet = show welcome screen
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center max-w-xl px-8">
