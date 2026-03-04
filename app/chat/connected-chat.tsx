@@ -6,9 +6,8 @@ import {
   useAgentConnection, 
   useSpace, 
   useSendMessage, 
-  useSyncAgent,
   useScrollback,
-  useTimeline // ✅ Official hook for timeline events
+  useTimeline
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import type { TimelineEvent } from '@towns-protocol/sdk';
@@ -147,7 +146,6 @@ export default function ConnectedChat(props: ConnectedChatProps) {
 }
 
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
-  // -- All useState hooks --
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
@@ -157,13 +155,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
-  
-  // ✅ Simplified: Only need loading/scrolling state, not events
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
 
-  // -- All useRef hooks --
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -171,27 +166,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialLoadStartedRef = useRef(false);
 
-  // -- All context/external hooks --
   const activeAccount = useActiveAccount();
-  const syncAgent = useSyncAgent();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
 
+  // ✅ FIXED: Added missing dot
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
+  // ✅ CLEAN: Only the hooks this component actually uses
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
-
-  // ✅ OFFICIAL: Use useTimeline for reactive timeline events
   const { data: events } = useTimeline(channelId);
-
-  // ✅ OFFICIAL: Use useScrollback for loading older messages
-  const {
-    scrollback,
-    error: scrollbackError,
-    isPending: isScrollbackPending,
-  } = useScrollback(channelId, {
+  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
     onSuccess: (data) => {
       console.log('✅ Scrollback succeeded:', data);
     },
@@ -200,7 +187,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     },
   });
 
-  // -- All useCallback hooks --
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -219,7 +205,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         }));
       }
     } catch {
-      // Silent — profile fetch is non-critical
+      // Silent
     }
   }, []);
 
@@ -269,7 +255,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         console.log('📜 Reached beginning');
       }
 
-      // Maintain scroll position
       if (scrollContainer) {
         requestAnimationFrame(() => {
           const newScrollHeight = scrollContainer.scrollHeight;
@@ -284,7 +269,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ SIMPLIFIED: Initial scrollback load only
   useEffect(() => {
     if (!channelId || initialLoadStartedRef.current) return;
 
@@ -295,7 +279,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('📜 Starting initial message load...');
 
       try {
-        // Load first 3 pages with retry logic
         for (let page = 0; page < 3; page++) {
           if (!mounted) break;
 
@@ -373,7 +356,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [channelId, scrollback]);
 
-  // Infinite scroll observer
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart || isLoadingHistory) return;
@@ -394,7 +376,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore, isLoadingHistory]);
 
-  // Profile fetching
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -413,7 +394,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ Messages memo - filter and transform timeline events
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
@@ -440,7 +420,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // Key sharer window update
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -453,7 +432,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events, channelId]);
 
-  // User role detection
   useEffect(() => {
     if (!activeAccount?.address) return;
 
@@ -475,7 +453,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
-  // Live event polling
   useEffect(() => {
     if (!activeAccount?.address) return;
 
@@ -542,7 +519,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
@@ -555,7 +531,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   }
 
-  // Event handlers
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -652,7 +627,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Render helpers
   if (isSpaceLoading) {
     return (
       <ChatLayout>
