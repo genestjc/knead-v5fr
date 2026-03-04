@@ -185,6 +185,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     },
   });
 
+  // ✅ ROBUST: Keep scrollback function fresh in a ref
+  const scrollbackFnRef = useRef(scrollback);
+  
+  useEffect(() => {
+    scrollbackFnRef.current = scrollback;
+  }, [scrollback]);
+
   // ✅ Clear corrupted Towns cache on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -281,7 +288,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ FIXED: Removed scrollback from dependencies, reduced retries, added failsafe
+  // ✅ ROBUST INITIAL LOAD: Uses ref to avoid stale closures
   useEffect(() => {
     if (!channelId || initialLoadStartedRef.current) return;
 
@@ -303,7 +310,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           
           while (attempt < maxAttempts && mounted) {
             try {
-              const scrollbackPromise = scrollback();
+              // ✅ Always use current scrollback from ref
+              const scrollbackPromise = scrollbackFnRef.current();
               const timeoutPromise = new Promise<never>((_, reject) => 
                 setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
               );
@@ -358,7 +366,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       mounted = false;
     };
-  }, [channelId]); // ✅ Removed scrollback dependency
+  }, [channelId]); // ✅ Safe - scrollbackFnRef always has current function
 
   // ✅ Failsafe: force loading to stop after 30 seconds
   useEffect(() => {
