@@ -1,3 +1,5 @@
+// app/chat/chat-client.tsx
+
 'use client';
 
 import nextDynamic from 'next/dynamic';
@@ -79,14 +81,14 @@ function ProgressiveLoader({ steps, currentStep }: ProgressiveLoaderProps) {
                 {step}
               </span>
               {step === 'Kneading the dough' && (
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 1200 1200" 
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 1200 1200"
                   className="inline-block"
                   fill="currentColor"
                 >
-                  <path d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.0781 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z"/>
+                  <path d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.0781 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z" />
                 </svg>
               )}
             </p>
@@ -191,7 +193,6 @@ const PHASE_LABELS: Record<Phase, string> = {
   error: 'Something went wrong.',
 };
 
-// ✅ UPDATED: Reordered steps
 const NEW_USER_STEPS = [
   'Connecting to network',
   'Reaching the nodes',
@@ -213,7 +214,8 @@ function TownsChat() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showProgressiveLoader, setShowProgressiveLoader] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
-  
+  const [isNewUser, setIsNewUser] = useState(false);
+
   const signerRef = useRef<any>(null);
   const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
@@ -221,8 +223,6 @@ function TownsChat() {
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
-
-    let isNewUser = false;
 
     try {
       const account = wallet?.getAccount();
@@ -263,70 +263,76 @@ function TownsChat() {
           console.log('✅ Already a member (from persistence)');
         } else {
           try {
+            // CHANGED: Reduced timeout from 10s to 4s for faster new-user detection
             await Promise.race([
               agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
                 { skipMintMembership: true },
               ),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Join timeout - likely no membership')), 10000)
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Join timeout - likely no membership')), 4000)
               ),
             ]);
             console.log('✅ Joined with existing membership');
           } catch (e: any) {
             console.log('❌ Join attempt failed:', e.message);
             const msg = (e.message || '').toLowerCase();
-            
+
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
             } else if (
               msg.includes('timeout') ||
-              msg.includes('permission') || 
+              msg.includes('permission') ||
               msg.includes('not entitled') ||
               msg.includes('membership') ||
-              msg.includes('not a member') || 
+              msg.includes('not a member') ||
               msg.includes('no membership')
             ) {
-              // 🆕 NEW USER - needs to mint
-              isNewUser = true;
+              // NEW USER - needs to mint
+              setIsNewUser(true);
               setShowProgressiveLoader(true);
               console.log('🆕 New user detected, starting onboarding...');
-              
-              // ✅ UPDATED: Reordered step progression
+
+              // CHANGED: Reduced delays from 800ms to 400ms each
               setLoadingStep(0); // Connecting to network
-              await new Promise(r => setTimeout(r, 800));
-              
+              await new Promise((r) => setTimeout(r, 400));
+
               setLoadingStep(1); // Reaching the nodes
-              await new Promise(r => setTimeout(r, 800));
-              
+              await new Promise((r) => setTimeout(r, 400));
+
               setLoadingStep(2); // Connected to nodes
-              await new Promise(r => setTimeout(r, 800));
-              
+              await new Promise((r) => setTimeout(r, 400));
+
               setLoadingStep(3); // Minting membership (ACTUAL MINT)
               console.log('🔄 Minting membership...');
-              await agentRef.current.spaces.joinSpace(SAVED_SPACE_ID, signerRef.current);
-              console.log('✅ Membership minted');
-              
-              // Mint freemium NFT
-              try {
-                const mintResponse = await fetch('/api/mint-freemium', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ address: account.address }),
+
+              // CHANGED: Parallelize membership mint + freemium NFT mint
+              const mintMembershipPromise = agentRef.current.spaces.joinSpace(
+                SAVED_SPACE_ID,
+                signerRef.current,
+              );
+
+              const mintFreemiumPromise = fetch('/api/mint-freemium', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: account.address }),
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data.success) console.log('✅ Freemium NFT minted');
+                })
+                .catch((err) => {
+                  console.warn('Freemium NFT mint failed (non-critical):', err);
                 });
-                const mintData = await mintResponse.json();
-                if (mintData.success) {
-                  console.log('✅ Freemium NFT minted');
-                }
-              } catch (mintError) {
-                console.warn('Freemium NFT mint failed (non-critical):', mintError);
-              }
-              
+
+              await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
+              console.log('✅ Membership minted');
+
               setLoadingStep(4); // Kneading the dough
               console.log('⏳ Finalizing...');
-              // ✅ UPDATED: Increased delay from 1500ms to 2000ms
-              await new Promise(r => setTimeout(r, 2000));
+              // CHANGED: Reduced from 2000ms to 600ms
+              await new Promise((r) => setTimeout(r, 600));
             } else {
               throw e;
             }
@@ -370,6 +376,7 @@ function TownsChat() {
               setErrorMsg('');
               setShowProgressiveLoader(false);
               setLoadingStep(0);
+              setIsNewUser(false);
               flowStartedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -385,7 +392,7 @@ function TownsChat() {
     if (showProgressiveLoader) {
       return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
     }
-    
+
     return (
       <LoadingSpinner
         message={
@@ -396,11 +403,53 @@ function TownsChat() {
     );
   }
 
-  return <TownsChatReady wallet={wallet} />;
+  // CHANGED: Pass isNewUser so TownsChatReady can show decryption overlay
+  return <TownsChatReady wallet={wallet} isNewUser={isNewUser} />;
 }
 
-function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet> }) {
+// CHANGED: Added DecryptingOverlay for new users waiting on key solicitation
+function DecryptingOverlay() {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm pointer-events-none">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-3" />
+        <p className="font-georgia-pro text-sm text-gray-600">
+          Decrypting message history...
+        </p>
+        <p className="font-georgia-pro text-xs text-gray-400 mt-1">
+          This may take a moment for new members
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// CHANGED: Accept isNewUser prop
+function TownsChatReady({
+  wallet,
+  isNewUser,
+}: {
+  wallet: ReturnType<typeof useActiveWallet>;
+  isNewUser: boolean;
+}) {
   const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
+  const [showDecryptingOverlay, setShowDecryptingOverlay] = useState(isNewUser);
+
+  // CHANGED: Auto-dismiss decrypting overlay after 8s or when messages load
+  useEffect(() => {
+    if (!showDecryptingOverlay) return;
+    const timer = setTimeout(() => setShowDecryptingOverlay(false), 8000);
+    return () => clearTimeout(timer);
+  }, [showDecryptingOverlay]);
+
+  // Dismiss overlay once space is fully initialized (keys likely received)
+  useEffect(() => {
+    if (space?.initialized && showDecryptingOverlay) {
+      // Give a brief moment for decryption to complete after sync
+      const timer = setTimeout(() => setShowDecryptingOverlay(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [space?.initialized, showDecryptingOverlay]);
 
   const currentUser: ChatUser | null = useMemo(() => {
     const address = wallet?.getAccount()?.address;
@@ -421,7 +470,8 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
     return <LoadingSpinner message="Loading space..." />;
   }
 
-  if (!space.initialized) {
+  // CHANGED: For new users, don't block on space.initialized — show chat with overlay
+  if (!space.initialized && !isNewUser) {
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
 
@@ -439,7 +489,9 @@ function TownsChatReady({ wallet }: { wallet: ReturnType<typeof useActiveWallet>
   }
 
   return (
-    <div className="w-full h-screen">
+    <div className="w-full h-screen relative">
+      {/* CHANGED: Show decrypting overlay for new users while keys are solicited */}
+      {showDecryptingOverlay && <DecryptingOverlay />}
       <ConnectedChat
         currentUser={currentUser}
         spaceId={SAVED_SPACE_ID!}
@@ -493,7 +545,7 @@ export default function ChatTestClient() {
               Our home for community, conversation, and creativity.
             </p>
           </div>
-          
+
           <div className="mb-8 animate-fade-in-up-delay">
             <p className="font-georgia-pro text-base md:text-lg text-gray-800">
               If this is your first time joining, click the button below to sign-up:
@@ -519,8 +571,12 @@ function friendlyError(error: any): string {
   const msg = error.message?.toLowerCase() || '';
   if (msg.includes('429') || msg.includes('bandwidth'))
     return 'Network is busy — please try again in a moment.';
-  if (msg.includes('cannot_connect') || msg.includes('unavailable') ||
-      msg.includes('downstream_network') || msg.includes('connection refused'))
+  if (
+    msg.includes('cannot_connect') ||
+    msg.includes('unavailable') ||
+    msg.includes('downstream_network') ||
+    msg.includes('connection refused')
+  )
     return 'The Towns network is experiencing issues. Please try again shortly.';
   if (msg.includes('unimplemented') || msg.includes('501'))
     return 'The Towns network is undergoing maintenance. Please try again later.';
