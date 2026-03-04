@@ -260,27 +260,33 @@ function TownsChat() {
 
         if (alreadyMember) {
           console.log('✅ Already a member (from persistence)');
-          // ✅ Fast! No delay for returning users
         } else {
           try {
+            // ✅ This entire call can fail - not just the joinSpace, but also the internal joinStream
             await agentRef.current.spaces.joinSpace(
               SAVED_SPACE_ID,
               signerRef.current,
               { skipMintMembership: true },
             );
             console.log('✅ Joined with existing membership');
-            // ✅ Fast! No delay for returning users
           } catch (e: any) {
+            console.log('❌ Join attempt failed:', e.message);
             const msg = (e.message || '').toLowerCase();
             
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
-              // ✅ Fast! No delay for returning users
-            } else {
+            } else if (
+              // ✅ FIXED: Catch ALL membership/permission errors
+              msg.includes('permission') || 
+              msg.includes('not entitled') ||
+              msg.includes('membership') ||
+              msg.includes('not a member') || 
+              msg.includes('no membership')
+            ) {
               // 🆕 NEW USER - needs to mint
               isNewUser = true;
               setShowProgressiveLoader(true);
-              console.log('🆕 New user, starting onboarding...');
+              console.log('🆕 New user detected, starting onboarding...');
               
               setLoadingStep(0);
               await new Promise(r => setTimeout(r, 50));
@@ -315,13 +321,11 @@ function TownsChat() {
               
               console.log('⏳ Finalizing...');
               await new Promise(r => setTimeout(r, 1500));
+            } else {
+              // Unknown error - throw it
+              throw e;
             }
           }
-          
-          // ✅ REMOVED - no delay for returning users anymore!
-          // if (!isNewUser) {
-          //   await new Promise(r => setTimeout(r, 1500));
-          // }
         }
       }
 
@@ -332,6 +336,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = true;
       }
     } catch (e: any) {
+      console.error('❌ Flow error:', e);
       setPhase('error');
       setErrorMsg(friendlyError(e));
       flowStartedRef.current = false;
