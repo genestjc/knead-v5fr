@@ -151,7 +151,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   
-  // ✅ NEW: Timeline state (Towns-recommended approach)
+  // ✅ Timeline state (Towns-recommended approach)
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -176,7 +176,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
 
-  // ✅ NEW: Get direct channel reference (Towns-recommended)
+  // ✅ Get direct channel reference (Towns-recommended)
   const channel = useMemo(() => {
     if (!syncAgent || !spaceId || !channelId) return null;
     return syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
@@ -205,7 +205,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ NEW: Load more messages (Towns-recommended with scroll position maintenance)
+  // ✅ Load more messages (Towns-recommended with scroll position maintenance)
   const loadMoreMessages = useCallback(async () => {
     if (!channel || isLoadingMore || hasReachedStart) return;
 
@@ -217,7 +217,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     try {
       console.log('📜 Loading older messages...');
-      const result = await channel.timeline.scrollback();
+      
+      // ✅ Add timeout to scrollback
+      const scrollbackPromise = channel.timeline.scrollback();
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
+      );
+      
+      const result = await Promise.race([scrollbackPromise, timeoutPromise]);
       
       // Update events from channel
       setEvents([...channel.timeline.events.value]);
@@ -244,14 +251,43 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [channel, isLoadingMore, hasReachedStart]);
 
-  // ✅ NEW: Initial load + subscribe to timeline (Towns-recommended)
+  // ✅ FIXED: Initial load + subscribe to timeline with channel.initialized check
   useEffect(() => {
     if (!channel) return;
 
     let mounted = true;
+    let unsubscribeInitialized: (() => void) | undefined;
 
     async function init() {
-      console.log('📜 Starting initial message load...');
+      console.log('📜 Waiting for channel initialization...');
+
+      // ✅ CRITICAL FIX: Wait for channel.initialized before scrollback
+      await new Promise<void>((resolve) => {
+        // Check if already initialized
+        if (channel.initialized?.value) {
+          console.log('✅ Channel already initialized');
+          resolve();
+          return;
+        }
+
+        // Subscribe to initialization event
+        unsubscribeInitialized = channel.initialized?.subscribe((initialized) => {
+          if (initialized) {
+            console.log('✅ Channel initialized (via subscription)');
+            resolve();
+          }
+        });
+
+        // Timeout fallback (15 seconds)
+        setTimeout(() => {
+          console.warn('⚠️ Channel init timeout, proceeding anyway');
+          resolve();
+        }, 15000);
+      });
+
+      if (!mounted) return;
+
+      console.log('📜 Starting message load after channel ready...');
 
       // Subscribe to timeline updates
       const updateMessages = () => {
@@ -269,7 +305,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       try {
         for (let i = 0; i < 3; i++) {
           console.log(`📜 Loading history page ${i + 1}...`);
-          const result = await channel.timeline.scrollback();
+          
+          // ✅ Add timeout to scrollback
+          const scrollbackPromise = channel.timeline.scrollback();
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
+          );
+          
+          const result = await Promise.race([scrollbackPromise, timeoutPromise]);
           
           if (mounted) {
             setEvents([...channel.timeline.events.value]);
@@ -283,8 +326,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             break;
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Initial scrollback failed:', error);
+        
+        // ✅ Show helpful error message
+        if (error.message === 'Scrollback timeout') {
+          console.error('💡 Channel may not be fully synced yet. New users should see messages after key exchange completes.');
+        }
       } finally {
         if (mounted) {
           setIsLoadingHistory(false);
@@ -297,10 +345,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return () => {
       mounted = false;
+      unsubscribeInitialized?.();
     };
   }, [channel]);
 
-  // ✅ NEW: Infinite scroll with IntersectionObserver (Towns-recommended)
+  // ✅ Infinite scroll with IntersectionObserver (Towns-recommended)
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart || isLoadingHistory) return;
