@@ -151,7 +151,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   
-  // ✅ Timeline state (Towns-recommended approach)
+  // ✅ Timeline state (Towns SDK approach)
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -176,7 +176,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
 
-  // ✅ Get direct channel reference (Towns-recommended)
+  // ✅ Get direct channel reference (Towns SDK)
   const channel = useMemo(() => {
     if (!syncAgent || !spaceId || !channelId) return null;
     return syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
@@ -205,7 +205,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ Load more messages (Towns-recommended with scroll position maintenance)
+  // ✅ Load more messages with retry logic
   const loadMoreMessages = useCallback(async () => {
     if (!channel || isLoadingMore || hasReachedStart) return;
 
@@ -218,20 +218,41 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     try {
       console.log('📜 Loading older messages...');
       
-      // ✅ Add timeout to scrollback
-      const scrollbackPromise = channel.timeline.scrollback();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
-      );
+      // ✅ Retry logic for scrollback
+      let attempt = 0;
+      const maxAttempts = 3;
+      let result;
       
-      const result = await Promise.race([scrollbackPromise, timeoutPromise]);
+      while (attempt < maxAttempts) {
+        try {
+          const scrollbackPromise = channel.timeline.scrollback();
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
+          );
+          
+          result = await Promise.race([scrollbackPromise, timeoutPromise]);
+          break; // Success!
+          
+        } catch (error: any) {
+          attempt++;
+          console.warn(`⚠️ Scrollback attempt ${attempt}/${maxAttempts} failed:`, error.message);
+          
+          if (attempt < maxAttempts) {
+            const waitTime = 1000 * Math.pow(2, attempt - 1);
+            console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+            await new Promise(r => setTimeout(r, waitTime));
+          } else {
+            throw error;
+          }
+        }
+      }
       
       // Update events from channel
       setEvents([...channel.timeline.events.value]);
       
-      console.log(`✅ Loaded page, terminus: ${result.terminus}`);
+      console.log(`✅ Loaded page, terminus: ${result?.terminus}`);
 
-      if (result.terminus) {
+      if (result?.terminus) {
         setHasReachedStart(true);
         console.log('📜 Reached beginning of conversation');
       }
@@ -245,49 +266,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         });
       }
     } catch (error) {
-      console.error('❌ Scrollback failed:', error);
+      console.error('❌ Scrollback failed after all retries:', error);
     } finally {
       setIsLoadingMore(false);
     }
   }, [channel, isLoadingMore, hasReachedStart]);
 
-  // ✅ FIXED: Initial load + subscribe to timeline with channel.initialized check
+  // ✅ FIXED: Initial load with SDK-approved retry pattern
   useEffect(() => {
     if (!channel) return;
 
     let mounted = true;
-    let unsubscribeInitialized: (() => void) | undefined;
 
     async function init() {
-      console.log('📜 Waiting for channel initialization...');
-
-      // ✅ CRITICAL FIX: Wait for channel.initialized before scrollback
-      await new Promise<void>((resolve) => {
-        // Check if already initialized
-        if (channel.initialized?.value) {
-          console.log('✅ Channel already initialized');
-          resolve();
-          return;
-        }
-
-        // Subscribe to initialization event
-        unsubscribeInitialized = channel.initialized?.subscribe((initialized) => {
-          if (initialized) {
-            console.log('✅ Channel initialized (via subscription)');
-            resolve();
-          }
-        });
-
-        // Timeout fallback (15 seconds)
-        setTimeout(() => {
-          console.warn('⚠️ Channel init timeout, proceeding anyway');
-          resolve();
-        }, 15000);
-      });
-
-      if (!mounted) return;
-
-      console.log('📜 Starting message load after channel ready...');
+      console.log('📜 Starting initial message load...');
 
       // Subscribe to timeline updates
       const updateMessages = () => {
@@ -301,38 +293,65 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       // Load initial messages
       updateMessages();
 
-      // Auto-load first 3 pages of history
+      // ✅ SDK APPROACH: Load first 3 pages with retry logic (like SDK tests)
+      let attempt = 0;
+      const maxAttempts = 3;
+      
       try {
-        for (let i = 0; i < 3; i++) {
-          console.log(`📜 Loading history page ${i + 1}...`);
+        for (let page = 0; page < 3; page++) {
+          console.log(`📜 Loading history page ${page + 1}...`);
           
-          // ✅ Add timeout to scrollback
-          const scrollbackPromise = channel.timeline.scrollback();
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
-          );
+          attempt = 0;
+          let result;
           
-          const result = await Promise.race([scrollbackPromise, timeoutPromise]);
+          // Retry logic for this page
+          while (attempt < maxAttempts) {
+            try {
+              const scrollbackPromise = channel.timeline.scrollback();
+              const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
+              );
+              
+              result = await Promise.race([scrollbackPromise, timeoutPromise]);
+              break; // Success!
+              
+            } catch (error: any) {
+              attempt++;
+              console.warn(`⚠️ Page ${page + 1} attempt ${attempt}/${maxAttempts} failed:`, error.message);
+              
+              if (attempt < maxAttempts) {
+                // Exponential backoff: 1s, 2s, 4s
+                const waitTime = 1000 * Math.pow(2, attempt - 1);
+                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                await new Promise(r => setTimeout(r, waitTime));
+              } else {
+                // Last attempt failed, but don't throw - just stop trying
+                console.error(`❌ Page ${page + 1} failed after ${maxAttempts} attempts, stopping scrollback`);
+                break;
+              }
+            }
+          }
           
-          if (mounted) {
+          if (mounted && result) {
             setEvents([...channel.timeline.events.value]);
           }
 
-          if (result.terminus) {
+          if (result?.terminus) {
             if (mounted) {
               setHasReachedStart(true);
               console.log('📜 Reached beginning (during initial load)');
             }
             break;
           }
+          
+          // If we didn't get a result (all retries failed), stop trying
+          if (!result) {
+            console.warn('⚠️ Stopping scrollback - channel may not be ready yet');
+            break;
+          }
         }
       } catch (error: any) {
-        console.error('❌ Initial scrollback failed:', error);
-        
-        // ✅ Show helpful error message
-        if (error.message === 'Scrollback timeout') {
-          console.error('💡 Channel may not be fully synced yet. New users should see messages after key exchange completes.');
-        }
+        console.error('❌ Initial scrollback encountered an error:', error);
       } finally {
         if (mounted) {
           setIsLoadingHistory(false);
@@ -345,11 +364,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return () => {
       mounted = false;
-      unsubscribeInitialized?.();
     };
   }, [channel]);
 
-  // ✅ Infinite scroll with IntersectionObserver (Towns-recommended)
+  // ✅ Infinite scroll with IntersectionObserver
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart || isLoadingHistory) return;
