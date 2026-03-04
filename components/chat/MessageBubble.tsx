@@ -7,6 +7,7 @@ import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { MessageReactions } from './MessageReactions';
 import { toast } from 'sonner';
 
 interface ChatMessage {
@@ -22,6 +23,7 @@ interface ChatMessage {
   townsAwarded?: number;
   isOwn?: boolean;
   isContributor?: boolean;
+  reactionCounts?: Record<string, number>;
 }
 
 interface MessageBubbleProps {
@@ -330,6 +332,16 @@ export function MessageBubble({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Message Reactions — shown for all non-own messages when channelId is available */}
+            {!isOwn && channelId && (
+              <MessageReactions
+                messageId={message.id}
+                channelId={channelId}
+                canReact={canAwardTokens ?? false}
+                reactionCounts={message.reactionCounts}
+              />
             )}
 
             {/* Self-delete button (shows on hover for own messages) */}

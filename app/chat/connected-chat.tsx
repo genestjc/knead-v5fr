@@ -5,12 +5,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   useAgentConnection, 
   useSpace, 
-  useSendMessage, 
   useScrollback,
   useTimeline
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import type { TimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
@@ -26,6 +24,9 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X } from 'lucide-react';
+import { useTypingIndicator } from '@/hooks/use-typing-indicator';
+import { useOptimisticSend } from '@/hooks/use-optimistic-send';
+import { useQueryClient } from '@tanstack/react-query';
 
 const LoadingSpinner = () => (
   <div className="text-center py-10">
@@ -47,6 +48,9 @@ interface UserProfile {
   walletAddress: string | null;
   role?: string;
 }
+
+/** Shared stale time for user profile queries — 5 minutes */
+const USER_PROFILE_STALE_TIME = 5 * 60 * 1000;
 
 function PermissionDebugBanner({
   permissions,
@@ -154,7 +158,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
-  const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
@@ -163,10 +166,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
-  const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialLoadStartedRef = useRef(false);
 
   const activeAccount = useActiveAccount();
+  const queryClient = useQueryClient();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
@@ -175,8 +178,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   // ✅ FIXED: Added missing dot
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
-  // ✅ CLEAN: Only the hooks this component actually uses
-  const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { data: events } = useTimeline(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
     onSuccess: (data) => {
@@ -187,27 +188,54 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     },
   });
 
-  const getProfile = useCallback(async (walletAddress: string) => {
-    try {
-      const response = await fetch(`/api/chat/user?address=${walletAddress}`);
-      const data = await response.json();
+  // Typing indicator
+  const { startTyping, stopTyping } = useTypingIndicator({ clearDelay: 3000 });
 
-      if (data.success && data.user) {
-        setProfileCache(prev => ({
-          ...prev,
-          [walletAddress]: {
-            alias: data.user.alias,
-            avatar: data.user.avatar,
-            displayName: data.user.displayName,
-            walletAddress,
-            role: data.user.role,
+  // Optimistic send (wraps useSendMessage)
+  const {
+    optimisticMessages,
+    sendOptimistic,
+    retryMessage: retryOptimistic,
+    dismissMessage: dismissOptimistic,
+    isPending: isSending,
+  } = useOptimisticSend({
+    channelId,
+    userId: activeAccount?.address || '',
+    userName: currentUser.displayName,
+  });
+
+  // Prefetch profiles for all message senders using React Query
+  const prefetchProfiles = useCallback(
+    (addresses: string[]) => {
+      addresses.forEach((addr) => {
+        queryClient.prefetchQuery({
+          queryKey: ['user-profile', addr],
+          queryFn: async () => {
+            const response = await fetch(`/api/chat/user?address=${encodeURIComponent(addr)}`);
+            const data = await response.json();
+            if (data.success && data.user) {
+              return {
+                alias: data.user.alias,
+                avatar: data.user.avatar,
+                displayName: data.user.displayName,
+                walletAddress: addr,
+                role: data.user.role,
+              };
+            }
+            return {
+              alias: null,
+              avatar: null,
+              displayName: addr.substring(0, 6) + '...' + addr.substring(addr.length - 4),
+              walletAddress: addr,
+              role: undefined,
+            };
           },
-        }));
-      }
-    } catch {
-      // Silent
-    }
-  }, []);
+          staleTime: USER_PROFILE_STALE_TIME,
+        });
+      });
+    },
+    [queryClient]
+  );
 
   const loadMoreMessages = useCallback(async () => {
     if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
@@ -381,18 +409,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     const addresses = events
       .map((event: any) => event.sender?.id)
-      .filter(
-        (addr): addr is string =>
-          !!addr && !profileCache[addr] && !profileFetchingRef.current.has(addr),
-      );
+      .filter((addr): addr is string => !!addr);
 
     if (addresses.length === 0) return;
 
-    addresses.forEach((addr) => {
-      profileFetchingRef.current.add(addr);
-      getProfile(addr);
-    });
-  }, [events, profileCache, getProfile]);
+    // Use React Query to prefetch/cache profiles (deduplicates requests automatically)
+    prefetchProfiles(addresses);
+  }, [events, prefetchProfiles]);
 
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
@@ -401,7 +424,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
       .map((event: any) => {
         const walletAddress = event.sender?.id || '';
-        const profile = walletAddress ? profileCache[walletAddress] : null;
+        // Read cached profile from React Query cache
+        const cachedProfile = walletAddress
+          ? queryClient.getQueryData<UserProfile>(['user-profile', walletAddress])
+          : null;
 
         return {
           id: event.eventId,
@@ -409,16 +435,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           sender: {
             id: walletAddress,
             walletAddress,
-            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-            avatar: profile?.avatar,
+            name: cachedProfile?.alias || cachedProfile?.displayName || event.creatorDisplayName || 'Anonymous',
+            avatar: cachedProfile?.avatar,
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
+          isContributor: cachedProfile?.role === 'contributor' || cachedProfile?.role === 'admin' || cachedProfile?.role === 'master-admin',
+          reactionCounts: event.reactions && typeof event.reactions === 'object' && !Array.isArray(event.reactions)
+            ? (event.reactions as Record<string, number>)
+            : {},
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address]);
+  }, [events, queryClient, activeAccount?.address]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -559,7 +588,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         setPendingFile(null);
 
         await Promise.race([
-          sendMessage(fileMessage),
+          sendOptimistic(fileMessage),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('File upload timeout')), 30000),
           ),
@@ -576,13 +605,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (!messageInput.trim() || isSending || !channelId) return;
 
     const messageToSend = messageInput.trim();
+    stopTyping();
 
     try {
       setMessageInput('');
       setFailedMessage(null);
 
       await Promise.race([
-        sendMessage(messageToSend),
+        sendOptimistic(messageToSend),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Message send timed out after 30 seconds')), 30000),
         ),
@@ -710,6 +740,43 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             eventId={activeEvent?.id}
           />
         ))}
+
+        {/* Optimistic messages — shown immediately while Towns confirms delivery */}
+        {optimisticMessages.map((msg) => (
+          <div key={msg.id} className={`flex justify-end mb-4 px-4`}>
+            <div className="flex flex-col items-end max-w-[70%]">
+              <div className={`rounded-[18px] px-4 py-2 ${msg.status === 'failed' ? 'bg-red-500' : 'bg-[#5A9EFF]'} text-white`}>
+                <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                  {msg.content}
+                </p>
+              </div>
+              <div className="text-xs text-gray-500 mt-1 px-2 text-right">
+                <span className="font-georgia-pro">
+                  {msg.status === 'sending' && '⏳ Sending...'}
+                  {msg.status === 'sent' && '✓ Sent'}
+                  {msg.status === 'failed' && (
+                    <>
+                      ❌ Failed{' '}
+                      <button
+                        onClick={() => retryOptimistic(msg.id)}
+                        className="text-[#007AFF] underline"
+                      >
+                        Retry
+                      </button>
+                      {' · '}
+                      <button
+                        onClick={() => dismissOptimistic(msg.id)}
+                        className="text-gray-400 underline"
+                      >
+                        Dismiss
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
         <div ref={messagesEndRef} />
       </div>
     );
@@ -808,7 +875,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <input
             type="text"
             value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
+            onChange={(e) => {
+              setMessageInput(e.target.value);
+              if (e.target.value) startTyping();
+            }}
+            onBlur={stopTyping}
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
