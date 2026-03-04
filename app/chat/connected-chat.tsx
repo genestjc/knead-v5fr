@@ -172,10 +172,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
 
-  // ✅ FIXED: Added missing dot
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
-  // ✅ CLEAN: Only the hooks this component actually uses
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { data: events } = useTimeline(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
@@ -186,6 +184,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.error('❌ Scrollback error:', error);
     },
   });
+
+  // ✅ Clear corrupted Towns cache on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const townsKeys = Object.keys(localStorage).filter(k => 
+        k.includes('towns') || k.includes('river') || k.includes('sync')
+      );
+      
+      if (townsKeys.length > 50) {
+        console.warn('🧹 Clearing Towns cache to fix persistence errors');
+        townsKeys.forEach(k => localStorage.removeItem(k));
+      }
+    }
+  }, []);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -269,6 +281,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
+  // ✅ FIXED: Removed scrollback from dependencies, reduced retries, added failsafe
   useEffect(() => {
     if (!channelId || initialLoadStartedRef.current) return;
 
@@ -279,20 +292,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('📜 Starting initial message load...');
 
       try {
-        for (let page = 0; page < 3; page++) {
+        for (let page = 0; page < 2; page++) {
           if (!mounted) break;
 
           console.log(`📜 Loading history page ${page + 1}...`);
           
           let attempt = 0;
-          const maxAttempts = 5;
+          const maxAttempts = 3;
           let result;
           
           while (attempt < maxAttempts && mounted) {
             try {
               const scrollbackPromise = scrollback();
               const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Scrollback timeout')), 15000)
+                setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
               );
               
               result = await Promise.race([scrollbackPromise, timeoutPromise]);
@@ -305,22 +318,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               console.warn(`⚠️ Page ${page + 1} attempt ${attempt}/${maxAttempts}:`, errorMsg);
               
               if (attempt < maxAttempts) {
-                let waitTime;
-                
-                if (errorMsg.includes('BAD_PREV_MINIBLOCK_HASH')) {
-                  waitTime = 2000;
-                  console.log('⚠️ Channel syncing miniblocks, waiting 2s...');
-                } else if (errorMsg.includes('MINIBLOCK_TOO_NEW')) {
-                  waitTime = 1000;
-                  console.log('⚠️ Miniblock not ready, waiting 1s...');
-                } else {
-                  waitTime = 1000 * Math.pow(2, attempt - 1);
-                  console.log(`⚠️ Waiting ${waitTime}ms...`);
-                }
-                
+                const waitTime = errorMsg.includes('mismatch') ? 1000 : 1000 * Math.pow(2, attempt - 1);
                 await new Promise(r => setTimeout(r, waitTime));
               } else {
                 console.error(`❌ Page ${page + 1} failed after ${maxAttempts} attempts`);
+                if (page === 0) {
+                  console.warn('⚠️ Initial scrollback failed - showing recent messages only');
+                }
                 break;
               }
             }
@@ -334,8 +338,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             break;
           }
           
-          if (!result && mounted) {
-            console.warn('⚠️ Stopping scrollback - may need more time');
+          if (!result && page === 0) {
+            console.warn('⚠️ Could not load message history - showing live messages only');
             break;
           }
         }
@@ -354,7 +358,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       mounted = false;
     };
-  }, [channelId, scrollback]);
+  }, [channelId]); // ✅ Removed scrollback dependency
+
+  // ✅ Failsafe: force loading to stop after 30 seconds
+  useEffect(() => {
+    const failsafeTimer = setTimeout(() => {
+      if (isLoadingHistory) {
+        console.warn('⚠️ Failsafe: forcing loading to stop after 30s');
+        setIsLoadingHistory(false);
+      }
+    }, 30000);
+
+    return () => clearTimeout(failsafeTimer);
+  }, [isLoadingHistory]);
 
   useEffect(() => {
     const sentinel = topSentinelRef.current;
