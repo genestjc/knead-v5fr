@@ -196,14 +196,63 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ DEMO MODE: Skip scrollback entirely
+  // ✅ FULL SCROLLBACK: Load ALL historical mini-blocks
   useEffect(() => {
-    if (!channelId) return;
+    if (!channelId) {
+      console.log('⏳ Waiting for channelId...');
+      return;
+    }
     
-    console.log('✅ Demo mode - live messages only');
+    if (scrollbackCalledRef.current) {
+      console.log('✅ Scrollback already called');
+      return;
+    }
+    
     scrollbackCalledRef.current = true;
-    setScrollbackTimedOut(true);
-  }, [channelId]);
+
+    const loadHistory = async () => {
+      console.log('📜 Starting scrollback for channel:', channelId);
+
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+          ),
+        ]);
+
+      try {
+        let pageCount = 0;
+        let result: { terminus: boolean; fromInclusiveMiniblockNum: bigint } | undefined;
+
+        // ✅ Load ALL pages until terminus
+        do {
+          pageCount++;
+          console.log(`📜 Loading mini-blocks (page ${pageCount})...`);
+          
+          result = await withTimeout(scrollback(), 15000);
+          console.log(`✅ Page ${pageCount} loaded:`, result);
+
+          // Safety limit to prevent infinite loops
+          if (pageCount >= 50) {
+            console.log('⚠️ Reached 50 page safety limit');
+            break;
+          }
+        } while (result && !result.terminus);
+        
+        console.log(`✅ Scrollback completed - loaded ${pageCount} pages of history`);
+      } catch (err: any) {
+        console.error('❌ Scrollback error:', err?.message || err);
+        
+        if (err?.message?.includes('Timeout')) {
+          console.log('⏳ Scrollback timed out - will show live messages only');
+          console.log('💡 Historical messages may appear once key exchange completes');
+        }
+      }
+    };
+
+    loadHistory();
+  }, [channelId, scrollback]);
 
   // ✅ Reset all refs when channel changes
   useEffect(() => {
