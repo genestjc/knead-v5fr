@@ -185,6 +185,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     },
   });
 
+  // 🔍 DEBUG: Timeline state monitoring
+  useEffect(() => {
+    console.log('🔍 Timeline Debug:', {
+      channelId,
+      isLoading: isTimelineLoading,
+      eventsType: typeof events,
+      eventsIsArray: Array.isArray(events),
+      eventsLength: events?.length || 0,
+      firstEventKind: events?.[0]?.content?.kind,
+      firstEventBody: events?.[0]?.content?.body?.slice(0, 50),
+    });
+  }, [events, isTimelineLoading, channelId]);
+
   // ✅ ROBUST: Keep scrollback function fresh in a ref
   const scrollbackFnRef = useRef(scrollback);
   
@@ -419,29 +432,54 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, [events, profileCache, getProfile]);
 
   const messages = useMemo(() => {
-    if (!events || events.length === 0) return [];
+    console.log('🔄 Processing messages:', {
+      eventsCount: events?.length || 0,
+      eventsType: typeof events,
+      eventsIsArray: Array.isArray(events),
+    });
 
-    return events
-      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
-      .map((event: any) => {
-        const walletAddress = event.sender?.id || '';
-        const profile = walletAddress ? profileCache[walletAddress] : null;
+    // ✅ events is always an array from useTimeline
+    const filtered = (events || []).filter((event: any) => {
+      const isChannelMessage = event.content?.kind === RiverTimelineEvent.ChannelMessage;
+      if (!isChannelMessage && process.env.NODE_ENV === 'development') {
+        console.log('⏭️ Skipping event:', {
+          kind: event.content?.kind,
+          eventId: event.eventId,
+        });
+      }
+      return isChannelMessage;
+    });
 
-        return {
-          id: event.eventId,
-          content: event.content?.body || '',
-          sender: {
-            id: walletAddress,
-            walletAddress,
-            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-            avatar: profile?.avatar,
-          },
-          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
-        };
-      })
-      .sort((a: any, b: any) => a.timestamp - b.timestamp);
+    console.log('✅ Filtered to ChannelMessage:', {
+      totalEvents: events?.length || 0,
+      channelMessages: filtered.length,
+    });
+
+    const processed = filtered.map((event: any) => {
+      const walletAddress = event.sender?.id || '';
+      const profile = walletAddress ? profileCache[walletAddress] : null;
+
+      return {
+        id: event.eventId,
+        content: event.content?.body || '',
+        sender: {
+          id: walletAddress,
+          walletAddress,
+          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+          avatar: profile?.avatar,
+        },
+        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+        isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+        isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
+      };
+    }).sort((a: any, b: any) => a.timestamp - b.timestamp);
+
+    console.log('📊 Final messages:', {
+      count: processed.length,
+      firstMessage: processed[0]?.content?.slice(0, 50),
+    });
+
+    return processed;
   }, [events, profileCache, activeAccount?.address]);
 
   useEffect(() => {
@@ -681,6 +719,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   const renderMessages = () => {
+    console.log('🎨 Render check:', {
+      isLoadingHistory,
+      isTimelineLoading,
+      messagesLength: messages.length,
+    });
+
     // ✅ Wait for BOTH scrollback history AND timeline to finish loading
     if (isLoadingHistory || isTimelineLoading) {
       return (
@@ -696,6 +740,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     if (messages.length === 0) {
+      console.warn('⚠️ Showing empty state - no messages after filtering');
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 py-8">
@@ -707,6 +752,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </div>
       );
     }
+
+    console.log('✅ Rendering messages:', messages.length);
 
     return (
       <div className="py-4">
