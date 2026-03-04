@@ -7,7 +7,8 @@ import {
   useSpace, 
   useSendMessage, 
   useSyncAgent,
-  useScrollback // ✅ NEW: Official hook
+  useScrollback,
+  useTimeline // ✅ Official hook for timeline events
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import type { TimelineEvent } from '@towns-protocol/sdk';
@@ -157,8 +158,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   
-  // Timeline state
-  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  // ✅ Simplified: Only need loading/scrolling state, not events
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
@@ -169,6 +169,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
+  const initialLoadStartedRef = useRef(false);
 
   // -- All context/external hooks --
   const activeAccount = useActiveAccount();
@@ -182,18 +183,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
 
-  // ✅ Get direct channel reference
-  const channel = useMemo(() => {
-    if (!syncAgent || !spaceId || !channelId) return null;
-    return syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
-  }, [syncAgent, spaceId, channelId]);
+  // ✅ OFFICIAL: Use useTimeline for reactive timeline events
+  const { data: events } = useTimeline(channelId);
 
-  // ✅ OFFICIAL: Use the useScrollback hook
+  // ✅ OFFICIAL: Use useScrollback for loading older messages
   const {
     scrollback,
     error: scrollbackError,
     isPending: isScrollbackPending,
-  } = useScrollback(channelId || '', {
+  } = useScrollback(channelId, {
     onSuccess: (data) => {
       console.log('✅ Scrollback succeeded:', data);
     },
@@ -225,9 +223,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ Load more messages with official hook + retry
   const loadMoreMessages = useCallback(async () => {
-    if (!channel || isLoadingMore || hasReachedStart || isScrollbackPending) return;
+    if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
 
     const scrollContainer = scrollContainerRef.current;
     const oldScrollHeight = scrollContainer?.scrollHeight ?? 0;
@@ -250,7 +247,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           );
           
           result = await Promise.race([scrollbackPromise, timeoutPromise]);
-          setEvents([...channel.timeline.events.value]);
           break;
           
         } catch (error: any) {
@@ -273,6 +269,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         console.log('📜 Reached beginning');
       }
 
+      // Maintain scroll position
       if (scrollContainer) {
         requestAnimationFrame(() => {
           const newScrollHeight = scrollContainer.scrollHeight;
@@ -285,29 +282,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     } finally {
       setIsLoadingMore(false);
     }
-  }, [channel, isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
+  }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ OFFICIAL: Initial load with useScrollback hook + retry
+  // ✅ SIMPLIFIED: Initial scrollback load only
   useEffect(() => {
-    if (!channel || !channelId) return;
+    if (!channelId || initialLoadStartedRef.current) return;
 
+    initialLoadStartedRef.current = true;
     let mounted = true;
 
     async function init() {
       console.log('📜 Starting initial message load...');
 
-      // Subscribe to timeline updates
-      const updateMessages = () => {
-        if (mounted) {
-          setEvents([...channel.timeline.events.value]);
-        }
-      };
-
-      channel.timeline.events.subscribe(updateMessages);
-      updateMessages();
-
-      // Load first 3 pages with retry logic
       try {
+        // Load first 3 pages with retry logic
         for (let page = 0; page < 3; page++) {
           if (!mounted) break;
 
@@ -325,10 +313,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               );
               
               result = await Promise.race([scrollbackPromise, timeoutPromise]);
-              
-              if (mounted) {
-                setEvents([...channel.timeline.events.value]);
-              }
               break;
               
             } catch (error: any) {
@@ -346,12 +330,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                 } else if (errorMsg.includes('MINIBLOCK_TOO_NEW')) {
                   waitTime = 1000;
                   console.log('⚠️ Miniblock not ready, waiting 1s...');
-                } else if (errorMsg.includes('timeout')) {
-                  waitTime = 1000 * Math.pow(2, attempt - 1);
-                  console.log(`⚠️ Timeout, exponential backoff ${waitTime}ms...`);
                 } else {
                   waitTime = 1000 * Math.pow(2, attempt - 1);
-                  console.log(`⚠️ Error, waiting ${waitTime}ms...`);
+                  console.log(`⚠️ Waiting ${waitTime}ms...`);
                 }
                 
                 await new Promise(r => setTimeout(r, waitTime));
@@ -390,7 +371,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       mounted = false;
     };
-  }, [channel, channelId, scrollback]);
+  }, [channelId, scrollback]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -432,7 +413,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // Messages memo
+  // ✅ Messages memo - filter and transform timeline events
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
