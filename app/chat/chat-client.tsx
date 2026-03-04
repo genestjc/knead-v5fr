@@ -221,7 +221,6 @@ function TownsChat() {
     if (flowStartedRef.current) return;
     flowStartedRef.current = true;
 
-    // ✅ Local variable to avoid stale closure issue
     let isNewUser = false;
 
     try {
@@ -261,8 +260,8 @@ function TownsChat() {
 
         if (alreadyMember) {
           console.log('✅ Already a member (from persistence)');
+          // ✅ Fast! No delay for returning users
         } else {
-          // Not in persistence - try to join and see what happens
           try {
             await agentRef.current.spaces.joinSpace(
               SAVED_SPACE_ID,
@@ -270,13 +269,15 @@ function TownsChat() {
               { skipMintMembership: true },
             );
             console.log('✅ Joined with existing membership');
+            // ✅ Fast! No delay for returning users
           } catch (e: any) {
             const msg = (e.message || '').toLowerCase();
             
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
+              // ✅ Fast! No delay for returning users
             } else {
-              // ✅ NEW USER - needs to mint
+              // 🆕 NEW USER - needs to mint
               isNewUser = true;
               setShowProgressiveLoader(true);
               console.log('🆕 New user, starting onboarding...');
@@ -317,11 +318,10 @@ function TownsChat() {
             }
           }
           
-          // ✅ Use local variable instead of state
-          if (!isNewUser) {
-            console.log('⏳ Finalizing connection...');
-            await new Promise(r => setTimeout(r, 1500));
-          }
+          // ✅ REMOVED - no delay for returning users anymore!
+          // if (!isNewUser) {
+          //   await new Promise(r => setTimeout(r, 1500));
+          // }
         }
       }
 
