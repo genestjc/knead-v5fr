@@ -175,7 +175,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
-  const { data: events } = useTimeline(channelId);
+  const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
     onSuccess: (data) => {
       console.log('✅ Scrollback succeeded:', data);
@@ -366,7 +366,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       mounted = false;
     };
-  }, [channelId]); // ✅ Safe - scrollbackFnRef always has current function
+  }, [channelId]);
 
   // ✅ Failsafe: force loading to stop after 30 seconds
   useEffect(() => {
@@ -681,12 +681,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   const renderMessages = () => {
-    if (isLoadingHistory) {
+    // ✅ Wait for BOTH scrollback history AND timeline to finish loading
+    if (isLoadingHistory || isTimelineLoading) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">Loading message history...</p>
+            <p className="font-georgia-pro text-gray-500">
+              {isLoadingHistory ? 'Loading message history...' : 'Connecting to chat...'}
+            </p>
           </div>
         </div>
       );
@@ -707,17 +710,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return (
       <div className="py-4">
-        <div ref={topSentinelRef} style={{ height: '1px', marginTop: hasReachedStart ? 0 : '20px' }} />
+        <div ref={topSentinelRef} style={{ height: '1px', marginTop: '20px' }} />
 
         {isLoadingMore && (
           <div className="text-center py-2">
             <p className="font-georgia-pro text-xs text-gray-400">Loading older messages...</p>
-          </div>
-        )}
-
-        {hasReachedStart && (
-          <div className="text-center py-4 mb-4 border-b-2 border-gray-200">
-            <p className="font-georgia-pro text-sm text-gray-500">📜 Beginning of conversation</p>
           </div>
         )}
 
