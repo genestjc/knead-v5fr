@@ -262,12 +262,17 @@ function TownsChat() {
           console.log('✅ Already a member (from persistence)');
         } else {
           try {
-            // ✅ This entire call can fail - not just the joinSpace, but also the internal joinStream
-            await agentRef.current.spaces.joinSpace(
-              SAVED_SPACE_ID,
-              signerRef.current,
-              { skipMintMembership: true },
-            );
+            // ✅ Add timeout wrapper - if it hangs for 10s, assume no membership
+            await Promise.race([
+              agentRef.current.spaces.joinSpace(
+                SAVED_SPACE_ID,
+                signerRef.current,
+                { skipMintMembership: true },
+              ),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Join timeout - likely no membership')), 10000)
+              ),
+            ]);
             console.log('✅ Joined with existing membership');
           } catch (e: any) {
             console.log('❌ Join attempt failed:', e.message);
@@ -276,7 +281,7 @@ function TownsChat() {
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
             } else if (
-              // ✅ FIXED: Catch ALL membership/permission errors
+              msg.includes('timeout') ||           // ✅ Catch timeout
               msg.includes('permission') || 
               msg.includes('not entitled') ||
               msg.includes('membership') ||
