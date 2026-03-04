@@ -2,8 +2,9 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useSyncAgent } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import type { TimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
@@ -149,19 +150,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
-  const [scrollbackTimedOut, setScrollbackTimedOut] = useState(false);
-  const [isAwaitingKeys, setIsAwaitingKeys] = useState(false);
+  
+  // ✅ NEW: Timeline state (Towns-recommended approach)
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasReachedStart, setHasReachedStart] = useState(false);
 
   // -- All useRef hooks --
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
-  const scrollbackCalledRef = useRef(false);
-  const keysArrivedRef = useRef(false);
-  const hasReScrolledRef = useRef(false);
 
   // -- All context/external hooks --
   const activeAccount = useActiveAccount();
+  const syncAgent = useSyncAgent();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
@@ -169,9 +174,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
-  const { data: events } = useTimeline(channelId);
-  const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
-  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+  const { sendMessage, isPending: isSending } = useSendMessage(channelId);
+
+  // ✅ NEW: Get direct channel reference (Towns-recommended)
+  const channel = useMemo(() => {
+    if (!syncAgent || !spaceId || !channelId) return null;
+    return syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+  }, [syncAgent, spaceId, channelId]);
 
   // -- All useCallback hooks --
   const getProfile = useCallback(async (walletAddress: string) => {
@@ -196,82 +205,121 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ FULL SCROLLBACK: Load ALL historical mini-blocks
+  // ✅ NEW: Load more messages (Towns-recommended with scroll position maintenance)
+  const loadMoreMessages = useCallback(async () => {
+    if (!channel || isLoadingMore || hasReachedStart) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    const oldScrollHeight = scrollContainer?.scrollHeight ?? 0;
+    const oldScrollTop = scrollContainer?.scrollTop ?? 0;
+
+    setIsLoadingMore(true);
+
+    try {
+      console.log('📜 Loading older messages...');
+      const result = await channel.timeline.scrollback();
+      
+      // Update events from channel
+      setEvents([...channel.timeline.events.value]);
+      
+      console.log(`✅ Loaded page, terminus: ${result.terminus}`);
+
+      if (result.terminus) {
+        setHasReachedStart(true);
+        console.log('📜 Reached beginning of conversation');
+      }
+
+      // ✅ Maintain scroll position after prepending messages
+      if (scrollContainer) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = scrollContainer.scrollHeight;
+          const heightDiff = newScrollHeight - oldScrollHeight;
+          scrollContainer.scrollTop = oldScrollTop + heightDiff;
+        });
+      }
+    } catch (error) {
+      console.error('❌ Scrollback failed:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [channel, isLoadingMore, hasReachedStart]);
+
+  // ✅ NEW: Initial load + subscribe to timeline (Towns-recommended)
   useEffect(() => {
-    if (!channelId) {
-      console.log('⏳ Waiting for channelId...');
-      return;
-    }
-    
-    if (scrollbackCalledRef.current) {
-      console.log('✅ Scrollback already called');
-      return;
-    }
-    
-    scrollbackCalledRef.current = true;
+    if (!channel) return;
 
-    const loadHistory = async () => {
-      console.log('📜 Starting scrollback for channel:', channelId);
+    let mounted = true;
 
-      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
-        Promise.race([
-          promise,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-          ),
-        ]);
+    async function init() {
+      console.log('📜 Starting initial message load...');
 
+      // Subscribe to timeline updates
+      const updateMessages = () => {
+        if (mounted) {
+          setEvents([...channel.timeline.events.value]);
+        }
+      };
+
+      channel.timeline.events.subscribe(updateMessages);
+
+      // Load initial messages
+      updateMessages();
+
+      // Auto-load first 3 pages of history
       try {
-        let pageCount = 0;
-        let result: { terminus: boolean; fromInclusiveMiniblockNum: bigint } | undefined;
-
-        // ✅ Load ALL pages until terminus
-        do {
-          pageCount++;
-          console.log(`📜 Loading mini-blocks (page ${pageCount})...`);
+        for (let i = 0; i < 3; i++) {
+          console.log(`📜 Loading history page ${i + 1}...`);
+          const result = await channel.timeline.scrollback();
           
-          result = await withTimeout(scrollback(), 15000);
-          console.log(`✅ Page ${pageCount} loaded:`, result);
+          if (mounted) {
+            setEvents([...channel.timeline.events.value]);
+          }
 
-          // Safety limit to prevent infinite loops
-          if (pageCount >= 50) {
-            console.log('⚠️ Reached 50 page safety limit');
+          if (result.terminus) {
+            if (mounted) {
+              setHasReachedStart(true);
+              console.log('📜 Reached beginning (during initial load)');
+            }
             break;
           }
-        } while (result && !result.terminus);
-        
-        console.log(`✅ Scrollback completed - loaded ${pageCount} pages of history`);
-      } catch (err: any) {
-        console.error('❌ Scrollback error:', err?.message || err);
-        
-        if (err?.message?.includes('Timeout')) {
-          console.log('⏳ Scrollback timed out - will show live messages only');
-          console.log('💡 Historical messages may appear once key exchange completes');
+        }
+      } catch (error) {
+        console.error('❌ Initial scrollback failed:', error);
+      } finally {
+        if (mounted) {
+          setIsLoadingHistory(false);
+          console.log('✅ Initial message load complete');
         }
       }
+    }
+
+    init();
+
+    return () => {
+      mounted = false;
     };
+  }, [channel]);
 
-    loadHistory();
-  }, [channelId, scrollback]);
-
-  // ✅ Reset all refs when channel changes
+  // ✅ NEW: Infinite scroll with IntersectionObserver (Towns-recommended)
   useEffect(() => {
-    scrollbackCalledRef.current = false;
-    keysArrivedRef.current = false;
-    hasReScrolledRef.current = false;
-  }, [channelId]);
+    const sentinel = topSentinelRef.current;
+    if (!sentinel || hasReachedStart || isLoadingHistory) return;
 
-  // ✅ Timeout increased to 30 seconds
-  useEffect(() => {
-    if (!channelId) return;
-    
-    const timeout = setTimeout(() => {
-      setScrollbackTimedOut(true);
-      console.log('⏱️ Stopped waiting for message history');
-    }, 30000);
-    
-    return () => clearTimeout(timeout);
-  }, [channelId]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore) {
+          loadMoreMessages();
+        }
+      },
+      {
+        threshold: 0.1,
+        root: scrollContainerRef.current,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMoreMessages, hasReachedStart, isLoadingMore, isLoadingHistory]);
 
   // ✅ Profile fetching with deduplication ref
   useEffect(() => {
@@ -291,38 +339,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       getProfile(addr);
     });
   }, [events, profileCache, getProfile]);
-
-  // ✅ Detect if waiting for decryption keys
-  useEffect(() => {
-    if (!events || events.length === 0) return;
-
-    const channelMessages = events.filter(
-      (event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage,
-    );
-
-    const awaitingKeys =
-      channelMessages.length > 0 &&
-      channelMessages.every((event: any) => !event.content?.body);
-
-    setIsAwaitingKeys(awaitingKeys);
-  }, [events]);
-
-  // ✅ Re-fetch when keys arrive (no infinite loop)
-  useEffect(() => {
-    if (!isAwaitingKeys && keysArrivedRef.current && !hasReScrolledRef.current) {
-      console.log('🔑 Keys arrived! Re-fetching to decrypt messages...');
-      hasReScrolledRef.current = true;
-      
-      scrollback()
-        .then(() => scrollback())
-        .then(() => console.log('✅ Messages re-decrypted successfully'))
-        .catch((err) => console.warn('⚠️ Re-scrollback failed:', err));
-    }
-    
-    if (isAwaitingKeys) {
-      keysArrivedRef.current = true;
-    }
-  }, [isAwaitingKeys, scrollback]);
 
   // useMemo with NO side effects
   const messages = useMemo(() => {
@@ -453,7 +469,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [events]);
+  }, [messages.length]);
 
   if (isBanned) {
     return (
@@ -591,26 +607,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   const renderMessages = () => {
-    if (isScrollbackPending && messages.length === 0 && !scrollbackTimedOut) {
+    if (isLoadingHistory) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
             <p className="font-georgia-pro text-gray-500">Loading message history...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (messages.length === 0 && isAwaitingKeys) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">Decrypting messages...</p>
-            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-              Waiting for encryption keys from other members
-            </p>
           </div>
         </div>
       );
@@ -631,18 +633,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return (
       <div className="py-4">
-        {isScrollbackPending && (
+        {/* ✅ Invisible sentinel for infinite scroll */}
+        <div ref={topSentinelRef} style={{ height: '1px', marginTop: hasReachedStart ? 0 : '20px' }} />
+
+        {/* ✅ Loading indicator */}
+        {isLoadingMore && (
           <div className="text-center py-2">
-            <p className="font-georgia-pro text-xs text-gray-400">Loading earlier messages...</p>
+            <p className="font-georgia-pro text-xs text-gray-400">Loading older messages...</p>
           </div>
         )}
-        {isAwaitingKeys && messages.length > 0 && (
-          <div className="text-center py-2 bg-amber-50 rounded-lg mx-4 mb-2">
-            <p className="font-georgia-pro text-xs text-amber-600">
-              Some older messages are still being decrypted...
-            </p>
+
+        {/* ✅ Beginning marker */}
+        {hasReachedStart && (
+          <div className="text-center py-4 mb-4 border-b-2 border-gray-200">
+            <p className="font-georgia-pro text-sm text-gray-500">📜 Beginning of conversation</p>
           </div>
         )}
+
         {messages.map((message: any) => (
           <MessageBubble
             key={message.id}
@@ -818,7 +825,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto min-h-0"
+            >
               {renderMessages()}
             </div>
 
