@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAgentConnection, useSpace, useChannel, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useSendMessage, useTimeline, useScrollback } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
@@ -169,7 +169,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
-  const { data: channel } = useChannel(channelId);
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending, error: sendError } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
@@ -197,62 +196,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ FIXED: Only run scrollback when channel is fully ready
+  // ✅ DEMO MODE: Skip scrollback entirely
   useEffect(() => {
-    if (!channelId) {
-      console.log('⏳ Waiting for channelId...');
-      return;
-    }
-
-    if (!channel) {
-      console.log('⏳ Waiting for channel to initialize...');
-      return;
-    }
+    if (!channelId) return;
     
-    if (scrollbackCalledRef.current) {
-      console.log('✅ Scrollback already called');
-      return;
-    }
-    
+    console.log('✅ Demo mode - live messages only');
     scrollbackCalledRef.current = true;
-
-    const loadHistory = async () => {
-      console.log('📜 Channel ready! Starting scrollback...');
-      console.log('📜 Channel ID:', channelId);
-      console.log('📜 Channel members:', channel.memberIds?.length || 0);
-
-      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
-        Promise.race([
-          promise,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Scrollback timed out after ${ms}ms`)), ms)
-          ),
-        ]);
-
-      try {
-        console.log('📜 Loading page 1...');
-        const result = await withTimeout(scrollback(), 15000);
-        console.log('✅ Page 1 loaded:', result);
-
-        if (result && !result.terminus) {
-          console.log('📜 Loading page 2...');
-          const result2 = await withTimeout(scrollback(), 15000);
-          console.log('✅ Page 2 loaded:', result2);
-        }
-        
-        console.log('✅ Scrollback completed successfully');
-      } catch (err: any) {
-        console.error('❌ Scrollback error:', err?.message || err);
-        
-        // Check if it's still pending (hung promise)
-        if (isScrollbackPending) {
-          console.error('⚠️ Scrollback promise is stuck! Network or encryption issue.');
-        }
-      }
-    };
-
-    loadHistory();
-  }, [channelId, channel]);
+    setScrollbackTimedOut(true);
+  }, [channelId]);
 
   // ✅ Reset all refs when channel changes
   useEffect(() => {
@@ -622,9 +573,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">No messages yet.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              {scrollbackTimedOut 
-                ? "Waiting for message keys... New messages will appear as they're sent."
-                : "Be the first to start the conversation!"}
+              Be the first to start the conversation!
             </p>
           </div>
         </div>
