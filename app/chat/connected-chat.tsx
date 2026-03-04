@@ -174,6 +174,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
+  // 🔍 DEBUG: ChannelId resolution
+  console.log('🔍 ChannelId Status:', {
+    fromSpace: space?.channelIds?.[0],
+    fromDefault: defaultChannelId,
+    final: channelId,
+    spaceLoading: isSpaceLoading,
+    spaceInitialized: space?.initialized,
+    spaceChannelCount: space?.channelIds?.length,
+  });
+
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
@@ -301,9 +311,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ ROBUST INITIAL LOAD: Uses ref to avoid stale closures
+  // ✅ ROBUST INITIAL LOAD: Handles missing channelId gracefully
   useEffect(() => {
-    if (!channelId || initialLoadStartedRef.current) return;
+    console.log('🔍 Scrollback effect triggered:', {
+      channelId,
+      initialLoadStarted: initialLoadStartedRef.current,
+    });
+
+    // ✅ If no channelId, set loading to false and return
+    if (!channelId) {
+      console.warn('⚠️ No channelId available - skipping scrollback');
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    // Don't re-run if already started
+    if (initialLoadStartedRef.current) return;
 
     initialLoadStartedRef.current = true;
     let mounted = true;
