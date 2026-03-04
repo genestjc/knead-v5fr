@@ -102,7 +102,6 @@ function RetryMessageBanner({
 }
 
 export default function ConnectedChat(props: ConnectedChatProps) {
-  // ✅ Read-only — just check state, do NOT reconnect
   const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
   if (isAgentConnecting) {
@@ -150,10 +149,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
+  const [scrollbackTimedOut, setScrollbackTimedOut] = useState(false);
+  const [isAwaitingKeys, setIsAwaitingKeys] = useState(false);
 
   // -- All useRef hooks --
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const profileFetchingRef = useRef<Set<string>>(new Set());
+  const scrollbackCalledRef = useRef(false);
 
   // -- All context/external hooks --
   const activeAccount = useActiveAccount();
@@ -169,6 +172,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
   // -- All useCallback hooks --
+  // ✅ FINAL FIX: Do NOT delete from profileFetchingRef
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -189,9 +193,87 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     } catch {
       // Silent — profile fetch is non-critical
     }
+    // ✅ Do NOT remove from profileFetchingRef here.
+    // The ref acts as a permanent "already attempted" set.
+    // Removing it causes re-fetches when profileCache updates trigger the effect.
   }, []);
 
-  // -- All useMemo hooks --
+  // ✅ FIX 2: Scrollback with pagination (load 2 pages for proper backlog)
+  useEffect(() => {
+    if (!channelId || scrollbackCalledRef.current) return;
+    scrollbackCalledRef.current = true;
+
+    const loadHistory = async () => {
+      try {
+        console.log('📜 Loading message history (page 1)...');
+        const result = await scrollback();
+
+        // Load a second page if we haven't reached the beginning
+        if (result && !result.terminus) {
+          console.log('📜 Loading message history (page 2)...');
+          await scrollback();
+        }
+      } catch (err) {
+        console.warn('⚠️ Scrollback failed:', err);
+      }
+    };
+
+    loadHistory();
+  }, [channelId, scrollback]);
+
+  // ✅ FIX 2: Reset scrollback tracking when channel changes
+  useEffect(() => {
+    scrollbackCalledRef.current = false;
+  }, [channelId]);
+
+  // Timeout to stop showing spinner
+  useEffect(() => {
+    if (!channelId) return;
+    
+    const timeout = setTimeout(() => {
+      setScrollbackTimedOut(true);
+      console.log('⏱️ Stopped waiting for message history');
+    }, 5000);
+    
+    return () => clearTimeout(timeout);
+  }, [channelId]);
+
+  // ✅ FIX 1: Profile fetching with deduplication ref
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+
+    const addresses = events
+      .map((event: any) => event.sender?.id)
+      .filter(
+        (addr): addr is string =>
+          !!addr && !profileCache[addr] && !profileFetchingRef.current.has(addr),
+      );
+
+    if (addresses.length === 0) return;
+
+    addresses.forEach((addr) => {
+      profileFetchingRef.current.add(addr);
+      getProfile(addr);
+    });
+  }, [events, profileCache, getProfile]);
+
+  // ✅ FIX 3: Detect if waiting for decryption keys
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+
+    const channelMessages = events.filter(
+      (event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage,
+    );
+
+    // Events exist but none have decrypted body = keys haven't arrived
+    const awaitingKeys =
+      channelMessages.length > 0 &&
+      channelMessages.every((event: any) => !event.content?.body);
+
+    setIsAwaitingKeys(awaitingKeys);
+  }, [events]);
+
+  // useMemo with NO side effects
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
@@ -200,10 +282,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       .map((event: any) => {
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
-
-        if (walletAddress && !profileCache[walletAddress]) {
-          getProfile(walletAddress);
-        }
 
         return {
           id: event.eventId,
@@ -220,9 +298,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address, getProfile]);
+  }, [events, profileCache, activeAccount?.address]);
 
-  // -- All useEffect hooks --
+  // -- All other useEffect hooks --
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -234,16 +312,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       window.KEY_SHARER_CHANNEL_ID = undefined;
     }
   }, [events, channelId]);
-
-    useEffect(() => {
-    if (!channelId) return;
-    const timer = setTimeout(() => {
-      console.log('📜 Loading message history...');
-      scrollback().catch(() => {});
-    }, 1500); // 1.5s delay
-    
-    return () => clearTimeout(timer);
-  }, [channelId, scrollback]);
 
   useEffect(() => {
     if (!activeAccount?.address) return;
@@ -259,7 +327,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           setIsAdmin(data.user.role === 'admin' || data.user.role === 'master-admin');
         }
       } catch {
-        // Silent — admin check is non-critical
+        // Silent
       }
     }
 
@@ -293,13 +361,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         );
         const isViewer = !isHost && !isGuest;
 
-        // If no video or no room, bail out
         if (!event.videoEnabled || !event.dailyRoomName) {
           setDailyToken(null);
           return;
         }
 
-        // ✅ Generate token — pass isGuest so the endpoint knows to give them camera/mic
         const tokenResponse = await fetch('/api/events/generate-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -338,7 +404,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [events]);
 
-  // ✅ BAN CHECK: After ALL hooks — React Rules of Hooks safe
   if (isBanned) {
     return (
       <ChatLayout>
@@ -367,7 +432,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
-    // Handle pending file upload
     if (pendingFile) {
       setIsUploading(true);
       const previewUrl = pendingFile.previewUrl;
@@ -439,11 +503,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
-    // Create local preview URL — no upload yet
     const previewUrl = URL.createObjectURL(file);
     setPendingFile({ file, previewUrl });
 
-    // Reset so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -478,7 +540,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }
 
   const renderMessages = () => {
-    if (isScrollbackPending && messages.length === 0) {
+    if (isScrollbackPending && messages.length === 0 && !scrollbackTimedOut) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
@@ -489,12 +551,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       );
     }
 
+    if (messages.length === 0 && isAwaitingKeys) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-4"></div>
+            <p className="font-georgia-pro text-gray-500">Decrypting messages...</p>
+            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+              Waiting for encryption keys from other members
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (messages.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">No messages yet.</p>
-            <p className="font-georgia-pro text-sm mt-2">Be the first to start the conversation!</p>
+            <p className="font-georgia-pro text-sm mt-2">
+              {scrollbackTimedOut 
+                ? "Waiting for message keys... New messages will appear as they're sent."
+                : "Be the first to start the conversation!"}
+            </p>
           </div>
         </div>
       );
@@ -504,7 +584,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       <div className="py-4">
         {isScrollbackPending && (
           <div className="text-center py-2">
-            <p className="font-georgia-pro text-xs text-gray-400">Loading history...</p>
+            <p className="font-georgia-pro text-xs text-gray-400">Loading earlier messages...</p>
+          </div>
+        )}
+        {isAwaitingKeys && messages.length > 0 && (
+          <div className="text-center py-2 bg-amber-50 rounded-lg mx-4 mb-2">
+            <p className="font-georgia-pro text-xs text-amber-600">
+              Some older messages are still being decrypted...
+            </p>
           </div>
         )}
         {messages.map((message: any) => (
@@ -525,7 +612,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   };
 
-  // -- Disabled messaging display --
   const renderDisabledMessageBanner = () => {
     if (permissions?.canPost) return null;
 
@@ -560,14 +646,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const renderChatInput = () => {
-    // If user can't post, show the styled banner instead of the input
     if (!permissions?.canPost) {
       return renderDisabledMessageBanner();
     }
 
     return (
       <div className="flex flex-col gap-2">
-        {/* File preview strip */}
         {pendingFile && (
           <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-2xl">
             {isImageFile(pendingFile.file.name) ? (
@@ -644,8 +728,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   };
 
-  // -- Main render --
-  // ✅ Always vertical: video on top (full width), chat below
   const hasVideo = activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl;
 
   return (
@@ -670,7 +752,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           )}
 
           <div className="flex flex-col h-full bg-white">
-            {/* Video section — top, full width (only when live event w/ video) */}
             {hasVideo && (
               <div className="flex-shrink-0 h-[40vh] md:h-[45vh] lg:h-[50vh] bg-gray-900">
                 <EventVideoStage
@@ -682,19 +763,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             )}
 
-            {/* Event banner (non-video live event) */}
             {activeEvent && !hasVideo && (
               <div className="flex-shrink-0">
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
               </div>
             )}
 
-            {/* Chat section — fills remaining space below video */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {renderMessages()}
             </div>
 
-            {/* Message input — pinned at bottom */}
             <div className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
               {renderChatInput()}
             </div>
