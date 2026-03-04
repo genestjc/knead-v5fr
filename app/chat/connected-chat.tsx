@@ -196,9 +196,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ Initial scrollback (load 2 pages)
+  // ✅ FIXED: Only run scrollback when channelId is stable and defined
   useEffect(() => {
-    if (!channelId || scrollbackCalledRef.current) return;
+    if (!channelId) {
+      console.log('⏳ Waiting for channelId... Current:', channelId);
+      return; // Don't run until we have a valid channelId
+    }
+    
+    if (scrollbackCalledRef.current) {
+      console.log('✅ Scrollback already called for this channel');
+      return;
+    }
+    
     scrollbackCalledRef.current = true;
 
     const loadHistory = async () => {
@@ -210,8 +219,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           console.log('📜 Loading message history (page 2)...');
           await scrollback();
         }
+        
+        console.log('✅ Scrollback completed successfully');
       } catch (err) {
-        console.warn('⚠️ Scrollback failed:', err);
+        console.error('❌ Scrollback failed:', err);
       }
     };
 
