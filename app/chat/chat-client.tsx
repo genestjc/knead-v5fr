@@ -191,11 +191,12 @@ const PHASE_LABELS: Record<Phase, string> = {
   error: 'Something went wrong.',
 };
 
+// ✅ UPDATED: Reordered steps
 const NEW_USER_STEPS = [
-  'Minting chat membership',
   'Connecting to network',
   'Reaching the nodes',
   'Connected to nodes',
+  'Minting membership',
   'Kneading the dough',
 ];
 
@@ -262,7 +263,6 @@ function TownsChat() {
           console.log('✅ Already a member (from persistence)');
         } else {
           try {
-            // ✅ Add timeout wrapper - if it hangs for 10s, assume no membership
             await Promise.race([
               agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
@@ -281,7 +281,7 @@ function TownsChat() {
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
             } else if (
-              msg.includes('timeout') ||           // ✅ Catch timeout
+              msg.includes('timeout') ||
               msg.includes('permission') || 
               msg.includes('not entitled') ||
               msg.includes('membership') ||
@@ -293,20 +293,22 @@ function TownsChat() {
               setShowProgressiveLoader(true);
               console.log('🆕 New user detected, starting onboarding...');
               
-              setLoadingStep(0);
-              await new Promise(r => setTimeout(r, 50));
-              
+              // ✅ UPDATED: Reordered step progression
+              setLoadingStep(0); // Connecting to network
               await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(1);
               
+              setLoadingStep(1); // Reaching the nodes
               await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(2);
               
+              setLoadingStep(2); // Connected to nodes
+              await new Promise(r => setTimeout(r, 800));
+              
+              setLoadingStep(3); // Minting membership (ACTUAL MINT)
               console.log('🔄 Minting membership...');
               await agentRef.current.spaces.joinSpace(SAVED_SPACE_ID, signerRef.current);
               console.log('✅ Membership minted');
-              setLoadingStep(3);
               
+              // Mint freemium NFT
               try {
                 const mintResponse = await fetch('/api/mint-freemium', {
                   method: 'POST',
@@ -321,13 +323,11 @@ function TownsChat() {
                 console.warn('Freemium NFT mint failed (non-critical):', mintError);
               }
               
-              await new Promise(r => setTimeout(r, 800));
-              setLoadingStep(4);
-              
+              setLoadingStep(4); // Kneading the dough
               console.log('⏳ Finalizing...');
-              await new Promise(r => setTimeout(r, 1500));
+              // ✅ UPDATED: Increased delay from 1500ms to 2000ms
+              await new Promise(r => setTimeout(r, 2000));
             } else {
-              // Unknown error - throw it
               throw e;
             }
           }
