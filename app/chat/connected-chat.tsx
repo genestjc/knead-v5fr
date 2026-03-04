@@ -2,7 +2,13 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAgentConnection, useSpace, useSendMessage, useSyncAgent } from '@towns-protocol/react-sdk';
+import { 
+  useAgentConnection, 
+  useSpace, 
+  useSendMessage, 
+  useSyncAgent,
+  useScrollback // ✅ NEW: Official hook
+} from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import type { TimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -151,7 +157,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   
-  // ✅ Timeline state (Towns SDK approach)
+  // Timeline state
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -176,11 +182,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
 
-  // ✅ Get direct channel reference (Towns SDK)
+  // ✅ Get direct channel reference
   const channel = useMemo(() => {
     if (!syncAgent || !spaceId || !channelId) return null;
     return syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
   }, [syncAgent, spaceId, channelId]);
+
+  // ✅ OFFICIAL: Use the useScrollback hook
+  const {
+    scrollback,
+    error: scrollbackError,
+    isPending: isScrollbackPending,
+  } = useScrollback(channelId || '', {
+    onSuccess: (data) => {
+      console.log('✅ Scrollback succeeded:', data);
+    },
+    onError: (error) => {
+      console.error('❌ Scrollback error:', error);
+    },
+  });
 
   // -- All useCallback hooks --
   const getProfile = useCallback(async (walletAddress: string) => {
@@ -205,9 +225,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ Load more messages with retry logic
+  // ✅ Load more messages with official hook + retry
   const loadMoreMessages = useCallback(async () => {
-    if (!channel || isLoadingMore || hasReachedStart) return;
+    if (!channel || isLoadingMore || hasReachedStart || isScrollbackPending) return;
 
     const scrollContainer = scrollContainerRef.current;
     const oldScrollHeight = scrollContainer?.scrollHeight ?? 0;
@@ -218,28 +238,27 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     try {
       console.log('📜 Loading older messages...');
       
-      // ✅ Retry logic for scrollback
       let attempt = 0;
       const maxAttempts = 3;
       let result;
       
       while (attempt < maxAttempts) {
         try {
-          const scrollbackPromise = channel.timeline.scrollback();
+          const scrollbackPromise = scrollback();
           const timeoutPromise = new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
           );
           
           result = await Promise.race([scrollbackPromise, timeoutPromise]);
-          break; // Success!
+          setEvents([...channel.timeline.events.value]);
+          break;
           
         } catch (error: any) {
           attempt++;
-          console.warn(`⚠️ Scrollback attempt ${attempt}/${maxAttempts} failed:`, error.message);
+          console.warn(`⚠️ Load more attempt ${attempt}/${maxAttempts}:`, error.message);
           
           if (attempt < maxAttempts) {
             const waitTime = 1000 * Math.pow(2, attempt - 1);
-            console.log(`⏳ Waiting ${waitTime}ms before retry...`);
             await new Promise(r => setTimeout(r, waitTime));
           } else {
             throw error;
@@ -247,17 +266,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         }
       }
       
-      // Update events from channel
-      setEvents([...channel.timeline.events.value]);
-      
       console.log(`✅ Loaded page, terminus: ${result?.terminus}`);
 
       if (result?.terminus) {
         setHasReachedStart(true);
-        console.log('📜 Reached beginning of conversation');
+        console.log('📜 Reached beginning');
       }
 
-      // ✅ Maintain scroll position after prepending messages
       if (scrollContainer) {
         requestAnimationFrame(() => {
           const newScrollHeight = scrollContainer.scrollHeight;
@@ -266,15 +281,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         });
       }
     } catch (error) {
-      console.error('❌ Scrollback failed after all retries:', error);
+      console.error('❌ Load more failed:', error);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [channel, isLoadingMore, hasReachedStart]);
+  }, [channel, isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ FIXED: Initial load with SDK-approved retry pattern
+  // ✅ OFFICIAL: Initial load with useScrollback hook + retry
   useEffect(() => {
-    if (!channel) return;
+    if (!channel || !channelId) return;
 
     let mounted = true;
 
@@ -289,69 +304,79 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       };
 
       channel.timeline.events.subscribe(updateMessages);
-
-      // Load initial messages
       updateMessages();
 
-      // ✅ SDK APPROACH: Load first 3 pages with retry logic (like SDK tests)
-      let attempt = 0;
-      const maxAttempts = 3;
-      
+      // Load first 3 pages with retry logic
       try {
         for (let page = 0; page < 3; page++) {
+          if (!mounted) break;
+
           console.log(`📜 Loading history page ${page + 1}...`);
           
-          attempt = 0;
+          let attempt = 0;
+          const maxAttempts = 5;
           let result;
           
-          // Retry logic for this page
-          while (attempt < maxAttempts) {
+          while (attempt < maxAttempts && mounted) {
             try {
-              const scrollbackPromise = channel.timeline.scrollback();
+              const scrollbackPromise = scrollback();
               const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
+                setTimeout(() => reject(new Error('Scrollback timeout')), 15000)
               );
               
               result = await Promise.race([scrollbackPromise, timeoutPromise]);
-              break; // Success!
+              
+              if (mounted) {
+                setEvents([...channel.timeline.events.value]);
+              }
+              break;
               
             } catch (error: any) {
               attempt++;
-              console.warn(`⚠️ Page ${page + 1} attempt ${attempt}/${maxAttempts} failed:`, error.message);
+              const errorMsg = error?.message || '';
+              
+              console.warn(`⚠️ Page ${page + 1} attempt ${attempt}/${maxAttempts}:`, errorMsg);
               
               if (attempt < maxAttempts) {
-                // Exponential backoff: 1s, 2s, 4s
-                const waitTime = 1000 * Math.pow(2, attempt - 1);
-                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                let waitTime;
+                
+                if (errorMsg.includes('BAD_PREV_MINIBLOCK_HASH')) {
+                  waitTime = 2000;
+                  console.log('⚠️ Channel syncing miniblocks, waiting 2s...');
+                } else if (errorMsg.includes('MINIBLOCK_TOO_NEW')) {
+                  waitTime = 1000;
+                  console.log('⚠️ Miniblock not ready, waiting 1s...');
+                } else if (errorMsg.includes('timeout')) {
+                  waitTime = 1000 * Math.pow(2, attempt - 1);
+                  console.log(`⚠️ Timeout, exponential backoff ${waitTime}ms...`);
+                } else {
+                  waitTime = 1000 * Math.pow(2, attempt - 1);
+                  console.log(`⚠️ Error, waiting ${waitTime}ms...`);
+                }
+                
                 await new Promise(r => setTimeout(r, waitTime));
               } else {
-                // Last attempt failed, but don't throw - just stop trying
-                console.error(`❌ Page ${page + 1} failed after ${maxAttempts} attempts, stopping scrollback`);
+                console.error(`❌ Page ${page + 1} failed after ${maxAttempts} attempts`);
                 break;
               }
             }
-          }
-          
-          if (mounted && result) {
-            setEvents([...channel.timeline.events.value]);
           }
 
           if (result?.terminus) {
             if (mounted) {
               setHasReachedStart(true);
-              console.log('📜 Reached beginning (during initial load)');
+              console.log('📜 Reached beginning of conversation');
             }
             break;
           }
           
-          // If we didn't get a result (all retries failed), stop trying
-          if (!result) {
-            console.warn('⚠️ Stopping scrollback - channel may not be ready yet');
+          if (!result && mounted) {
+            console.warn('⚠️ Stopping scrollback - may need more time');
             break;
           }
         }
       } catch (error: any) {
-        console.error('❌ Initial scrollback encountered an error:', error);
+        console.error('❌ Initial scrollback error:', error);
       } finally {
         if (mounted) {
           setIsLoadingHistory(false);
@@ -365,9 +390,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       mounted = false;
     };
-  }, [channel]);
+  }, [channel, channelId, scrollback]);
 
-  // ✅ Infinite scroll with IntersectionObserver
+  // Infinite scroll observer
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart || isLoadingHistory) return;
@@ -388,7 +413,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore, isLoadingHistory]);
 
-  // ✅ Profile fetching with deduplication ref
+  // Profile fetching
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -407,7 +432,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // useMemo with NO side effects
+  // Messages memo
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
@@ -434,7 +459,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // -- All other useEffect hooks --
+  // Key sharer window update
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -447,6 +472,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events, channelId]);
 
+  // User role detection
   useEffect(() => {
     if (!activeAccount?.address) return;
 
@@ -468,6 +494,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     detectRole();
   }, [activeAccount?.address]);
 
+  // Live event polling
   useEffect(() => {
     if (!activeAccount?.address) return;
 
@@ -534,6 +561,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
@@ -546,7 +574,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   }
 
-  // -- Event handlers --
+  // Event handlers
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -643,7 +671,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // -- Render helpers --
+  // Render helpers
   if (isSpaceLoading) {
     return (
       <ChatLayout>
@@ -700,17 +728,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return (
       <div className="py-4">
-        {/* ✅ Invisible sentinel for infinite scroll */}
         <div ref={topSentinelRef} style={{ height: '1px', marginTop: hasReachedStart ? 0 : '20px' }} />
 
-        {/* ✅ Loading indicator */}
         {isLoadingMore && (
           <div className="text-center py-2">
             <p className="font-georgia-pro text-xs text-gray-400">Loading older messages...</p>
           </div>
         )}
 
-        {/* ✅ Beginning marker */}
         {hasReachedStart && (
           <div className="text-center py-4 mb-4 border-b-2 border-gray-200">
             <p className="font-georgia-pro text-sm text-gray-500">📜 Beginning of conversation</p>
