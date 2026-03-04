@@ -1,5 +1,3 @@
-// app/chat/chat-client.tsx
-
 'use client';
 
 import nextDynamic from 'next/dynamic';
@@ -214,7 +212,6 @@ function TownsChat() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showProgressiveLoader, setShowProgressiveLoader] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [isNewUser, setIsNewUser] = useState(false);
 
   const signerRef = useRef<any>(null);
   const agentRef = useRef<any>(null);
@@ -263,7 +260,6 @@ function TownsChat() {
           console.log('✅ Already a member (from persistence)');
         } else {
           try {
-            // CHANGED: Reduced timeout from 10s to 4s for faster new-user detection
             await Promise.race([
               agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
@@ -290,11 +286,9 @@ function TownsChat() {
               msg.includes('no membership')
             ) {
               // NEW USER - needs to mint
-              setIsNewUser(true);
               setShowProgressiveLoader(true);
               console.log('🆕 New user detected, starting onboarding...');
 
-              // CHANGED: Reduced delays from 800ms to 400ms each
               setLoadingStep(0); // Connecting to network
               await new Promise((r) => setTimeout(r, 400));
 
@@ -307,7 +301,6 @@ function TownsChat() {
               setLoadingStep(3); // Minting membership (ACTUAL MINT)
               console.log('🔄 Minting membership...');
 
-              // CHANGED: Parallelize membership mint + freemium NFT mint
               const mintMembershipPromise = agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
@@ -331,7 +324,6 @@ function TownsChat() {
 
               setLoadingStep(4); // Kneading the dough
               console.log('⏳ Finalizing...');
-              // CHANGED: Reduced from 2000ms to 600ms
               await new Promise((r) => setTimeout(r, 600));
             } else {
               throw e;
@@ -376,7 +368,6 @@ function TownsChat() {
               setErrorMsg('');
               setShowProgressiveLoader(false);
               setLoadingStep(0);
-              setIsNewUser(false);
               flowStartedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -403,53 +394,15 @@ function TownsChat() {
     );
   }
 
-  // CHANGED: Pass isNewUser so TownsChatReady can show decryption overlay
-  return <TownsChatReady wallet={wallet} isNewUser={isNewUser} />;
+  return <TownsChatReady wallet={wallet} />;
 }
 
-// CHANGED: Added DecryptingOverlay for new users waiting on key solicitation
-function DecryptingOverlay() {
-  return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm pointer-events-none">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-3" />
-        <p className="font-georgia-pro text-sm text-gray-600">
-          Decrypting message history...
-        </p>
-        <p className="font-georgia-pro text-xs text-gray-400 mt-1">
-          This may take a moment for new members
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// CHANGED: Accept isNewUser prop
 function TownsChatReady({
   wallet,
-  isNewUser,
 }: {
   wallet: ReturnType<typeof useActiveWallet>;
-  isNewUser: boolean;
 }) {
   const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
-  const [showDecryptingOverlay, setShowDecryptingOverlay] = useState(isNewUser);
-
-  // CHANGED: Auto-dismiss decrypting overlay after 8s or when messages load
-  useEffect(() => {
-    if (!showDecryptingOverlay) return;
-    const timer = setTimeout(() => setShowDecryptingOverlay(false), 8000);
-    return () => clearTimeout(timer);
-  }, [showDecryptingOverlay]);
-
-  // Dismiss overlay once space is fully initialized (keys likely received)
-  useEffect(() => {
-    if (space?.initialized && showDecryptingOverlay) {
-      // Give a brief moment for decryption to complete after sync
-      const timer = setTimeout(() => setShowDecryptingOverlay(false), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [space?.initialized, showDecryptingOverlay]);
 
   const currentUser: ChatUser | null = useMemo(() => {
     const address = wallet?.getAccount()?.address;
@@ -470,8 +423,8 @@ function TownsChatReady({
     return <LoadingSpinner message="Loading space..." />;
   }
 
-  // CHANGED: For new users, don't block on space.initialized — show chat with overlay
-  if (!space.initialized && !isNewUser) {
+  // ✅ FIXED: Wait for space.initialized for ALL users (including new ones)
+  if (!space.initialized) {
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
 
@@ -490,8 +443,6 @@ function TownsChatReady({
 
   return (
     <div className="w-full h-screen relative">
-      {/* CHANGED: Show decrypting overlay for new users while keys are solicited */}
-      {showDecryptingOverlay && <DecryptingOverlay />}
       <ConnectedChat
         currentUser={currentUser}
         spaceId={SAVED_SPACE_ID!}
