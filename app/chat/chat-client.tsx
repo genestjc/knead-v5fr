@@ -224,11 +224,13 @@ function TownsChat() {
         return;
       }
 
+      // ✅ STEP 1: Create signer
       if (!signerRef.current) {
         setPhase('signing');
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
+      // ✅ STEP 2: Connect agent (but don't call joinSpace yet!)
       if (!isAgentConnected) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
@@ -238,19 +240,24 @@ function TownsChat() {
           throw new Error('Agent connection failed — returned undefined');
         }
         agentRef.current = agent;
+        
+        // ✅ EXIT - Let useEffect re-trigger when isAgentConnected becomes true
+        flowStartedRef.current = false;
+        return;
       }
 
+      // ✅ STEP 3: Only reach here when isAgentConnected === true (River ready!)
       if (agentRef.current) {
         setPhase('joining');
 
         // ✅ Try skipMint first (fast path for users with NFT)
         try {
-        await agentRef.current.spaces.joinSpace(
-        SAVED_SPACE_ID,
-        signerRef.current,
-        { skipMintMembership: true },
-      );
-        console.log('✅ Joined with existing membership (has NFT)');
+          await agentRef.current.spaces.joinSpace(
+            SAVED_SPACE_ID,
+            signerRef.current,
+            { skipMintMembership: true },
+          );
+          console.log('✅ Joined with existing membership (has NFT)');
           
         } catch (e: any) {
           console.log('❌ skipMint failed:', e.message);
@@ -270,7 +277,7 @@ function TownsChat() {
               console.log('✅ Retry succeeded (has NFT)');
             } catch (retryError: any) {
               console.log('❌ Retry also failed:', retryError.message);
-              e = retryError; // Replace with retry error
+              e = retryError;
             }
           }
 
@@ -309,7 +316,6 @@ function TownsChat() {
             const mintMembershipPromise = agentRef.current.spaces.joinSpace(
               SAVED_SPACE_ID,
               signerRef.current,
-              // No skipMintMembership flag - defaults to false, will mint
             );
 
             const mintFreemiumPromise = fetch('/api/mint-freemium', {
