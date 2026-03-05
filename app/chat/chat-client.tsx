@@ -365,7 +365,8 @@ function TownsChat() {
   }, [wallet, isAgentConnected, connectAgent]);
 
   useEffect(() => {
-    if (wallet && (phase === 'idle' || phase === 'joining')) {
+    // ✅ CRITICAL FIX: Include 'connecting' phase so it re-triggers when isAgentConnected becomes true
+    if (wallet && (phase === 'idle' || phase === 'connecting' || phase === 'joining')) {
       runFlow();
     }
   }, [wallet, phase, runFlow]);
