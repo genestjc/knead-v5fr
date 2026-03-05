@@ -146,8 +146,6 @@ export default function ConnectedChat(props: ConnectedChatProps) {
 }
 
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
-  console.log('🔵 Component render started');
-  
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
@@ -167,51 +165,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialLoadStartedRef = useRef(false);
-
-  console.log('✅ 1/9: State initialized');
+  
+  // ✅ NEW: Track render count to prevent premature effect execution
+  const renderCountRef = useRef(0);
 
   const activeAccount = useActiveAccount();
-  console.log('✅ 2/9: useActiveAccount');
-
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
-  console.log('✅ 3/9: useFreemiumChatTimer');
-
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
-  console.log('✅ 4/9: useContributorPermissions');
-
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
-  console.log('✅ 5/9: useChatPermissions');
-
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
-  console.log('✅ 6/9: useSpace', { hasData: !!space, isLoading: isSpaceLoading });
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
-  console.log('✅ 7/9: channelId resolved', { channelId, fromSpace: space?.channelIds?.[0], fromDefault: defaultChannelId });
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
-  console.log('✅ 8/9: useSendMessage');
-
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
-  console.log('✅ 9/9: useTimeline', { eventsLength: events?.length, isLoading: isTimelineLoading });
-
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
-    onSuccess: (data) => console.log('✅ Scrollback succeeded:', data),
-    onError: (error) => console.error('❌ Scrollback error:', error),
+    onSuccess: (data) => {
+      console.log('✅ Scrollback succeeded:', data);
+    },
+    onError: (error) => {
+      console.error('❌ Scrollback error:', error);
+    },
   });
-  console.log('✅ 10/9: useScrollback - ALL HOOKS COMPLETE');
 
-  // 🔍 DEBUG: Timeline state monitoring
+  // ✅ Track renders for debugging
   useEffect(() => {
-    console.log('🔍 Timeline Debug:', {
-      channelId,
-      isLoading: isTimelineLoading,
-      eventsType: typeof events,
-      eventsIsArray: Array.isArray(events),
-      eventsLength: events?.length || 0,
-      firstEventKind: events?.[0]?.content?.kind,
-      firstEventBody: events?.[0]?.content?.body?.slice(0, 50),
-    });
-  }, [events, isTimelineLoading, channelId]);
+    renderCountRef.current++;
+    console.log('🔵 Component render #', renderCountRef.current);
+  });
 
   // ✅ ROBUST: Keep scrollback function fresh in a ref
   const scrollbackFnRef = useRef(scrollback);
@@ -316,13 +297,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ ROBUST INITIAL LOAD: Handles missing channelId gracefully
+  // ✅ ROBUST INITIAL LOAD with render stabilization
   useEffect(() => {
-    console.log('🔥🔥🔥 SCROLLBACK EFFECT CALLED 🔥🔥🔥', {
-      channelId,
-      initialLoadStarted: initialLoadStartedRef.current,
-      timestamp: Date.now(),
-    });
+    console.log('🔥 SCROLLBACK EFFECT - Render:', renderCountRef.current, 'channelId:', channelId);
+    
+    // ✅ Wait for renders to stabilize (React Strict Mode does 2-3 renders)
+    if (renderCountRef.current < 3) {
+      console.log('⏭️ Skipping scrollback - renders not stable yet');
+      return;
+    }
 
     // ✅ If no channelId, set loading to false and return
     if (!channelId) {
@@ -464,54 +447,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, [events, profileCache, getProfile]);
 
   const messages = useMemo(() => {
-    console.log('🔄 Processing messages:', {
-      eventsCount: events?.length || 0,
-      eventsType: typeof events,
-      eventsIsArray: Array.isArray(events),
-    });
+    if (!events || events.length === 0) return [];
 
-    // ✅ events is always an array from useTimeline
-    const filtered = (events || []).filter((event: any) => {
-      const isChannelMessage = event.content?.kind === RiverTimelineEvent.ChannelMessage;
-      if (!isChannelMessage && process.env.NODE_ENV === 'development') {
-        console.log('⏭️ Skipping event:', {
-          kind: event.content?.kind,
-          eventId: event.eventId,
-        });
-      }
-      return isChannelMessage;
-    });
+    return events
+      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .map((event: any) => {
+        const walletAddress = event.sender?.id || '';
+        const profile = walletAddress ? profileCache[walletAddress] : null;
 
-    console.log('✅ Filtered to ChannelMessage:', {
-      totalEvents: events?.length || 0,
-      channelMessages: filtered.length,
-    });
-
-    const processed = filtered.map((event: any) => {
-      const walletAddress = event.sender?.id || '';
-      const profile = walletAddress ? profileCache[walletAddress] : null;
-
-      return {
-        id: event.eventId,
-        content: event.content?.body || '',
-        sender: {
-          id: walletAddress,
-          walletAddress,
-          name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
-          avatar: profile?.avatar,
-        },
-        timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
-        isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-        isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
-      };
-    }).sort((a: any, b: any) => a.timestamp - b.timestamp);
-
-    console.log('📊 Final messages:', {
-      count: processed.length,
-      firstMessage: processed[0]?.content?.slice(0, 50),
-    });
-
-    return processed;
+        return {
+          id: event.eventId,
+          content: event.content?.body || '',
+          sender: {
+            id: walletAddress,
+            walletAddress,
+            name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
+            avatar: profile?.avatar,
+          },
+          timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
+          isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+          isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
+        };
+      })
+      .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
   useEffect(() => {
@@ -772,7 +730,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     if (messages.length === 0) {
-      console.warn('⚠️ Showing empty state - no messages after filtering');
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 py-8">
@@ -784,8 +741,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </div>
       );
     }
-
-    console.log('✅ Rendering messages:', messages.length);
 
     return (
       <div className="py-4">
