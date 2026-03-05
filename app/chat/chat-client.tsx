@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAgentConnection, useSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useJoinSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -198,6 +198,7 @@ const NEW_USER_STEPS = [
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
+  const { joinSpace } = useJoinSpace();
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -210,8 +211,8 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
 
   const signerRef = useRef<any>(null);
-  const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
+  const joinAttemptedRef = useRef(false);
 
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
@@ -230,7 +231,7 @@ function TownsChat() {
         signerRef.current = await createTownsSigner(account, client, activeChain);
       }
 
-      // ✅ STEP 2: Connect agent (but don't call joinSpace yet!)
+      // ✅ STEP 2: Connect agent
       if (!isAgentConnected) {
         setPhase('connecting');
         const agent = await connectAgent(signerRef.current, {
@@ -239,34 +240,24 @@ function TownsChat() {
         if (!agent) {
           throw new Error('Agent connection failed — returned undefined');
         }
-        agentRef.current = agent;
         
         // ✅ EXIT - Let useEffect re-trigger when isAgentConnected becomes true
         flowStartedRef.current = false;
         return;
       }
 
-      // 🔒 SAFETY GATE: Verify agent is TRULY connected before proceeding
-      if (!isAgentConnected) {
-        console.warn('⚠️ runFlow called but isAgentConnected is false - exiting');
-        flowStartedRef.current = false;
-        return;
-      }
-
-      // ✅ STEP 3: Only reach here when isAgentConnected === true (River ready!)
-      if (agentRef.current) {
-        console.log('🔍 Verified: isAgentConnected =', isAgentConnected);
+      // ✅ STEP 3: Join space using the hook (only once)
+      if (isAgentConnected && !joinAttemptedRef.current) {
+        console.log('🔍 Agent connected, attempting to join space...');
         setPhase('joining');
-
-        // 🕐 Brief delay to ensure River client is fully initialized
-        await new Promise((r) => setTimeout(r, 200));
+        joinAttemptedRef.current = true;
 
         // ✅ Try skipMint first (fast path for users with NFT)
         try {
-          await agentRef.current.spaces.joinSpace(
+          await joinSpace(
             SAVED_SPACE_ID,
             signerRef.current,
-            { skipMintMembership: true },
+            { skipMintMembership: true }
           );
           console.log('✅ Joined with existing membership (has NFT)');
           
@@ -274,38 +265,18 @@ function TownsChat() {
           console.log('❌ skipMint failed:', e.message);
           const msg = (e.message || '').toLowerCase();
           
-          // Handle transient stream sync errors with retry
-          if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition')) {
-            console.log('⚠️ Stream sync conflict, retrying...');
-            await new Promise((r) => setTimeout(r, 2000));
-            
-            try {
-              await agentRef.current.spaces.joinSpace(
-                SAVED_SPACE_ID,
-                signerRef.current,
-                { skipMintMembership: true },
-              );
-              console.log('✅ Retry succeeded (has NFT)');
-            } catch (retryError: any) {
-              console.log('❌ Retry also failed:', retryError.message);
-              e = retryError;
-            }
-          }
-
-          const finalMsg = (e.message || '').toLowerCase();
-          
           // If "already a member", we're done
-          if (finalMsg.includes('already a member') || finalMsg.includes('already joined')) {
+          if (msg.includes('already a member') || msg.includes('already joined')) {
             console.log('✅ Already a member');
             
           // Otherwise, need to mint NFT
           } else if (
-            finalMsg.includes('timeout') ||
-            finalMsg.includes('permission') ||
-            finalMsg.includes('not entitled') ||
-            finalMsg.includes('membership') ||
-            finalMsg.includes('not a member') ||
-            finalMsg.includes('no membership')
+            msg.includes('timeout') ||
+            msg.includes('permission') ||
+            msg.includes('not entitled') ||
+            msg.includes('membership') ||
+            msg.includes('not a member') ||
+            msg.includes('no membership')
           ) {
             // NEW USER - Needs to mint NFT
             setShowProgressiveLoader(true);
@@ -324,7 +295,7 @@ function TownsChat() {
             console.log('🔄 Minting membership NFT...');
 
             // ✅ Join WITHOUT skipMint - will mint the NFT
-            const mintMembershipPromise = agentRef.current.spaces.joinSpace(
+            const mintMembershipPromise = joinSpace(
               SAVED_SPACE_ID,
               signerRef.current,
             );
@@ -349,38 +320,40 @@ function TownsChat() {
             await new Promise((r) => setTimeout(r, 600));
             
           } else {
-            // Unexpected error
+            // Unexpected error - reset join attempt flag to allow retry
+            joinAttemptedRef.current = false;
             throw e;
           }
         }
-      }
 
-      // ✅ Go straight to ready - let SDK handle key exchange reactively
-      setPhase('ready');
+        // ✅ Go straight to ready
+        setPhase('ready');
 
-      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-        window.KEY_SHARER_SPACE_JOINED = true;
-        window.KEY_SHARER_CONNECTED = true;
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+          window.KEY_SHARER_SPACE_JOINED = true;
+          window.KEY_SHARER_CONNECTED = true;
+        }
       }
     } catch (e: any) {
       console.error('❌ Flow error:', e);
       setPhase('error');
       setErrorMsg(friendlyError(e));
       flowStartedRef.current = false;
+      joinAttemptedRef.current = false;
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
         window.KEY_SHARER_ERROR = e.message;
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent]);
+  }, [wallet, isAgentConnected, connectAgent, joinSpace]);
 
   useEffect(() => {
-    // ✅ Include 'connecting' phase so it re-triggers when isAgentConnected becomes true
-    if (wallet && (phase === 'idle' || phase === 'connecting' || phase === 'joining')) {
+    // ✅ Trigger flow when wallet is available or when agent connects
+    if (wallet && (phase === 'idle' || phase === 'connecting' || (phase === 'joining' && isAgentConnected))) {
       runFlow();
     }
-  }, [wallet, phase, runFlow]);
+  }, [wallet, phase, isAgentConnected, runFlow]);
 
   if (phase === 'error') {
     return (
@@ -394,6 +367,7 @@ function TownsChat() {
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               flowStartedRef.current = false;
+              joinAttemptedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
           >
@@ -568,5 +542,7 @@ function friendlyError(error: any): string {
     return 'The Towns network is congested. Please try again shortly.';
   if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition'))
     return 'Network sync in progress. Please try again in a moment.';
+  if (msg.includes('client is not defined') || msg.includes('loginwithretries'))
+    return 'Connection initializing. Please try again in a moment.';
   return error.message || 'An unexpected error occurred.';
 }
