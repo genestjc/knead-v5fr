@@ -146,6 +146,8 @@ export default function ConnectedChat(props: ConnectedChatProps) {
 }
 
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
+  console.log('🔵 Component render started');
+  
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
@@ -166,34 +168,37 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialLoadStartedRef = useRef(false);
 
+  console.log('✅ 1/9: State initialized');
+
   const activeAccount = useActiveAccount();
+  console.log('✅ 2/9: useActiveAccount');
+
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
+  console.log('✅ 3/9: useFreemiumChatTimer');
+
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
+  console.log('✅ 4/9: useContributorPermissions');
+
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
+  console.log('✅ 5/9: useChatPermissions');
+
   const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
+  console.log('✅ 6/9: useSpace', { hasData: !!space, isLoading: isSpaceLoading });
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
-
-  // 🔍 DEBUG: ChannelId resolution
-  console.log('🔍 ChannelId Status:', {
-    fromSpace: space?.channelIds?.[0],
-    fromDefault: defaultChannelId,
-    final: channelId,
-    spaceLoading: isSpaceLoading,
-    spaceInitialized: space?.initialized,
-    spaceChannelCount: space?.channelIds?.length,
-  });
+  console.log('✅ 7/9: channelId resolved', { channelId, fromSpace: space?.channelIds?.[0], fromDefault: defaultChannelId });
 
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
+  console.log('✅ 8/9: useSendMessage');
+
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
+  console.log('✅ 9/9: useTimeline', { eventsLength: events?.length, isLoading: isTimelineLoading });
+
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
-    onSuccess: (data) => {
-      console.log('✅ Scrollback succeeded:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Scrollback error:', error);
-    },
+    onSuccess: (data) => console.log('✅ Scrollback succeeded:', data),
+    onError: (error) => console.error('❌ Scrollback error:', error),
   });
+  console.log('✅ 10/9: useScrollback - ALL HOOKS COMPLETE');
 
   // 🔍 DEBUG: Timeline state monitoring
   useEffect(() => {
@@ -313,9 +318,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   // ✅ ROBUST INITIAL LOAD: Handles missing channelId gracefully
   useEffect(() => {
-    console.log('🔍 Scrollback effect triggered:', {
+    console.log('🔥🔥🔥 SCROLLBACK EFFECT CALLED 🔥🔥🔥', {
       channelId,
       initialLoadStarted: initialLoadStartedRef.current,
+      timestamp: Date.now(),
     });
 
     // ✅ If no channelId, set loading to false and return
@@ -326,7 +332,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
 
     // Don't re-run if already started
-    if (initialLoadStartedRef.current) return;
+    if (initialLoadStartedRef.current) {
+      console.log('⏭️ Scrollback already started, skipping');
+      return;
+    }
 
     initialLoadStartedRef.current = true;
     let mounted = true;
@@ -346,7 +355,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           
           while (attempt < maxAttempts && mounted) {
             try {
-              // ✅ Always use current scrollback from ref
               const scrollbackPromise = scrollbackFnRef.current();
               const timeoutPromise = new Promise<never>((_, reject) => 
                 setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
@@ -400,6 +408,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     init();
 
     return () => {
+      console.log('🧹 Scrollback effect cleanup');
       mounted = false;
     };
   }, [channelId]);
