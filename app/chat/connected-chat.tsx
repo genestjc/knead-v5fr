@@ -301,12 +301,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     console.log('🔥 SCROLLBACK EFFECT - Render:', renderCountRef.current, 'channelId:', channelId);
     
-    // ✅ Wait for renders to stabilize (React Strict Mode does 2-3 renders)
-    if (renderCountRef.current < 3) {
-      console.log('⏭️ Skipping scrollback - renders not stable yet');
-      return;
-    }
-
     // ✅ If no channelId, set loading to false and return
     if (!channelId) {
       console.warn('⚠️ No channelId available - skipping scrollback');
