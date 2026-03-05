@@ -246,9 +246,20 @@ function TownsChat() {
         return;
       }
 
+      // 🔒 SAFETY GATE: Verify agent is TRULY connected before proceeding
+      if (!isAgentConnected) {
+        console.warn('⚠️ runFlow called but isAgentConnected is false - exiting');
+        flowStartedRef.current = false;
+        return;
+      }
+
       // ✅ STEP 3: Only reach here when isAgentConnected === true (River ready!)
       if (agentRef.current) {
+        console.log('🔍 Verified: isAgentConnected =', isAgentConnected);
         setPhase('joining');
+
+        // 🕐 Brief delay to ensure River client is fully initialized
+        await new Promise((r) => setTimeout(r, 200));
 
         // ✅ Try skipMint first (fast path for users with NFT)
         try {
@@ -365,7 +376,7 @@ function TownsChat() {
   }, [wallet, isAgentConnected, connectAgent]);
 
   useEffect(() => {
-    // ✅ CRITICAL FIX: Include 'connecting' phase so it re-triggers when isAgentConnected becomes true
+    // ✅ Include 'connecting' phase so it re-triggers when isAgentConnected becomes true
     if (wallet && (phase === 'idle' || phase === 'connecting' || phase === 'joining')) {
       runFlow();
     }
