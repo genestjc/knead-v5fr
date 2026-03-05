@@ -22,6 +22,7 @@ interface ChatMessage {
   townsAwarded?: number;
   isOwn?: boolean;
   isContributor?: boolean;
+  isDecrypting?: boolean; // ✅ Add this
 }
 
 interface MessageBubbleProps {
@@ -33,6 +34,7 @@ interface MessageBubbleProps {
   eventId?: number;
   channelId?: string;
   spaceId?: string;
+  isDecrypting?: boolean; // ✅ Add this
 }
 
 // Bread Icon Tipping Button
@@ -116,7 +118,7 @@ const convertIpfsToGatewayUrl = (uri: string): string => {
   return uri;
 };
 
-export function MessageBubble({
+function MessageBubbleComponent({
   message,
   isOwn,
   streamId,
@@ -125,6 +127,7 @@ export function MessageBubble({
   eventId,
   channelId,
   spaceId,
+  isDecrypting = false,
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -226,6 +229,35 @@ export function MessageBubble({
       setPressTimer(null);
     }
   };
+
+  // ✅ Handle decrypting state
+  if (isDecrypting || !message.content) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4`}
+      >
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
+          {!isOwn && <div className="flex-shrink-0 w-5" />}
+          <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+            <div className="rounded-[18px] px-4 py-2 bg-gray-100 animate-pulse">
+              <p className="font-georgia-pro text-sm text-gray-400 italic">
+                🔐 Decrypting message...
+              </p>
+            </div>
+            <div className="text-xs text-gray-400 mt-1 px-2">
+              <span className="font-georgia-pro">
+                {!isOwn && `${message.sender.name} • `}
+                {formatTime(message.timestamp)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   const fileMatch = message.content.match(/\[FILE:(.+?)\]\((.+?)\)/);
   const isFileMessage = !!fileMatch;
@@ -366,7 +398,43 @@ export function MessageBubble({
   );
 }
 
-export function EventBanner({ eventTitle, timeRemaining, isLive = true }: {
+// ✅ Custom comparison function for React.memo
+const areMessagePropsEqual = (prevProps: MessageBubbleProps, nextProps: MessageBubbleProps) => {
+  // Core message identity - if ID changed, it's a different message
+  if (prevProps.message.id !== nextProps.message.id) return false;
+  
+  // Message content - decryption updates this
+  if (prevProps.message.content !== nextProps.message.content) return false;
+  if (prevProps.isDecrypting !== nextProps.isDecrypting) return false;
+  if (prevProps.message.isDecrypting !== nextProps.message.isDecrypting) return false;
+  
+  // Message metadata
+  if (prevProps.message.timestamp !== nextProps.message.timestamp) return false;
+  
+  // Sender profile data - this is what profileCache updates
+  if (prevProps.message.sender.name !== nextProps.message.sender.name) return false;
+  if (prevProps.message.sender.avatar !== nextProps.message.sender.avatar) return false;
+  if (prevProps.message.sender.walletAddress !== nextProps.message.sender.walletAddress) return false;
+  
+  // Permissions and roles
+  if (prevProps.isOwn !== nextProps.isOwn) return false;
+  if (prevProps.isAdmin !== nextProps.isAdmin) return false;
+  if (prevProps.canAwardTokens !== nextProps.canAwardTokens) return false;
+  if (prevProps.message.isContributor !== nextProps.message.isContributor) return false;
+  
+  // Stream/Channel IDs
+  if (prevProps.streamId !== nextProps.streamId) return false;
+  if (prevProps.channelId !== nextProps.channelId) return false;
+  if (prevProps.spaceId !== nextProps.spaceId) return false;
+  if (prevProps.eventId !== nextProps.eventId) return false;
+  
+  return true; // Props are equal, skip re-render
+};
+
+// ✅ Export memoized component
+export const MessageBubble = React.memo(MessageBubbleComponent, areMessagePropsEqual);
+
+function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: {
   eventTitle: string;
   timeRemaining?: string;
   isLive?: boolean;
@@ -398,7 +466,10 @@ export function EventBanner({ eventTitle, timeRemaining, isLive = true }: {
   );
 }
 
-export function TypingIndicator({ userName }: { userName?: string }) {
+// ✅ Export memoized EventBanner
+export const EventBanner = React.memo(EventBannerComponent);
+
+function TypingIndicatorComponent({ userName }: { userName?: string }) {
   return (
     <div className="flex justify-start mb-4 px-4">
       <div className="flex flex-col items-start max-w-[70%]">
@@ -427,3 +498,6 @@ export function TypingIndicator({ userName }: { userName?: string }) {
     </div>
   );
 }
+
+// ✅ Export memoized TypingIndicator
+export const TypingIndicator = React.memo(TypingIndicatorComponent);
