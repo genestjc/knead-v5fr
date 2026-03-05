@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getUserRole, type UserRole } from '@/lib/blockchain/check-nft-ownership';
 
 interface ContributorPermissions {
@@ -65,11 +65,12 @@ export function useContributorPermissions(address: string | null | undefined): C
   const canAwardTokens = isContributor;
   const canModerate = isContributor;
 
-  return {
+  // ✅ MEMOIZE: Prevent new object reference on every render
+  return useMemo(() => ({
     role,
     isContributor,
     canAwardTokens,
     canModerate,
     loading,
-  };
+  }), [role, isContributor, canAwardTokens, canModerate, loading]);
 }
