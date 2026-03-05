@@ -1,7 +1,7 @@
 'use client';
 
 import nextDynamic from 'next/dynamic';
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAgentConnection, useSpace, useJoinSpace } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
@@ -26,6 +26,7 @@ declare global {
 }
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
+const JOIN_TIMEOUT_MS = 60000; // 60 seconds
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -195,6 +196,40 @@ const NEW_USER_STEPS = [
   'Kneading the dough',
 ];
 
+// Timeout wrapper
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+// Network error detection (excluding timeouts)
+function isNetworkError(error: any): boolean {
+  const msg = (error?.message || '').toLowerCase();
+  return (
+    msg.includes('network') ||
+    msg.includes('cannot_connect') ||
+    msg.includes('unavailable') ||
+    msg.includes('connection refused') ||
+    msg.includes('failed to fetch')
+  );
+}
+
+// Separate timeout check
+function isTimeout(error: any): boolean {
+  const msg = (error?.message || '').toLowerCase();
+  return msg.includes('timed out') || msg.includes('timeout');
+}
+
+// Check if already a member
+function isAlreadyMember(error: any): boolean {
+  const msg = (error?.message || '').toLowerCase();
+  return msg.includes('already a member') || msg.includes('already joined');
+}
+
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
@@ -211,96 +246,101 @@ function TownsChat() {
   const [loadingStep, setLoadingStep] = useState(0);
 
   const signerRef = useRef<any>(null);
-  const flowStartedRef = useRef(false);
+  const connectAttemptedRef = useRef(false);
   const joinAttemptedRef = useRef(false);
 
-  const runFlow = useCallback(async () => {
-    if (flowStartedRef.current) return;
-    flowStartedRef.current = true;
+  // Step 1: Handle wallet connection and agent setup
+  useEffect(() => {
+    const setupConnection = async () => {
+      if (connectAttemptedRef.current || !wallet || isAgentConnected) return;
+      
+      const account = wallet.getAccount();
+      if (!account || !SAVED_SPACE_ID) return;
 
-    try {
-      const account = wallet?.getAccount();
-      if (!account || !SAVED_SPACE_ID) {
-        flowStartedRef.current = false;
-        return;
-      }
+      connectAttemptedRef.current = true;
 
-      // ✅ STEP 1: Create signer
-      if (!signerRef.current) {
-        setPhase('signing');
-        signerRef.current = await createTownsSigner(account, client, activeChain);
-      }
-
-      // ✅ STEP 2: Connect agent
-      if (!isAgentConnected) {
-        setPhase('connecting');
-        const agent = await connectAgent(signerRef.current, {
-          townsConfig: TOWNS_CONFIG,
-        });
-        if (!agent) {
-          throw new Error('Agent connection failed — returned undefined');
+      try {
+        // Create signer
+        if (!signerRef.current) {
+          setPhase('signing');
+          signerRef.current = await createTownsSigner(account, client, activeChain);
         }
+
+        // Connect agent
+        setPhase('connecting');
+        await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
         
-        // ✅ EXIT - Let useEffect re-trigger when isAgentConnected becomes true
-        flowStartedRef.current = false;
+      } catch (e: any) {
+        console.error('❌ Connection error:', e);
+        setPhase('error');
+        setErrorMsg(friendlyError(e));
+        connectAttemptedRef.current = false;
+
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+          window.KEY_SHARER_ERROR = e.message;
+          window.KEY_SHARER_CONNECTED = false;
+        }
+      }
+    };
+
+    setupConnection();
+  }, [wallet, isAgentConnected, connectAgent]);
+
+  // Step 2: Handle space joining (only when agent is connected)
+  useEffect(() => {
+    const handleJoinSpace = async () => {
+      // Guard: Only run when agent is connected and haven't attempted
+      if (!isAgentConnected || joinAttemptedRef.current || !signerRef.current || !SAVED_SPACE_ID) {
         return;
       }
 
-      // ✅ STEP 3: Join space using the hook (only once)
-      if (isAgentConnected && !joinAttemptedRef.current) {
-        console.log('🔍 Agent connected, attempting to join space...');
-        setPhase('joining');
-        joinAttemptedRef.current = true;
+      const account = wallet?.getAccount();
+      if (!account) return;
 
-        // ✅ Try skipMint first (fast path for users with NFT)
-        try {
-          await joinSpace(
-            SAVED_SPACE_ID,
-            signerRef.current,
-            { skipMintMembership: true }
-          );
-          console.log('✅ Joined with existing membership (has NFT)');
+      console.log('🔍 Agent connected, attempting to join space...');
+      setPhase('joining');
+      joinAttemptedRef.current = true;
+
+      try {
+        // Try fast path first (skip mint for returning users)
+        await joinSpace(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
+        console.log('✅ Joined with existing membership');
+        
+      } catch (skipMintError: any) {
+        console.log('❌ skipMint failed:', skipMintError.message);
+        
+        // If already a member, we're done
+        if (isAlreadyMember(skipMintError)) {
+          console.log('✅ Already a member');
           
-        } catch (e: any) {
-          console.log('❌ skipMint failed:', e.message);
-          const msg = (e.message || '').toLowerCase();
+        // If network error (but not timeout), throw it
+        } else if (isNetworkError(skipMintError) && !isTimeout(skipMintError)) {
+          console.error('🌐 Network error during join:', skipMintError.message);
+          joinAttemptedRef.current = false;
+          throw skipMintError;
           
-          // If "already a member", we're done
-          if (msg.includes('already a member') || msg.includes('already joined')) {
-            console.log('✅ Already a member');
-            
-          // Otherwise, need to mint NFT
-          } else if (
-            msg.includes('timeout') ||
-            msg.includes('permission') ||
-            msg.includes('not entitled') ||
-            msg.includes('membership') ||
-            msg.includes('not a member') ||
-            msg.includes('no membership')
-          ) {
-            // NEW USER - Needs to mint NFT
+        } else {
+          // Timeout OR membership error → try to mint NFT
+          console.log('🆕 New user or timeout - attempting to mint membership...');
+          
+          try {
             setShowProgressiveLoader(true);
-            console.log('🆕 New user - minting membership NFT...');
+            
+            // Animate through steps
+            for (let step = 0; step <= 3; step++) {
+              setLoadingStep(step);
+              await new Promise((r) => setTimeout(r, 300));
+            }
 
-            setLoadingStep(0);
-            await new Promise((r) => setTimeout(r, 400));
-
-            setLoadingStep(1);
-            await new Promise((r) => setTimeout(r, 400));
-
-            setLoadingStep(2);
-            await new Promise((r) => setTimeout(r, 400));
-
-            setLoadingStep(3);
             console.log('🔄 Minting membership NFT...');
 
-            // ✅ Join WITHOUT skipMint - will mint the NFT
-            const mintMembershipPromise = joinSpace(
-              SAVED_SPACE_ID,
-              signerRef.current,
+            // Mint with timeout
+            const mintPromise = withTimeout(
+              joinSpace(SAVED_SPACE_ID, signerRef.current),
+              JOIN_TIMEOUT_MS
             );
 
-            const mintFreemiumPromise = fetch('/api/mint-freemium', {
+            const freemiumPromise = fetch('/api/mint-freemium', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ address: account.address }),
@@ -313,47 +353,41 @@ function TownsChat() {
                 console.warn('Freemium NFT mint failed (non-critical):', err);
               });
 
-            await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
-            console.log('✅ Membership NFT minted successfully');
+            await Promise.all([mintPromise, freemiumPromise]);
+            console.log('✅ Membership minted successfully');
 
             setLoadingStep(4);
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 400));
             
-          } else {
-            // Unexpected error - reset join attempt flag to allow retry
+          } catch (mintError: any) {
+            console.error('❌ Mint failed:', mintError);
+            // Reset and bubble up
             joinAttemptedRef.current = false;
-            throw e;
+            throw mintError;
           }
         }
-
-        // ✅ Go straight to ready
-        setPhase('ready');
-
-        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-          window.KEY_SHARER_SPACE_JOINED = true;
-          window.KEY_SHARER_CONNECTED = true;
-        }
       }
-    } catch (e: any) {
-      console.error('❌ Flow error:', e);
+
+      // Success
+      setPhase('ready');
+
+      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+        window.KEY_SHARER_SPACE_JOINED = true;
+        window.KEY_SHARER_CONNECTED = true;
+      }
+    };
+
+    handleJoinSpace().catch((e) => {
+      console.error('❌ Join flow error:', e);
       setPhase('error');
       setErrorMsg(friendlyError(e));
-      flowStartedRef.current = false;
-      joinAttemptedRef.current = false;
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
         window.KEY_SHARER_ERROR = e.message;
         window.KEY_SHARER_CONNECTED = false;
       }
-    }
-  }, [wallet, isAgentConnected, connectAgent, joinSpace]);
-
-  useEffect(() => {
-    // ✅ Trigger flow when wallet is available or when agent connects
-    if (wallet && (phase === 'idle' || phase === 'connecting' || (phase === 'joining' && isAgentConnected))) {
-      runFlow();
-    }
-  }, [wallet, phase, isAgentConnected, runFlow]);
+    });
+  }, [isAgentConnected, wallet, joinSpace]);
 
   if (phase === 'error') {
     return (
@@ -366,7 +400,7 @@ function TownsChat() {
               setErrorMsg('');
               setShowProgressiveLoader(false);
               setLoadingStep(0);
-              flowStartedRef.current = false;
+              connectAttemptedRef.current = false;
               joinAttemptedRef.current = false;
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
@@ -521,6 +555,8 @@ export default function ChatTestClient() {
 
 function friendlyError(error: any): string {
   const msg = error.message?.toLowerCase() || '';
+  if (msg.includes('timed out'))
+    return 'The operation took too long. Please try again.';
   if (msg.includes('429') || msg.includes('bandwidth'))
     return 'Network is busy — please try again in a moment.';
   if (
@@ -536,12 +572,6 @@ function friendlyError(error: any): string {
     return 'Not enough network nodes are available right now. Please try again in a few minutes.';
   if (msg.includes('user rejected') || msg.includes('denied'))
     return 'Wallet signature was cancelled.';
-  if (msg.includes('returned undefined'))
-    return 'Agent connection failed. Please retry.';
-  if (msg.includes('transaction failed after retries'))
-    return 'The Towns network is congested. Please try again shortly.';
-  if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition'))
-    return 'Network sync in progress. Please try again in a moment.';
   if (msg.includes('client is not defined') || msg.includes('loginwithretries'))
     return 'Connection initializing. Please try again in a moment.';
   return error.message || 'An unexpected error occurred.';
