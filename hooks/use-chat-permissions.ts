@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import type { SimpleChatPermissions } from '@/types/chat';
 
@@ -46,7 +46,7 @@ export function useChatPermissions(userAddress: string | null) {
     // Initial fetch
     fetchPermissions();
     
-    // ✅ NEW: Real-time subscription to event status changes
+    // ✅ Real-time subscription to event status changes
     const supabase = createSupabaseClient();
     console.log('📡 [Permissions] Setting up real-time subscription...');
     
@@ -80,13 +80,13 @@ export function useChatPermissions(userAddress: string | null) {
       )
       .subscribe();
     
-    // Set up polling interval (reduced to 10 seconds)
+    // Set up polling interval
     const interval = setInterval(() => {
       if (shouldPollRef.current) {
         console.log('🔄 [Permissions] Polling...');
         fetchPermissions();
       }
-    }, 10000); // ✅ Changed from 30s to 10s
+    }, 10000);
     
     return () => {
       clearInterval(interval);
@@ -94,5 +94,11 @@ export function useChatPermissions(userAddress: string | null) {
     };
   }, [userAddress]);
 
-  return { permissions, isLoading, error };
+  // ✅ MEMOIZE: Prevent new object reference on every render
+  return useMemo(() => ({
+    permissions,
+    isLoading,
+    error,
+    isBanned: permissions?.isBanned || false,
+  }), [permissions, isLoading, error]);
 }
