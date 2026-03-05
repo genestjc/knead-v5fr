@@ -230,10 +230,11 @@ function isAlreadyMember(error: any): boolean {
   return msg.includes('already a member') || msg.includes('already joined');
 }
 
+// Outer component - doesn't call any SDK hooks that require SyncAgent
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const { joinSpace } = useJoinSpace();
+  // ❌ REMOVED: const { joinSpace } = useJoinSpace(); // Don't call this here!
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -247,7 +248,6 @@ function TownsChat() {
 
   const signerRef = useRef<any>(null);
   const connectAttemptedRef = useRef(false);
-  const joinAttemptedRef = useRef(false);
 
   // Step 1: Handle wallet connection and agent setup
   useEffect(() => {
@@ -255,7 +255,7 @@ function TownsChat() {
       if (connectAttemptedRef.current || !wallet || isAgentConnected) return;
       
       const account = wallet.getAccount();
-      if (!account || !SAVED_SPACE_ID) return;
+      if (!SAVED_SPACE_ID) return;
 
       connectAttemptedRef.current = true;
 
@@ -286,11 +286,86 @@ function TownsChat() {
     setupConnection();
   }, [wallet, isAgentConnected, connectAgent]);
 
-  // Step 2: Handle space joining (only when agent is connected)
+  if (phase === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-md px-4">
+          <p className="font-georgia-pro text-red-500 mb-4">{errorMsg}</p>
+          <button
+            onClick={() => {
+              setPhase('idle');
+              setErrorMsg('');
+              setShowProgressiveLoader(false);
+              setLoadingStep(0);
+              connectAttemptedRef.current = false;
+            }}
+            className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Only render join flow when agent is connected
+  if (!isAgentConnected || phase === 'signing' || phase === 'connecting') {
+    return (
+      <LoadingSpinner
+        message={
+          PHASE_LABELS[phase] +
+          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
+        }
+      />
+    );
+  }
+
+  // ✅ Agent is connected - safe to render component that uses useJoinSpace
+  return (
+    <TownsChatJoinFlow
+      wallet={wallet}
+      signerRef={signerRef}
+      phase={phase}
+      setPhase={setPhase}
+      showProgressiveLoader={showProgressiveLoader}
+      setShowProgressiveLoader={setShowProgressiveLoader}
+      loadingStep={loadingStep}
+      setLoadingStep={setLoadingStep}
+      setErrorMsg={setErrorMsg}
+    />
+  );
+}
+
+// Inner component - only mounts when agent is connected, safe to use useJoinSpace
+function TownsChatJoinFlow({
+  wallet,
+  signerRef,
+  phase,
+  setPhase,
+  showProgressiveLoader,
+  setShowProgressiveLoader,
+  loadingStep,
+  setLoadingStep,
+  setErrorMsg,
+}: {
+  wallet: ReturnType<typeof useActiveWallet>;
+  signerRef: React.MutableRefObject<any>;
+  phase: Phase;
+  setPhase: (phase: Phase) => void;
+  showProgressiveLoader: boolean;
+  setShowProgressiveLoader: (show: boolean) => void;
+  loadingStep: number;
+  setLoadingStep: (step: number) => void;
+  setErrorMsg: (msg: string) => void;
+}) {
+  // ✅ NOW SAFE - agent is guaranteed to be connected
+  const { joinSpace } = useJoinSpace();
+  const joinAttemptedRef = useRef(false);
+
+  // Step 2: Handle space joining
   useEffect(() => {
     const handleJoinSpace = async () => {
-      // Guard: Only run when agent is connected and haven't attempted
-      if (!isAgentConnected || joinAttemptedRef.current || !signerRef.current || !SAVED_SPACE_ID) {
+      if (joinAttemptedRef.current || !signerRef.current || !SAVED_SPACE_ID) {
         return;
       }
 
@@ -361,7 +436,6 @@ function TownsChat() {
             
           } catch (mintError: any) {
             console.error('❌ Mint failed:', mintError);
-            // Reset and bubble up
             joinAttemptedRef.current = false;
             throw mintError;
           }
@@ -387,44 +461,14 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     });
-  }, [isAgentConnected, wallet, joinSpace]);
+  }, [wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
 
-  if (phase === 'error') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-md px-4">
-          <p className="font-georgia-pro text-red-500 mb-4">{errorMsg}</p>
-          <button
-            onClick={() => {
-              setPhase('idle');
-              setErrorMsg('');
-              setShowProgressiveLoader(false);
-              setLoadingStep(0);
-              connectAttemptedRef.current = false;
-              joinAttemptedRef.current = false;
-            }}
-            className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (phase !== 'ready' || !isAgentConnected) {
+  if (phase !== 'ready') {
     if (showProgressiveLoader) {
       return <ProgressiveLoader steps={NEW_USER_STEPS} currentStep={loadingStep} />;
     }
 
-    return (
-      <LoadingSpinner
-        message={
-          PHASE_LABELS[phase] +
-          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
-        }
-      />
-    );
+    return <LoadingSpinner message={PHASE_LABELS[phase]} />;
   }
 
   return <TownsChatReady wallet={wallet} />;
