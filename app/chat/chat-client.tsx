@@ -268,7 +268,12 @@ function TownsChat() {
         // Connect agent
         setPhase('connecting');
         await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
-        setPhase('joining'); // ✅ FIX: Advance phase so TownsChatJoinFlow can mount
+        
+        // ✅ FIX 1: Wait for River client to fully initialize
+        console.log('⏳ Waiting for River client initialization...');
+        await new Promise((r) => setTimeout(r, 2000)); // 2 second delay
+        
+        setPhase('joining');
         
       } catch (e: any) {
         console.error('❌ Connection error:', e);
@@ -384,9 +389,10 @@ function TownsChatJoinFlow({
       } catch (skipMintError: any) {
         console.log('❌ skipMint failed:', skipMintError.message);
         
-        // If already a member, we're done
+        // ✅ FIX 2: If already a member, skip straight to ready (no progressive loader)
         if (isAlreadyMember(skipMintError)) {
-          console.log('✅ Already a member');
+          console.log('✅ Already a member - going straight to chat');
+          // Don't show progressive loader for returning users
           
         // If network error (but not timeout), throw it
         } else if (isNetworkError(skipMintError) && !isTimeout(skipMintError)) {
@@ -395,12 +401,11 @@ function TownsChatJoinFlow({
           throw skipMintError;
           
         } else {
-          // Timeout OR membership error → try to mint NFT
-          console.log('🆕 New user or timeout - attempting to mint membership...');
+          // ✅ ONLY show progressive loader for NEW USERS who need to mint
+          console.log('🆕 New user - showing minting flow...');
+          setShowProgressiveLoader(true); // ← Only set here, not for returning users
           
           try {
-            setShowProgressiveLoader(true);
-            
             // Animate through steps
             for (let step = 0; step <= 3; step++) {
               setLoadingStep(step);
