@@ -532,7 +532,7 @@ export default function ChatTestClient() {
   if (!wallet) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center max-w-xl px-8">
+        <div className="text-center max-w-3xl px-8">
           <div className="mb-12 animate-fade-in-up">
             <h1 className="font-adonis text-5xl md:text-6xl mb-6">
               Welcome to our chat
