@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   useAgentConnection, 
-  useSpace, 
+  useSpace,
+  useChannel,
   useSendMessage, 
   useScrollback,
   useTimeline
@@ -171,10 +172,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
   
-  // ✅ FIX: Use defaultChannelId directly (already validated in chat-client.tsx)
+  // ✅ Use defaultChannelId directly (already validated in chat-client.tsx)
   const channelId = defaultChannelId;
   
-  console.log('🔑 Using channelId:', channelId);
+  // ✅ Get channel status to check if joined (needed for timeline initialization)
+  const { data: channel } = useChannel(spaceId, channelId);
+  const isChannelJoined = channel?.isJoined ?? false;
+  
+  console.log('🔑 Channel status:', {
+    channelId,
+    isJoined: isChannelJoined,
+    hasChannel: !!channel,
+  });
 
   // ✅ 1. useTimeline - Single source of truth for all events
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
@@ -187,11 +196,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     console.log('📊 Timeline status:', {
       channelId,
+      isChannelJoined,
       isLoading: isTimelineLoading,
       eventsCount: events?.length || 0,
-      events: events?.slice(0, 3),
+      firstThreeEvents: events?.slice(0, 3),
     });
-  }, [channelId, isTimelineLoading, events]);
+  }, [channelId, isChannelJoined, isTimelineLoading, events]);
 
   // ✅ Debug: Log decryption status
   useEffect(() => {
@@ -219,40 +229,38 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events]);
 
-  // ✅ 3. Load initial history after short delay (works for both new and returning users)
+  // ✅ 3. Load initial history ONLY after channel is joined (no artificial delays!)
   useEffect(() => {
-    if (!channelId || initialScrollbackDoneRef.current) return;
-    
-    // Wait 2 seconds for timeline to stabilize before loading history
-    const timer = setTimeout(() => {
-      if (initialScrollbackDoneRef.current) return;
-      initialScrollbackDoneRef.current = true;
-      
-      async function loadInitialHistory() {
-        console.log('📜 Loading initial history via scrollback...');
-        
-        try {
-          // Load 2 pages of history
-          for (let i = 0; i < 2; i++) {
-            const result = await scrollback();
-            console.log(`✅ Page ${i + 1} loaded, terminus: ${result?.terminus}`);
-            
-            if (result?.terminus) {
-              setHasReachedStart(true);
-              console.log('📜 Reached start of conversation');
-              break;
-            }
-          }
-        } catch (error) {
-          console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
-        }
+    if (!channelId || !isChannelJoined || initialScrollbackDoneRef.current) {
+      if (!isChannelJoined) {
+        console.log('⏳ Waiting for channel to join before loading history...');
       }
+      return;
+    }
+    
+    console.log('✅ Channel joined! Loading history...');
+    initialScrollbackDoneRef.current = true;
+    
+    async function loadInitialHistory() {
+      try {
+        // Load 2 pages of history
+        for (let i = 0; i < 2; i++) {
+          const result = await scrollback();
+          console.log(`✅ History page ${i + 1} loaded, terminus: ${result?.terminus}`);
+          
+          if (result?.terminus) {
+            setHasReachedStart(true);
+            console.log('📜 Reached start of conversation');
+            break;
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
+      }
+    }
 
-      loadInitialHistory();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [channelId, scrollback]);
+    loadInitialHistory();
+  }, [channelId, isChannelJoined, scrollback]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -621,17 +629,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const renderMessages = () => {
     console.log('🎨 Render check:', {
+      isChannelJoined,
       isTimelineLoading,
       totalEvents: events?.length || 0,
       messagesLength: messages.length,
     });
 
-    if (isTimelineLoading) {
+    // Show loading while channel is joining or timeline is loading
+    if (!isChannelJoined || isTimelineLoading) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">Connecting to chat...</p>
+            <p className="font-georgia-pro text-gray-500">
+              {!isChannelJoined ? 'Joining channel...' : 'Connecting to chat...'}
+            </p>
           </div>
         </div>
       );
