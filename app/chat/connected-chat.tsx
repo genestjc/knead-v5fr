@@ -170,9 +170,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
-  const { data: space, isLoading: isSpaceLoading, error: spaceError } = useSpace(spaceId);
-
-  const channelId = space?.channelIds?.[0] || defaultChannelId;
+  
+  // ✅ FIX: Use defaultChannelId directly (already validated in chat-client.tsx)
+  const channelId = defaultChannelId;
+  
+  console.log('🔑 Using channelId:', channelId);
 
   // ✅ 1. useTimeline - Single source of truth for all events
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
@@ -180,6 +182,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   // ✅ 2. useScrollback - Action to load older events INTO timeline
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+
+  // ✅ Debug: Log timeline status
+  useEffect(() => {
+    console.log('📊 Timeline status:', {
+      channelId,
+      isLoading: isTimelineLoading,
+      eventsCount: events?.length || 0,
+      events: events?.slice(0, 3),
+    });
+  }, [channelId, isTimelineLoading, events]);
 
   // ✅ Debug: Log decryption status
   useEffect(() => {
@@ -606,35 +618,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
-
-  if (isSpaceLoading) {
-    return (
-      <ChatLayout>
-        <LoadingSpinner />
-      </ChatLayout>
-    );
-  }
-
-  if (spaceError) {
-    return (
-      <ChatLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center text-red-500 py-8">
-            <p className="font-georgia-pro text-lg">❌ Error loading chat</p>
-            <p className="font-georgia-pro text-sm mt-2">
-              {spaceError?.message || 'Unknown error'}
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-black text-white rounded-full"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </ChatLayout>
-    );
-  }
 
   const renderMessages = () => {
     console.log('🎨 Render check:', {
