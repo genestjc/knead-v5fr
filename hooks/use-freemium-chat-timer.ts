@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 
@@ -166,11 +166,12 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
 
   const hasTimeLeft = remainingSeconds !== null && remainingSeconds > 0;
 
-  return {
+  // ✅ MEMOIZE: Prevent new object reference on every render
+  return useMemo(() => ({
     isFreemiumUser,
     remainingSeconds,
     remainingMinutes,
     hasTimeLeft,
     isLoading,
-  };
+  }), [isFreemiumUser, remainingSeconds, remainingMinutes, hasTimeLeft, isLoading]);
 }
