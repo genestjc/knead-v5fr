@@ -163,6 +163,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialScrollbackDoneRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
+  const lastMessageCountRef = useRef(0);
 
   const activeAccount = useActiveAccount();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -205,35 +207,40 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events]);
 
-  // ✅ 3. Call scrollback() ONCE on mount to hydrate history
+  // ✅ 3. Load initial history after short delay (works for both new and returning users)
   useEffect(() => {
     if (!channelId || initialScrollbackDoneRef.current) return;
-    if (!events || events.length === 0) return; // Wait for timeline to have baseline
-
-    initialScrollbackDoneRef.current = true;
-
-    async function loadInitialHistory() {
-      console.log('📜 Loading initial history via scrollback...');
+    
+    // Wait 2 seconds for timeline to stabilize before loading history
+    const timer = setTimeout(() => {
+      if (initialScrollbackDoneRef.current) return;
+      initialScrollbackDoneRef.current = true;
       
-      try {
-        // Load 2 pages of history
-        for (let i = 0; i < 2; i++) {
-          const result = await scrollback();
-          console.log(`✅ Page ${i + 1} loaded, terminus: ${result?.terminus}`);
-          
-          if (result?.terminus) {
-            setHasReachedStart(true);
-            console.log('📜 Reached start of conversation');
-            break;
+      async function loadInitialHistory() {
+        console.log('📜 Loading initial history via scrollback...');
+        
+        try {
+          // Load 2 pages of history
+          for (let i = 0; i < 2; i++) {
+            const result = await scrollback();
+            console.log(`✅ Page ${i + 1} loaded, terminus: ${result?.terminus}`);
+            
+            if (result?.terminus) {
+              setHasReachedStart(true);
+              console.log('📜 Reached start of conversation');
+              break;
+            }
           }
+        } catch (error) {
+          console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
         }
-      } catch (error) {
-        console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
       }
-    }
 
-    loadInitialHistory();
-  }, [channelId, events, scrollback]);
+      loadInitialHistory();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [channelId, scrollback]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -464,8 +471,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
+  // ✅ SMART AUTO-SCROLL: Only scroll to bottom appropriately
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const currentCount = messages.length;
+    
+    if (currentCount === 0) return;
+    
+    // Initial load: scroll to bottom instantly
+    if (isInitialLoadRef.current) {
+      console.log('📜 Initial scroll to bottom');
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); // instant
+      }, 100);
+      isInitialLoadRef.current = false;
+      lastMessageCountRef.current = currentCount;
+      return;
+    }
+    
+    // Only scroll for NEW messages (not bulk history loads)
+    const diff = currentCount - lastMessageCountRef.current;
+    
+    if (diff > 0 && diff <= 3) { 
+      // 1-3 new messages = likely real-time messages, scroll smoothly
+      console.log(`📜 New messages (${diff}), scrolling to bottom`);
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (diff > 3) {
+      // Bulk load (history or decryption), don't auto-scroll
+      console.log(`📦 Bulk load (${diff} messages), skipping auto-scroll`);
+    }
+    
+    lastMessageCountRef.current = currentCount;
   }, [messages.length]);
 
   if (isBanned) {
