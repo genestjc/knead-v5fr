@@ -243,117 +243,107 @@ function TownsChat() {
       if (agentRef.current) {
         setPhase('joining');
 
-        // Check if already a member from persistence
-        let alreadyMember = false;
-        for (let i = 0; i < 5; i++) {
-          const spaceIds = agentRef.current.spaces.value?.data?.spaceIds || [];
-          alreadyMember = spaceIds.includes(SAVED_SPACE_ID);
-          if (alreadyMember) break;
-          await new Promise((r) => setTimeout(r, 100));
-        }
-
-        if (alreadyMember) {
-          console.log('✅ Already a member - proceeding immediately');
-          // Let SDK handle key exchange reactively
+        // ✅ Try skipMint first (fast path for users with NFT)
+        try {
+          await Promise.race([
+            agentRef.current.spaces.joinSpace(
+              SAVED_SPACE_ID,
+              signerRef.current,
+              { skipMintMembership: true },
+            ),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Join timeout')), 4000)
+            ),
+          ]);
+          console.log('✅ Joined with existing membership (has NFT)');
           
-        } else {
-          // Not already a member - go through join flow
-          try {
-            await Promise.race([
-              agentRef.current.spaces.joinSpace(
+        } catch (e: any) {
+          console.log('❌ skipMint failed:', e.message);
+          const msg = (e.message || '').toLowerCase();
+          
+          // Handle transient stream sync errors with retry
+          if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition')) {
+            console.log('⚠️ Stream sync conflict, retrying...');
+            await new Promise((r) => setTimeout(r, 2000));
+            
+            try {
+              await agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
                 { skipMintMembership: true },
-              ),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Join timeout - likely no membership')), 4000)
-              ),
-            ]);
-            console.log('✅ Joined with existing membership');
-            
-          } catch (e: any) {
-            console.log('❌ Join attempt failed:', e.message);
-            const msg = (e.message || '').toLowerCase();
-            
-            // Handle transient stream sync errors with retry
-            if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition')) {
-              console.log('⚠️ Stream sync conflict detected, retrying after delay...');
-              await new Promise((r) => setTimeout(r, 2000));
-              
-              try {
-                await agentRef.current.spaces.joinSpace(
-                  SAVED_SPACE_ID,
-                  signerRef.current,
-                  { skipMintMembership: true },
-                );
-                console.log('✅ Retry succeeded - joined with existing membership');
-              } catch (retryError: any) {
-                console.log('❌ Retry also failed:', retryError.message);
-                e = retryError;
-              }
-            }
-
-            const finalMsg = (e.message || '').toLowerCase();
-
-            if (finalMsg.includes('already a member') || finalMsg.includes('already joined')) {
-              console.log('✅ Already a member (from join attempt)');
-              
-            } else if (
-              finalMsg.includes('timeout') ||
-              finalMsg.includes('permission') ||
-              finalMsg.includes('not entitled') ||
-              finalMsg.includes('membership') ||
-              finalMsg.includes('not a member') ||
-              finalMsg.includes('no membership')
-            ) {
-              // NEW USER - needs to mint
-              setShowProgressiveLoader(true);
-              console.log('🆕 New user detected, starting onboarding...');
-
-              setLoadingStep(0);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(1);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(2);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(3); // Minting membership
-              console.log('🔄 Minting membership...');
-
-              const mintMembershipPromise = agentRef.current.spaces.joinSpace(
-                SAVED_SPACE_ID,
-                signerRef.current,
               );
-
-              const mintFreemiumPromise = fetch('/api/mint-freemium', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address: account.address }),
-              })
-                .then((res) => res.json())
-                .then((data) => {
-                  if (data.success) console.log('✅ Freemium NFT minted');
-                })
-                .catch((err) => {
-                  console.warn('Freemium NFT mint failed (non-critical):', err);
-                });
-
-              await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
-              console.log('✅ Membership minted');
-
-              setLoadingStep(4); // Kneading the dough - just for UX
-              await new Promise((r) => setTimeout(r, 600)); // Brief animation delay only
-              
-            } else {
-              throw e;
+              console.log('✅ Retry succeeded (has NFT)');
+            } catch (retryError: any) {
+              console.log('❌ Retry also failed:', retryError.message);
+              e = retryError; // Replace with retry error
             }
+          }
+
+          const finalMsg = (e.message || '').toLowerCase();
+          
+          // If "already a member", we're done
+          if (finalMsg.includes('already a member') || finalMsg.includes('already joined')) {
+            console.log('✅ Already a member');
+            
+          // Otherwise, need to mint NFT
+          } else if (
+            finalMsg.includes('timeout') ||
+            finalMsg.includes('permission') ||
+            finalMsg.includes('not entitled') ||
+            finalMsg.includes('membership') ||
+            finalMsg.includes('not a member') ||
+            finalMsg.includes('no membership')
+          ) {
+            // NEW USER - Needs to mint NFT
+            setShowProgressiveLoader(true);
+            console.log('🆕 New user - minting membership NFT...');
+
+            setLoadingStep(0);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(1);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(2);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(3);
+            console.log('🔄 Minting membership NFT...');
+
+            // ✅ Join WITHOUT skipMint - will mint the NFT
+            const mintMembershipPromise = agentRef.current.spaces.joinSpace(
+              SAVED_SPACE_ID,
+              signerRef.current,
+              // No skipMintMembership flag - defaults to false, will mint
+            );
+
+            const mintFreemiumPromise = fetch('/api/mint-freemium', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address: account.address }),
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.success) console.log('✅ Freemium NFT minted');
+              })
+              .catch((err) => {
+                console.warn('Freemium NFT mint failed (non-critical):', err);
+              });
+
+            await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
+            console.log('✅ Membership NFT minted successfully');
+
+            setLoadingStep(4);
+            await new Promise((r) => setTimeout(r, 600));
+            
+          } else {
+            // Unexpected error
+            throw e;
           }
         }
       }
 
-      // Go straight to ready - let SDK handle key exchange
+      // ✅ Go straight to ready - let SDK handle key exchange reactively
       setPhase('ready');
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
