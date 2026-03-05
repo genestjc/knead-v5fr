@@ -435,6 +435,22 @@ function TownsChatReady({
 }: {
   wallet: ReturnType<typeof useActiveWallet>;
 }) {
+  const { isAgentConnected } = useAgentConnection();
+  
+  // Defensive guard - only render inner component when agent is confirmed connected
+  if (!isAgentConnected) {
+    return <LoadingSpinner message="Finalizing connection..." />;
+  }
+  
+  return <TownsChatReadyInner wallet={wallet} />;
+}
+
+function TownsChatReadyInner({
+  wallet,
+}: {
+  wallet: ReturnType<typeof useActiveWallet>;
+}) {
+  // Now safe to call useSpace - agent is guaranteed to be connected
   const { data: space, isLoading: isSpaceLoading } = useSpace(SAVED_SPACE_ID || '');
 
   const currentUser: ChatUser | null = useMemo(() => {
