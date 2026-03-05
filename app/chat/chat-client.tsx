@@ -176,14 +176,13 @@ function useBotAutoConnect() {
   return { botWallet };
 }
 
-type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'keys' | 'ready' | 'error';
+type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: 'Waiting for wallet...',
   signing: 'Please sign the message...',
   connecting: 'Connecting to Towns...',
   joining: 'Joining space...',
-  keys: 'Exchanging encryption keys...',
   ready: '',
   error: 'Something went wrong.',
 };
@@ -327,14 +326,10 @@ function TownsChat() {
             }
           }
         }
-
-        // ✅ CRITICAL FIX: Wait for key exchange to complete
-        setPhase('keys');
-        console.log('🔐 Waiting for encryption key exchange...');
-        await new Promise(r => setTimeout(r, 5000)); // 5 seconds for key solicitation/fulfillment
-        console.log('✅ Key exchange window complete');
       }
 
+      // ✅ REMOVED: 5-second key exchange wait
+      // Key exchange happens automatically in background
       setPhase('ready');
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
