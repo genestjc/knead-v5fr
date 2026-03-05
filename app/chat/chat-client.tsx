@@ -258,17 +258,8 @@ function TownsChat() {
         console.log('🔍 Verified: isAgentConnected =', isAgentConnected);
         setPhase('joining');
 
-        // 🎨 Show progressive loader immediately for better UX
-        setShowProgressiveLoader(true);
-        setLoadingStep(0); // "Connecting to network"
-        
         // 🕐 Brief delay to ensure River client is fully initialized
         await new Promise((r) => setTimeout(r, 200));
-
-        setLoadingStep(1); // "Reaching the nodes"
-        await new Promise((r) => setTimeout(r, 200));
-
-        setLoadingStep(2); // "Connected to nodes"
 
         // ✅ Try skipMint first (fast path for users with NFT)
         try {
@@ -317,9 +308,19 @@ function TownsChat() {
             finalMsg.includes('no membership')
           ) {
             // NEW USER - Needs to mint NFT
+            setShowProgressiveLoader(true);
             console.log('🆕 New user - minting membership NFT...');
 
-            setLoadingStep(3); // "Minting membership"
+            setLoadingStep(0);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(1);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(2);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(3);
             console.log('🔄 Minting membership NFT...');
 
             // ✅ Join WITHOUT skipMint - will mint the NFT
@@ -344,7 +345,7 @@ function TownsChat() {
             await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
             console.log('✅ Membership NFT minted successfully');
 
-            setLoadingStep(4); // "Kneading the dough" 🍞
+            setLoadingStep(4);
             await new Promise((r) => setTimeout(r, 600));
             
           } else {
