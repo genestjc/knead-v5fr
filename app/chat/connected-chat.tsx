@@ -153,6 +153,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
+  const lastMessageIdRef = useRef<string | null>(null); // ✅ Track last message ID instead of count
 
   const activeAccount = useActiveAccount();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -161,7 +162,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ OFFICIAL PATTERN: Just use useTimeline - that's it!
+  // ✅ OFFICIAL PATTERN: Just use useTimeline - reactive and simple
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
@@ -188,7 +189,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // Load more on scroll to top
   const loadMoreMessages = useCallback(async () => {
     if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
 
@@ -213,7 +213,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         });
       }
     } catch (error) {
-      console.error('❌ Load more failed:', error);
+      console.error('Load more failed:', error);
     } finally {
       setIsLoadingMore(false);
     }
@@ -236,7 +236,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
 
-  // Fetch profiles for senders
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -253,7 +252,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ OFFICIAL PATTERN: Simple filter for ChannelMessage
+  // ✅ FIX: Keep ALL messages, mark as decrypting if no body
   const messages = useMemo(() => {
     if (!events) return [];
 
@@ -265,7 +264,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
         return {
           id: event.eventId,
-          content: event.content?.body || '', // Empty string if not yet decrypted
+          content: event.content?.body || null, // ✅ Keep null, don't filter
+          isDecrypting: !event.content?.body, // ✅ Flag for placeholder
           sender: {
             id: walletAddress,
             walletAddress,
@@ -277,7 +277,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
         };
       })
-      .filter((msg: any) => msg.content) // Filter out undecrypted
+      // ✅ REMOVED: .filter((msg) => msg.content) - this was causing render loops!
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
@@ -368,10 +368,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // Auto-scroll to bottom on new messages
+  // ✅ SMART AUTO-SCROLL: Only scroll on truly new messages (check last message ID)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+    if (messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageId = lastMessage?.id;
+
+    // First render - scroll to bottom
+    if (lastMessageIdRef.current === null) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      }, 100);
+      lastMessageIdRef.current = lastMessageId;
+      return;
+    }
+
+    // Only scroll if the LAST message ID changed (new message arrived)
+    if (lastMessageId !== lastMessageIdRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      lastMessageIdRef.current = lastMessageId;
+    }
+    // Decryption updates won't trigger scroll since ID stays the same!
+  }, [messages]);
 
   if (isBanned) {
     return (
@@ -523,6 +542,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             channelId={channelId}
             spaceId={spaceId}
             eventId={activeEvent?.id}
+            isDecrypting={message.isDecrypting} // ✅ Pass decrypting flag
           />
         ))}
         <div ref={messagesEndRef} />
