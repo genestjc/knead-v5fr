@@ -245,17 +245,12 @@ function TownsChat() {
 
         // ✅ Try skipMint first (fast path for users with NFT)
         try {
-          await Promise.race([
-            agentRef.current.spaces.joinSpace(
-              SAVED_SPACE_ID,
-              signerRef.current,
-              { skipMintMembership: true },
-            ),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Join timeout')), 4000)
-            ),
-          ]);
-          console.log('✅ Joined with existing membership (has NFT)');
+        await agentRef.current.spaces.joinSpace(
+        SAVED_SPACE_ID,
+        signerRef.current,
+        { skipMintMembership: true },
+      );
+        console.log('✅ Joined with existing membership (has NFT)');
           
         } catch (e: any) {
           console.log('❌ skipMint failed:', e.message);
