@@ -4,8 +4,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   useAgentConnection, 
-  useSpace,
-  useChannel,
   useSendMessage, 
   useScrollback,
   useTimeline
@@ -26,13 +24,6 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X } from 'lucide-react';
-
-const LoadingSpinner = () => (
-  <div className="text-center py-10">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-    <p className="font-georgia-pro text-gray-500">Loading Channel Data...</p>
-  </div>
-);
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -117,7 +108,6 @@ export default function ConnectedChat(props: ConnectedChatProps) {
         <div className="text-center py-10">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
           <p className="font-georgia-pro text-gray-500">Connecting to Towns Protocol...</p>
-          <p className="font-georgia-pro text-xs text-gray-400 mt-2">Establishing secure session...</p>
         </div>
       </ChatLayout>
     );
@@ -163,104 +153,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
-  const initialScrollbackDoneRef = useRef(false);
-  const isInitialLoadRef = useRef(true);
-  const lastMessageCountRef = useRef(0);
 
   const activeAccount = useActiveAccount();
-  const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
+  const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
   
-  // ✅ Use defaultChannelId directly (already validated in chat-client.tsx)
   const channelId = defaultChannelId;
-  
-  // ✅ Get channel status to check if joined (needed for timeline initialization)
-  const { data: channel } = useChannel(spaceId, channelId);
-  const isChannelJoined = channel?.isJoined ?? false;
-  
-  console.log('🔑 Channel status:', {
-    channelId,
-    isJoined: isChannelJoined,
-    hasChannel: !!channel,
-  });
 
-  // ✅ 1. useTimeline - Single source of truth for all events
-  const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
-  
-  // ✅ 2. useScrollback - Action to load older events INTO timeline
+  // ✅ OFFICIAL PATTERN: Just use useTimeline - that's it!
+  const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
-
-  // ✅ Debug: Log timeline status
-  useEffect(() => {
-    console.log('📊 Timeline status:', {
-      channelId,
-      isChannelJoined,
-      isLoading: isTimelineLoading,
-      eventsCount: events?.length || 0,
-      firstThreeEvents: events?.slice(0, 3),
-    });
-  }, [channelId, isChannelJoined, isTimelineLoading, events]);
-
-  // ✅ Debug: Log decryption status
-  useEffect(() => {
-    if (!events || events.length === 0) return;
-    
-    const channelMessages = events.filter(
-      (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
-    );
-    
-    const decrypted = channelMessages.filter((e: any) => e.content?.body);
-    const encrypted = channelMessages.filter((e: any) => !e.content?.body);
-    
-    console.log('🔐 DECRYPTION STATUS:', {
-      totalEvents: events.length,
-      channelMessages: channelMessages.length,
-      decrypted: decrypted.length,
-      encrypted: encrypted.length,
-      decryptionRate: channelMessages.length > 0 
-        ? `${Math.round(decrypted.length / channelMessages.length * 100)}%`
-        : 'N/A',
-    });
-    
-    if (encrypted.length > 0) {
-      console.warn(`⚠️ ${encrypted.length} messages still encrypted - waiting for keys`);
-    }
-  }, [events]);
-
-  // ✅ 3. Load initial history ONLY after channel is joined (no artificial delays!)
-  useEffect(() => {
-    if (!channelId || !isChannelJoined || initialScrollbackDoneRef.current) {
-      if (!isChannelJoined) {
-        console.log('⏳ Waiting for channel to join before loading history...');
-      }
-      return;
-    }
-    
-    console.log('✅ Channel joined! Loading history...');
-    initialScrollbackDoneRef.current = true;
-    
-    async function loadInitialHistory() {
-      try {
-        // Load 2 pages of history
-        for (let i = 0; i < 2; i++) {
-          const result = await scrollback();
-          console.log(`✅ History page ${i + 1} loaded, terminus: ${result?.terminus}`);
-          
-          if (result?.terminus) {
-            setHasReachedStart(true);
-            console.log('📜 Reached start of conversation');
-            break;
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
-      }
-    }
-
-    loadInitialHistory();
-  }, [channelId, isChannelJoined, scrollback]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -284,7 +188,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
-  // ✅ Load more messages when user scrolls to top
+  // Load more on scroll to top
   const loadMoreMessages = useCallback(async () => {
     if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
 
@@ -295,13 +199,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     setIsLoadingMore(true);
 
     try {
-      console.log('📜 Loading older messages...');
       const result = await scrollback();
-      console.log(`✅ Loaded page, terminus: ${result?.terminus}`);
-
+      
       if (result?.terminus) {
         setHasReachedStart(true);
-        console.log('📜 Reached beginning');
       }
 
       if (scrollContainer) {
@@ -318,7 +219,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // Intersection observer for "load more"
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart) return;
@@ -329,16 +229,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           loadMoreMessages();
         }
       },
-      {
-        threshold: 0.1,
-        root: scrollContainerRef.current,
-      }
+      { threshold: 0.1, root: scrollContainerRef.current }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
 
+  // Fetch profiles for senders
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -349,35 +247,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           !!addr && !profileCache[addr] && !profileFetchingRef.current.has(addr),
       );
 
-    if (addresses.length === 0) return;
-
     addresses.forEach((addr) => {
       profileFetchingRef.current.add(addr);
       getProfile(addr);
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ 4. Filter and render from useTimeline only (only show decrypted messages)
+  // ✅ OFFICIAL PATTERN: Simple filter for ChannelMessage
   const messages = useMemo(() => {
-    if (!events || events.length === 0) return [];
+    if (!events) return [];
 
     return events
-      .filter((event: any) => {
-        // Log undecrypted messages for debugging
-        if (event.content?.kind === RiverTimelineEvent.ChannelMessage && !event.content?.body) {
-          console.warn('🔐 Undecrypted message:', event.eventId);
-        }
-        
-        // Only show decrypted messages (with body)
-        return event.content?.kind === RiverTimelineEvent.ChannelMessage && event.content?.body;
-      })
+      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
       .map((event: any) => {
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
 
         return {
           id: event.eventId,
-          content: event.content?.body || '',
+          content: event.content?.body || '', // Empty string if not yet decrypted
           sender: {
             id: walletAddress,
             walletAddress,
@@ -389,20 +277,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
         };
       })
+      .filter((msg: any) => msg.content) // Filter out undecrypted
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    if (events && channelId && window.KEY_SHARER_AUTO_MODE) {
-      window.KEY_SHARER_CHANNEL_SYNCED = true;
-      window.KEY_SHARER_CHANNEL_ID = channelId;
-    } else if (window.KEY_SHARER_AUTO_MODE) {
-      window.KEY_SHARER_CHANNEL_SYNCED = false;
-      window.KEY_SHARER_CHANNEL_ID = undefined;
-    }
-  }, [events, channelId]);
 
   useEffect(() => {
     if (!activeAccount?.address) return;
@@ -491,36 +368,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // ✅ SMART AUTO-SCROLL: Only scroll to bottom appropriately
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
-    const currentCount = messages.length;
-    
-    if (currentCount === 0) return;
-    
-    // Initial load: scroll to bottom instantly
-    if (isInitialLoadRef.current) {
-      console.log('📜 Initial scroll to bottom');
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); // instant
-      }, 100);
-      isInitialLoadRef.current = false;
-      lastMessageCountRef.current = currentCount;
-      return;
-    }
-    
-    // Only scroll for NEW messages (not bulk history loads)
-    const diff = currentCount - lastMessageCountRef.current;
-    
-    if (diff > 0 && diff <= 3) { 
-      // 1-3 new messages = likely real-time messages, scroll smoothly
-      console.log(`📜 New messages (${diff}), scrolling to bottom`);
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else if (diff > 3) {
-      // Bulk load (history or decryption), don't auto-scroll
-      console.log(`📦 Bulk load (${diff} messages), skipping auto-scroll`);
-    }
-    
-    lastMessageCountRef.current = currentCount;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
   if (isBanned) {
@@ -543,7 +393,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       if (userRole === 'freemium') {
         alert('Free Members can enjoy viewing for 1 hour per month. Sign-up for Knead Monthly to participate in events.');
       } else if (userRole === 'participant' && !activeEvent) {
-        alert('Messaging is available to Knead Monthly members during events. Check the calendar in the top left corner to see what\'s happening.');
+        alert('Messaging is available to Knead Monthly members during events.');
       } else {
         alert(`Cannot send message: ${permissions?.reason || 'Unknown reason'}`);
       }
@@ -628,44 +478,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const renderMessages = () => {
-    console.log('🎨 Render check:', {
-      isChannelJoined,
-      isTimelineLoading,
-      totalEvents: events?.length || 0,
-      messagesLength: messages.length,
-    });
-
-    // Show loading while channel is joining or timeline is loading
-    if (!isChannelJoined || isTimelineLoading) {
+    if (!events) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">
-              {!isChannelJoined ? 'Joining channel...' : 'Connecting to chat...'}
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // ✅ Check if events exist but messages are encrypted
-    const channelMessages = events?.filter(
-      (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
-    ) || [];
-    
-    if (events && events.length > 0 && messages.length === 0 && channelMessages.length > 0) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center text-gray-500 py-8">
-            <div className="animate-pulse mb-4 text-4xl">🔐</div>
-            <p className="font-georgia-pro text-lg">Decrypting messages...</p>
-            <p className="font-georgia-pro text-sm mt-2">
-              Receiving encryption keys from the network.
-            </p>
-            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-              ({channelMessages.length} encrypted messages found)
-            </p>
+            <p className="font-georgia-pro text-gray-500">Loading messages...</p>
           </div>
         </div>
       );
