@@ -165,8 +165,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const initialLoadStartedRef = useRef(false);
-  
-  // ✅ NEW: Track render count to prevent premature effect execution
   const renderCountRef = useRef(0);
 
   const activeAccount = useActiveAccount();
@@ -188,20 +186,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     },
   });
 
-  // ✅ Track renders for debugging
   useEffect(() => {
     renderCountRef.current++;
     console.log('🔵 Component render #', renderCountRef.current);
   });
 
-  // ✅ ROBUST: Keep scrollback function fresh in a ref
   const scrollbackFnRef = useRef(scrollback);
   
   useEffect(() => {
     scrollbackFnRef.current = scrollback;
   }, [scrollback]);
 
-  // ✅ Clear corrupted Towns cache on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const townsKeys = Object.keys(localStorage).filter(k => 
@@ -214,6 +209,32 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
   }, []);
+
+  // ✅ NEW: Debug decryption status
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+    
+    const channelMessages = events.filter(
+      (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
+    );
+    
+    const decrypted = channelMessages.filter((e: any) => e.content?.body);
+    const encrypted = channelMessages.filter((e: any) => !e.content?.body);
+    
+    console.log('🔐 DECRYPTION STATUS:', {
+      totalEvents: events.length,
+      channelMessages: channelMessages.length,
+      decrypted: decrypted.length,
+      encrypted: encrypted.length,
+      decryptionRate: channelMessages.length > 0 
+        ? `${Math.round(decrypted.length / channelMessages.length * 100)}%`
+        : 'N/A',
+    });
+    
+    if (encrypted.length > 0) {
+      console.warn(`⚠️ ${encrypted.length} messages still encrypted - waiting for keys`);
+    }
+  }, [events]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -297,18 +318,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ ROBUST INITIAL LOAD with render stabilization
   useEffect(() => {
     console.log('🔥 SCROLLBACK EFFECT - Render:', renderCountRef.current, 'channelId:', channelId);
     
-    // ✅ If no channelId, set loading to false and return
     if (!channelId) {
       console.warn('⚠️ No channelId available - skipping scrollback');
       setIsLoadingHistory(false);
       return;
     }
 
-    // Don't re-run if already started
     if (initialLoadStartedRef.current) {
       console.log('⏭️ Scrollback already started, skipping');
       return;
@@ -390,7 +408,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [channelId]);
 
-  // ✅ Failsafe: force loading to stop after 30 seconds
   useEffect(() => {
     const failsafeTimer = setTimeout(() => {
       if (isLoadingHistory) {
@@ -440,11 +457,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
+  // ✅ FIXED: Filter out encrypted messages (no body)
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
     return events
-      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .filter((event: any) => {
+        // ✅ Log undecrypted messages
+        if (event.content?.kind === RiverTimelineEvent.ChannelMessage && !event.content?.body) {
+          console.warn('🔐 Undecrypted message:', event.eventId);
+        }
+        
+        // ✅ Only show decrypted messages (with body)
+        return event.content?.kind === RiverTimelineEvent.ChannelMessage && event.content?.body;
+      })
       .map((event: any) => {
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
@@ -706,10 +732,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     console.log('🎨 Render check:', {
       isLoadingHistory,
       isTimelineLoading,
+      totalEvents: events?.length || 0,
       messagesLength: messages.length,
     });
 
-    // ✅ Wait for BOTH scrollback history AND timeline to finish loading
     if (isLoadingHistory || isTimelineLoading) {
       return (
         <div className="flex items-center justify-center h-full">
@@ -717,6 +743,28 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
             <p className="font-georgia-pro text-gray-500">
               {isLoadingHistory ? 'Loading message history...' : 'Connecting to chat...'}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // ✅ NEW: Check if events exist but messages are encrypted
+    const channelMessages = events?.filter(
+      (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
+    ) || [];
+    
+    if (events && events.length > 0 && messages.length === 0 && channelMessages.length > 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-gray-500 py-8">
+            <div className="animate-pulse mb-4 text-4xl">🔐</div>
+            <p className="font-georgia-pro text-lg">Decrypting messages...</p>
+            <p className="font-georgia-pro text-sm mt-2">
+              Receiving encryption keys from the network.
+            </p>
+            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
+              ({channelMessages.length} encrypted messages found)
             </p>
           </div>
         </div>
