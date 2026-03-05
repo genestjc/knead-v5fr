@@ -93,13 +93,16 @@ function ProgressiveLoader({ steps, currentStep }: ProgressiveLoaderProps) {
   );
 }
 
-function LoadingSpinner({ message }: { message?: string }) {
+function LoadingSpinner({ message, note }: { message?: string; note?: string }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4" />
         {message && (
-          <p className="font-georgia-pro text-sm text-gray-600">{message}</p>
+          <p className="font-georgia-pro text-sm text-gray-600 mb-2">{message}</p>
+        )}
+        {note && (
+          <p className="font-georgia-pro text-xs italic text-gray-400">{note}</p>
         )}
       </div>
     </div>
@@ -187,6 +190,15 @@ const PHASE_LABELS: Record<Phase, string> = {
   error: 'Something went wrong.',
 };
 
+const PHASE_NOTES: Record<Phase, string> = {
+  idle: '',
+  signing: 'Check your wallet to continue',
+  connecting: '',
+  joining: 'First time? This may take 10-20 seconds',
+  ready: '',
+  error: '',
+};
+
 const NEW_USER_STEPS = [
   'Connecting to network',
   'Reaching the nodes',
@@ -253,7 +265,7 @@ function TownsChat() {
         return;
       }
 
-      // ✅ STEP 3: Only reach here when isAgentConnected === true (River ready!)
+      // �� STEP 3: Only reach here when isAgentConnected === true (River ready!)
       if (agentRef.current) {
         console.log('🔍 Verified: isAgentConnected =', isAgentConnected);
         setPhase('joining');
@@ -411,10 +423,8 @@ function TownsChat() {
 
     return (
       <LoadingSpinner
-        message={
-          PHASE_LABELS[phase] +
-          (phase === 'signing' ? '\nCheck your wallet to continue' : '')
-        }
+        message={PHASE_LABELS[phase]}
+        note={PHASE_NOTES[phase]}
       />
     );
   }
