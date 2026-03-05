@@ -234,7 +234,6 @@ function isAlreadyMember(error: any): boolean {
 function TownsChat() {
   const wallet = useActiveWallet();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  // ❌ REMOVED: const { joinSpace } = useJoinSpace(); // Don't call this here!
 
   const [phase, setPhase] = useState<Phase>(() => {
     if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -269,6 +268,7 @@ function TownsChat() {
         // Connect agent
         setPhase('connecting');
         await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
+        setPhase('joining'); // ✅ FIX: Advance phase so TownsChatJoinFlow can mount
         
       } catch (e: any) {
         console.error('❌ Connection error:', e);
@@ -320,7 +320,7 @@ function TownsChat() {
     );
   }
 
-  // ✅ Agent is connected - safe to render component that uses useJoinSpace
+  // ✅ Agent is connected AND phase is 'joining' - safe to render TownsChatJoinFlow
   return (
     <TownsChatJoinFlow
       wallet={wallet}
