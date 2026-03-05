@@ -32,10 +32,6 @@ const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   loading: () => <LoadingSpinner message="Loading chat..." />,
 });
 
-// ---------------------------------------------------------------------------
-// Progressive 5-Dot Loader (NEW USERS ONLY)
-// ---------------------------------------------------------------------------
-
 interface ProgressiveLoaderProps {
   steps: string[];
   currentStep: number;
@@ -180,13 +176,14 @@ function useBotAutoConnect() {
   return { botWallet };
 }
 
-type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
+type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'keys' | 'ready' | 'error';
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: 'Waiting for wallet...',
   signing: 'Please sign the message...',
   connecting: 'Connecting to Towns...',
   joining: 'Joining space...',
+  keys: 'Exchanging encryption keys...',
   ready: '',
   error: 'Something went wrong.',
 };
@@ -289,16 +286,16 @@ function TownsChat() {
               setShowProgressiveLoader(true);
               console.log('🆕 New user detected, starting onboarding...');
 
-              setLoadingStep(0); // Connecting to network
+              setLoadingStep(0);
               await new Promise((r) => setTimeout(r, 400));
 
-              setLoadingStep(1); // Reaching the nodes
+              setLoadingStep(1);
               await new Promise((r) => setTimeout(r, 400));
 
-              setLoadingStep(2); // Connected to nodes
+              setLoadingStep(2);
               await new Promise((r) => setTimeout(r, 400));
 
-              setLoadingStep(3); // Minting membership (ACTUAL MINT)
+              setLoadingStep(3); // Minting membership
               console.log('🔄 Minting membership...');
 
               const mintMembershipPromise = agentRef.current.spaces.joinSpace(
@@ -330,6 +327,12 @@ function TownsChat() {
             }
           }
         }
+
+        // ✅ CRITICAL FIX: Wait for key exchange to complete
+        setPhase('keys');
+        console.log('🔐 Waiting for encryption key exchange...');
+        await new Promise(r => setTimeout(r, 5000)); // 5 seconds for key solicitation/fulfillment
+        console.log('✅ Key exchange window complete');
       }
 
       setPhase('ready');
@@ -423,7 +426,6 @@ function TownsChatReady({
     return <LoadingSpinner message="Loading space..." />;
   }
 
-  // ✅ FIXED: Wait for space.initialized for ALL users (including new ones)
   if (!space.initialized) {
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
