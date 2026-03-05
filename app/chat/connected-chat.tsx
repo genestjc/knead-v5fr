@@ -10,7 +10,6 @@ import {
   useTimeline
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import type { TimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
@@ -155,7 +154,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
 
@@ -164,8 +162,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
-  const initialLoadStartedRef = useRef(false);
-  const renderCountRef = useRef(0);
+  const initialScrollbackDoneRef = useRef(false);
 
   const activeAccount = useActiveAccount();
   const { isFreemiumUser, remainingMinutes, hasTimeLeft } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -175,42 +172,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const channelId = space?.channelIds?.[0] || defaultChannelId;
 
-  const { sendMessage, isPending: isSending } = useSendMessage(channelId);
+  // ✅ 1. useTimeline - Single source of truth for all events
   const { data: events, isLoading: isTimelineLoading } = useTimeline(channelId);
-  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId, {
-    onSuccess: (data) => {
-      console.log('✅ Scrollback succeeded:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Scrollback error:', error);
-    },
-  });
-
-  useEffect(() => {
-    renderCountRef.current++;
-    console.log('🔵 Component render #', renderCountRef.current);
-  });
-
-  const scrollbackFnRef = useRef(scrollback);
   
-  useEffect(() => {
-    scrollbackFnRef.current = scrollback;
-  }, [scrollback]);
+  // ✅ 2. useScrollback - Action to load older events INTO timeline
+  const { sendMessage, isPending: isSending } = useSendMessage(channelId);
+  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const townsKeys = Object.keys(localStorage).filter(k => 
-        k.includes('towns') || k.includes('river') || k.includes('sync')
-      );
-      
-      if (townsKeys.length > 50) {
-        console.warn('🧹 Clearing Towns cache to fix persistence errors');
-        townsKeys.forEach(k => localStorage.removeItem(k));
-      }
-    }
-  }, []);
-
-  // ✅ NEW: Debug decryption status
+  // ✅ Debug: Log decryption status
   useEffect(() => {
     if (!events || events.length === 0) return;
     
@@ -236,6 +205,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [events]);
 
+  // ✅ 3. Call scrollback() ONCE on mount to hydrate history
+  useEffect(() => {
+    if (!channelId || initialScrollbackDoneRef.current) return;
+    if (!events || events.length === 0) return; // Wait for timeline to have baseline
+
+    initialScrollbackDoneRef.current = true;
+
+    async function loadInitialHistory() {
+      console.log('📜 Loading initial history via scrollback...');
+      
+      try {
+        // Load 2 pages of history
+        for (let i = 0; i < 2; i++) {
+          const result = await scrollback();
+          console.log(`✅ Page ${i + 1} loaded, terminus: ${result?.terminus}`);
+          
+          if (result?.terminus) {
+            setHasReachedStart(true);
+            console.log('📜 Reached start of conversation');
+            break;
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Initial scrollback failed - showing live messages only:', error);
+      }
+    }
+
+    loadInitialHistory();
+  }, [channelId, events, scrollback]);
+
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
@@ -258,6 +257,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, []);
 
+  // ✅ Load more messages when user scrolls to top
   const loadMoreMessages = useCallback(async () => {
     if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
 
@@ -269,34 +269,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     try {
       console.log('📜 Loading older messages...');
-      
-      let attempt = 0;
-      const maxAttempts = 3;
-      let result;
-      
-      while (attempt < maxAttempts) {
-        try {
-          const scrollbackPromise = scrollback();
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
-          );
-          
-          result = await Promise.race([scrollbackPromise, timeoutPromise]);
-          break;
-          
-        } catch (error: any) {
-          attempt++;
-          console.warn(`⚠️ Load more attempt ${attempt}/${maxAttempts}:`, error.message);
-          
-          if (attempt < maxAttempts) {
-            const waitTime = 1000 * Math.pow(2, attempt - 1);
-            await new Promise(r => setTimeout(r, waitTime));
-          } else {
-            throw error;
-          }
-        }
-      }
-      
+      const result = await scrollback();
       console.log(`✅ Loaded page, terminus: ${result?.terminus}`);
 
       if (result?.terminus) {
@@ -318,110 +291,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  useEffect(() => {
-    console.log('🔥 SCROLLBACK EFFECT - Render:', renderCountRef.current, 'channelId:', channelId);
-    
-    if (!channelId) {
-      console.warn('⚠️ No channelId available - skipping scrollback');
-      setIsLoadingHistory(false);
-      return;
-    }
-
-    if (initialLoadStartedRef.current) {
-      console.log('⏭️ Scrollback already started, skipping');
-      return;
-    }
-
-    initialLoadStartedRef.current = true;
-    let mounted = true;
-
-    async function init() {
-      console.log('📜 Starting initial message load...');
-
-      try {
-        for (let page = 0; page < 2; page++) {
-          if (!mounted) break;
-
-          console.log(`📜 Loading history page ${page + 1}...`);
-          
-          let attempt = 0;
-          const maxAttempts = 3;
-          let result;
-          
-          while (attempt < maxAttempts && mounted) {
-            try {
-              const scrollbackPromise = scrollbackFnRef.current();
-              const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Scrollback timeout')), 10000)
-              );
-              
-              result = await Promise.race([scrollbackPromise, timeoutPromise]);
-              break;
-              
-            } catch (error: any) {
-              attempt++;
-              const errorMsg = error?.message || '';
-              
-              console.warn(`⚠️ Page ${page + 1} attempt ${attempt}/${maxAttempts}:`, errorMsg);
-              
-              if (attempt < maxAttempts) {
-                const waitTime = errorMsg.includes('mismatch') ? 1000 : 1000 * Math.pow(2, attempt - 1);
-                await new Promise(r => setTimeout(r, waitTime));
-              } else {
-                console.error(`❌ Page ${page + 1} failed after ${maxAttempts} attempts`);
-                if (page === 0) {
-                  console.warn('⚠️ Initial scrollback failed - showing recent messages only');
-                }
-                break;
-              }
-            }
-          }
-
-          if (result?.terminus) {
-            if (mounted) {
-              setHasReachedStart(true);
-              console.log('📜 Reached beginning of conversation');
-            }
-            break;
-          }
-          
-          if (!result && page === 0) {
-            console.warn('⚠️ Could not load message history - showing live messages only');
-            break;
-          }
-        }
-      } catch (error: any) {
-        console.error('❌ Initial scrollback error:', error);
-      } finally {
-        if (mounted) {
-          setIsLoadingHistory(false);
-          console.log('✅ Initial message load complete');
-        }
-      }
-    }
-
-    init();
-
-    return () => {
-      console.log('🧹 Scrollback effect cleanup');
-      mounted = false;
-    };
-  }, [channelId]);
-
-  useEffect(() => {
-    const failsafeTimer = setTimeout(() => {
-      if (isLoadingHistory) {
-        console.warn('⚠️ Failsafe: forcing loading to stop after 30s');
-        setIsLoadingHistory(false);
-      }
-    }, 30000);
-
-    return () => clearTimeout(failsafeTimer);
-  }, [isLoadingHistory]);
-
+  // Intersection observer for "load more"
   useEffect(() => {
     const sentinel = topSentinelRef.current;
-    if (!sentinel || hasReachedStart || isLoadingHistory) return;
+    if (!sentinel || hasReachedStart) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -437,7 +310,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loadMoreMessages, hasReachedStart, isLoadingMore, isLoadingHistory]);
+  }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
 
   useEffect(() => {
     if (!events || events.length === 0) return;
@@ -457,18 +330,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ FIXED: Filter out encrypted messages (no body)
+  // ✅ 4. Filter and render from useTimeline only (only show decrypted messages)
   const messages = useMemo(() => {
     if (!events || events.length === 0) return [];
 
     return events
       .filter((event: any) => {
-        // ✅ Log undecrypted messages
+        // Log undecrypted messages for debugging
         if (event.content?.kind === RiverTimelineEvent.ChannelMessage && !event.content?.body) {
           console.warn('🔐 Undecrypted message:', event.eventId);
         }
         
-        // ✅ Only show decrypted messages (with body)
+        // Only show decrypted messages (with body)
         return event.content?.kind === RiverTimelineEvent.ChannelMessage && event.content?.body;
       })
       .map((event: any) => {
@@ -730,26 +603,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const renderMessages = () => {
     console.log('🎨 Render check:', {
-      isLoadingHistory,
       isTimelineLoading,
       totalEvents: events?.length || 0,
       messagesLength: messages.length,
     });
 
-    if (isLoadingHistory || isTimelineLoading) {
+    if (isTimelineLoading) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">
-              {isLoadingHistory ? 'Loading message history...' : 'Connecting to chat...'}
-            </p>
+            <p className="font-georgia-pro text-gray-500">Connecting to chat...</p>
           </div>
         </div>
       );
     }
 
-    // ✅ NEW: Check if events exist but messages are encrypted
+    // ✅ Check if events exist but messages are encrypted
     const channelMessages = events?.filter(
       (e: any) => e.content?.kind === RiverTimelineEvent.ChannelMessage
     ) || [];
