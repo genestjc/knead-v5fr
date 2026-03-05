@@ -176,13 +176,14 @@ function useBotAutoConnect() {
   return { botWallet };
 }
 
-type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'ready' | 'error';
+type Phase = 'idle' | 'signing' | 'connecting' | 'joining' | 'syncing' | 'ready' | 'error';
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: 'Waiting for wallet...',
   signing: 'Please sign the message...',
   connecting: 'Connecting to Towns...',
   joining: 'Joining space...',
+  syncing: 'Syncing messages...',
   ready: '',
   error: 'Something went wrong.',
 };
@@ -212,6 +213,40 @@ function TownsChat() {
   const signerRef = useRef<any>(null);
   const agentRef = useRef<any>(null);
   const flowStartedRef = useRef(false);
+
+  // ✅ SMART WAIT: Check if user already has encryption keys
+  const checkIfNeedsKeys = useCallback(async (spaceId: string): Promise<boolean> => {
+    try {
+      // Get the channel ID
+      const space = agentRef.current?.spaces?.getSpace?.(spaceId);
+      const channelId = space?.channelIds?.[0];
+      
+      if (!channelId) {
+        console.warn('⚠️ No channel ID found, assuming needs keys');
+        return true;
+      }
+
+      // Check if we have any session keys for this channel
+      const client = (agentRef.current as any)?.client;
+      if (!client?.crypto) {
+        console.warn('⚠️ No crypto client found, assuming needs keys');
+        return true;
+      }
+
+      const sessionIds = await client.crypto.getGroupSessionIds(channelId);
+      
+      if (sessionIds && sessionIds.length > 0) {
+        console.log(`✅ Already have ${sessionIds.length} session keys, skipping wait`);
+        return false; // Has keys, no wait needed
+      }
+
+      console.log('⚠️ No session keys found, needs key exchange');
+      return true; // No keys, wait needed
+    } catch (err) {
+      console.warn('⚠️ Error checking keys, assuming needs keys:', err);
+      return true; // On error, be safe and wait
+    }
+  }, []);
 
   const runFlow = useCallback(async () => {
     if (flowStartedRef.current) return;
@@ -254,6 +289,18 @@ function TownsChat() {
 
         if (alreadyMember) {
           console.log('✅ Already a member (from persistence)');
+          
+          // ✅ SCENARIO 1: Returning user - only wait if keys are missing
+          const needsKeys = await checkIfNeedsKeys(SAVED_SPACE_ID);
+          
+          if (needsKeys) {
+            setPhase('syncing');
+            console.log('⏳ Syncing encryption keys...');
+            await new Promise((r) => setTimeout(r, 5000));
+          } else {
+            console.log('✅ Keys already cached, proceeding immediately');
+          }
+          
         } else {
           try {
             await Promise.race([
@@ -267,12 +314,36 @@ function TownsChat() {
               ),
             ]);
             console.log('✅ Joined with existing membership');
+            
+            // ✅ SCENARIO 2: skipMintMembership succeeded - check if needs keys
+            const needsKeys = await checkIfNeedsKeys(SAVED_SPACE_ID);
+            
+            if (needsKeys) {
+              setPhase('syncing');
+              console.log('⏳ Syncing encryption keys...');
+              await new Promise((r) => setTimeout(r, 5000));
+            } else {
+              console.log('✅ Keys already cached, proceeding immediately');
+            }
+            
           } catch (e: any) {
             console.log('❌ Join attempt failed:', e.message);
             const msg = (e.message || '').toLowerCase();
 
             if (msg.includes('already a member') || msg.includes('already joined')) {
               console.log('✅ Already a member (from join attempt)');
+              
+              // ✅ SCENARIO 3: Already member error - check if needs keys
+              const needsKeys = await checkIfNeedsKeys(SAVED_SPACE_ID);
+              
+              if (needsKeys) {
+                setPhase('syncing');
+                console.log('⏳ Syncing encryption keys...');
+                await new Promise((r) => setTimeout(r, 5000));
+              } else {
+                console.log('✅ Keys already cached, proceeding immediately');
+              }
+              
             } else if (
               msg.includes('timeout') ||
               msg.includes('permission') ||
@@ -281,7 +352,7 @@ function TownsChat() {
               msg.includes('not a member') ||
               msg.includes('no membership')
             ) {
-              // NEW USER - needs to mint
+              // ✅ SCENARIO 4: NEW USER - needs to mint (always wait for keys)
               setShowProgressiveLoader(true);
               console.log('🆕 New user detected, starting onboarding...');
 
@@ -319,8 +390,11 @@ function TownsChat() {
               console.log('✅ Membership minted');
 
               setLoadingStep(4); // Kneading the dough
-              console.log('⏳ Finalizing...');
-              await new Promise((r) => setTimeout(r, 600));
+              console.log('⏳ Waiting for key exchange...');
+              
+              // New users ALWAYS need to wait for key exchange
+              await new Promise((r) => setTimeout(r, 5000));
+              
             } else {
               throw e;
             }
@@ -328,8 +402,7 @@ function TownsChat() {
         }
       }
 
-      // ✅ REMOVED: 5-second key exchange wait
-      // Key exchange happens automatically in background
+      // All paths converge here
       setPhase('ready');
 
       if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -347,7 +420,7 @@ function TownsChat() {
         window.KEY_SHARER_CONNECTED = false;
       }
     }
-  }, [wallet, isAgentConnected, connectAgent]);
+  }, [wallet, isAgentConnected, connectAgent, checkIfNeedsKeys]);
 
   useEffect(() => {
     if (wallet && (phase === 'idle' || phase === 'joining')) {
