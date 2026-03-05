@@ -269,9 +269,9 @@ function TownsChat() {
         setPhase('connecting');
         await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
         
-        // ✅ FIX 1: Wait for River client to fully initialize
+        // ✅ SHORTER delay - just 500ms to give River client a head start
         console.log('⏳ Waiting for River client initialization...');
-        await new Promise((r) => setTimeout(r, 2000)); // 2 second delay
+        await new Promise((r) => setTimeout(r, 500));
         
         setPhase('joining');
         
@@ -381,15 +381,34 @@ function TownsChatJoinFlow({
       setPhase('joining');
       joinAttemptedRef.current = true;
 
+      // ✅ Helper function to retry on "client is not defined" errors
+      const joinWithRetry = async (spaceId: string, signer: any, opts?: any, maxRetries = 3) => {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            await joinSpace(spaceId, signer, opts);
+            return; // Success
+          } catch (error: any) {
+            const isClientNotReady = error.message?.toLowerCase().includes('client is not defined');
+            
+            if (isClientNotReady && attempt < maxRetries) {
+              console.log(`⚠️ River client not ready (attempt ${attempt}/${maxRetries}), retrying in 1s...`);
+              await new Promise((r) => setTimeout(r, 1000));
+            } else {
+              throw error; // Re-throw if not a client error or out of retries
+            }
+          }
+        }
+      };
+
       try {
-        // Try fast path first (skip mint for returning users)
-        await joinSpace(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
+        // Try fast path first (skip mint for returning users) WITH RETRY
+        await joinWithRetry(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
         console.log('✅ Joined with existing membership');
         
       } catch (skipMintError: any) {
         console.log('❌ skipMint failed:', skipMintError.message);
         
-        // ✅ FIX 2: If already a member, skip straight to ready (no progressive loader)
+        // If already a member, skip straight to ready (no progressive loader)
         if (isAlreadyMember(skipMintError)) {
           console.log('✅ Already a member - going straight to chat');
           // Don't show progressive loader for returning users
@@ -401,9 +420,9 @@ function TownsChatJoinFlow({
           throw skipMintError;
           
         } else {
-          // ✅ ONLY show progressive loader for NEW USERS who need to mint
+          // ONLY show progressive loader for NEW USERS who need to mint
           console.log('🆕 New user - showing minting flow...');
-          setShowProgressiveLoader(true); // ← Only set here, not for returning users
+          setShowProgressiveLoader(true);
           
           try {
             // Animate through steps
@@ -414,9 +433,9 @@ function TownsChatJoinFlow({
 
             console.log('🔄 Minting membership NFT...');
 
-            // Mint with timeout
+            // Mint with timeout AND retry
             const mintPromise = withTimeout(
-              joinSpace(SAVED_SPACE_ID, signerRef.current),
+              joinWithRetry(SAVED_SPACE_ID, signerRef.current), // ← Also uses retry
               JOIN_TIMEOUT_MS
             );
 
