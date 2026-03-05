@@ -514,7 +514,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              If this is your first time joining, please wait 10-15 seconds.
+              If this is your first time joining, please wait a moment.
             </p>
           </div>
         </div>
