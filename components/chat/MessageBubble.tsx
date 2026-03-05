@@ -22,7 +22,7 @@ interface ChatMessage {
   townsAwarded?: number;
   isOwn?: boolean;
   isContributor?: boolean;
-  isDecrypting?: boolean; // ✅ Add this
+  isDecrypting?: boolean; // ✅ Add this for decryption placeholder
 }
 
 interface MessageBubbleProps {
@@ -64,14 +64,11 @@ function BreadTipButton({
   useEffect(() => {
     fetchEarnings();
 
-    // Poll every 30 seconds for live on-chain updates (same cadence as WalletSummary)
     const pollInterval = setInterval(fetchEarnings, 30000);
 
-    // Also refresh immediately when this specific message is tipped
     const handleTip = (event: Event) => {
       const customEvent = event as CustomEvent<{ messageId: string }>;
       if (customEvent.detail.messageId === messageId) {
-        // Small delay to allow the chain to index the tx
         setTimeout(fetchEarnings, 3000);
       }
     };
@@ -89,7 +86,6 @@ function BreadTipButton({
 
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 border ${borderColor} rounded-full bg-white ${isActive ? 'shadow-sm' : 'opacity-60'}`}>
-      {/* Bread Icon */}
       <svg
         width="20"
         height="20"
@@ -102,8 +98,6 @@ function BreadTipButton({
           fill={iconColor}
         />
       </svg>
-
-      {/* On-chain earnings counter */}
       <span className={`text-xs font-medium ${textColor} font-georgia-pro whitespace-nowrap`}>
         {isReacting ? '⏳' : `${earnings.toFixed(0)} $TOWNS`}
       </span>
@@ -118,6 +112,7 @@ const convertIpfsToGatewayUrl = (uri: string): string => {
   return uri;
 };
 
+// ✅ Rename to MessageBubbleComponent for React.memo wrapper
 function MessageBubbleComponent({
   message,
   isOwn,
@@ -127,7 +122,7 @@ function MessageBubbleComponent({
   eventId,
   channelId,
   spaceId,
-  isDecrypting = false,
+  isDecrypting = false, // ✅ Add this param
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -170,7 +165,6 @@ function MessageBubbleComponent({
         eventId
       );
 
-      // Dispatch event so BreadTipButton can refresh earnings
       window.dispatchEvent(new CustomEvent('message-tipped', { detail: { messageId: message.id } }));
       toast.success('🍞 Tipped 10 TOWNS!');
     } catch (error: any) {
@@ -230,7 +224,7 @@ function MessageBubbleComponent({
     }
   };
 
-  // ✅ Handle decrypting state
+  // ✅ NEW: Show placeholder for decrypting messages
   if (isDecrypting || !message.content) {
     return (
       <motion.div
@@ -277,7 +271,6 @@ function MessageBubbleComponent({
       >
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
 
-          {/* Avatar column — always occupies w-5 width so all bubbles align flush */}
           {!isOwn && (
             <div className="flex-shrink-0 w-5">
               {message.isContributor && message.sender.avatar ? (
@@ -291,13 +284,11 @@ function MessageBubbleComponent({
                   {message.sender.name.substring(0, 2).toUpperCase()}
                 </div>
               ) : (
-                // Non-contributor: empty placeholder keeps the same width so bubbles line up
                 <div className="w-5 h-5" />
               )}
             </div>
           )}
 
-          {/* Message content */}
           <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
             <div
               className={`
@@ -321,7 +312,6 @@ function MessageBubbleComponent({
               )}
             </div>
 
-            {/* Timestamp */}
             <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
               <span className="font-georgia-pro">
                 {!isOwn && `${message.sender.name} • `}
@@ -329,7 +319,6 @@ function MessageBubbleComponent({
               </span>
             </div>
 
-            {/* Bread Tip Button — only for non-contributors, requires participant wallet address */}
             {!isOwn && !message.isContributor && streamId && message.sender.walletAddress && (
               <div className="relative mt-1.5">
                 <button
@@ -354,7 +343,6 @@ function MessageBubbleComponent({
                   />
                 </button>
 
-                {/* Tooltip for non-contributors */}
                 {showTooltip && !canAwardTokens && (
                   <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap z-10 shadow-lg font-georgia-pro">
                     Tipping is only available to Contributors
@@ -364,7 +352,6 @@ function MessageBubbleComponent({
               </div>
             )}
 
-            {/* Self-delete button (shows on hover for own messages) */}
             {isOwn && channelId && (
               <button
                 onClick={handleSelfDelete}
@@ -383,7 +370,6 @@ function MessageBubbleComponent({
         </div>
       </motion.div>
 
-      {/* Admin context menu */}
       {showContextMenu && isAdmin && channelId && spaceId && (
         <AdminContextMenu
           message={message}
@@ -398,42 +384,39 @@ function MessageBubbleComponent({
   );
 }
 
-// ✅ Custom comparison function for React.memo
+// ✅ Custom comparison for React.memo - prevents unnecessary re-renders
 const areMessagePropsEqual = (prevProps: MessageBubbleProps, nextProps: MessageBubbleProps) => {
-  // Core message identity - if ID changed, it's a different message
+  // Message identity
   if (prevProps.message.id !== nextProps.message.id) return false;
   
-  // Message content - decryption updates this
+  // Content/decryption state
   if (prevProps.message.content !== nextProps.message.content) return false;
   if (prevProps.isDecrypting !== nextProps.isDecrypting) return false;
-  if (prevProps.message.isDecrypting !== nextProps.message.isDecrypting) return false;
   
-  // Message metadata
-  if (prevProps.message.timestamp !== nextProps.message.timestamp) return false;
-  
-  // Sender profile data - this is what profileCache updates
+  // Sender info (updates when profileCache changes)
   if (prevProps.message.sender.name !== nextProps.message.sender.name) return false;
   if (prevProps.message.sender.avatar !== nextProps.message.sender.avatar) return false;
   if (prevProps.message.sender.walletAddress !== nextProps.message.sender.walletAddress) return false;
   
-  // Permissions and roles
+  // Permissions
   if (prevProps.isOwn !== nextProps.isOwn) return false;
   if (prevProps.isAdmin !== nextProps.isAdmin) return false;
   if (prevProps.canAwardTokens !== nextProps.canAwardTokens) return false;
   if (prevProps.message.isContributor !== nextProps.message.isContributor) return false;
   
-  // Stream/Channel IDs
+  // Stream/Event IDs
   if (prevProps.streamId !== nextProps.streamId) return false;
   if (prevProps.channelId !== nextProps.channelId) return false;
   if (prevProps.spaceId !== nextProps.spaceId) return false;
   if (prevProps.eventId !== nextProps.eventId) return false;
   
-  return true; // Props are equal, skip re-render
+  return true; // All props equal - skip re-render
 };
 
-// ✅ Export memoized component
+// ✅ Export memoized version
 export const MessageBubble = React.memo(MessageBubbleComponent, areMessagePropsEqual);
 
+// ✅ EventBanner - also memoize
 function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: {
   eventTitle: string;
   timeRemaining?: string;
@@ -466,9 +449,9 @@ function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: {
   );
 }
 
-// ✅ Export memoized EventBanner
 export const EventBanner = React.memo(EventBannerComponent);
 
+// ✅ TypingIndicator - also memoize
 function TypingIndicatorComponent({ userName }: { userName?: string }) {
   return (
     <div className="flex justify-start mb-4 px-4">
@@ -499,5 +482,4 @@ function TypingIndicatorComponent({ userName }: { userName?: string }) {
   );
 }
 
-// ✅ Export memoized TypingIndicator
 export const TypingIndicator = React.memo(TypingIndicatorComponent);
