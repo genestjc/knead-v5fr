@@ -258,120 +258,99 @@ function TownsChat() {
         console.log('🔍 Verified: isAgentConnected =', isAgentConnected);
         setPhase('joining');
 
-        // 🕐 Brief initial delay, then retry if River client isn't ready
+        // 🕐 Brief delay to ensure River client is fully initialized
         await new Promise((r) => setTimeout(r, 200));
 
-        let retryCount = 0;
-        let joinSucceeded = false;
-
-        while (!joinSucceeded && retryCount < 3) {
-          try {
-            await agentRef.current.spaces.joinSpace(
-              SAVED_SPACE_ID,
-              signerRef.current,
-              { skipMintMembership: true },
-            );
-            console.log('✅ Joined with existing membership');
-            joinSucceeded = true;
-          } catch (e: any) {
-            const msg = (e.message || '').toLowerCase();
-
-            if (msg.includes('client is not defined') && retryCount < 2) {
-              retryCount++;
-              const retryDelay = 500 * retryCount;
-              console.log(`⚠️ River client not ready, retry ${retryCount}/2 in ${retryDelay}ms...`);
-              await new Promise((r) => setTimeout(r, retryDelay));
-              continue;
-            }
-
-            // All other errors fall through to existing handling
-            console.log('❌ skipMint failed:', e.message);
+        // ✅ Try skipMint first (fast path for users with NFT)
+        try {
+          await agentRef.current.spaces.joinSpace(
+            SAVED_SPACE_ID,
+            signerRef.current,
+            { skipMintMembership: true },
+          );
+          console.log('✅ Joined with existing membership (has NFT)');
+          
+        } catch (e: any) {
+          console.log('❌ skipMint failed:', e.message);
+          const msg = (e.message || '').toLowerCase();
+          
+          // Handle transient stream sync errors with retry
+          if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition')) {
+            console.log('⚠️ Stream sync conflict, retrying...');
+            await new Promise((r) => setTimeout(r, 2000));
             
-            // Handle transient stream sync errors with retry
-            if (msg.includes('bad_prev_miniblock_hash') || msg.includes('failed_precondition')) {
-              console.log('⚠️ Stream sync conflict, retrying...');
-              await new Promise((r) => setTimeout(r, 2000));
-              
-              try {
-                await agentRef.current.spaces.joinSpace(
-                  SAVED_SPACE_ID,
-                  signerRef.current,
-                  { skipMintMembership: true },
-                );
-                console.log('✅ Retry succeeded (has NFT)');
-                joinSucceeded = true;
-                break;
-              } catch (retryError: any) {
-                console.log('❌ Retry also failed:', retryError.message);
-                e = retryError;
-              }
-            }
-
-            const finalMsg = (e.message || '').toLowerCase();
-            
-            // If "already a member", we're done
-            if (finalMsg.includes('already a member') || finalMsg.includes('already joined')) {
-              console.log('✅ Already a member');
-              joinSucceeded = true;
-              break;
-            }
-            
-            // Otherwise, need to mint NFT
-            if (
-              finalMsg.includes('timeout') ||
-              finalMsg.includes('permission') ||
-              finalMsg.includes('not entitled') ||
-              finalMsg.includes('membership') ||
-              finalMsg.includes('not a member') ||
-              finalMsg.includes('no membership')
-            ) {
-              // NEW USER - Needs to mint NFT
-              setShowProgressiveLoader(true);
-              console.log('🆕 New user - minting membership NFT...');
-
-              setLoadingStep(0);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(1);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(2);
-              await new Promise((r) => setTimeout(r, 400));
-
-              setLoadingStep(3);
-              console.log('🔄 Minting membership NFT...');
-
-              // ✅ Join WITHOUT skipMint - will mint the NFT
-              const mintMembershipPromise = agentRef.current.spaces.joinSpace(
+            try {
+              await agentRef.current.spaces.joinSpace(
                 SAVED_SPACE_ID,
                 signerRef.current,
+                { skipMintMembership: true },
               );
-
-              const mintFreemiumPromise = fetch('/api/mint-freemium', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address: account.address }),
-              })
-                .then((res) => res.json())
-                .then((data) => {
-                  if (data.success) console.log('✅ Freemium NFT minted');
-                })
-                .catch((err) => {
-                  console.warn('Freemium NFT mint failed (non-critical):', err);
-                });
-
-              await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
-              console.log('✅ Membership NFT minted successfully');
-
-              setLoadingStep(4);
-              await new Promise((r) => setTimeout(r, 600));
-              
-              joinSucceeded = true;
-              break;
-            } else {
-              // Unexpected error
-              throw e;
+              console.log('✅ Retry succeeded (has NFT)');
+            } catch (retryError: any) {
+              console.log('❌ Retry also failed:', retryError.message);
+              e = retryError;
             }
+          }
+
+          const finalMsg = (e.message || '').toLowerCase();
+          
+          // If "already a member", we're done
+          if (finalMsg.includes('already a member') || finalMsg.includes('already joined')) {
+            console.log('✅ Already a member');
+            
+          // Otherwise, need to mint NFT
+          } else if (
+            finalMsg.includes('timeout') ||
+            finalMsg.includes('permission') ||
+            finalMsg.includes('not entitled') ||
+            finalMsg.includes('membership') ||
+            finalMsg.includes('not a member') ||
+            finalMsg.includes('no membership')
+          ) {
+            // NEW USER - Needs to mint NFT
+            setShowProgressiveLoader(true);
+            console.log('🆕 New user - minting membership NFT...');
+
+            setLoadingStep(0);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(1);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(2);
+            await new Promise((r) => setTimeout(r, 400));
+
+            setLoadingStep(3);
+            console.log('🔄 Minting membership NFT...');
+
+            // ✅ Join WITHOUT skipMint - will mint the NFT
+            const mintMembershipPromise = agentRef.current.spaces.joinSpace(
+              SAVED_SPACE_ID,
+              signerRef.current,
+            );
+
+            const mintFreemiumPromise = fetch('/api/mint-freemium', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address: account.address }),
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.success) console.log('✅ Freemium NFT minted');
+              })
+              .catch((err) => {
+                console.warn('Freemium NFT mint failed (non-critical):', err);
+              });
+
+            await Promise.all([mintMembershipPromise, mintFreemiumPromise]);
+            console.log('✅ Membership NFT minted successfully');
+
+            setLoadingStep(4);
+            await new Promise((r) => setTimeout(r, 600));
+            
+          } else {
+            // Unexpected error
+            throw e;
           }
         }
       }
