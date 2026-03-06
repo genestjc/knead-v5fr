@@ -170,6 +170,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
+  // ✅ DIAGNOSTIC: Log raw event shape to verify property names
+  useEffect(() => {
+    if (events && events.length > 0) {
+      console.log('🔍 Raw timeline event sample:', events[0]);
+      console.log('🔍 Event properties check:', {
+        hasEventId: !!events[0].eventId,
+        hasContent: !!events[0].content,
+        contentKind: events[0].content?.kind,
+        hasBody: !!events[0].content?.body,
+        hasSender: !!events[0].sender,
+        senderId: events[0].sender?.id,
+        hasCreatorDisplayName: !!events[0].creatorDisplayName,
+        hasCreatedAtEpochMs: !!events[0].createdAtEpochMs,
+        hasTimestamp: !!events[0].timestamp,
+        allKeys: Object.keys(events[0]),
+      });
+    } else if (events) {
+      console.log('⚠️ Timeline loaded but returned 0 events');
+    } else {
+      console.log('⏳ Timeline not loaded yet (events is undefined)');
+    }
+  }, [events]);
+
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
       const response = await fetch(`/api/chat/user?address=${walletAddress}`);
