@@ -244,6 +244,9 @@ function TownsChat() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showProgressiveLoader, setShowProgressiveLoader] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
+  
+  // ✅ NEW: Add retry trigger state
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const signerRef = useRef<any>(null);
   const connectAttemptedRef = useRef(false);
@@ -300,6 +303,7 @@ function TownsChat() {
               setShowProgressiveLoader(false);
               setLoadingStep(0);
               connectAttemptedRef.current = false;
+              setRetryTrigger(prev => prev + 1); // ✅ Trigger retry in child component
             }}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800"
           >
@@ -333,6 +337,7 @@ function TownsChat() {
       loadingStep={loadingStep}
       setLoadingStep={setLoadingStep}
       setErrorMsg={setErrorMsg}
+      retryTrigger={retryTrigger} // ✅ Pass retry trigger
     />
   );
 }
@@ -348,6 +353,7 @@ function TownsChatJoinFlow({
   loadingStep,
   setLoadingStep,
   setErrorMsg,
+  retryTrigger, // ✅ Receive retry trigger
 }: {
   wallet: ReturnType<typeof useActiveWallet>;
   signerRef: React.MutableRefObject<any>;
@@ -358,10 +364,19 @@ function TownsChatJoinFlow({
   loadingStep: number;
   setLoadingStep: (step: number) => void;
   setErrorMsg: (msg: string) => void;
+  retryTrigger: number; // ✅ NEW
 }) {
   const { joinSpace } = useJoinSpace();
   const { spaceIds, isLoaded } = useUserSpaces();
   const joinAttemptedRef = useRef(false);
+
+  // ✅ Reset join attempt when retry is triggered
+  useEffect(() => {
+    if (retryTrigger > 0) {
+      console.log('🔄 Retry triggered, resetting join attempt');
+      joinAttemptedRef.current = false;
+    }
+  }, [retryTrigger]);
 
   // Step 2: Handle space joining
   useEffect(() => {
@@ -383,7 +398,7 @@ function TownsChatJoinFlow({
       setPhase('joining');
       joinAttemptedRef.current = true;
 
-      // ✅ CRITICAL FIX: Check if user is already a member BEFORE calling joinSpace
+      // Check if user is already a member
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
       
       if (isAlreadyInSpace) {
@@ -400,29 +415,6 @@ function TownsChatJoinFlow({
       // User is NOT in the space - need to join (mint membership)
       console.log('🆕 User not in space, starting join process...');
 
-      // ✅ Retry helper for minting (handles blockchain congestion)
-      const mintWithRetry = async (maxRetries = 2) => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            await withTimeout(
-              joinSpace(SAVED_SPACE_ID, signerRef.current),
-              JOIN_TIMEOUT_MS
-            );
-            return; // Success
-          } catch (error: any) {
-            const isLastAttempt = attempt === maxRetries;
-            
-            if (isTimeout(error) && !isLastAttempt) {
-              console.warn(`⏱️ Mint timed out (attempt ${attempt}/${maxRetries}), retrying...`);
-              // Add small delay before retry
-              await new Promise((r) => setTimeout(r, 2000));
-            } else {
-              throw error; // Re-throw if not timeout or last attempt
-            }
-          }
-        }
-      };
-
       try {
         // Show minting flow for new users
         setShowProgressiveLoader(true);
@@ -435,10 +427,13 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT (this may take 1-2 minutes)...');
 
-        // Mint with retry on timeout
-        await mintWithRetry();
+        // ✅ NO RETRY - Single attempt with 120s timeout to avoid duplicate mints
+        await withTimeout(
+          joinSpace(SAVED_SPACE_ID, signerRef.current),
+          JOIN_TIMEOUT_MS
+        );
 
-        // Freemium mint in parallel (non-blocking)
+        // Freemium mint in parallel (non-blocking, API handles duplicate check)
         fetch('/api/mint-freemium', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -446,10 +441,16 @@ function TownsChatJoinFlow({
         })
           .then((res) => res.json())
           .then((data) => {
-            if (data.success) console.log('✅ Freemium NFT minted');
+            if (data.success) {
+              if (data.alreadyOwned) {
+                console.log('✅ User already has freemium NFT');
+              } else {
+                console.log('✅ Freemium NFT minted');
+              }
+            }
           })
           .catch((err) => {
-            console.warn('Freemium NFT mint failed (non-critical):', err);
+            console.warn('Freemium NFT check/mint failed (non-critical):', err);
           });
 
         console.log('✅ Membership minted successfully');
@@ -461,8 +462,17 @@ function TownsChatJoinFlow({
         console.error('❌ Join/mint failed:', joinError);
         joinAttemptedRef.current = false;
         
+        // ✅ IMPROVED: Better error message for timeouts
+        if (isTimeout(joinError)) {
+          setErrorMsg(
+            'The membership mint is taking longer than expected. The transaction may still complete on the blockchain.\n\n' +
+            'Please wait 1-2 minutes, then refresh the page. If you still can\'t access chat, click Retry below.'
+          );
+        } else {
+          setErrorMsg(friendlyError(joinError));
+        }
+        
         setPhase('error');
-        setErrorMsg(friendlyError(joinError));
 
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
           window.KEY_SHARER_ERROR = joinError.message;
@@ -481,7 +491,7 @@ function TownsChatJoinFlow({
     };
 
     handleJoinSpace();
-  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
+  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep, retryTrigger]); // ✅ Add retryTrigger to deps
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
