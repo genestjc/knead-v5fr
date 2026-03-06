@@ -148,7 +148,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
   
-  // ✅ Keep blockchain contributor checking
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -165,7 +164,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ Simple pattern - just use timeline directly
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
@@ -299,13 +297,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: false, // Will be set by blockchain check
+          isContributor: false,
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // ✅ KEEP: Blockchain contributor checking (this is the "tipping fix")
+  // ✅ Blockchain contributor checking
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
@@ -350,7 +348,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     checkContributorStatus();
   }, [messages, activeAccount?.address, contributorAddresses]);
 
-  // ✅ KEEP: Combine messages with blockchain contributor status
   const messagesWithContributorStatus = useMemo(() => {
     return messages.map(msg => ({
       ...msg,
@@ -589,7 +586,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              If this is your first time joining, please wait a moment (up to 1 minute).
+              Waiting for key exchange with online members (usually under 30 seconds).
             </p>
           </div>
         </div>
