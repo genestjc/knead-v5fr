@@ -206,30 +206,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-// Network error detection (excluding timeouts)
-function isNetworkError(error: any): boolean {
-  const msg = (error?.message || '').toLowerCase();
-  return (
-    msg.includes('network') ||
-    msg.includes('cannot_connect') ||
-    msg.includes('unavailable') ||
-    msg.includes('connection refused') ||
-    msg.includes('failed to fetch')
-  );
-}
-
-// Separate timeout check
-function isTimeout(error: any): boolean {
-  const msg = (error?.message || '').toLowerCase();
-  return msg.includes('timed out') || msg.includes('timeout');
-}
-
-// Check if already a member
-function isAlreadyMember(error: any): boolean {
-  const msg = (error?.message || '').toLowerCase();
-  return msg.includes('already a member') || msg.includes('already joined');
-}
-
 // Outer component - doesn't call any SDK hooks that require SyncAgent
 function TownsChat() {
   const wallet = useActiveWallet();
@@ -378,16 +354,15 @@ function TownsChatJoinFlow({
       const account = wallet?.getAccount();
       if (!account) return;
 
-      console.log('✅ Agent userId confirmed (user spaces loaded), joining space...');
+      console.log('✅ Agent ready, checking space membership...');
       console.log('📊 User currently in spaces:', spaceIds);
-      setPhase('joining');
       joinAttemptedRef.current = true;
 
-      // ✅ CRITICAL FIX: Check if user is already a member BEFORE calling joinSpace
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
       
       if (isAlreadyInSpace) {
-        console.log('✅ User already in space, skipping join process');
+        // ✅ Already a member - let useSpace handle syncing
+        console.log('✅ User already in space, proceeding to ready');
         setPhase('ready');
         
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -397,37 +372,13 @@ function TownsChatJoinFlow({
         return;
       }
 
-      // User is NOT in the space - need to join (mint membership)
-      console.log('🆕 User not in space, starting join process...');
-
-      // ✅ Retry helper for minting (handles blockchain congestion)
-      const mintWithRetry = async (maxRetries = 1) => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            await withTimeout(
-              joinSpace(SAVED_SPACE_ID, signerRef.current),
-              JOIN_TIMEOUT_MS
-            );
-            return; // Success
-          } catch (error: any) {
-            const isLastAttempt = attempt === maxRetries;
-            
-            if (isTimeout(error) && !isLastAttempt) {
-              console.warn(`⏱️ Mint timed out (attempt ${attempt}/${maxRetries}), retrying...`);
-              // Add small delay before retry
-              await new Promise((r) => setTimeout(r, 2000));
-            } else {
-              throw error; // Re-throw if not timeout or last attempt
-            }
-          }
-        }
-      };
+      // ✅ New user - need to mint membership
+      console.log('🆕 User not in space, starting mint process...');
+      setPhase('joining');
 
       try {
-        // Show minting flow for new users
         setShowProgressiveLoader(true);
         
-        // Animate through steps
         for (let step = 0; step <= 3; step++) {
           setLoadingStep(step);
           await new Promise((r) => setTimeout(r, 300));
@@ -435,8 +386,10 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT (this may take 1-2 minutes)...');
 
-        // Mint with retry on timeout
-        await mintWithRetry();
+        await withTimeout(
+          joinSpace(SAVED_SPACE_ID, signerRef.current),
+          JOIN_TIMEOUT_MS
+        );
 
         // Freemium mint in parallel (non-blocking)
         fetch('/api/mint-freemium', {
@@ -457,8 +410,15 @@ function TownsChatJoinFlow({
         setLoadingStep(4);
         await new Promise((r) => setTimeout(r, 400));
         
+        setPhase('ready');
+
+        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+          window.KEY_SHARER_SPACE_JOINED = true;
+          window.KEY_SHARER_CONNECTED = true;
+        }
+          
       } catch (joinError: any) {
-        console.error('❌ Join/mint failed:', joinError);
+        console.error('❌ Mint failed:', joinError);
         joinAttemptedRef.current = false;
         
         setPhase('error');
@@ -468,15 +428,6 @@ function TownsChatJoinFlow({
           window.KEY_SHARER_ERROR = joinError.message;
           window.KEY_SHARER_CONNECTED = false;
         }
-        return;
-      }
-
-      // Success
-      setPhase('ready');
-
-      if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-        window.KEY_SHARER_SPACE_JOINED = true;
-        window.KEY_SHARER_CONNECTED = true;
       }
     };
 
@@ -537,6 +488,13 @@ function TownsChatReadyInner({
   if (!space.initialized) {
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
+
+  // ✅ Debug logging
+  console.log('📺 Space data:', { 
+    initialized: space.initialized, 
+    channelIds: space.channelIds,
+    channelCount: space.channelIds?.length 
+  });
 
   const channelId = space.channelIds?.[0];
   if (!channelId) {
