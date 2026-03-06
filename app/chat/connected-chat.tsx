@@ -7,7 +7,8 @@ import {
   useSendMessage, 
   useScrollback,
   useTimeline,
-  useChannel // ✅ Use this instead of useSyncAgent
+  useMyMember,
+  useChannel // ✅ Both hooks for debugging
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -166,11 +167,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ CORRECT: Let SDK handle channel joining automatically
-  const { data: channel } = useChannel(spaceId, channelId);
+  // ✅ Both hooks for complete debugging visibility
+  const myMember = useMyMember(channelId);
+  const { data: channelData } = useChannel(spaceId, channelId);
+
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+
+  // ✅ Log membership status for debugging
+  useEffect(() => {
+    if (myMember) {
+      console.log('👤 My channel membership (useMyMember):', {
+        hasMembership: !!myMember.membership,
+        initialized: myMember.initialized,
+        userId: myMember.userId,
+        streamId: myMember.streamId,
+      });
+    }
+    
+    if (channelData) {
+      console.log('📺 Channel data (useChannel):', channelData);
+      // This will show us exactly what properties ChannelModel has
+    }
+  }, [myMember, channelData]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -278,13 +298,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: false,
+          isContributor: false, // Will be set by blockchain check
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // Check blockchain for contributor status
+  // ✅ Check blockchain for contributor status
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
@@ -329,6 +349,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     checkContributorStatus();
   }, [messages, activeAccount?.address, contributorAddresses]);
 
+  // ✅ Combine messages with blockchain contributor status
   const messagesWithContributorStatus = useMemo(() => {
     return messages.map(msg => ({
       ...msg,
