@@ -397,8 +397,31 @@ function TownsChatJoinFlow({
         return;
       }
 
-      // User is NOT in the space - need to join
+      // User is NOT in the space - need to join (mint membership)
       console.log('🆕 User not in space, starting join process...');
+
+      // ✅ Retry helper for minting (handles blockchain congestion)
+      const mintWithRetry = async (maxRetries = 2) => {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            await withTimeout(
+              joinSpace(SAVED_SPACE_ID, signerRef.current),
+              JOIN_TIMEOUT_MS
+            );
+            return; // Success
+          } catch (error: any) {
+            const isLastAttempt = attempt === maxRetries;
+            
+            if (isTimeout(error) && !isLastAttempt) {
+              console.warn(`⏱️ Mint timed out (attempt ${attempt}/${maxRetries}), retrying...`);
+              // Add small delay before retry
+              await new Promise((r) => setTimeout(r, 2000));
+            } else {
+              throw error; // Re-throw if not timeout or last attempt
+            }
+          }
+        }
+      };
 
       try {
         // Show minting flow for new users
@@ -412,11 +435,8 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT (this may take 1-2 minutes)...');
 
-        // Mint membership with timeout
-        await withTimeout(
-          joinSpace(SAVED_SPACE_ID, signerRef.current),
-          JOIN_TIMEOUT_MS
-        );
+        // Mint with retry on timeout
+        await mintWithRetry();
 
         // Freemium mint in parallel (non-blocking)
         fetch('/api/mint-freemium', {
