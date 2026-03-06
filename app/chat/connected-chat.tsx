@@ -8,7 +8,7 @@ import {
   useScrollback,
   useTimeline,
   useMyMember,
-  useChannel // ✅ Both hooks for debugging
+  useChannel
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -150,7 +150,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
   
-  // ✅ Track contributor addresses via blockchain
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +158,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
+  const joinAttemptedRef = useRef(false); // ✅ Prevent multiple join attempts
 
   const activeAccount = useActiveAccount();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -167,7 +167,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ Both hooks for complete debugging visibility
   const myMember = useMyMember(channelId);
   const { data: channelData } = useChannel(spaceId, channelId);
 
@@ -175,7 +174,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
-  // ✅ Log membership status for debugging
+  // ✅ Log membership status AND auto-join if needed
   useEffect(() => {
     if (myMember) {
       console.log('👤 My channel membership (useMyMember):', {
@@ -188,7 +187,28 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     if (channelData) {
       console.log('📺 Channel data (useChannel):', channelData);
-      // This will show us exactly what properties ChannelModel has
+    }
+
+    // ✅ AUTO-JOIN if not a member and haven't tried yet
+    if (channelData && (channelData as any).isJoined === false && !joinAttemptedRef.current) {
+      joinAttemptedRef.current = true;
+      
+      console.log('🔗 User not joined - attempting to join channel...');
+      
+      // Check if channelData has a join method
+      if (typeof (channelData as any).join === 'function') {
+        (channelData as any).join()
+          .then(() => {
+            console.log('✅ Successfully joined channel via channelData.join()');
+          })
+          .catch((error: any) => {
+            console.error('❌ Failed to join channel:', error);
+            joinAttemptedRef.current = false; // Allow retry
+          });
+      } else {
+        console.error('❌ channelData does not have a join() method');
+        joinAttemptedRef.current = false;
+      }
     }
   }, [myMember, channelData]);
 
@@ -298,13 +318,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: false, // Will be set by blockchain check
+          isContributor: false,
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // ✅ Check blockchain for contributor status
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
@@ -349,7 +368,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     checkContributorStatus();
   }, [messages, activeAccount?.address, contributorAddresses]);
 
-  // ✅ Combine messages with blockchain contributor status
   const messagesWithContributorStatus = useMemo(() => {
     return messages.map(msg => ({
       ...msg,
