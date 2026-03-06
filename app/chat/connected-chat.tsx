@@ -158,7 +158,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
-  const joinAttemptedRef = useRef(false); // ✅ Prevent multiple join attempts
 
   const activeAccount = useActiveAccount();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -174,11 +173,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
-  // ✅ Log membership status AND auto-join if needed
+  // ✅ Log membership status for debugging (no auto-join attempt)
   useEffect(() => {
     if (myMember) {
       console.log('👤 My channel membership (useMyMember):', {
         hasMembership: !!myMember.membership,
+        membershipOp: myMember.membership,
         initialized: myMember.initialized,
         userId: myMember.userId,
         streamId: myMember.streamId,
@@ -188,27 +188,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (channelData) {
       console.log('📺 Channel data (useChannel):', channelData);
     }
-
-    // ✅ AUTO-JOIN if not a member and haven't tried yet
-    if (channelData && (channelData as any).isJoined === false && !joinAttemptedRef.current) {
-      joinAttemptedRef.current = true;
-      
-      console.log('🔗 User not joined - attempting to join channel...');
-      
-      // Check if channelData has a join method
-      if (typeof (channelData as any).join === 'function') {
-        (channelData as any).join()
-          .then(() => {
-            console.log('✅ Successfully joined channel via channelData.join()');
-          })
-          .catch((error: any) => {
-            console.error('❌ Failed to join channel:', error);
-            joinAttemptedRef.current = false; // Allow retry
-          });
-      } else {
-        console.error('❌ channelData does not have a join() method');
-        joinAttemptedRef.current = false;
-      }
+    
+    // ✅ Just log if user isn't joined - SDK should handle this automatically
+    if (channelData && (channelData as any).isJoined === false) {
+      console.warn('⚠️ User shows isJoined: false - waiting for timeline to sync and bot to share keys');
     }
   }, [myMember, channelData]);
 
@@ -324,6 +307,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
+  // ✅ Check blockchain for contributor status
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
