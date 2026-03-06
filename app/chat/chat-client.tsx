@@ -361,18 +361,43 @@ function TownsChatJoinFlow({
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
       
       if (isAlreadyInSpace) {
-        // ✅ Already a member - let useSpace handle syncing
-        console.log('✅ User already in space, proceeding to ready');
-        setPhase('ready');
-        
-        if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
-          window.KEY_SHARER_SPACE_JOINED = true;
-          window.KEY_SHARER_CONNECTED = true;
+        // ✅ Existing user - fast path, no loader
+        console.log('✅ User already in space, joining channel stream...');
+
+        try {
+          console.log('📺 Calling joinSpace to ensure channel stream is joined...');
+          
+          // joinSpace is idempotent - it will skip NFT mint but join streams
+          await withTimeout(
+            joinSpace(SAVED_SPACE_ID, signerRef.current),
+            30000 // Shorter timeout for existing users
+          );
+
+          console.log('✅ Channel stream joined successfully');
+          
+          setPhase('ready');
+          
+          if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+            window.KEY_SHARER_SPACE_JOINED = true;
+            window.KEY_SHARER_CONNECTED = true;
+          }
+        } catch (joinError: any) {
+          console.error('❌ Channel join failed:', joinError);
+          joinAttemptedRef.current = false;
+          
+          setPhase('error');
+          setErrorMsg(friendlyError(joinError));
+
+          if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
+            window.KEY_SHARER_ERROR = joinError.message;
+            window.KEY_SHARER_CONNECTED = false;
+          }
         }
+        
         return;
       }
 
-      // ✅ New user - need to mint membership
+      // ✅ New user - show progressive loader
       console.log('🆕 User not in space, starting mint process...');
       setPhase('joining');
 
