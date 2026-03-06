@@ -147,23 +147,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
-  
-  // ✅ Auto-load state
-  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
-  const lastMessageIdRef = useRef<string | null>(null);
-  
-  // ✅ Track initial load state per channel
-  const initialLoadStateRef = useRef<{ channelId: string | null; loaded: boolean }>({
-    channelId: null,
-    loaded: false,
-  });
+  const lastMessageIdRef = useRef<string | null>(null); // ✅ Track last message ID instead of count
 
   const activeAccount = useActiveAccount();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -172,6 +162,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
+  // ✅ OFFICIAL PATTERN: Just use useTimeline - reactive and simple
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
@@ -228,71 +219,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [isLoadingMore, hasReachedStart, isScrollbackPending, scrollback]);
 
-  // ✅ IMPROVED: Auto-load initial history with better readiness detection
-  useEffect(() => {
-    // Reset if channel changed
-    if (initialLoadStateRef.current.channelId !== channelId) {
-      initialLoadStateRef.current = { channelId, loaded: false };
-    }
-
-    // Don't re-run if already loaded for this channel
-    if (!channelId || initialLoadStateRef.current.loaded || !events) return;
-    
-    const loadInitialHistory = async () => {
-      try {
-        setIsLoadingInitial(true);
-        setLoadingStatus('Waiting for encryption keys...');
-        console.log('📜 Auto-loading message history...');
-        
-        // ✅ Wait for events to be ready (smarter than hardcoded 2s delay)
-        let attempts = 0;
-        while (attempts < 20) { // Max 10 seconds
-          if (events && events.length > 0) {
-            console.log('✅ Events ready, starting history load');
-            break;
-          }
-          await new Promise(r => setTimeout(r, 500));
-          attempts++;
-        }
-        
-        setLoadingStatus('Loading recent messages...');
-        
-        // Load 3 pages of history
-        for (let i = 0; i < 3; i++) {
-          setLoadingStatus(`Loading page ${i + 1}/3...`);
-          const result = await scrollback();
-          console.log(`📄 Loaded page ${i + 1}/3`);
-          
-          if (result?.terminus) {
-            console.log('✅ Reached beginning of chat');
-            setHasReachedStart(true);
-            break;
-          }
-          
-          // Small delay to prevent rate limiting
-          await new Promise(r => setTimeout(r, 150));
-        }
-        
-        setLoadingStatus('Decrypting messages...');
-        // Brief pause for decryption to process
-        await new Promise(r => setTimeout(r, 1000));
-        
-        console.log('✅ Initial history loaded');
-        initialLoadStateRef.current.loaded = true;
-        setIsLoadingInitial(false);
-        setLoadingStatus('');
-      } catch (error) {
-        console.error('Failed to load initial history:', error);
-        setIsLoadingInitial(false);
-        setLoadingStatus('');
-        // Mark as complete anyway so user can still use chat
-        initialLoadStateRef.current.loaded = true;
-      }
-    };
-
-    loadInitialHistory();
-  }, [channelId, events]); // ✅ Only depend on channelId and events
-
   useEffect(() => {
     const sentinel = topSentinelRef.current;
     if (!sentinel || hasReachedStart) return;
@@ -326,6 +252,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
+  // ✅ FIX: Keep ALL messages, mark as decrypting if no body
   const messages = useMemo(() => {
     if (!events) return [];
 
@@ -337,8 +264,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
         return {
           id: event.eventId,
-          content: event.content?.body || null,
-          isDecrypting: !event.content?.body,
+          content: event.content?.body || null, // ✅ Keep null, don't filter
+          isDecrypting: !event.content?.body, // ✅ Flag for placeholder
           sender: {
             id: walletAddress,
             walletAddress,
@@ -350,6 +277,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
         };
       })
+      // ✅ REMOVED: .filter((msg) => msg.content) - this was causing render loops!
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
@@ -440,12 +368,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
+  // ✅ SMART AUTO-SCROLL: Only scroll on truly new messages (check last message ID)
   useEffect(() => {
     if (messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
     const lastMessageId = lastMessage?.id;
 
+    // First render - scroll to bottom
     if (lastMessageIdRef.current === null) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -454,10 +384,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
+    // Only scroll if the LAST message ID changed (new message arrived)
     if (lastMessageId !== lastMessageIdRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       lastMessageIdRef.current = lastMessageId;
     }
+    // Decryption updates won't trigger scroll since ID stays the same!
   }, [messages]);
 
   if (isBanned) {
@@ -576,29 +508,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       );
     }
 
-    // ✅ Show loading state while auto-loading initial messages
-    if (isLoadingInitial && messages.length === 0) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-            <p className="font-georgia-pro text-gray-500">{loadingStatus || 'Loading messages...'}</p>
-            <p className="font-georgia-pro text-xs text-gray-400 mt-2">
-              This can take 10-30 seconds for first-time users
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // ✅ RESTORED: Original accurate empty state
     if (messages.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              If this is your first time joining, please wait a moment.
+              If this is your first time joining, please wait a moment (up to 1 minute).
             </p>
           </div>
         </div>
@@ -626,7 +542,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             channelId={channelId}
             spaceId={spaceId}
             eventId={activeEvent?.id}
-            isDecrypting={message.isDecrypting}
+            isDecrypting={message.isDecrypting} // ✅ Pass decrypting flag
           />
         ))}
         <div ref={messagesEndRef} />
