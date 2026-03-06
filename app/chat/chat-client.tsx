@@ -2,7 +2,7 @@
 
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAgentConnection, useSpace, useJoinSpace } from '@towns-protocol/react-sdk';
+import { useAgentConnection, useSpace, useJoinSpace, useUserSpaces } from '@towns-protocol/react-sdk';
 import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
@@ -269,10 +269,7 @@ function TownsChat() {
         setPhase('connecting');
         await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
         
-        // ✅ SHORTER delay - just 500ms to give River client a head start
-        console.log('⏳ Waiting for River client initialization...');
-        await new Promise((r) => setTimeout(r, 500));
-        
+        // Move to joining phase - useUserSpaces will handle the actual readiness check
         setPhase('joining');
         
       } catch (e: any) {
@@ -365,44 +362,33 @@ function TownsChatJoinFlow({
 }) {
   // ✅ NOW SAFE - agent is guaranteed to be connected
   const { joinSpace } = useJoinSpace();
+  const { data: userSpaces } = useUserSpaces(); // ✅ Wait for this to confirm userId is set
   const joinAttemptedRef = useRef(false);
 
-  // Step 2: Handle space joining
+  // Step 2: Handle space joining - NOW with userId guaranteed
   useEffect(() => {
     const handleJoinSpace = async () => {
-      if (joinAttemptedRef.current || !signerRef.current || !SAVED_SPACE_ID) {
+      // ✅ CRITICAL: Wait for userSpaces to be defined (even if empty)
+      // This guarantees riverConnection.userId is populated
+      if (
+        joinAttemptedRef.current || 
+        !signerRef.current || 
+        !SAVED_SPACE_ID ||
+        userSpaces === undefined // ← Block until this is set
+      ) {
         return;
       }
 
       const account = wallet?.getAccount();
       if (!account) return;
 
-      console.log('🔍 Agent connected, attempting to join space...');
+      console.log('✅ Agent userId confirmed via useUserSpaces, joining space...');
       setPhase('joining');
       joinAttemptedRef.current = true;
 
-      // ✅ Helper function to retry on "client is not defined" errors
-      const joinWithRetry = async (spaceId: string, signer: any, opts?: any, maxRetries = 3) => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            await joinSpace(spaceId, signer, opts);
-            return; // Success
-          } catch (error: any) {
-            const isClientNotReady = error.message?.toLowerCase().includes('client is not defined');
-            
-            if (isClientNotReady && attempt < maxRetries) {
-              console.log(`⚠️ River client not ready (attempt ${attempt}/${maxRetries}), retrying in 1s...`);
-              await new Promise((r) => setTimeout(r, 1000));
-            } else {
-              throw error; // Re-throw if not a client error or out of retries
-            }
-          }
-        }
-      };
-
       try {
-        // Try fast path first (skip mint for returning users) WITH RETRY
-        await joinWithRetry(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
+        // Try fast path first (skip mint for returning users)
+        await joinSpace(SAVED_SPACE_ID, signerRef.current, { skipMintMembership: true });
         console.log('✅ Joined with existing membership');
         
       } catch (skipMintError: any) {
@@ -433,9 +419,9 @@ function TownsChatJoinFlow({
 
             console.log('🔄 Minting membership NFT...');
 
-            // Mint with timeout AND retry
+            // Mint with timeout
             const mintPromise = withTimeout(
-              joinWithRetry(SAVED_SPACE_ID, signerRef.current), // ← Also uses retry
+              joinSpace(SAVED_SPACE_ID, signerRef.current), // Don't skip mint this time
               JOIN_TIMEOUT_MS
             );
 
@@ -485,7 +471,7 @@ function TownsChatJoinFlow({
         window.KEY_SHARER_CONNECTED = false;
       }
     });
-  }, [wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
+  }, [userSpaces, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]); // ← Added userSpaces to deps
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
@@ -582,7 +568,7 @@ export default function ChatTestClient() {
     localStorage.removeItem('exportKeyIntent');
     setTimeout(() => {
       alert(
-        '✅ Authentication successful!\n\n' +
+        '��� Authentication successful!\n\n' +
           "To export your private key:\n" +
           "1. Click the 'K' logo (top left)\n" +
           "2. Click 'Export Private Key'\n" +
