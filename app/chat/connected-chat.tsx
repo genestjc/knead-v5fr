@@ -147,13 +147,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
+  
+  // ✅ NEW: Track contributor addresses via blockchain
+  const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
-  const lastMessageIdRef = useRef<string | null>(null); // ✅ Track last message ID instead of count
+  const lastMessageIdRef = useRef<string | null>(null);
 
   const activeAccount = useActiveAccount();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
@@ -162,7 +165,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ OFFICIAL PATTERN: Just use useTimeline - reactive and simple
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
@@ -252,7 +254,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  // ✅ FIX: Keep ALL messages, mark as decrypting if no body
+  // ✅ UPDATED: Messages without blockchain contributor check (set to false initially)
   const messages = useMemo(() => {
     if (!events) return [];
 
@@ -264,8 +266,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
         return {
           id: event.eventId,
-          content: event.content?.body || null, // ✅ Keep null, don't filter
-          isDecrypting: !event.content?.body, // ✅ Flag for placeholder
+          content: event.content?.body || null,
+          isDecrypting: !event.content?.body,
           sender: {
             id: walletAddress,
             walletAddress,
@@ -274,12 +276,67 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
-          isContributor: profile?.role === 'contributor' || profile?.role === 'admin' || profile?.role === 'master-admin',
+          // ✅ Don't use Supabase role - will be checked via blockchain
+          isContributor: false,
         };
       })
-      // ✅ REMOVED: .filter((msg) => msg.content) - this was causing render loops!
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
+
+  // ✅ NEW: Check blockchain for contributor status
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+
+    const checkContributorStatus = async () => {
+      const uniqueAddresses = [...new Set(
+        messages
+          .map(msg => msg.sender.walletAddress)
+          .filter((addr): addr is string => 
+            !!addr && 
+            addr !== activeAccount?.address && // Skip current user
+            !contributorAddresses.has(addr) // Skip already checked addresses
+          )
+      )];
+
+      if (uniqueAddresses.length === 0) return;
+
+      console.log('🔍 Checking contributor status for', uniqueAddresses.length, 'addresses...');
+
+      const newContributorAddresses = new Set(contributorAddresses);
+      let foundNewContributors = false;
+
+      await Promise.all(
+        uniqueAddresses.map(async (address) => {
+          try {
+            const roleInfo = await getUserRole(address);
+            if (roleInfo.role === 'contributor') {
+              newContributorAddresses.add(address);
+              foundNewContributors = true;
+              console.log('✅ Contributor detected:', address);
+            }
+          } catch (error) {
+            console.error('Failed to check contributor status for:', address, error);
+          }
+        })
+      );
+
+      if (foundNewContributors) {
+        setContributorAddresses(newContributorAddresses);
+      }
+    };
+
+    checkContributorStatus();
+  }, [messages, activeAccount?.address, contributorAddresses]);
+
+  // ✅ NEW: Combine messages with blockchain contributor status
+  const messagesWithContributorStatus = useMemo(() => {
+    return messages.map(msg => ({
+      ...msg,
+      isContributor: msg.sender.walletAddress 
+        ? contributorAddresses.has(msg.sender.walletAddress)
+        : false,
+    }));
+  }, [messages, contributorAddresses]);
 
   useEffect(() => {
     if (!activeAccount?.address) return;
@@ -368,14 +425,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     };
   }, [activeAccount?.address]);
 
-  // ✅ SMART AUTO-SCROLL: Only scroll on truly new messages (check last message ID)
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (messagesWithContributorStatus.length === 0) return;
 
-    const lastMessage = messages[messages.length - 1];
+    const lastMessage = messagesWithContributorStatus[messagesWithContributorStatus.length - 1];
     const lastMessageId = lastMessage?.id;
 
-    // First render - scroll to bottom
     if (lastMessageIdRef.current === null) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -384,13 +439,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return;
     }
 
-    // Only scroll if the LAST message ID changed (new message arrived)
     if (lastMessageId !== lastMessageIdRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       lastMessageIdRef.current = lastMessageId;
     }
-    // Decryption updates won't trigger scroll since ID stays the same!
-  }, [messages]);
+  }, [messagesWithContributorStatus]);
 
   if (isBanned) {
     return (
@@ -508,7 +561,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       );
     }
 
-    if (messages.length === 0) {
+    if (messagesWithContributorStatus.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 py-8">
@@ -531,7 +584,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
-        {messages.map((message: any) => (
+        {/* ✅ UPDATED: Use messagesWithContributorStatus instead of messages */}
+        {messagesWithContributorStatus.map((message: any) => (
           <MessageBubble
             key={message.id}
             message={message}
@@ -542,7 +596,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             channelId={channelId}
             spaceId={spaceId}
             eventId={activeEvent?.id}
-            isDecrypting={message.isDecrypting} // ✅ Pass decrypting flag
+            isDecrypting={message.isDecrypting}
           />
         ))}
         <div ref={messagesEndRef} />
