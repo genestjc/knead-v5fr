@@ -6,7 +6,8 @@ import {
   useAgentConnection, 
   useSendMessage, 
   useScrollback,
-  useTimeline
+  useTimeline,
+  useSyncAgent
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -136,6 +137,8 @@ export default function ConnectedChat(props: ConnectedChatProps) {
 }
 
 function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: ConnectedChatProps) {
+  const syncAgent = useSyncAgent();
+  
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
@@ -167,6 +170,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+
+  // ✅ Ensure channel is joined (fast, idempotent, no blockchain)
+  useEffect(() => {
+    if (!syncAgent || !channelId || !spaceId) return;
+    
+    const joinChannel = async () => {
+      try {
+        const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+        console.log('📺 Joining channel stream...');
+        await channel.join();
+        console.log('✅ Channel stream joined');
+      } catch (err) {
+        console.warn('Channel join failed (may already be joined):', err);
+      }
+    };
+    
+    joinChannel();
+  }, [syncAgent, spaceId, channelId]);
 
   // ✅ DIAGNOSTIC: Log raw event shape to verify property names
   useEffect(() => {
