@@ -7,7 +7,7 @@ import {
   useSendMessage, 
   useScrollback,
   useTimeline,
-  useSyncAgent // ✅ NEW: Import syncAgent
+  useChannel // ✅ Use this instead of useSyncAgent
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -151,9 +151,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   // ✅ Track contributor addresses via blockchain
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
-  
-  // ✅ NEW: Track channel join status
-  const [isChannelJoined, setIsChannelJoined] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,42 +166,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  // ✅ NEW: Get syncAgent to join channel
-  const syncAgent = useSyncAgent();
-
+  // ✅ CORRECT: Let SDK handle channel joining automatically
+  const { data: channel } = useChannel(spaceId, channelId);
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
-
-  // ✅ NEW: Join channel before timeline can sync
-  useEffect(() => {
-    if (!syncAgent || !channelId || !spaceId || isChannelJoined) return;
-
-    const joinChannel = async () => {
-      try {
-        console.log('📺 Joining channel...', channelId);
-        const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
-        await channel.join();
-        console.log('✅ Channel joined successfully');
-        setIsChannelJoined(true);
-      } catch (error: any) {
-        const errorMsg = error.message?.toLowerCase() || '';
-        if (errorMsg.includes('already a member') || errorMsg.includes('already joined')) {
-          console.log('✅ Already joined channel');
-          setIsChannelJoined(true);
-        } else {
-          console.error('❌ Failed to join channel:', error);
-          // Retry after 3 seconds
-          setTimeout(() => {
-            console.log('🔄 Retrying channel join...');
-            setIsChannelJoined(false);
-          }, 3000);
-        }
-      }
-    };
-
-    joinChannel();
-  }, [syncAgent, channelId, spaceId, isChannelJoined]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
