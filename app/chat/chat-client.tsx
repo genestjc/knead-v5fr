@@ -360,21 +360,19 @@ function TownsChatJoinFlow({
   setLoadingStep: (step: number) => void;
   setErrorMsg: (msg: string) => void;
 }) {
-  // ✅ NOW SAFE - agent is guaranteed to be connected
   const { joinSpace } = useJoinSpace();
-  const { data: userSpaces } = useUserSpaces(); // ✅ Wait for this to confirm userId is set
+  const { spaceIds, isLoading: isUserSpacesLoading, isLoaded } = useUserSpaces(); // ✅ FIXED: Correct destructuring
   const joinAttemptedRef = useRef(false);
 
   // Step 2: Handle space joining - NOW with userId guaranteed
   useEffect(() => {
     const handleJoinSpace = async () => {
-      // ✅ CRITICAL: Wait for userSpaces to be defined (even if empty)
-      // This guarantees riverConnection.userId is populated
+      // ✅ FIXED: Wait for isLoaded flag instead of checking data
       if (
         joinAttemptedRef.current || 
         !signerRef.current || 
         !SAVED_SPACE_ID ||
-        userSpaces === undefined // ← Block until this is set
+        !isLoaded // ← Wait for this flag, not userSpaces !== undefined
       ) {
         return;
       }
@@ -382,7 +380,8 @@ function TownsChatJoinFlow({
       const account = wallet?.getAccount();
       if (!account) return;
 
-      console.log('✅ Agent userId confirmed via useUserSpaces, joining space...');
+      console.log('✅ Agent userId confirmed (user spaces loaded), joining space...');
+      console.log('📊 User currently in spaces:', spaceIds);
       setPhase('joining');
       joinAttemptedRef.current = true;
 
@@ -471,7 +470,7 @@ function TownsChatJoinFlow({
         window.KEY_SHARER_CONNECTED = false;
       }
     });
-  }, [userSpaces, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]); // ← Added userSpaces to deps
+  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]); // ✅ Updated deps
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
@@ -568,7 +567,7 @@ export default function ChatTestClient() {
     localStorage.removeItem('exportKeyIntent');
     setTimeout(() => {
       alert(
-        '��� Authentication successful!\n\n' +
+        '✅ Authentication successful!\n\n' +
           "To export your private key:\n" +
           "1. Click the 'K' logo (top left)\n" +
           "2. Click 'Export Private Key'\n" +
