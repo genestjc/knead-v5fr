@@ -222,9 +222,6 @@ function MessageBubbleComponent({
         longPressFiredRef.current = true;
         setShowReactionPicker(true);
         
-        // Prevent default ONLY when long-press fires
-        e.preventDefault();
-        
         // Provide haptic feedback on supported devices
         if (navigator.vibrate) {
           navigator.vibrate(50);
@@ -474,7 +471,7 @@ function TypingIndicatorComponent({ userName }: { userName?: string }) {
           <div className="text-xs text-gray-500 mt-1 px-2">
             <span className="font-georgia-pro">{userName} is typing...</span>
           </div>
-        }}
+        )}
       </div>
     </div>
   );
