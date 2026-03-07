@@ -14,16 +14,10 @@ interface ReactionCount {
 interface MessageReactionsProps {
   messageId: string;
   channelId: string;
-  /** Whether the current user can send reactions (Contributors + Participants only) */
   canReact?: boolean;
-  /** Reaction counts to display, keyed by emoji */
   reactionCounts?: Record<string, number>;
 }
 
-/**
- * Displays reaction counts inline and shows a reaction picker on hover/tap.
- * Only Contributors and Participants can send reactions.
- */
 export function MessageReactions({
   messageId,
   channelId,
@@ -48,6 +42,30 @@ export function MessageReactions({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showPicker]);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    if (!showPicker) return;
+    
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (
+        pickerRef.current && 
+        !pickerRef.current.contains(e.target as Node) &&
+        toggleBtnRef.current &&
+        !toggleBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowPicker(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [showPicker]);
 
   // Focus first emoji when picker opens
@@ -93,7 +111,6 @@ export function MessageReactions({
 
   return (
     <div className="flex items-center gap-1 mt-1 flex-wrap relative">
-      {/* Existing reaction counts */}
       {counts.map(({ emoji, count }) => (
         <button
           key={emoji}
@@ -102,53 +119,3 @@ export function MessageReactions({
           className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border transition-all font-georgia-pro
             ${canReact
               ? 'border-gray-300 bg-white hover:bg-gray-50 cursor-pointer hover:scale-105 active:scale-95'
-              : 'border-gray-200 bg-gray-50 cursor-default opacity-80'
-            }`}
-          title={canReact ? `React with ${emoji}` : undefined}
-        >
-          <span>{emoji}</span>
-          <span className="text-gray-600 text-[11px]">{count}</span>
-        </button>
-      ))}
-
-      {/* Reaction picker toggle */}
-      {canReact && (
-        <div className="relative" ref={pickerRef}>
-          <button
-            ref={toggleBtnRef}
-            onClick={() => setShowPicker((v) => !v)}
-            disabled={isSending}
-            className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-all text-xs disabled:opacity-50"
-            title="Add reaction"
-            aria-label="Add reaction"
-            aria-expanded={showPicker}
-            aria-haspopup="true"
-          >
-            {isSending ? '⏳' : '＋'}
-          </button>
-
-          {showPicker && (
-            <div
-              className="absolute bottom-full left-0 mb-1 flex gap-1 p-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-20"
-              role="menu"
-              aria-label="Reaction picker"
-            >
-              {REACTION_EMOJIS.map((emoji, index) => (
-                <button
-                  key={emoji}
-                  ref={index === 0 ? firstEmojiRef : undefined}
-                  onClick={() => handleReact(emoji)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-base"
-                  title={`React with ${emoji}`}
-                  role="menuitem"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
