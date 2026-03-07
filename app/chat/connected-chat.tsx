@@ -26,7 +26,7 @@ import { useTypingIndicator } from '@/hooks/use-typing-indicator';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
-import { Paperclip, X } from 'lucide-react';
+import { Paperclip, X, Reply } from 'lucide-react';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -58,7 +58,7 @@ function PermissionDebugBanner({
       <div className="flex items-center justify-between text-xs font-mono">
         <div className="flex gap-4">
           <span>Role: <strong>{userRole}</strong></span>
-          <span>Can post: <strong>{permissions?.canPost ? '✅' : '❌'}</strong></span>
+          <span>Can post: <strong>{permissions?.canPost ? '✅' : '���'}</strong></span>
           <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
         </div>
         <span className="text-gray-600">{permissions?.reason}</span>
@@ -153,6 +153,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
+  const [quotedMessage, setQuotedMessage] = useState<{ content: string; sender: string } | null>(null);
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
@@ -183,6 +184,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const canReact = useMemo(() => {
     return userRole !== 'freemium';
   }, [userRole]);
+
+  // Listen for reply events
+  useEffect(() => {
+    const handleReply = (event: Event) => {
+      const customEvent = event as CustomEvent<{ content: string; sender: string }>;
+      setQuotedMessage(customEvent.detail);
+      // Focus input after a short delay
+      setTimeout(() => {
+        const input = document.querySelector('input[type="text"]') as HTMLInputElement;
+        input?.focus();
+      }, 100);
+    };
+    window.addEventListener('reply-to-message', handleReply);
+    return () => window.removeEventListener('reply-to-message', handleReply);
+  }, []);
 
   // Ensure channel is joined
   useEffect(() => {
@@ -321,7 +337,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-      const messages = useMemo(() => {
+  const messages = useMemo(() => {
     if (!events) return [];
 
     return events
@@ -330,27 +346,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
 
-        // ✅ Get reaction counts for this message
         const messageReactions = reactionsData?.[event.eventId];
         const reactionCounts: Record<string, number> = {};
         
         if (messageReactions && typeof messageReactions === 'object') {
-          // Reactions are stored directly on the object, keyed by emoji
-          // Each emoji has an object of user addresses
           Object.entries(messageReactions).forEach(([emoji, users]: [string, any]) => {
-            // Check if this is actually a reaction emoji (not some other property)
             if (users && typeof users === 'object' && !Array.isArray(users)) {
-              // Count the number of user addresses
               const userCount = Object.keys(users).length;
               if (userCount > 0) {
                 reactionCounts[emoji] = userCount;
-                console.log('✅ Found reaction:', emoji, 'with', userCount, 'users');
               }
             }
           });
         }
-
-        console.log('📊 Final reactionCounts for message:', event.eventId.substring(0, 8), reactionCounts);
 
         return {
           id: event.eventId,
@@ -388,8 +396,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
       if (uniqueAddresses.length === 0) return;
 
-      console.log('🔍 Checking contributor status for', uniqueAddresses.length, 'addresses...');
-
       const newContributorAddresses = new Set(contributorAddresses);
       let foundNewContributors = false;
 
@@ -400,7 +406,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             if (roleInfo.role === 'contributor') {
               newContributorAddresses.add(address);
               foundNewContributors = true;
-              console.log('✅ Contributor detected:', address);
             }
           } catch (error) {
             console.error('Failed to check contributor status for:', address, error);
@@ -587,10 +592,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     if (!messageInput.trim() || isSending || !channelId) return;
 
-    const messageToSend = messageInput.trim();
+    // Include quoted message if present
+    const messageToSend = quotedMessage 
+      ? `> ${quotedMessage.sender}: ${quotedMessage.content.substring(0, 100)}${quotedMessage.content.length > 100 ? '...' : ''}\n\n${messageInput.trim()}`
+      : messageInput.trim();
 
     try {
       setMessageInput('');
+      setQuotedMessage(null); // Clear quote after sending
       setFailedMessage(null);
 
       await Promise.race([
@@ -600,7 +609,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         ),
       ]);
     } catch (error: any) {
-      setMessageInput(messageToSend);
+      setMessageInput(messageInput.trim()); // Restore original input (without quote)
       setFailedMessage(messageToSend);
 
       const msg = error.message || '';
@@ -757,6 +766,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     return (
       <div className="flex flex-col gap-2">
+        {/* Quoted Message Banner */}
+        {quotedMessage && (
+          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Reply className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-medium text-blue-700 font-georgia-pro">
+                  Replying to {quotedMessage.sender}
+                </span>
+              </div>
+              <p className="text-sm text-gray-700 font-georgia-pro truncate">
+                {quotedMessage.content}
+              </p>
+            </div>
+            <button
+              onClick={() => setQuotedMessage(null)}
+              className="p-1 hover:bg-blue-100 rounded-full transition-colors flex-shrink-0"
+            >
+              <X className="w-4 h-4 text-blue-600" />
+            </button>
+          </div>
+        )}
+
         {pendingFile && (
           <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-2xl">
             {isImageFile(pendingFile.file.name) ? (
@@ -815,6 +847,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
+              quotedMessage ? "Type your reply..." :
               channelId ? "Type a message..." : "Loading..."
             }
             className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300"
@@ -853,6 +886,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               onCancel={() => {
                 setFailedMessage(null);
                 setMessageInput('');
+                setQuotedMessage(null);
               }}
             />
           )}
