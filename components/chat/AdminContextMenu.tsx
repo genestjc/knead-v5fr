@@ -129,6 +129,8 @@ export function AdminContextMenu({
       console.log('📬 API Response:', data);
 
       if (data.success) {
+        // ✅ DEBUG: Alert before toast
+        alert(`SUCCESS: Awarded ${amount} TOWNS - Check for toast now`);
         toast.success(`Awarded ${amount} TOWNS bonus!`, {
           description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
         });
@@ -186,6 +188,10 @@ export function AdminContextMenu({
       await adminRedact(message.id);
       
       console.log('✅ Message redacted successfully!');
+      
+      // ✅ DEBUG: Alert before toast
+      alert('DELETE SUCCESS - Did you see a toast notification?');
+      
       toast.success('Message deleted from Towns Protocol');
       onClose();
       
@@ -373,6 +379,10 @@ export function AdminContextMenu({
 
       if (data.success) {
         console.log('✅ BAN COMPLETE');
+        
+        // ✅ DEBUG: Alert before toast
+        alert(`BAN SUCCESS: ${message.sender.name} banned - Check for toast now`);
+        
         toast.success(`${message.sender.name} has been banned`, {
           description: 'User is now banned from the chat.',
           duration: 6000,
