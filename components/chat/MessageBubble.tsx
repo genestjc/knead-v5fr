@@ -222,15 +222,15 @@ function MessageBubbleComponent({
         longPressFiredRef.current = true;
         setShowReactionPicker(true);
         
+        // Prevent default ONLY when long-press fires
+        e.preventDefault();
+        
         // Provide haptic feedback on supported devices
         if (navigator.vibrate) {
           navigator.vibrate(50);
         }
       }
     }, 350);
-    
-    // Prevent text selection on long-press
-    e.preventDefault();
   };
 
   // Long-press for reaction picker (desktop)
@@ -299,6 +299,7 @@ function MessageBubbleComponent({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group select-none`}
+        style={{ WebkitTouchCallout: 'none' }}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMouseDown}
@@ -323,7 +324,10 @@ function MessageBubbleComponent({
           )}
 
           <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
-            <div className={`rounded-[18px] px-4 py-2 ${isOwn ? 'bg-[#007AFF] text-white' : 'bg-[#E5E5EA] text-black'}`}>
+            <div 
+              className={`rounded-[18px] px-4 py-2 ${isOwn ? 'bg-[#007AFF] text-white' : 'bg-[#E5E5EA] text-black'}`}
+              style={{ WebkitTouchCallout: 'none' }}
+            >
               {isFileMessage && fileName && ipfsUri ? (
                 <FileMessageDisplay fileName={fileName} ipfsUri={ipfsUri} isCurrentUser={isOwn} />
               ) : (
@@ -470,7 +474,7 @@ function TypingIndicatorComponent({ userName }: { userName?: string }) {
           <div className="text-xs text-gray-500 mt-1 px-2">
             <span className="font-georgia-pro">{userName} is typing...</span>
           </div>
-        )}
+        }}
       </div>
     </div>
   );
