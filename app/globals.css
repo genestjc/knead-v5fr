@@ -565,3 +565,42 @@ html {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
+
+/* ✅ Sonner Toast notifications - ensure visibility on mobile */
+[data-sonner-toaster] {
+  z-index: 9999 !important;
+}
+
+[data-sonner-toast] {
+  min-height: 60px !important;
+  padding: 16px !important;
+  font-family: "Georgia Pro", Georgia, serif !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background-color: #10b981 !important;
+  color: white !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  background-color: #ef4444 !important;
+  color: white !important;
+}
+
+/* Mobile adjustments for toasts */
+@media (max-width: 768px) {
+  [data-sonner-toaster] {
+    top: 80px !important; /* Below fixed header */
+  }
+  
+  [data-sonner-toast] {
+    margin: 8px !important;
+    max-width: calc(100vw - 32px) !important;
+    font-size: 14px !important;
+  }
+  
+  [data-sonner-toast] [data-description] {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+}
