@@ -101,15 +101,15 @@ export function MessageReactions({
         className="bg-white border-2 border-gray-300 rounded-2xl shadow-2xl overflow-hidden"
       >
         {/* Emoji reactions + Reply in same row */}
-        <div className="flex items-center gap-2 p-3">
+        <div className="flex items-center gap-1.5 p-2 md:gap-2 md:p-3">
           {/* Reaction emojis */}
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 md:gap-2">
             {REACTION_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => handleReact(emoji)}
                 disabled={isSending}
-                className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-2xl disabled:opacity-50 bg-white"
+                className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-xl md:text-2xl disabled:opacity-50 bg-white"
               >
                 {emoji}
               </button>
@@ -117,26 +117,26 @@ export function MessageReactions({
           </div>
 
           {/* Vertical divider */}
-          <div className="w-px h-12 bg-gray-300"></div>
+          <div className="w-px h-10 md:h-12 bg-gray-300"></div>
 
           {/* Reply button with Lucide icon */}
           <button
             onClick={handleReplyClick}
-            className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all bg-white"
+            className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all bg-white"
             title="Reply"
           >
-            <Reply className="w-5 h-5 text-gray-700" />
+            <Reply className="w-4 h-4 md:w-5 md:h-5 text-gray-700" />
           </button>
         </div>
 
         {/* Admin button row (only if admin) */}
         {isAdmin && (
-          <div className="flex gap-2 p-2 pt-0 px-3">
+          <div className="flex gap-2 p-2 pt-0 px-2 md:px-3">
             <button
               onClick={onAdminAction}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium text-red-700"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-xs md:text-sm font-medium text-red-700"
             >
-              <Shield className="w-4 h-4" />
+              <Shield className="w-3 h-3 md:w-4 md:h-4" />
               Admin
             </button>
           </div>
