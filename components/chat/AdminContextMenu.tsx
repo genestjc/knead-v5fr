@@ -268,7 +268,13 @@ export function AdminContextMenu({
     }
   };
 
+  // ✅ UPDATED: handleBanUser with better logging and error handling
   const handleBanUser = async () => {
+    console.log('🚫 BAN USER - START');
+    console.log('   Target:', message.sender.name, message.sender.id);
+    console.log('   Admin:', activeAccount?.address);
+    console.log('   Space ID:', spaceId);
+
     if (!confirm(`Ban ${message.sender.name}? They will be banned from the chat.`)) return;
 
     if (!activeAccount) {
@@ -276,27 +282,72 @@ export function AdminContextMenu({
       return;
     }
 
+    // ✅ Check if sync agent is available
+    if (!sync) {
+      console.error('❌ Sync agent not available');
+      toast.error('Connection error', {
+        description: 'Towns sync agent not loaded. Try refreshing.',
+        duration: 6000,
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      // Step 1: Ban on-chain via Towns Protocol (user signs with connected wallet)
+      console.log('🔄 Step 1: On-chain ban via Towns Protocol...');
+      
+      // Step 1: Ban on-chain via Towns Protocol
       try {
         const signer = await createTownsSigner(activeAccount, client, activeChain);
-        const tx = await sync.riverConnection.spaceDapp.banWalletAddress(
-          spaceId,
-          message.sender.id,
-          signer,
-        );
-        await tx.wait();
+        console.log('✅ Signer created');
+        
+        console.log('🔄 Calling banWalletAddress...');
+        const tx = await Promise.race([
+          sync.riverConnection.spaceDapp.banWalletAddress(
+            spaceId,
+            message.sender.id,
+            signer,
+          ),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Transaction timeout after 60s')), 60000)
+          ),
+        ]) as any;
+        
+        console.log('✅ Transaction submitted:', tx.hash);
+        console.log('🔄 Waiting for confirmation...');
+        
+        const receipt = await Promise.race([
+          tx.wait(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Confirmation timeout after 120s')), 120000)
+          ),
+        ]) as any;
+        
+        console.log('✅ On-chain ban confirmed:', receipt.transactionHash);
+        
       } catch (onChainError: any) {
+        console.error('❌ On-chain ban failed:', onChainError);
+        
         const errorMsg = onChainError?.message?.toLowerCase() || '';
-        if (errorMsg.includes('permission') || errorMsg.includes('not entitled') || errorMsg.includes('unauthorized')) {
+        
+        if (errorMsg.includes('timeout')) {
+          toast.error('⏱️ Transaction Timeout', {
+            description: 'The blockchain transaction took too long. Please try again.',
+            duration: 8000,
+          });
+        } else if (errorMsg.includes('user rejected') || errorMsg.includes('user denied')) {
+          toast.error('❌ Transaction Cancelled', {
+            description: 'You cancelled the transaction.',
+            duration: 6000,
+          });
+        } else if (errorMsg.includes('permission') || errorMsg.includes('not entitled') || errorMsg.includes('unauthorized')) {
           toast.error('❌ Permission Denied', {
-            description: 'You don\'t have ModifyBanning permission. Run setup-moderator-permissions script.',
+            description: 'You don\'t have ModifyBanning permission. Contact master admin.',
             duration: 8000,
           });
         } else {
           toast.error('On-chain ban failed', {
-            description: onChainError.message || 'Transaction could not be submitted.',
+            description: onChainError.message?.substring(0, 150) || 'Transaction could not be submitted.',
             duration: 8000,
           });
         }
@@ -304,6 +355,8 @@ export function AdminContextMenu({
       }
 
       // Step 2: Update Supabase (only if on-chain ban succeeded)
+      console.log('🔄 Step 2: Updating Supabase...');
+      
       const response = await fetch('/api/admin/ban-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -316,14 +369,21 @@ export function AdminContextMenu({
       });
 
       const data = await response.json();
+      console.log('📬 Supabase response:', data);
 
       if (data.success) {
-        toast.success(`${message.sender.name} has been banned`);
+        console.log('✅ BAN COMPLETE');
+        toast.success(`${message.sender.name} has been banned`, {
+          description: 'User is now banned from the chat.',
+          duration: 6000,
+        });
         onClose();
       } else {
+        console.error('❌ Supabase update failed:', data);
         toast.error(data.error || 'Failed to update ban status in database');
       }
     } catch (error: any) {
+      console.error('❌ BAN FAILED:', error);
       toast.error(error.message || 'Failed to ban user');
     } finally {
       setIsProcessing(false);
