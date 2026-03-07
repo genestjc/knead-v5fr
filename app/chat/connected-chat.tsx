@@ -7,7 +7,8 @@ import {
   useSendMessage, 
   useScrollback,
   useTimeline,
-  useSyncAgent
+  useSyncAgent,
+  useReactions
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -176,6 +177,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+  const { data: reactionsData } = useReactions(channelId);
 
   // ✅ Everyone can react except freemium users
   const canReact = useMemo(() => {
@@ -222,6 +224,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('⏳ Timeline not loaded yet (events is undefined)');
     }
   }, [events]);
+
+  // DIAGNOSTIC: Log reactions data
+  useEffect(() => {
+    if (reactionsData) {
+      console.log('🔍 Reactions data sample:', reactionsData);
+      const firstKey = Object.keys(reactionsData)[0];
+      if (firstKey) {
+        console.log('🔍 First reaction entry:', reactionsData[firstKey]);
+      }
+    }
+  }, [reactionsData]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -317,6 +330,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
 
+        // ✅ Get reaction counts for this message
+        const messageReactions = reactionsData?.[event.eventId];
+        const reactionCounts: Record<string, number> = {};
+        
+        // Parse reaction counts from Towns SDK format
+        if (messageReactions?.reactions) {
+          Object.entries(messageReactions.reactions).forEach(([emoji, users]: [string, any]) => {
+            if (Array.isArray(users) && users.length > 0) {
+              reactionCounts[emoji] = users.length;
+            }
+          });
+        }
+
         return {
           id: event.eventId,
           content: event.content?.body || null,
@@ -330,11 +356,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
           isContributor: false,
-          reactionCounts: {},
+          reactionCounts,
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
-  }, [events, profileCache, activeAccount?.address]);
+  }, [events, profileCache, activeAccount?.address, reactionsData]);
 
   // Blockchain contributor checking
   useEffect(() => {
