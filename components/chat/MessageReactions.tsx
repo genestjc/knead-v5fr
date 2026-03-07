@@ -2,20 +2,18 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useSendReaction } from '@towns-protocol/react-sdk';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
 const REACTION_EMOJIS = ['❤️', '👍', '🔥', '🎉', '✨', '🍞'] as const;
-
-interface ReactionCount {
-  emoji: string;
-  count: number;
-}
 
 interface MessageReactionsProps {
   messageId: string;
   channelId: string;
   canReact?: boolean;
   reactionCounts?: Record<string, number>;
+  showPicker?: boolean;
+  onClose?: () => void;
 }
 
 export function MessageReactions({
@@ -23,67 +21,46 @@ export function MessageReactions({
   channelId,
   canReact = false,
   reactionCounts = {},
+  showPicker = false,
+  onClose,
 }: MessageReactionsProps) {
-  const [showPicker, setShowPicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const toggleBtnRef = useRef<HTMLButtonElement>(null);
-  const firstEmojiRef = useRef<HTMLButtonElement>(null);
   const { sendReaction } = useSendReaction(channelId);
-
-  // Close picker on Escape key
-  useEffect(() => {
-    if (!showPicker) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowPicker(false);
-        toggleBtnRef.current?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showPicker]);
 
   // Close picker when clicking outside
   useEffect(() => {
     if (!showPicker) return;
     
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      if (
-        pickerRef.current && 
-        !pickerRef.current.contains(e.target as Node) &&
-        toggleBtnRef.current &&
-        !toggleBtnRef.current.contains(e.target as Node)
-      ) {
-        setShowPicker(false);
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        onClose?.();
       }
     };
     
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
+    // Small delay to prevent immediate close
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }, 100);
     
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showPicker]);
-
-  // Focus first emoji when picker opens
-  useEffect(() => {
-    if (showPicker) {
-      firstEmojiRef.current?.focus();
-    }
-  }, [showPicker]);
+  }, [showPicker, onClose]);
 
   const handleReact = useCallback(
     async (emoji: string) => {
       if (!canReact || isSending) return;
 
       setIsSending(true);
-      setShowPicker(false);
+      onClose?.();
 
       try {
         await sendReaction(messageId, emoji);
+        toast.success(`Reacted with ${emoji}`);
       } catch (error: any) {
         const msg = error?.message?.toLowerCase() || '';
         if (msg.includes('quorum_failed') || msg.includes('deadline_exceeded')) {
@@ -97,24 +74,55 @@ export function MessageReactions({
         setIsSending(false);
       }
     },
-    [canReact, isSending, sendReaction, messageId]
+    [canReact, isSending, sendReaction, messageId, onClose]
   );
 
-  const counts: ReactionCount[] = Object.entries(reactionCounts)
+  const counts = Object.entries(reactionCounts)
     .filter(([, count]) => count > 0)
     .map(([emoji, count]) => ({ emoji, count }));
 
-  const hasCounts = counts.length > 0;
-  const hasInteraction = hasCounts || canReact;
+  // Floating reaction picker (shown on long-press)
+  if (showPicker) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          ref={pickerRef}
+          initial={{ opacity: 0, scale: 0.8, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: 10 }}
+          transition={{ duration: 0.15 }}
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30"
+        >
+          <div className="flex gap-2 p-2 bg-white border border-gray-200 rounded-2xl shadow-xl">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReact(emoji)}
+                disabled={isSending}
+                className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-2xl disabled:opacity-50"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          {/* Arrow pointing down */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+            <div className="w-3 h-3 bg-white border-r border-b border-gray-200 rotate-45"></div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
-  if (!hasInteraction) return null;
+  // Reaction count pills (always visible when there are reactions)
+  if (counts.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-1 mt-1 flex-wrap relative">
+    <div className="flex items-center gap-1 mt-1 flex-wrap">
       {counts.map(({ emoji, count }) => (
         <button
           key={emoji}
-          onClick={() => handleReact(emoji)}
+          onClick={() => canReact && handleReact(emoji)}
           disabled={!canReact || isSending}
           className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border transition-all font-georgia-pro
             ${canReact
@@ -127,44 +135,6 @@ export function MessageReactions({
           <span className="text-gray-600 text-[11px]">{count}</span>
         </button>
       ))}
-
-      {canReact && (
-        <div className="relative" ref={pickerRef}>
-          <button
-            ref={toggleBtnRef}
-            onClick={() => setShowPicker((v) => !v)}
-            disabled={isSending}
-            className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Add reaction"
-            aria-label="Add reaction"
-            aria-expanded={showPicker}
-            aria-haspopup="true"
-          >
-            {isSending ? '⏳' : '＋'}
-          </button>
-
-          {showPicker && (
-            <div
-              className="absolute bottom-full left-0 mb-1 flex gap-1 p-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-20"
-              role="menu"
-              aria-label="Reaction picker"
-            >
-              {REACTION_EMOJIS.map((emoji, index) => (
-                <button
-                  key={emoji}
-                  ref={index === 0 ? firstEmojiRef : undefined}
-                  onClick={() => handleReact(emoji)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-base"
-                  title={`React with ${emoji}`}
-                  role="menuitem"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
