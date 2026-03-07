@@ -321,7 +321,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-    const messages = useMemo(() => {
+      const messages = useMemo(() => {
     if (!events) return [];
 
     return events
@@ -334,33 +334,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const messageReactions = reactionsData?.[event.eventId];
         const reactionCounts: Record<string, number> = {};
         
-        console.log('🔍 Processing message reactions:', {
-          messageId: event.eventId.substring(0, 8),
-          hasMessageReactions: !!messageReactions,
-          messageReactionsType: typeof messageReactions,
-          messageReactionsKeys: messageReactions ? Object.keys(messageReactions) : [],
-        });
-
-        if (messageReactions) {
-          console.log('🔍 Full messageReactions object:', JSON.stringify(messageReactions, null, 2));
-          
-          // Check if reactions property exists
-          if (messageReactions.reactions) {
-            console.log('🔍 Found .reactions property:', messageReactions.reactions);
-            Object.entries(messageReactions.reactions).forEach(([emoji, users]: [string, any]) => {
-              console.log('🔍 Processing emoji:', emoji, 'users:', users, 'isArray:', Array.isArray(users));
-              if (Array.isArray(users) && users.length > 0) {
-                reactionCounts[emoji] = users.length;
-                console.log('✅ Added reaction count:', emoji, '=', users.length);
+        if (messageReactions && typeof messageReactions === 'object') {
+          // Reactions are stored directly on the object, keyed by emoji
+          // Each emoji has an object of user addresses
+          Object.entries(messageReactions).forEach(([emoji, users]: [string, any]) => {
+            // Check if this is actually a reaction emoji (not some other property)
+            if (users && typeof users === 'object' && !Array.isArray(users)) {
+              // Count the number of user addresses
+              const userCount = Object.keys(users).length;
+              if (userCount > 0) {
+                reactionCounts[emoji] = userCount;
+                console.log('✅ Found reaction:', emoji, 'with', userCount, 'users');
               }
-            });
-          } else {
-            // Maybe reactions are stored differently
-            console.log('⚠️ No .reactions property. Trying direct iteration...');
-            Object.entries(messageReactions).forEach(([key, value]) => {
-              console.log('🔍 Key:', key, 'Value type:', typeof value, 'Value:', value);
-            });
-          }
+            }
+          });
         }
 
         console.log('📊 Final reactionCounts for message:', event.eventId.substring(0, 8), reactionCounts);
