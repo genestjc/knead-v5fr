@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getMessageEarnings } from '@/lib/blockchain/contract-reads';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
@@ -97,7 +97,7 @@ function BreadTipButton({
         className="flex-shrink-0"
       >
         <path
-          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.094 48.656-42.75 105.75-42.75 105.75v422.44s3.6562 57.094 42.75 105.75c17.484 21.75 37.031 34.688 50.062 41.906 0 0 0.14062 0.14062 0.5625 0.28125 45.938 19.875 116.58 50.344 203.29 87.094 124.5 52.734 145.92 66.047 195.42 81.562 25.406 7.9688 47.625 14.062 68.625 14.062s43.219-6.0938 68.625-14.062c49.5-15.516 70.922-28.828 195.42-81.562 86.719-36.75 157.36-67.219 203.29-87.094 0.42188-0.14062 0.5625-0.28125 0.5625-0.28125 13.031-7.2188 32.578-20.156 50.062-41.906 39.094-48.656 42.75-105.75 42.75-105.75v-422.44s-3.6562-57.094-42.75-105.75c-17.484-21.75-37.031-34.688-50.062-41.906 0 0-0.14062-0.14062-0.5625-0.28125-45.938-19.875-116.58-50.344-203.29-87.094-124.5-52.734-145.92-66.047-195.42-81.562-25.406-7.9688-47.625-14.062-68.625-14.062s-43.219 6.0938-68.625 14.062zm-207.75 257.15 153.89 141.14-153.89 141.14zm476.34 0v282.28l-153.89-141.14zm-333.94 30.656 127.97 117.38c6.0938 5.625 14.062 8.4375 22.031 8.4375s15.938-2.8125 22.031-8.4375l127.97-117.38 2.8125 314.44h-303.62z"
+          d="M546.79,153.24c-49.5,15.516-70.922,28.828-195.42,81.562c-86.719,36.75-157.36,67.219-203.29,87.094c-0.42188,0.14062-0.5625,0.28125-0.5625,0.28125c-13.031,7.2188-32.578,20.156-50.062,41.906c-39.094,48.656-42.75,105.75-42.75,105.75v422.44s3.6562,57.094,42.75,105.75c17.484,21.75,37.031,34.688,50.062,41.906c0,0,0.14062,0.14062,0.5625,0.28125c45.938,19.875,116.58,50.344,203.29,87.094c124.5,52.734,145.92,66.047,195.42,81.562c25.406,7.9688,47.625,14.062,68.625,14.062s43.219-6.0938,68.625-14.062c49.5-15.516,70.922-28.828,195.42-81.562c86.719-36.75,157.36-67.219,203.29-87.094c0.42188-0.14062,0.5625-0.28125,0.5625-0.28125c13.031-7.2188,32.578-20.156,50.062-41.906c39.094-48.656,42.75-105.75,42.75-105.75v-422.44s-3.6562-57.094-42.75-105.75c-17.484-21.75-37.031-34.688-50.062-41.906c0,0-0.14062-0.14062-0.5625-0.28125c-45.938-19.875-116.58-50.344-203.29-87.094c-124.5-52.734-145.92-66.047-195.42-81.562c-25.406-7.9688-47.625-14.062-68.625-14.062S572.2,145.27,546.79,153.24z M339.04,410.39l153.89,141.14l-153.89,141.14V410.39z M815.38,410.39v282.28l-153.89-141.14L815.38,410.39z M481.44,441.05l127.97,117.38c6.0938,5.625,14.062,8.4375,22.031,8.4375s15.938-2.8125,22.031-8.4375l127.97-117.38l2.8125,314.44H478.62L481.44,441.05z"
           fill={iconColor}
         />
       </svg>
@@ -131,8 +131,12 @@ function MessageBubbleComponent({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
+
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const adminPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number'
@@ -206,24 +210,54 @@ function MessageBubbleComponent({
     setShowContextMenu(true);
   };
 
-  const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
+  // Handle long-press for reactions (desktop)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!canReact || isAdmin) return;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isAdmin) return;
-
-    const timer = setTimeout(() => {
-      const touch = e.touches[0];
-      setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
-      setShowContextMenu(true);
+    longPressTimerRef.current = setTimeout(() => {
+      setShowReactionPicker(true);
     }, 500);
+  };
 
-    setPressTimer(timer);
+  const handleMouseUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Handle long-press for reactions (mobile)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isAdmin) {
+      // Admin context menu
+      adminPressTimerRef.current = setTimeout(() => {
+        const touch = e.touches[0];
+        setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
+        setShowContextMenu(true);
+      }, 500);
+    } else if (canReact) {
+      // User reaction picker
+      longPressTimerRef.current = setTimeout(() => {
+        setShowReactionPicker(true);
+      }, 500);
+    }
   };
 
   const handleTouchEnd = () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      setPressTimer(null);
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (adminPressTimerRef.current) {
+      clearTimeout(adminPressTimerRef.current);
+      adminPressTimerRef.current = null;
     }
   };
 
@@ -266,8 +300,11 @@ function MessageBubbleComponent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group`}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group relative`}
         onContextMenu={handleContextMenu}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -294,7 +331,7 @@ function MessageBubbleComponent({
           <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
             <div
               className={`
-                rounded-[18px] px-4 py-2
+                rounded-[18px] px-4 py-2 relative
                 ${isOwn
                   ? 'bg-[#007AFF] text-white'
                   : 'bg-[#E5E5EA] text-black'
@@ -312,6 +349,20 @@ function MessageBubbleComponent({
                   {message.content}
                 </p>
               )}
+
+              {/* Reaction Picker Overlay */}
+              <AnimatePresence>
+                {showReactionPicker && canReact && channelId && (
+                  <MessageReactions
+                    messageId={message.id}
+                    channelId={channelId}
+                    canReact={canReact}
+                    reactionCounts={message.reactionCounts}
+                    showPicker={showReactionPicker}
+                    onClose={() => setShowReactionPicker(false)}
+                  />
+                )}
+              </AnimatePresence>
             </div>
 
             <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
@@ -321,17 +372,21 @@ function MessageBubbleComponent({
               </span>
             </div>
 
-            {channelId && (
+            {/* Reaction counts (always visible if there are reactions) */}
+            {channelId && message.reactionCounts && Object.keys(message.reactionCounts).length > 0 && (
               <div className={`${isOwn ? 'self-end' : 'self-start'} px-2`}>
                 <MessageReactions
                   messageId={message.id}
                   channelId={channelId}
                   canReact={canReact}
                   reactionCounts={message.reactionCounts}
+                  showPicker={false}
+                  onClose={() => {}}
                 />
               </div>
             )}
 
+            {/* Bread tipping button */}
             {!isOwn && !message.isContributor && streamId && message.sender.walletAddress && (
               <div className="relative mt-1.5">
                 <button
@@ -365,6 +420,7 @@ function MessageBubbleComponent({
               </div>
             )}
 
+            {/* Delete button for own messages */}
             {isOwn && channelId && (
               <button
                 onClick={handleSelfDelete}
