@@ -776,7 +776,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   Replying to {quotedMessage.sender}
                 </span>
               </div>
-              {/* ✅ Truncate long messages to 150 characters */}
               <p className="text-sm text-gray-700 font-georgia-pro line-clamp-2">
                 {quotedMessage.content.length > 150 
                   ? `${quotedMessage.content.substring(0, 150)}...` 
@@ -825,7 +824,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
-        {/* ✅ UPDATED: Auto-expanding Textarea instead of Input */}
+        {/* ✅ UPDATED: Enter always creates new line, send button sends message */}
         <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
           <input
             ref={fileInputRef}
@@ -844,18 +843,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             <Paperclip className="w-5 h-5" />
           </button>
 
-          {/* ✅ Textarea with auto-resize */}
+          {/* ✅ Textarea - Enter always creates new line */}
           <textarea
             value={messageInput}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
-            onKeyDown={(e) => {
-              // Submit on Enter (but allow Shift+Enter for new line)
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage(e);
-              }
-            }}
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
