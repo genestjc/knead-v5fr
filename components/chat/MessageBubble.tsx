@@ -7,6 +7,7 @@ import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { MessageReactions } from './MessageReactions';
 import { toast } from 'sonner';
 
 interface ChatMessage {
@@ -22,7 +23,8 @@ interface ChatMessage {
   townsAwarded?: number;
   isOwn?: boolean;
   isContributor?: boolean;
-  isDecrypting?: boolean; // ✅ Add this for decryption placeholder
+  isDecrypting?: boolean;
+  reactionCounts?: Record<string, number>;
 }
 
 interface MessageBubbleProps {
@@ -34,7 +36,8 @@ interface MessageBubbleProps {
   eventId?: number;
   channelId?: string;
   spaceId?: string;
-  isDecrypting?: boolean; // ✅ Add this
+  isDecrypting?: boolean;
+  canReact?: boolean;
 }
 
 // Bread Icon Tipping Button
@@ -94,7 +97,7 @@ function BreadTipButton({
         className="flex-shrink-0"
       >
         <path
-          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.703 49.359-38.484 106.59-36.844 127.08 4.7344 58.172 36.047 98.25 54.75 117.47 7.7344 7.9688 12 18.609 12 29.719v258.14c0 42.328 30.047 78.469 71.531 86.109l430.26 79.969c5.2969 0.9375 10.734 1.5 16.031 1.5h0.14062c14.672 0 28.828-3.6562 41.344-10.453l9.0938-5.7188 329.34-204.84 17.812-11.156 2.25-1.6406c17.766-15.422 27.797-36.469 27.797-59.016v-235.08c0-3.75 1.6875-7.3125 4.4531-9.7969 52.922-47.812 62.531-86.531 62.484-111.89-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68 836.16c0 20.812-18.891 36.469-39.328 32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062-30.047-25.688-47.484-56.203-47.484-88.969 0-91.547 48.422-148.97 216.28-142.97 30.188 1.0781 58.219 3.1406 84.328 5.8594 274.13 29.109 329.86 145.69 329.86 229.36 0 32.766-17.391 63.234-47.484 88.969-12.797 10.875-19.453 27.328-19.453 44.062v264.19z"
+          d="m546.79 153.24c-49.5 15.516-70.922 28.828-195.42 81.562-86.719 36.75-157.36 67.219-203.29 87.094-0.42188 0.14062-0.5625 0.28125-0.5625 0.28125-13.031 7.2188-32.578 20.156-50.062 41.906-39.094 48.656-42.75 105.75-42.75 105.75v422.44s3.6562 57.094 42.75 105.75c17.484 21.75 37.031 34.688 50.062 41.906 0 0 0.14062 0.14062 0.5625 0.28125 45.938 19.875 116.58 50.344 203.29 87.094 124.5 52.734 145.92 66.047 195.42 81.562 25.406 7.9688 47.625 14.062 68.625 14.062s43.219-6.0938 68.625-14.062c49.5-15.516 70.922-28.828 195.42-81.562 86.719-36.75 157.36-67.219 203.29-87.094 0.42188-0.14062 0.5625-0.28125 0.5625-0.28125 13.031-7.2188 32.578-20.156 50.062-41.906 39.094-48.656 42.75-105.75 42.75-105.75v-422.44s-3.6562-57.094-42.75-105.75c-17.484-21.75-37.031-34.688-50.062-41.906 0 0-0.14062-0.14062-0.5625-0.28125-45.938-19.875-116.58-50.344-203.29-87.094-124.5-52.734-145.92-66.047-195.42-81.562-25.406-7.9688-47.625-14.062-68.625-14.062s-43.219 6.0938-68.625 14.062zm-207.75 257.15 153.89 141.14-153.89 141.14zm476.34 0v282.28l-153.89-141.14zm-333.94 30.656 127.97 117.38c6.0938 5.625 14.062 8.4375 22.031 8.4375s15.938-2.8125 22.031-8.4375l127.97-117.38 2.8125 314.44h-303.62z"
           fill={iconColor}
         />
       </svg>
@@ -112,7 +115,6 @@ const convertIpfsToGatewayUrl = (uri: string): string => {
   return uri;
 };
 
-// ✅ Rename to MessageBubbleComponent for React.memo wrapper
 function MessageBubbleComponent({
   message,
   isOwn,
@@ -122,7 +124,8 @@ function MessageBubbleComponent({
   eventId,
   channelId,
   spaceId,
-  isDecrypting = false, // ✅ Add this param
+  isDecrypting = false,
+  canReact = false,
 }: MessageBubbleProps) {
   const { awardTokensOnLike, isReacting } = useAwardOnReaction(streamId || '');
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -224,7 +227,6 @@ function MessageBubbleComponent({
     }
   };
 
-  // ✅ NEW: Show placeholder for decrypting messages
   if (isDecrypting || !message.content) {
     return (
       <motion.div
@@ -319,6 +321,17 @@ function MessageBubbleComponent({
               </span>
             </div>
 
+            {channelId && (
+              <div className={`${isOwn ? 'self-end' : 'self-start'} px-2`}>
+                <MessageReactions
+                  messageId={message.id}
+                  channelId={channelId}
+                  canReact={canReact}
+                  reactionCounts={message.reactionCounts}
+                />
+              </div>
+            )}
+
             {!isOwn && !message.isContributor && streamId && message.sender.walletAddress && (
               <div className="relative mt-1.5">
                 <button
@@ -384,39 +397,32 @@ function MessageBubbleComponent({
   );
 }
 
-// ✅ Custom comparison for React.memo - prevents unnecessary re-renders
 const areMessagePropsEqual = (prevProps: MessageBubbleProps, nextProps: MessageBubbleProps) => {
-  // Message identity
   if (prevProps.message.id !== nextProps.message.id) return false;
-  
-  // Content/decryption state
   if (prevProps.message.content !== nextProps.message.content) return false;
   if (prevProps.isDecrypting !== nextProps.isDecrypting) return false;
-  
-  // Sender info (updates when profileCache changes)
   if (prevProps.message.sender.name !== nextProps.message.sender.name) return false;
   if (prevProps.message.sender.avatar !== nextProps.message.sender.avatar) return false;
   if (prevProps.message.sender.walletAddress !== nextProps.message.sender.walletAddress) return false;
-  
-  // Permissions
   if (prevProps.isOwn !== nextProps.isOwn) return false;
   if (prevProps.isAdmin !== nextProps.isAdmin) return false;
   if (prevProps.canAwardTokens !== nextProps.canAwardTokens) return false;
+  if (prevProps.canReact !== nextProps.canReact) return false;
   if (prevProps.message.isContributor !== nextProps.message.isContributor) return false;
-  
-  // Stream/Event IDs
   if (prevProps.streamId !== nextProps.streamId) return false;
   if (prevProps.channelId !== nextProps.channelId) return false;
   if (prevProps.spaceId !== nextProps.spaceId) return false;
   if (prevProps.eventId !== nextProps.eventId) return false;
   
-  return true; // All props equal - skip re-render
+  const prevReactions = JSON.stringify(prevProps.message.reactionCounts || {});
+  const nextReactions = JSON.stringify(nextProps.message.reactionCounts || {});
+  if (prevReactions !== nextReactions) return false;
+  
+  return true;
 };
 
-// ✅ Export memoized version
 export const MessageBubble = React.memo(MessageBubbleComponent, areMessagePropsEqual);
 
-// ✅ EventBanner - also memoize
 function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: {
   eventTitle: string;
   timeRemaining?: string;
@@ -451,7 +457,6 @@ function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: {
 
 export const EventBanner = React.memo(EventBannerComponent);
 
-// ✅ TypingIndicator - also memoize
 function TypingIndicatorComponent({ userName }: { userName?: string }) {
   return (
     <div className="flex justify-start mb-4 px-4">
