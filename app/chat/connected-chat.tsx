@@ -58,7 +58,7 @@ function PermissionDebugBanner({
       <div className="flex items-center justify-between text-xs font-mono">
         <div className="flex gap-4">
           <span>Role: <strong>{userRole}</strong></span>
-          <span>Can post: <strong>{permissions?.canPost ? '✅' : '���'}</strong></span>
+          <span>Can post: <strong>{permissions?.canPost ? '✅' : '❌'}</strong></span>
           <span>Event: <strong>{activeEvent?.title || '❌ None'}</strong></span>
         </div>
         <span className="text-gray-600">{permissions?.reason}</span>
@@ -190,10 +190,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const handleReply = (event: Event) => {
       const customEvent = event as CustomEvent<{ content: string; sender: string }>;
       setQuotedMessage(customEvent.detail);
-      // Focus input after a short delay
+      // Focus textarea after a short delay
       setTimeout(() => {
-        const input = document.querySelector('input[type="text"]') as HTMLInputElement;
-        input?.focus();
+        const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
+        textarea?.focus();
       }, 100);
     };
     window.addEventListener('reply-to-message', handleReply);
@@ -629,7 +629,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessageInput(value);
 
@@ -776,8 +776,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
                   Replying to {quotedMessage.sender}
                 </span>
               </div>
-              <p className="text-sm text-gray-700 font-georgia-pro truncate">
-                {quotedMessage.content}
+              {/* ✅ Truncate long messages to 150 characters */}
+              <p className="text-sm text-gray-700 font-georgia-pro line-clamp-2">
+                {quotedMessage.content.length > 150 
+                  ? `${quotedMessage.content.substring(0, 150)}...` 
+                  : quotedMessage.content}
               </p>
             </div>
             <button
@@ -789,6 +792,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
+        {/* Pending File Preview */}
         {pendingFile && (
           <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-2xl">
             {isImageFile(pendingFile.file.name) ? (
@@ -821,7 +825,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+        {/* ✅ UPDATED: Auto-expanding Textarea instead of Input */}
+        <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
           <input
             ref={fileInputRef}
             type="file"
@@ -833,30 +838,49 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 text-gray-500 hover:text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             title="Attach file"
           >
             <Paperclip className="w-5 h-5" />
           </button>
 
-          <input
-            type="text"
+          {/* ✅ Textarea with auto-resize */}
+          <textarea
             value={messageInput}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
+            onKeyDown={(e) => {
+              // Submit on Enter (but allow Shift+Enter for new line)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+            }}
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
               quotedMessage ? "Type your reply..." :
               channelId ? "Type a message..." : "Loading..."
             }
-            className="flex-1 px-4 py-3 border rounded-full focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300"
+            rows={1}
+            className="flex-1 px-4 py-3 border rounded-2xl focus:outline-none focus:ring-2 font-georgia-pro focus:ring-[#007AFF] border-gray-300 resize-none max-h-32 overflow-y-auto"
+            style={{
+              minHeight: '48px',
+              height: 'auto',
+            }}
+            onInput={(e) => {
+              // Auto-resize textarea
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+            }}
             disabled={isSending || isUploading || !channelId}
           />
+
           <button
             type="submit"
             disabled={(!messageInput.trim() && !pendingFile) || isSending || isUploading || !channelId}
-            className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0051D5] transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
               <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
