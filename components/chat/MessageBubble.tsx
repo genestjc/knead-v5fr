@@ -97,7 +97,7 @@ function BreadTipButton({
         className="flex-shrink-0"
       >
         <path
-          d="M546.79,153.24c-49.5,15.516-70.922,28.828-195.42,81.562c-86.719,36.75-157.36,67.219-203.29,87.094c-0.42188,0.14062-0.5625,0.28125-0.5625,0.28125c-13.031,7.2188-32.578,20.156-50.062,41.906c-39.094,48.656-42.75,105.75-42.75,105.75v422.44s3.6562,57.094,42.75,105.75c17.484,21.75,37.031,34.688,50.062,41.906c0,0,0.14062,0.14062,0.5625,0.28125c45.938,19.875,116.58,50.344,203.29,87.094c124.5,52.734,145.92,66.047,195.42,81.562c25.406,7.9688,47.625,14.062,68.625,14.062s43.219-6.0938,68.625-14.062c49.5-15.516,70.922-28.828,195.42-81.562c86.719-36.75,157.36-67.219,203.29-87.094c0.42188-0.14062,0.5625-0.28125,0.5625-0.28125c13.031-7.2188,32.578-20.156,50.062-41.906c39.094-48.656,42.75-105.75,42.75-105.75v-422.44s-3.6562-57.094-42.75-105.75c-17.484-21.75-37.031-34.688-50.062-41.906c0,0-0.14062-0.14062-0.5625-0.28125c-45.938-19.875-116.58-50.344-203.29-87.094c-124.5-52.734-145.92-66.047-195.42-81.562c-25.406-7.9688-47.625-14.062-68.625-14.062S572.2,145.27,546.79,153.24z M339.04,410.39l153.89,141.14l-153.89,141.14V410.39z M815.38,410.39v282.28l-153.89-141.14L815.38,410.39z M481.44,441.05l127.97,117.38c6.0938,5.625,14.062,8.4375,22.031,8.4375s15.938-2.8125,22.031-8.4375l127.97-117.38l2.8125,314.44H478.62L481.44,441.05z"
+          d="M546.79,153.24c-49.5,15.516-70.922,28.828-195.42,81.562c-86.719,36.75-157.36,67.219-203.29,87.094c-0.42188,0.14062-0.5625,0.28125-0.5625,0.28125c-13.031,7.2188-32.578,20.156-50.062,41.906c-39.703,49.359-38.484,106.59-36.844,127.08c4.7344,58.172,36.047,98.25,54.75,117.47c7.7344,7.9688,12,18.609,12,29.719v258.14c0,42.328,30.047,78.469,71.531,86.109l430.26,79.969c5.2969,0.9375,10.734,1.5,16.031,1.5h0.14062c14.672,0,28.828-3.6562,41.344-10.453l9.0938-5.7188l329.34-204.84l17.812-11.156l2.25-1.6406c17.766-15.422,27.797-36.469,27.797-59.016v-235.08c0-3.75,1.6875-7.3125,4.4531-9.7969c52.922-47.812,62.531-86.531,62.484-111.89c-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68,836.16c0,20.812-18.891,36.469-39.328,32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062c-30.047-25.688-47.484-56.203-47.484-88.969c0-91.547,48.422-148.97,216.28-142.97c30.188,1.0781,58.219,3.1406,84.328,5.8594c274.13,29.109,329.86,145.69,329.86,229.36c0,32.766-17.391,63.234-47.484,88.969c-12.797,10.875-19.453,27.328-19.453,44.062v264.19z"
           fill={iconColor}
         />
       </svg>
@@ -135,8 +135,9 @@ function MessageBubbleComponent({
 
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
 
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const adminPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapTimeRef = useRef<number>(0);
+  const lastClickTimeRef = useRef<number>(0);
 
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number'
@@ -210,51 +211,46 @@ function MessageBubbleComponent({
     setShowContextMenu(true);
   };
 
-  // Handle long-press for reactions (desktop)
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Double-click for reactions (desktop)
+  const handleDoubleClick = (e: React.MouseEvent) => {
     if (!canReact || isAdmin) return;
+    
+    e.preventDefault();
+    setShowReactionPicker(true);
+  };
 
-    longPressTimerRef.current = setTimeout(() => {
+  // Double-tap for reactions (mobile)
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const currentTime = Date.now();
+    const tapGap = currentTime - lastTapTimeRef.current;
+
+    if (adminPressTimerRef.current) {
+      clearTimeout(adminPressTimerRef.current);
+      adminPressTimerRef.current = null;
+    }
+
+    // Double-tap detected (within 300ms)
+    if (tapGap < 300 && tapGap > 0 && canReact && !isAdmin) {
+      e.preventDefault();
       setShowReactionPicker(true);
+      lastTapTimeRef.current = 0; // Reset to prevent triple-tap
+    } else {
+      lastTapTimeRef.current = currentTime;
+    }
+  };
+
+  // Long-press for admin context menu (mobile only)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isAdmin) return;
+
+    adminPressTimerRef.current = setTimeout(() => {
+      const touch = e.touches[0];
+      setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
+      setShowContextMenu(true);
     }, 500);
   };
 
-  const handleMouseUp = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  // Handle long-press for reactions (mobile)
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAdmin) {
-      // Admin context menu
-      adminPressTimerRef.current = setTimeout(() => {
-        const touch = e.touches[0];
-        setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
-        setShowContextMenu(true);
-      }, 500);
-    } else if (canReact) {
-      // User reaction picker
-      longPressTimerRef.current = setTimeout(() => {
-        setShowReactionPicker(true);
-      }, 500);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
+  const handleTouchCancel = () => {
     if (adminPressTimerRef.current) {
       clearTimeout(adminPressTimerRef.current);
       adminPressTimerRef.current = null;
@@ -302,11 +298,10 @@ function MessageBubbleComponent({
         transition={{ duration: 0.2 }}
         className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group relative`}
         onContextMenu={handleContextMenu}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        onDoubleClick={handleDoubleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
       >
         <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
 
