@@ -321,7 +321,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     });
   }, [events, profileCache, getProfile]);
 
-  const messages = useMemo(() => {
+    const messages = useMemo(() => {
     if (!events) return [];
 
     return events
@@ -334,14 +334,36 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const messageReactions = reactionsData?.[event.eventId];
         const reactionCounts: Record<string, number> = {};
         
-        // Parse reaction counts from Towns SDK format
-        if (messageReactions?.reactions) {
-          Object.entries(messageReactions.reactions).forEach(([emoji, users]: [string, any]) => {
-            if (Array.isArray(users) && users.length > 0) {
-              reactionCounts[emoji] = users.length;
-            }
-          });
+        console.log('🔍 Processing message reactions:', {
+          messageId: event.eventId.substring(0, 8),
+          hasMessageReactions: !!messageReactions,
+          messageReactionsType: typeof messageReactions,
+          messageReactionsKeys: messageReactions ? Object.keys(messageReactions) : [],
+        });
+
+        if (messageReactions) {
+          console.log('🔍 Full messageReactions object:', JSON.stringify(messageReactions, null, 2));
+          
+          // Check if reactions property exists
+          if (messageReactions.reactions) {
+            console.log('🔍 Found .reactions property:', messageReactions.reactions);
+            Object.entries(messageReactions.reactions).forEach(([emoji, users]: [string, any]) => {
+              console.log('🔍 Processing emoji:', emoji, 'users:', users, 'isArray:', Array.isArray(users));
+              if (Array.isArray(users) && users.length > 0) {
+                reactionCounts[emoji] = users.length;
+                console.log('✅ Added reaction count:', emoji, '=', users.length);
+              }
+            });
+          } else {
+            // Maybe reactions are stored differently
+            console.log('⚠️ No .reactions property. Trying direct iteration...');
+            Object.entries(messageReactions).forEach(([key, value]) => {
+              console.log('🔍 Key:', key, 'Value type:', typeof value, 'Value:', value);
+            });
+          }
         }
+
+        console.log('📊 Final reactionCounts for message:', event.eventId.substring(0, 8), reactionCounts);
 
         return {
           id: event.eventId,
@@ -361,7 +383,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address, reactionsData]);
-
+  
   // Blockchain contributor checking
   useEffect(() => {
     if (!messages || messages.length === 0) return;
