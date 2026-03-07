@@ -136,7 +136,7 @@ function MessageBubbleComponent({
   const handleLike = async () => {
     if (!message.sender.walletAddress) {
       const errorMsg = message.sender.name === 'Anonymous'
-        ? '��️ Cannot tip this user: Their wallet address is not available.'
+        ? '⚠️ Cannot tip this user: Their wallet address is not available.'
         : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
       toast.error(errorMsg, { duration: 5000 });
       return;
@@ -227,7 +227,7 @@ function MessageBubbleComponent({
           navigator.vibrate(50);
         }
       }
-    }, 500);
+    }, 350);
   };
 
   // Long-press for reaction picker (desktop)
@@ -239,7 +239,7 @@ function MessageBubbleComponent({
     longPressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true;
       setShowReactionPicker(true);
-    }, 500);
+    }, 350);
   };
 
   const handleMouseUp = () => {
