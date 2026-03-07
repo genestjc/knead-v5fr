@@ -718,7 +718,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         ))}
 
         {showTypingIndicator && permissions?.canPost && (
-          <TypingIndicator userName="You" />
+          <TypingIndicator userName="You're" />
         )}
 
         <div ref={messagesEndRef} />
