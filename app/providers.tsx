@@ -7,6 +7,7 @@ import { WalletProvider } from "@/components/wallet-provider";
 import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from 'sonner'; // ✅ Add Sonner for toast notifications
 import { TownsSyncProvider } from "@towns-protocol/react-sdk";
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -35,6 +36,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         {children}
                       </ErrorBoundary>
                       <Toaster />
+                      
+                      {/* ✅ Sonner Toaster for admin actions - configured for mobile */}
+                      <SonnerToaster 
+                        position="top-center"
+                        expand={true}
+                        richColors
+                        closeButton
+                        toastOptions={{
+                          style: {
+                            marginTop: '80px', // Below fixed header
+                          },
+                          className: 'font-georgia-pro',
+                          duration: 6000,
+                        }}
+                      />
                     </TooltipProvider>
                   </MembershipProvider>
                 </WalletProvider>
