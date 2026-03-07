@@ -228,6 +228,9 @@ function MessageBubbleComponent({
         }
       }
     }, 350);
+    
+    // Prevent text selection on long-press
+    e.preventDefault();
   };
 
   // Long-press for reaction picker (desktop)
@@ -295,7 +298,7 @@ function MessageBubbleComponent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group`}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group select-none`}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMouseDown}
