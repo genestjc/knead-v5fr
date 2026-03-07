@@ -100,25 +100,47 @@ export function MessageReactions({
         transition={{ duration: 0.2 }}
         className="bg-white border-2 border-gray-300 rounded-2xl shadow-2xl overflow-hidden"
       >
-        <div className="flex gap-2 p-3 border-b border-gray-200">
-          {REACTION_EMOJIS.map((emoji) => (
-            <button key={emoji} onClick={() => handleReact(emoji)} disabled={isSending} className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-2xl disabled:opacity-50 bg-white">
-              {emoji}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 p-2 bg-gray-50">
-          <button onClick={handleReplyClick} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700">
-            <Reply className="w-4 h-4" />
-            Reply
+        {/* Emoji reactions + Reply in same row */}
+        <div className="flex items-center gap-2 p-3">
+          {/* Reaction emojis */}
+          <div className="flex gap-2">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReact(emoji)}
+                disabled={isSending}
+                className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-2xl disabled:opacity-50 bg-white"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
+          {/* Vertical divider */}
+          <div className="w-px h-12 bg-gray-300"></div>
+
+          {/* Reply button with Lucide icon */}
+          <button
+            onClick={handleReplyClick}
+            className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 active:scale-95 transition-all bg-white"
+            title="Reply"
+          >
+            <Reply className="w-5 h-5 text-gray-700" />
           </button>
-          {isAdmin && (
-            <button onClick={onAdminAction} className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium text-red-700">
+        </div>
+
+        {/* Admin button row (only if admin) */}
+        {isAdmin && (
+          <div className="flex gap-2 p-2 pt-0 px-3">
+            <button
+              onClick={onAdminAction}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium text-red-700"
+            >
               <Shield className="w-4 h-4" />
               Admin
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </motion.div>
     );
   }
