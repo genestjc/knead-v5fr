@@ -11,7 +11,7 @@ import {
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
-import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
+import { MessageBubble, EventBanner, TypingIndicator } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
@@ -21,6 +21,7 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
+import { useTypingIndicator } from '@/hooks/use-typing-indicator';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
@@ -150,6 +151,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
+  const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
@@ -165,13 +167,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
   
+  const { startTyping, stopTyping } = useTypingIndicator({
+    clearDelay: 3000,
+  });
+  
   const channelId = defaultChannelId;
 
   const { data: events } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
 
-  // ✅ Ensure channel is joined (fast, idempotent, no blockchain)
+  // ✅ Everyone can react except freemium users
+  const canReact = useMemo(() => {
+    return userRole !== 'freemium';
+  }, [userRole]);
+
+  // Ensure channel is joined
   useEffect(() => {
     if (!syncAgent || !channelId || !spaceId) return;
     
@@ -189,7 +200,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     joinChannel();
   }, [syncAgent, spaceId, channelId]);
 
-  // ✅ DIAGNOSTIC: Log raw event shape to verify property names
+  // DIAGNOSTIC: Log raw event shape
   useEffect(() => {
     if (events && events.length > 0) {
       console.log('🔍 Raw timeline event sample:', events[0]);
@@ -319,12 +330,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
           isContributor: false,
+          reactionCounts: {},
         };
       })
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address]);
 
-  // ✅ Blockchain contributor checking
+  // Blockchain contributor checking
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
@@ -496,6 +508,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    stopTyping();
+    setShowTypingIndicator(false);
+
     if (isBanned) {
       alert('You are banned from Knead chat.');
       return;
@@ -570,6 +585,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessageInput(value);
+
+    if (value.trim()) {
+      startTyping();
+      setShowTypingIndicator(true);
+    } else {
+      stopTyping();
+      setShowTypingIndicator(false);
+    }
+  };
+
+  const handleInputBlur = () => {
+    stopTyping();
+    setShowTypingIndicator(false);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -631,6 +664,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             isOwn={message.isOwn || false}
             streamId={channelId}
             canAwardTokens={canAwardTokens}
+            canReact={canReact}
             isAdmin={isAdmin}
             channelId={channelId}
             spaceId={spaceId}
@@ -638,6 +672,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             isDecrypting={message.isDecrypting}
           />
         ))}
+
+        {showTypingIndicator && permissions?.canPost && (
+          <TypingIndicator userName="You" />
+        )}
+
         <div ref={messagesEndRef} />
       </div>
     );
@@ -736,7 +775,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <input
             type="text"
             value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
