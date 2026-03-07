@@ -126,6 +126,7 @@ function MessageBubbleComponent({
 
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapTimeRef = useRef<number>(0);
+  const longPressFiredRef = useRef<boolean>(false);
 
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
@@ -135,7 +136,7 @@ function MessageBubbleComponent({
   const handleLike = async () => {
     if (!message.sender.walletAddress) {
       const errorMsg = message.sender.name === 'Anonymous'
-        ? '⚠️ Cannot tip this user: Their wallet address is not available.'
+        ? '��️ Cannot tip this user: Their wallet address is not available.'
         : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
       toast.error(errorMsg, { duration: 5000 });
       return;
@@ -182,11 +183,16 @@ function MessageBubbleComponent({
     const currentTime = Date.now();
     const tapGap = currentTime - lastTapTimeRef.current;
 
-    if (longPressTimerRef.current) {
+    // Clear timer only if long-press hasn't fired yet
+    if (longPressTimerRef.current && !longPressFiredRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
 
+    // Reset long-press flag
+    longPressFiredRef.current = false;
+
+    // Double-tap detected (within 300ms)
     if (tapGap < 300 && tapGap > 0) {
       if (!canReact) {
         lastTapTimeRef.current = 0;
@@ -207,27 +213,41 @@ function MessageBubbleComponent({
     handleQuickReact();
   };
 
-  // Long-press for reaction picker (mobile & desktop)
+  // Long-press for reaction picker (mobile)
   const handleTouchStart = (e: React.TouchEvent) => {
+    longPressFiredRef.current = false;
+    
     longPressTimerRef.current = setTimeout(() => {
       if (canReact) {
+        longPressFiredRef.current = true;
         setShowReactionPicker(true);
+        
+        // Provide haptic feedback on supported devices
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
       }
     }, 500);
   };
 
+  // Long-press for reaction picker (desktop)
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!canReact) return;
+    
+    longPressFiredRef.current = false;
+    
     longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
       setShowReactionPicker(true);
     }, 500);
   };
 
   const handleMouseUp = () => {
-    if (longPressTimerRef.current) {
+    if (longPressTimerRef.current && !longPressFiredRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    longPressFiredRef.current = false;
   };
 
   const handleTouchCancel = () => {
@@ -235,6 +255,7 @@ function MessageBubbleComponent({
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    longPressFiredRef.current = false;
   };
 
   // Right-click for admin context menu (desktop only)
