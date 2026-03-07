@@ -137,7 +137,6 @@ function MessageBubbleComponent({
 
   const adminPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapTimeRef = useRef<number>(0);
-  const lastClickTimeRef = useRef<number>(0);
 
   const formatTime = (timestamp: number | string): string => {
     const date = typeof timestamp === 'number'
@@ -213,9 +212,17 @@ function MessageBubbleComponent({
 
   // Double-click for reactions (desktop)
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (!canReact || isAdmin) return;
+    if (!canReact) {
+      console.log('❌ Cannot react - canReact is false');
+      return;
+    }
+    if (isAdmin) {
+      console.log('❌ Admin - skipping reaction picker');
+      return;
+    }
     
     e.preventDefault();
+    console.log('✅ Double-click detected - showing reaction picker');
     setShowReactionPicker(true);
   };
 
@@ -230,8 +237,20 @@ function MessageBubbleComponent({
     }
 
     // Double-tap detected (within 300ms)
-    if (tapGap < 300 && tapGap > 0 && canReact && !isAdmin) {
+    if (tapGap < 300 && tapGap > 0) {
+      if (!canReact) {
+        console.log('❌ Cannot react - canReact is false');
+        lastTapTimeRef.current = 0;
+        return;
+      }
+      if (isAdmin) {
+        console.log('❌ Admin - skipping reaction picker');
+        lastTapTimeRef.current = 0;
+        return;
+      }
+      
       e.preventDefault();
+      console.log('✅ Double-tap detected - showing reaction picker');
       setShowReactionPicker(true);
       lastTapTimeRef.current = 0; // Reset to prevent triple-tap
     } else {
@@ -256,6 +275,17 @@ function MessageBubbleComponent({
       adminPressTimerRef.current = null;
     }
   };
+
+  // Debug effect
+  useEffect(() => {
+    console.log('MessageBubble state:', {
+      messageId: message.id.substring(0, 8),
+      canReact,
+      isAdmin,
+      showReactionPicker,
+      hasChannelId: !!channelId,
+    });
+  }, [canReact, isAdmin, showReactionPicker, channelId, message.id]);
 
   if (isDecrypting || !message.content) {
     return (
@@ -296,14 +326,14 @@ function MessageBubbleComponent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group relative`}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 px-4 group`}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchCancel}
       >
-        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end`}>
+        <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} max-w-[70%] items-end relative`}>
 
           {!isOwn && (
             <div className="flex-shrink-0 w-5">
@@ -326,7 +356,7 @@ function MessageBubbleComponent({
           <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} relative`}>
             <div
               className={`
-                rounded-[18px] px-4 py-2 relative
+                rounded-[18px] px-4 py-2
                 ${isOwn
                   ? 'bg-[#007AFF] text-white'
                   : 'bg-[#E5E5EA] text-black'
@@ -344,21 +374,24 @@ function MessageBubbleComponent({
                   {message.content}
                 </p>
               )}
-
-              {/* Reaction Picker Overlay */}
-              <AnimatePresence>
-                {showReactionPicker && canReact && channelId && (
-                  <MessageReactions
-                    messageId={message.id}
-                    channelId={channelId}
-                    canReact={canReact}
-                    reactionCounts={message.reactionCounts}
-                    showPicker={showReactionPicker}
-                    onClose={() => setShowReactionPicker(false)}
-                  />
-                )}
-              </AnimatePresence>
             </div>
+
+            {/* Floating Reaction Picker - positioned relative to message bubble */}
+            {showReactionPicker && canReact && channelId && (
+              <div className="absolute bottom-full left-0 mb-2 z-50">
+                <MessageReactions
+                  messageId={message.id}
+                  channelId={channelId}
+                  canReact={canReact}
+                  reactionCounts={{}}
+                  showPicker={true}
+                  onClose={() => {
+                    console.log('✅ Closing reaction picker');
+                    setShowReactionPicker(false);
+                  }}
+                />
+              </div>
+            )}
 
             <div className={`text-xs text-gray-500 mt-1 px-2 ${isOwn ? 'text-right' : 'text-left'}`}>
               <span className="font-georgia-pro">
