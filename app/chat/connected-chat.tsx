@@ -843,11 +843,23 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             <Paperclip className="w-5 h-5" />
           </button>
 
-          {/* ✅ Textarea - Enter always creates new line */}
+       {/* ✅ Textarea with smart Enter behavior based on device */}
           <textarea
             value={messageInput}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
+            onKeyDown={(e) => {
+              // ✅ Only intercept Enter on non-touch devices (desktop)
+              const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+              
+              if (!isTouchDevice && e.key === 'Enter' && !e.shiftKey) {
+                // Desktop: Enter sends message
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+              // Touch devices: Enter always creates new line
+              // Shift+Enter on desktop: Creates new line (default behavior)
+            }}
             placeholder={
               isUploading ? "Uploading..." :
               pendingFile ? "Add a caption or just hit send..." :
@@ -868,7 +880,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             }}
             disabled={isSending || isUploading || !channelId}
           />
-
           <button
             type="submit"
             disabled={(!messageInput.trim() && !pendingFile) || isSending || isUploading || !channelId}
