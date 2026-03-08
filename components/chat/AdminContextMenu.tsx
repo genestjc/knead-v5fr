@@ -73,18 +73,42 @@ export function AdminContextMenu({
     }
   }, [position]);
 
-  // Close on click outside
+  // ✅ FIXED: Only close on click/touch OUTSIDE the menu
   useEffect(() => {
-    const handleClick = () => onClose();
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    
+    // Delay to prevent immediate close
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, [onClose]);
 
-  // Close on touch outside
+  // ✅ FIXED: Only close on touch OUTSIDE the menu
   useEffect(() => {
-    const handleTouch = () => onClose();
-    document.addEventListener('touchstart', handleTouch);
-    return () => document.removeEventListener('touchstart', handleTouch);
+    const handleTouchOutside = (event: TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    
+    // Delay to prevent immediate close
+    const timer = setTimeout(() => {
+      document.addEventListener('touchstart', handleTouchOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('touchstart', handleTouchOutside);
+    };
   }, [onClose]);
 
   // Close on escape key
@@ -97,7 +121,11 @@ export function AdminContextMenu({
   }, [onClose]);
 
   const handleAwardBonus = async (amount: number, bonusType: string) => {
+    console.log('🎁 AWARD BONUS CLICKED - Mobile Debug');
+    
     if (!activeAccount?.address) {
+      console.error('No active account');
+      alert('ERROR: No wallet connected');
       toast.error('Please connect your wallet');
       return;
     }
@@ -129,8 +157,6 @@ export function AdminContextMenu({
       console.log('📬 API Response:', data);
 
       if (data.success) {
-        // ✅ DEBUG: Alert before toast
-        alert(`SUCCESS: Awarded ${amount} TOWNS - Check for toast now`);
         toast.success(`Awarded ${amount} TOWNS bonus!`, {
           description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
         });
@@ -143,6 +169,7 @@ export function AdminContextMenu({
       }
     } catch (error: any) {
       console.error('❌ Catch Error:', error);
+      alert(`AWARD ERROR: ${error.message}`);
       toast.error(error.message || 'Failed to award bonus');
     } finally {
       setIsProcessing(false);
@@ -151,7 +178,7 @@ export function AdminContextMenu({
 
   const handleDeleteMessage = async () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🗑️ DELETE MESSAGE - PRE-FLIGHT CHECK');
+    console.log('🗑️ DELETE MESSAGE - MOBILE DEBUG');
     console.log('   Message ID:', message.id);
     console.log('   Admin address:', activeAccount?.address);
     console.log('   Channel ID:', channelId);
@@ -159,6 +186,7 @@ export function AdminContextMenu({
 
     if (!adminRedact) {
       console.error('❌ adminRedact function not available');
+      alert('ERROR: Delete function not available');
       toast.error('Delete function not available', {
         description: 'Try refreshing the page to reconnect',
       });
@@ -167,31 +195,38 @@ export function AdminContextMenu({
 
     if (!message.id || typeof message.id !== 'string') {
       console.error('❌ Invalid message ID:', message.id);
+      alert('ERROR: Invalid message ID');
       toast.error('Invalid message ID');
       return;
     }
 
     if (message.id.length !== 64 || !/^[a-f0-9]+$/.test(message.id)) {
       console.error('⚠️ Invalid event ID format');
+      alert('ERROR: Invalid event ID format');
       toast.error(`Invalid event ID format`);
       return;
     }
 
-    if (!confirm('Delete this message from Towns Protocol?')) return;
+    console.log('📱 About to show confirm dialog on mobile...');
+    const confirmed = confirm('Delete this message from Towns Protocol?');
+    console.log('📱 Confirm result:', confirmed);
+    
+    if (!confirmed) {
+      console.log('User cancelled');
+      return;
+    }
 
+    console.log('📱 User confirmed, starting delete...');
     setIsProcessing(true);
+    
     try {
       console.log('🔄 Calling adminRedact...');
       console.log('   Event ID:', message.id);
       
-      // ✅ CORRECT: Use adminRedact from useAdminRedact hook
       await adminRedact(message.id);
       
       console.log('✅ Message redacted successfully!');
-      
-      // ✅ DEBUG: Alert before toast
-      alert('DELETE SUCCESS - Did you see a toast notification?');
-      
+      alert('SUCCESS: Message deleted!');
       toast.success('Message deleted from Towns Protocol');
       onClose();
       
@@ -201,6 +236,8 @@ export function AdminContextMenu({
       console.error('   Error:', error);
       console.error('   Message:', error?.message);
       console.error('   Code:', error?.code);
+      
+      alert(`DELETE FAILED: ${error.message || 'Unknown error'}`);
       
       const errorMsg = error?.message?.toLowerCase() || '';
       const errorCode = error?.code;
@@ -274,16 +311,19 @@ export function AdminContextMenu({
     }
   };
 
-  // ✅ UPDATED: handleBanUser with better logging and error handling
   const handleBanUser = async () => {
-    console.log('🚫 BAN USER - START');
+    console.log('🚫 BAN USER - MOBILE DEBUG START');
     console.log('   Target:', message.sender.name, message.sender.id);
     console.log('   Admin:', activeAccount?.address);
     console.log('   Space ID:', spaceId);
 
-    if (!confirm(`Ban ${message.sender.name}? They will be banned from the chat.`)) return;
+    const confirmed = confirm(`Ban ${message.sender.name}? They will be banned from the chat.`);
+    console.log('📱 Ban confirm result:', confirmed);
+    
+    if (!confirmed) return;
 
     if (!activeAccount) {
+      alert('ERROR: No wallet connected');
       toast.error('Please connect your wallet');
       return;
     }
@@ -291,6 +331,7 @@ export function AdminContextMenu({
     // ✅ Check if sync agent is available
     if (!sync) {
       console.error('❌ Sync agent not available');
+      alert('ERROR: Sync agent not loaded');
       toast.error('Connection error', {
         description: 'Towns sync agent not loaded. Try refreshing.',
         duration: 6000,
@@ -333,6 +374,7 @@ export function AdminContextMenu({
         
       } catch (onChainError: any) {
         console.error('❌ On-chain ban failed:', onChainError);
+        alert(`BAN FAILED: ${onChainError.message}`);
         
         const errorMsg = onChainError?.message?.toLowerCase() || '';
         
@@ -379,10 +421,7 @@ export function AdminContextMenu({
 
       if (data.success) {
         console.log('✅ BAN COMPLETE');
-        
-        // ✅ DEBUG: Alert before toast
-        alert(`BAN SUCCESS: ${message.sender.name} banned - Check for toast now`);
-        
+        alert(`SUCCESS: ${message.sender.name} banned!`);
         toast.success(`${message.sender.name} has been banned`, {
           description: 'User is now banned from the chat.',
           duration: 6000,
@@ -390,10 +429,12 @@ export function AdminContextMenu({
         onClose();
       } else {
         console.error('❌ Supabase update failed:', data);
+        alert(`BAN DB UPDATE FAILED: ${data.error}`);
         toast.error(data.error || 'Failed to update ban status in database');
       }
     } catch (error: any) {
       console.error('❌ BAN FAILED:', error);
+      alert(`BAN FAILED: ${error.message}`);
       toast.error(error.message || 'Failed to ban user');
     } finally {
       setIsProcessing(false);
@@ -436,7 +477,12 @@ export function AdminContextMenu({
           ].map((option) => (
             <button
               key={option.amount}
-              onClick={() => handleAwardBonus(option.amount, option.type)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📱 Award button clicked:', option.amount);
+                handleAwardBonus(option.amount, option.type);
+              }}
               disabled={isProcessing}
               className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
             >
@@ -452,7 +498,12 @@ export function AdminContextMenu({
         {/* Moderation Section */}
         <div className="py-1">
           <button
-            onClick={handleDeleteMessage}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('📱 Delete button clicked');
+              handleDeleteMessage();
+            }}
             disabled={isProcessing || isRedacting}
             className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-yellow-50 active:bg-yellow-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
@@ -461,7 +512,12 @@ export function AdminContextMenu({
           </button>
           
           <button
-            onClick={handleBanUser}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('📱 Ban button clicked');
+              handleBanUser();
+            }}
             disabled={isProcessing}
             className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-red-50 active:bg-red-100 text-red-600 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
