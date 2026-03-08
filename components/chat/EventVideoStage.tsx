@@ -304,16 +304,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
-  const handleCutFeed = async () => {
-    if (!isHost || !daily) return;
-
-    if (confirm('🚨 EMERGENCY: Cut the video feed? This will end the stream for you.')) {
-      hasJoinedRef.current = false;
-      joinedRoomRef.current = null;
-      await daily.leave();
-    }
-  };
-
   const handleEndEvent = async () => {
     if (!isHost) return;
 
