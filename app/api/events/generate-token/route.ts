@@ -7,7 +7,6 @@ export async function POST(req: NextRequest) {
   console.log('🎫 [generate-token] REQUEST RECEIVED');
   
   try {
-    // ✅ STEP 1: Parse request body
     let body;
     try {
       body = await req.json();
@@ -28,7 +27,6 @@ export async function POST(req: NextRequest) {
 
     const { roomName, walletAddress, isHost, isGuest, isViewer } = body;
 
-    // ✅ STEP 2: Validate required fields
     if (!roomName || !walletAddress) {
       console.error('❌ [generate-token] Missing required fields:', {
         hasRoomName: !!roomName,
@@ -40,7 +38,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STEP 3: Check API key
     const apiKey = process.env.DAILY_API_KEY;
     if (!apiKey) {
       console.error('❌ [generate-token] DAILY_API_KEY not set in environment');
@@ -51,28 +48,23 @@ export async function POST(req: NextRequest) {
     }
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
-    // ✅ STEP 4: Build token payload based on role
     const isActualViewer = !isHost && !isGuest;
-    const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER (receive-only)';
+    const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER';
 
+    // ✅ FIXED: Removed user_data - only use Daily-supported fields
     const tokenPayload: any = {
       properties: {
         room_name: roomName,
         user_name: walletAddress,
-        is_owner: isHost || isGuest,  // ✅ FIXED: Guests also need owner permissions for broadcast
+        is_owner: isHost || isGuest,  // ✅ Both can broadcast
         enable_screenshare: isHost || false,
         start_video_off: isActualViewer ? true : false,
         start_audio_off: isActualViewer ? true : false,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
-        // ✅ ADDED: Set user_data for participant filtering
-        user_data: JSON.stringify({
-          address: walletAddress.toLowerCase(),
-          role,
-        }),
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3,
       },
     };
 
-    // ✅ Lock down ONLY actual viewers — hosts and guests get full camera/mic
+    // ✅ Lock down viewers
     if (isActualViewer) {
       tokenPayload.properties.permissions = {
         canSend: false,
@@ -89,7 +81,6 @@ export async function POST(req: NextRequest) {
       role,
     });
 
-    // ✅ STEP 5: Call Daily.co API
     let dailyResponse;
     try {
       dailyResponse = await fetch('https://api.daily.co/v1/meeting-tokens', {
@@ -111,7 +102,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STEP 6: Parse Daily.co response
     if (!dailyResponse.ok) {
       const errorText = await dailyResponse.text();
       console.error('❌ [generate-token] Daily.co error response:', errorText);
@@ -133,7 +123,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ STEP 7: Return token
     console.log(`✅ [generate-token] Token generated successfully for ${role}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
