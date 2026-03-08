@@ -29,6 +29,7 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X, Reply } from 'lucide-react';
+import { useStripePayment } from '@/components/StripePaymentModal';
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -174,6 +175,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
+  const { openPaymentModal, StripePaymentModal, isLoadingIntent } = useStripePayment();
   
   const { startTyping, stopTyping } = useTypingIndicator({
     clearDelay: 3000,
@@ -779,12 +781,19 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
           <p className="font-georgia-pro text-sm text-gray-600 text-center">
             Free Members can enjoy viewing for 1 hour per month.{' '}
-            <a
-              href="/join"
-              className="text-[#007AFF] underline hover:text-[#0051D5] transition-colors"
+            <button
+              onClick={() => {
+                if (!activeAccount?.address) {
+                  alert('Please connect your wallet first.');
+                  return;
+                }
+                openPaymentModal(activeAccount.address);
+              }}
+              disabled={isLoadingIntent}
+              className="text-[#007AFF] underline hover:text-[#0051D5] transition-colors bg-transparent border-none cursor-pointer font-georgia-pro text-sm disabled:opacity-50"
             >
-              Sign-up for Knead Monthly
-            </a>{' '}
+              {isLoadingIntent ? 'Loading...' : 'Sign-up for Knead Monthly'}
+            </button>{' '}
             to participate in events.
           </p>
         </div>
@@ -996,6 +1005,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </DailyProvider>
 
       <FreemiumBanner remainingMinutes={remainingMinutes} />
+
+      <StripePaymentModal 
+        onSuccess={async () => {
+          // Payment successful - the membership will be refreshed automatically
+          console.log('✅ Payment completed successfully');
+        }} 
+      />
 
       {/* 🆕 Onboarding Modals */}
       <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
