@@ -83,6 +83,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ ADDED: Ref for fullscreen container
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+
   const hasJoinedRef = useRef(false);
   const joinedRoomRef = useRef<string | null>(null);
 
@@ -192,8 +195,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         const role = isHost ? 'host' : isGuest ? 'guest' : 'viewer';
         console.log('🎥 [EventVideoStage] Joining call...', { roomUrl, role });
 
-        // ✅ STEP 1: startCamera() — triggers browser permission prompt for camera/mic
-        // This MUST be called before join() so the browser grants access
         if (!isViewer) {
           console.log('📷 [EventVideoStage] Requesting camera/mic permissions...');
           try {
@@ -209,11 +210,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             console.log('✅ [EventVideoStage] Camera/mic permissions granted');
           } catch (camError: any) {
             console.warn('⚠️ [EventVideoStage] Camera/mic request failed:', camError.message);
-            // Continue anyway — they can still join without camera/mic
           }
         }
 
-        // ✅ STEP 2: join() — connect to the Daily room
         let timeoutId: NodeJS.Timeout | undefined;
         const joinPromise = daily.join({
           url: roomUrl,
@@ -223,7 +222,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             role,
             address: currentUserAddress,
           },
-          // Explicitly request media tracks for host/guest
           startVideoOff: isViewer,
           startAudioOff: isViewer,
         });
@@ -247,7 +245,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
 
-        // ✅ STEP 3: Ensure camera/mic are ON for host/guest after joining
         if (!isViewer) {
           try {
             await daily.setLocalAudio(true);
@@ -298,9 +295,26 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
+  // ✅ UPDATED: Fullscreen with fallback
   const handleFullscreen = () => {
     if (daily) {
-      daily.requestFullscreen();
+      try {
+        daily.requestFullscreen();
+        return;
+      } catch (err) {
+        console.warn('Daily fullscreen failed, trying browser API:', err);
+      }
+    }
+    
+    // Fallback to browser Fullscreen API
+    if (videoContainerRef.current) {
+      if (videoContainerRef.current.requestFullscreen) {
+        videoContainerRef.current.requestFullscreen();
+      } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
+        (videoContainerRef.current as any).webkitRequestFullscreen();
+      } else if ((videoContainerRef.current as any).mozRequestFullScreen) {
+        (videoContainerRef.current as any).mozRequestFullScreen();
+      }
     }
   };
 
@@ -365,11 +379,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   }
 
   return (
-    <div className="relative h-full bg-gray-900">
-      {/* ✅ DailyAudio: renders hidden <audio> elements for all remote participants */}
+    <div ref={videoContainerRef} className="relative h-full bg-gray-900">
       <DailyAudio />
 
-      {/* Video tiles — only host + invited guests */}
       <div className="h-full p-2">
         <div className={`h-full gap-2 ${
           !hasGuests
@@ -378,7 +390,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               ? 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1'
               : 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr'
         }`}>
-          {/* Host tile */}
+          {/* ✅ UPDATED: Guest-only event support */}
           {effectiveHostId ? (
             <div className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
@@ -390,13 +402,12 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 isViewer={isViewer}
               />
             </div>
-          ) : (
+          ) : !event.guestOnlyEvent ? (
             <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
               <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
             </div>
-          )}
+          ) : null}
 
-          {/* Invited guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
             <div key={guestId} className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
@@ -412,7 +423,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         </div>
       </div>
 
-      {/* ✅ OVERLAY: Controls bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
