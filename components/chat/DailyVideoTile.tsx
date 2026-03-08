@@ -10,30 +10,28 @@ interface DailyVideoTileProps {
   isViewer?: boolean;
 }
 
-/**
- * DailyVideoTile - Individual video tile for a participant
- * Shows video/audio, participant name, and controls
- */
 export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = false }: DailyVideoTileProps) {
   const daily = useDaily();
   const videoState = useVideoTrack(sessionId);
   const audioState = useAudioTrack(sessionId);
 
+  // ✅ FIX: Use daily.localVideo() and daily.localAudio() for current state
   const toggleCamera = () => {
     if (isLocal && daily) {
-      daily.setLocalVideo(!daily.localVideo());
+      const currentState = daily.localVideo();
+      daily.setLocalVideo(!currentState);
     }
   };
 
   const toggleMicrophone = () => {
     if (isLocal && daily) {
-      daily.setLocalAudio(!daily.localAudio());
+      const currentState = daily.localAudio();
+      daily.setLocalAudio(!currentState);
     }
   };
 
   return (
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-full">
-      {/* Daily's built-in video component */}
+    <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-full">
       <DailyVideo
         sessionId={sessionId}
         automirror={isLocal}
@@ -42,7 +40,6 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
         style={{ objectFit: 'cover' }}
       />
 
-      {/* Video Off Placeholder */}
       {videoState.isOff && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
           <div className="text-center">
@@ -54,7 +51,6 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
         </div>
       )}
 
-      {/* Label */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -64,7 +60,6 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
             )}
           </div>
           
-          {/* Local Controls (hidden for viewers) */}
           {isLocal && !isViewer && (
             <div className="flex gap-2">
               <button
