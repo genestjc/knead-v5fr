@@ -145,6 +145,12 @@ export function AdminContextMenu({
         toast.success(`Awarded ${amount} TOWNS bonus!`, {
           description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
         });
+        
+        // ✅ Trigger refetch of earnings counter
+        window.dispatchEvent(new CustomEvent('message-tipped', { 
+          detail: { messageId: message.id } 
+        }));
+        
         onClose();
       } else {
         console.error('❌ API Error:', data);
