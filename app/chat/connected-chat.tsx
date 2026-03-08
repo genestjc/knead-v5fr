@@ -29,7 +29,24 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X, Reply } from 'lucide-react';
-import { useStripePayment } from '@/components/StripePaymentModal';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
+);
 
 interface ConnectedChatProps {
   currentUser: ChatUser;
@@ -43,6 +60,92 @@ interface UserProfile {
   displayName: string;
   walletAddress: string | null;
   role?: string;
+}
+
+function PaymentForm({
+  onSuccess,
+}: {
+  onSuccess: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!stripe || !elements) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/join?payment=success`,
+      },
+    });
+
+    if (error) {
+      setErrorMessage(error.message || 'An error occurred during payment.');
+      setIsProcessing(false);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement
+        options={{
+          layout: 'tabs',
+        }}
+      />
+      {errorMessage && (
+        <div className="text-red-600 text-sm font-georgia-pro">
+          {errorMessage}
+        </div>
+      )}
+      <div className="flex flex-col items-center gap-3">
+        <button
+          type="submit"
+          disabled={!stripe || isProcessing}
+          className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-adonis w-full disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isProcessing ? (
+            <>
+              <svg
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Processing...
+            </>
+          ) : (
+            'Join Today'
+          )}
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function PermissionDebugBanner({
@@ -164,6 +267,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showContributorModal, setShowContributorModal] = useState(false);
 
+  // 💳 Stripe modal states (from /join page)
+  const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [isLoadingIntent, setIsLoadingIntent] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -175,7 +283,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
-  const { openPaymentModal, StripePaymentModal, isLoadingIntent } = useStripePayment();
   
   const { startTyping, stopTyping } = useTypingIndicator({
     clearDelay: 3000,
@@ -192,6 +299,51 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const canReact = useMemo(() => {
     return userRole !== 'freemium';
   }, [userRole]);
+
+  // 💳 Stripe payment handler (from /join page)
+  const handleOpenPaymentModal = async () => {
+    if (!activeAccount?.address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+
+    setIsLoadingIntent(true);
+
+    try {
+      const response = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: activeAccount.address,
+          amount: 500, // $5.00 in cents
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        alert(`Error: ${data.error}`);
+      } else if (data.clientSecret) {
+        setClientSecret(data.clientSecret);
+        setIsStripeModalOpen(true);
+      } else {
+        alert('Unexpected error. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      alert('Failed to initialize payment. Please try again.');
+    } finally {
+      setIsLoadingIntent(false);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setIsStripeModalOpen(false);
+    setClientSecret(null);
+    console.log('✅ Payment completed successfully');
+  };
 
   // 🆕 Welcome Modal - Show on first chat entry
   useEffect(() => {
@@ -782,13 +934,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <p className="font-georgia-pro text-sm text-gray-600 text-center">
             Free Members can enjoy viewing for 1 hour per month.{' '}
             <button
-              onClick={() => {
-                if (!activeAccount?.address) {
-                  alert('Please connect your wallet first.');
-                  return;
-                }
-                openPaymentModal(activeAccount.address);
-              }}
+              onClick={handleOpenPaymentModal}
               disabled={isLoadingIntent}
               className="text-[#007AFF] underline hover:text-[#0051D5] transition-colors bg-transparent border-none cursor-pointer font-georgia-pro text-sm disabled:opacity-50"
             >
@@ -950,6 +1096,35 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const hasVideo = activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl;
 
+  const stripeOptions = clientSecret
+    ? {
+        clientSecret,
+        appearance: {
+          theme: 'stripe' as const,
+          variables: {
+            colorPrimary: '#000000',
+            colorBackground: '#ffffff',
+            colorText: '#1a1a1a',
+            colorDanger: '#dc2626',
+            fontFamily: '"Georgia Pro", Georgia, serif',
+            spacingUnit: '4px',
+            borderRadius: '4px',
+          },
+          rules: {
+            '.Label': {
+              fontFamily: '"adonis-web", serif',
+              fontSize: '14px',
+              fontWeight: '400',
+            },
+            '.Input': {
+              fontFamily: '"Georgia Pro", Georgia, serif',
+              fontSize: '16px',
+            },
+          },
+        },
+      }
+    : null;
+
   return (
     <>
       <DailyProvider>
@@ -1006,12 +1181,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
       <FreemiumBanner remainingMinutes={remainingMinutes} />
 
-      <StripePaymentModal 
-        onSuccess={async () => {
-          // Payment successful - the membership will be refreshed automatically
-          console.log('✅ Payment completed successfully');
-        }} 
-      />
+      {/* 💳 Stripe Payment Modal (from /join page) */}
+      <Dialog open={isStripeModalOpen} onOpenChange={setIsStripeModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-adonis text-xl text-center">
+              Subscribe to Knead Monthly
+            </DialogTitle>
+            <DialogDescription className="font-georgia-pro text-sm text-center text-gray-600">
+              Complete your payment to get unlimited access to all Knead stories
+            </DialogDescription>
+          </DialogHeader>
+          {clientSecret && stripeOptions && (
+            <Elements stripe={stripePromise} options={stripeOptions} key={clientSecret}>
+              <PaymentForm onSuccess={handlePaymentSuccess} />
+            </Elements>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 🆕 Onboarding Modals */}
       <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
