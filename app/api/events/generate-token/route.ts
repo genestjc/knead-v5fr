@@ -52,20 +52,23 @@ export async function POST(req: NextRequest) {
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
     // ✅ STEP 4: Build token payload based on role
-    // Host: full owner permissions (camera, mic, screenshare)
-    // Guest: camera + mic enabled, no screenshare, not owner
-    // Viewer: receive-only — can watch/listen but CANNOT broadcast
     const isActualViewer = !isHost && !isGuest;
+    const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER (receive-only)';
 
     const tokenPayload: any = {
       properties: {
         room_name: roomName,
         user_name: walletAddress,
-        is_owner: isHost || false,
+        is_owner: isHost || isGuest,  // ✅ FIXED: Guests also need owner permissions for broadcast
         enable_screenshare: isHost || false,
         start_video_off: isActualViewer ? true : false,
         start_audio_off: isActualViewer ? true : false,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hours
+        // ✅ ADDED: Set user_data for participant filtering
+        user_data: JSON.stringify({
+          address: walletAddress.toLowerCase(),
+          role,
+        }),
       },
     };
 
@@ -76,8 +79,6 @@ export async function POST(req: NextRequest) {
         hasPresence: true,
       };
     }
-
-    const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER (receive-only)';
 
     console.log('🎫 [generate-token] Calling Daily.co with payload:', {
       ...tokenPayload,
