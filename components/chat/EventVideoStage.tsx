@@ -115,21 +115,49 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     [hostAddress]
   );
 
+  // ✅ ENHANCED: Guest filter with debug logging
   const guestFilter = useCallback(
     (p: any) => {
       const addr = (p.userData?.address || p.user_name || '').toLowerCase();
-      if (!addr) return false;
+      
+      console.log('🔍 [guestFilter] Checking participant:', {
+        sessionId: p.session_id,
+        userData: p.userData,
+        userName: p.user_name,
+        extractedAddr: addr,
+        invitedGuestAddresses,
+      });
+      
+      if (!addr) {
+        console.log('  ❌ No address found');
+        return false;
+      }
+      
+      // Skip if this is the host
       if (hostAddress && (
         addr === hostAddress ||
         (hostAddress.length > 10 && addr.includes(hostAddress.slice(2, 10))) ||
         (addr.length > 10 && hostAddress.includes(addr.slice(2, 10)))
-      )) return false;
-      return invitedGuestAddresses.some((guestAddr: string) => {
-        if (addr === guestAddr) return true;
-        if (guestAddr.length > 10 && addr.includes(guestAddr.slice(2, 10))) return true;
-        if (addr.length > 10 && guestAddr.includes(addr.slice(2, 10))) return true;
+      )) {
+        console.log('  ⏭️ Skipping (is host)');
         return false;
+      }
+      
+      // Check if matches any guest address
+      const isGuest = invitedGuestAddresses.some((guestAddr: string) => {
+        const matches = 
+          addr === guestAddr ||
+          (guestAddr.length > 10 && addr.includes(guestAddr.slice(2, 10))) ||
+          (addr.length > 10 && guestAddr.includes(addr.slice(2, 10)));
+        
+        if (matches) {
+          console.log('  ✅ MATCH with guest:', guestAddr);
+        }
+        return matches;
       });
+      
+      console.log('  → Result:', isGuest ? '✅ IS GUEST' : '❌ NOT GUEST');
+      return isGuest;
     },
     [hostAddress, invitedGuestAddresses]
   );
@@ -138,9 +166,11 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const guestSessionIds = useParticipantIds({ filter: guestFilter });
 
   const effectiveHostId = hostSessionIds[0] || (isHost && localSessionId ? localSessionId : undefined);
+  
+  // ✅ FIXED: Removed !effectiveHostId check - guest should show regardless of host presence
   const effectiveGuestIds = guestSessionIds.length > 0
     ? guestSessionIds
-    : (isGuest && localSessionId && !effectiveHostId ? [localSessionId] : []);
+    : (isGuest && localSessionId ? [localSessionId] : []);
 
   const hasGuests = effectiveGuestIds.length > 0;
 
@@ -426,13 +456,11 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   }
 
   // ✅ FIXED: Calculate grid layout correctly for guest-only vs normal events
-  // Guest-only: only count guests
-  // Normal: count 1 for host section + guests
   const totalTiles = event.guestOnlyEvent 
     ? effectiveGuestIds.length 
     : 1 + effectiveGuestIds.length;
 
-  let gridClass = 'flex'; // default: single item
+  let gridClass = 'flex';
   if (totalTiles === 2) {
     gridClass = 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1';
   } else if (totalTiles > 2) {
@@ -457,7 +485,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
       <div className="h-full p-2">
         <div className={`h-full gap-2 ${gridClass}`}>
-          {/* Host tile - only if NOT guest-only event */}
           {!event.guestOnlyEvent && (
             effectiveHostId ? (
               <div className="min-h-0 h-full overflow-hidden">
@@ -477,7 +504,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             )
           )}
 
-          {/* Guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
             <div key={guestId} className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
@@ -491,7 +517,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             </div>
           ))}
 
-          {/* ✅ ADDED: Show message when guest-only event has no guests yet */}
           {event.guestOnlyEvent && !hasGuests && (
             <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
               <p className="font-georgia-pro text-gray-400">Waiting for guests to join...</p>
