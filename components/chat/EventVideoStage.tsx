@@ -143,7 +143,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   const hasGuests = effectiveGuestIds.length > 0;
 
-  // ✅ DEBUG: Log event configuration
   useEffect(() => {
     console.log('🎭 [EventVideoStage] Event config:', {
       guestOnlyEvent: event.guestOnlyEvent,
@@ -304,54 +303,44 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
-  // ✅ FIXED: Improved fullscreen with async/await and error handling
-  const handleFullscreen = async () => {
+  // ✅ FIXED: Synchronous fullscreen (preserves user gesture)
+  const handleFullscreen = () => {
+    console.log('🖥️ Attempting fullscreen...');
+    
+    if (!videoContainerRef.current) {
+      console.error('❌ Video container ref not found');
+      return;
+    }
+
+    const element = videoContainerRef.current;
+
     try {
-      // Try Daily's built-in fullscreen first
-      if (daily) {
-        try {
-          await daily.requestFullscreen();
-          console.log('✅ Daily fullscreen activated');
-          return;
-        } catch (dailyError) {
-          console.warn('Daily fullscreen failed, trying browser API:', dailyError);
-        }
-      }
-      
-      // Fallback to browser Fullscreen API
-      if (!videoContainerRef.current) {
-        console.error('❌ Video container ref not found');
-        return;
-      }
-
-      const element = videoContainerRef.current;
-
-      // Try standard API
+      // Try standard API first
       if (element.requestFullscreen) {
-        await element.requestFullscreen();
-        console.log('✅ Browser fullscreen activated (standard)');
+        element.requestFullscreen()
+          .then(() => console.log('✅ Fullscreen activated'))
+          .catch(err => console.error('❌ Fullscreen error:', err));
       } 
-      // Try webkit (Safari)
+      // Webkit (Safari)
       else if ((element as any).webkitRequestFullscreen) {
-        await (element as any).webkitRequestFullscreen();
-        console.log('✅ Browser fullscreen activated (webkit)');
+        (element as any).webkitRequestFullscreen();
+        console.log('✅ Webkit fullscreen activated');
       } 
-      // Try Mozilla
+      // Mozilla
       else if ((element as any).mozRequestFullScreen) {
-        await (element as any).mozRequestFullScreen();
-        console.log('✅ Browser fullscreen activated (moz)');
+        (element as any).mozRequestFullScreen();
+        console.log('✅ Mozilla fullscreen activated');
       } 
-      // Try MS
+      // MS
       else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen();
-        console.log('✅ Browser fullscreen activated (ms)');
+        (element as any).msRequestFullscreen();
+        console.log('✅ MS fullscreen activated');
       } else {
-        console.error('❌ Fullscreen API not supported');
-        alert('Fullscreen not supported in this browser');
+        console.error('❌ Fullscreen not supported');
+        alert('Your browser does not support fullscreen');
       }
     } catch (error) {
       console.error('❌ Fullscreen error:', error);
-      alert('Could not enter fullscreen mode');
     }
   };
 
@@ -427,8 +416,9 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               ? 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1'
               : 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr'
         }`}>
-          {/* ✅ FIXED: Only show host tile if NOT a guest-only event */}
-          {!event.guestOnlyEvent && (
+          {/* ✅ FIXED: Skip host tile entirely when guestOnlyEvent is true */}
+          {!event.guestOnlyEvent ? (
+            // Normal events: show host tile or "waiting" message
             effectiveHostId ? (
               <div className="min-h-0 h-full overflow-hidden">
                 <ParticipantTile
@@ -445,7 +435,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
               </div>
             )
-          )}
+          ) : null}
 
           {/* Guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
