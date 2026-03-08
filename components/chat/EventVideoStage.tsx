@@ -51,11 +51,16 @@ function ParticipantTile({
     return false;
   });
 
+  // ✅ FIXED: Use actual username with better formatting
   let label = 'Viewer';
   if (isHostTile) {
     label = isLocal ? 'You (Host)' : 'Host';
   } else if (isGuestTile) {
-    label = isLocal ? 'You (Guest)' : `Guest ${guestIndex + 1}`;
+    // Use userName if available, otherwise show shortened address
+    const displayName = userName 
+      ? (userName.startsWith('0x') ? `${userName.slice(0, 6)}...${userName.slice(-4)}` : userName)
+      : `Guest ${guestIndex + 1}`;
+    label = isLocal ? `You (${displayName})` : displayName;
   }
 
   return (
@@ -287,7 +292,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
 
-        // ✅ ADDED: Set custom user data after joining (userData not supported in tokens)
         try {
           await daily.setUserData({
             address: currentUserAddress.toLowerCase(),
@@ -481,7 +485,8 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       )}
 
       <div className="h-full p-2">
-        <div className={`h-full gap-2 ${gridClass}`}>
+        {/* ✅ FIXED: Center video when solo */}
+        <div className={`h-full gap-2 ${gridClass} ${totalTiles === 1 ? 'items-center justify-center' : ''}`}>
           {!event.guestOnlyEvent && (
             effectiveHostId ? (
               <div className="min-h-0 h-full overflow-hidden">
@@ -535,12 +540,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
 
           <div className="flex items-center gap-2">
+            {/* ✅ FIXED: Toggle fullscreen button */}
             <button
-              onClick={handleFullscreen}
+              onClick={isFullscreen ? handleExitFullscreen : handleFullscreen}
               className="px-4 py-1.5 bg-white/20 text-white rounded-full text-sm font-georgia-pro hover:bg-white/30 transition"
-              title="Enter fullscreen"
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             >
-              ⛶ Fullscreen
+              {isFullscreen ? '✕ Exit Fullscreen' : '⛶ Fullscreen'}
             </button>
             
             {isHost && (
