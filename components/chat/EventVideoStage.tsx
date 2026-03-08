@@ -298,6 +298,22 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
+  const handleFullscreen = () => {
+    if (daily) {
+      daily.requestFullscreen();
+    }
+  };
+
+  const handleCutFeed = async () => {
+    if (!isHost || !daily) return;
+
+    if (confirm('🚨 EMERGENCY: Cut the video feed? This will end the stream for you.')) {
+      hasJoinedRef.current = false;
+      joinedRoomRef.current = null;
+      await daily.leave();
+    }
+  };
+
   const handleEndEvent = async () => {
     if (!isHost) return;
 
@@ -420,6 +436,21 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleFullscreen}
+              className="px-4 py-1.5 bg-white/20 text-white rounded-full text-sm font-georgia-pro hover:bg-white/30 transition"
+              title="Enter fullscreen"
+            >
+              ⛶ Fullscreen
+            </button>
+            {isHost && (
+              <button
+                onClick={handleCutFeed}
+                className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-georgia-pro hover:bg-red-700 transition"
+              >
+                🚨 Cut Feed
+              </button>
+            )}
             {isHost && (
               <button
                 onClick={handleEndEvent}
