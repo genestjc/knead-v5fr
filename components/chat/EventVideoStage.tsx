@@ -201,13 +201,25 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         }
 
         let timeoutId: NodeJS.Timeout | undefined;
-        const joinPromise = daily.join({
+        
+        // ✅ MUSIC MODE: Enable client-side if toggled
+        const joinConfig: any = {
           url: roomUrl,
           token: token,
           userName: currentUserAddress,
           startVideoOff: isViewer,
           startAudioOff: isViewer,
-        });
+        };
+
+        // Add music mode for hosts/guests if enabled
+        if (event.musicMode && !isViewer) {
+          joinConfig.dailyConfig = {
+            micAudioMode: 'music', // 🎵 High-quality audio
+          };
+          console.log('🎵 Music mode enabled for this participant');
+        }
+
+        const joinPromise = daily.join(joinConfig);
 
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error(`Join timeout after ${JOIN_TIMEOUT_MS / 1000} seconds`)), JOIN_TIMEOUT_MS);
@@ -263,7 +275,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     return () => {
       isMounted = false;
     };
-  }, [daily, roomUrl, token, isHost, isGuest, isViewer, currentUserAddress]);
+  }, [daily, roomUrl, token, isHost, isGuest, isViewer, currentUserAddress, event.musicMode]);
 
   useEffect(() => {
     return () => {
@@ -346,7 +358,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     return (
       <div className="h-full flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <p className="font-georgia-pro text-red-400 mb-4">❌ {error}</p>
+          <p className="font-georgia-pro text-red-400 mb-4">��� {error}</p>
           <button
             onClick={() => {
               setError(null);
