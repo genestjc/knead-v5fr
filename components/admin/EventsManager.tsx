@@ -12,6 +12,61 @@ interface EventsManagerProps {
   adminAddress: string;
 }
 
+function GuestAddressCopyField({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        readOnly
+        value={address}
+        onFocus={(e) => e.currentTarget.select()}
+        className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-300 rounded font-mono text-xs"
+      />
+      <button
+        onClick={handleCopy}
+        className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition flex-shrink-0"
+      >
+        {copied ? '✓ Copied' : 'Copy'}
+      </button>
+    </div>
+  );
+}
+
+function CopyAllButton({ addresses }: { addresses: string[] }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(addresses.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopyAll}
+      className="text-xs text-blue-600 hover:underline mb-2"
+    >
+      {copied ? '✓ All Copied' : '📋 Copy All Addresses'}
+    </button>
+  );
+}
+
 export function EventsManager({ adminAddress }: EventsManagerProps) {
   const account = useActiveAccount();
   
@@ -465,6 +520,20 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   </span>
                 </div>
               </div>
+
+              {event.guestAddresses && event.guestAddresses.length > 0 && (
+                <div className="mb-4">
+                  <CopyAllButton addresses={event.guestAddresses} />
+                  <span className="font-georgia-pro text-sm text-gray-500 mb-2 block">
+                    Video Guest Addresses:
+                  </span>
+                  <div className="space-y-2">
+                    {event.guestAddresses.map((address: string, index: number) => (
+                      <GuestAddressCopyField key={index} address={address} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {event.guests && event.guests.length > 0 && (
                 <div className="mb-4">

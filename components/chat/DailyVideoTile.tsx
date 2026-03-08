@@ -21,13 +21,13 @@ export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = f
 
   const toggleCamera = () => {
     if (isLocal && daily) {
-      daily.setLocalVideo(!videoState.isOff);
+      daily.setLocalVideo(!daily.localVideo());
     }
   };
 
   const toggleMicrophone = () => {
     if (isLocal && daily) {
-      daily.setLocalAudio(!audioState.isOff);
+      daily.setLocalAudio(!daily.localAudio());
     }
   };
 
