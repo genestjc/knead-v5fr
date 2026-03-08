@@ -77,10 +77,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [adminUserId, setAdminUserId] = useState<string>('');
   const [isProcessingNFTs, setIsProcessingNFTs] = useState(false);
 
-  // ✅ SIMPLIFIED: Just a textarea for addresses
   const [guestAddressesInput, setGuestAddressesInput] = useState('');
 
-  // Form state
+  // ✅ ADDED: guestOnlyEvent field
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -90,6 +89,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     scheduledEnd: '',
     videoEnabled: true,
     audioOnly: false,
+    guestOnlyEvent: false,
   });
 
   useEffect(() => {
@@ -190,7 +190,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       return;
     }
 
-    // ✅ PARSE ADDRESSES FROM TEXTAREA
     const rawAddresses = guestAddressesInput
       .split(/[\n,]+/)
       .map(addr => addr.trim().toLowerCase())
@@ -199,9 +198,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📋 CREATING EVENT');
     console.log('   Title:', formData.title);
-    console.log('   Raw input:', guestAddressesInput);
+    console.log('   Guest-only:', formData.guestOnlyEvent);
     console.log('   Parsed guest addresses:', rawAddresses);
-    console.log('   Guest count:', rawAddresses.length);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
@@ -215,6 +213,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         videoEnabled: formData.videoEnabled,
         hostId: adminUserId,
         guestAddresses: rawAddresses,
+        guestOnlyEvent: formData.guestOnlyEvent, // ✅ ADDED
       };
       
       console.log('📨 Sending to API:', requestBody);
@@ -253,6 +252,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       scheduledEnd: '',
       videoEnabled: true,
       audioOnly: false,
+      guestOnlyEvent: false, // ✅ ADDED
     });
     setGuestAddressesInput('');
   };
@@ -441,7 +441,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-adonis text-2xl">Events & Live Interviews</h2>
@@ -474,7 +473,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         </div>
       )}
 
-      {/* Events list */}
       <div className="space-y-4">
         {events.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -491,6 +489,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     {event.videoEnabled && (
                       <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
                         📹 VIDEO
+                      </span>
+                    )}
+                    {event.guestOnlyEvent && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                        🎙️ GUEST-ONLY
                       </span>
                     )}
                   </div>
@@ -594,7 +597,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         )}
       </div>
 
-      {/* Create Event Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
@@ -675,7 +677,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               </div>
 
-              {/* ✅ SIMPLIFIED GUEST INPUT */}
               <div>
                 <label className="block font-georgia-pro text-sm mb-2">
                   Video Guests (Optional)
@@ -724,6 +725,29 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   <div className="mt-3 p-3 bg-purple-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-purple-800">
                       💡 Daily.co room will be created for you and your video guests. Students participate via text chat.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* ✅ GUEST-ONLY EVENT CHECKBOX */}
+              <div className="border-t pt-4">
+                <label className="block font-georgia-pro text-sm font-medium mb-3">Event Settings</label>
+                
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.guestOnlyEvent}
+                    onChange={(e) => setFormData({ ...formData, guestOnlyEvent: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="font-georgia-pro text-sm">🎙️ Guest-only event (no host required)</span>
+                </label>
+                
+                {formData.guestOnlyEvent && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="font-georgia-pro text-xs text-blue-800">
+                      💡 Guests can start streaming immediately without waiting for you to join.
                     </p>
                   </div>
                 )}
