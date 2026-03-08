@@ -82,6 +82,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const localSessionId = useLocalSessionId();
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false); // ✅ ADDED
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -142,6 +143,23 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     : (isGuest && localSessionId && !effectiveHostId ? [localSessionId] : []);
 
   const hasGuests = effectiveGuestIds.length > 0;
+
+  // ✅ ADDED: Track fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     console.log('🎭 [EventVideoStage] Event config:', {
@@ -303,7 +321,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
-  // ✅ FIXED: Synchronous fullscreen (preserves user gesture)
   const handleFullscreen = () => {
     console.log('🖥️ Attempting fullscreen...');
     
@@ -315,24 +332,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     const element = videoContainerRef.current;
 
     try {
-      // Try standard API first
       if (element.requestFullscreen) {
         element.requestFullscreen()
           .then(() => console.log('✅ Fullscreen activated'))
           .catch(err => console.error('❌ Fullscreen error:', err));
-      } 
-      // Webkit (Safari)
-      else if ((element as any).webkitRequestFullscreen) {
+      } else if ((element as any).webkitRequestFullscreen) {
         (element as any).webkitRequestFullscreen();
         console.log('✅ Webkit fullscreen activated');
-      } 
-      // Mozilla
-      else if ((element as any).mozRequestFullScreen) {
+      } else if ((element as any).mozRequestFullScreen) {
         (element as any).mozRequestFullScreen();
         console.log('✅ Mozilla fullscreen activated');
-      } 
-      // MS
-      else if ((element as any).msRequestFullscreen) {
+      } else if ((element as any).msRequestFullscreen) {
         (element as any).msRequestFullscreen();
         console.log('✅ MS fullscreen activated');
       } else {
@@ -341,6 +351,19 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
       }
     } catch (error) {
       console.error('❌ Fullscreen error:', error);
+    }
+  };
+
+  // ✅ ADDED: Exit fullscreen handler
+  const handleExitFullscreen = () => {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if ((document as any).webkitExitFullscreen) {
+      (document as any).webkitExitFullscreen();
+    } else if ((document as any).mozCancelFullScreen) {
+      (document as any).mozCancelFullScreen();
+    } else if ((document as any).msExitFullscreen) {
+      (document as any).msExitFullscreen();
     }
   };
 
@@ -404,21 +427,38 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
+  // ✅ FIXED: Calculate grid layout based on actual tiles shown
+  const showingHost = !event.guestOnlyEvent && (effectiveHostId || true);
+  const totalTiles = (showingHost ? 1 : 0) + effectiveGuestIds.length;
+
+  let gridClass = 'flex'; // default: single item
+  if (totalTiles === 2) {
+    gridClass = 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1';
+  } else if (totalTiles > 2) {
+    gridClass = 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr';
+  }
+
   return (
     <div ref={videoContainerRef} className="relative h-full bg-gray-900">
       <DailyAudio />
 
+      {/* ✅ ADDED: Exit fullscreen button (only visible in fullscreen) */}
+      {isFullscreen && (
+        <button
+          onClick={handleExitFullscreen}
+          className="absolute top-4 right-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition"
+          title="Exit fullscreen"
+        >
+          <svg className="w-6 h-6 text-white opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+
       <div className="h-full p-2">
-        <div className={`h-full gap-2 ${
-          !hasGuests
-            ? 'flex'
-            : hasGuests && effectiveGuestIds.length === 1
-              ? 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1'
-              : 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr'
-        }`}>
-          {/* ✅ FIXED: Skip host tile entirely when guestOnlyEvent is true */}
-          {!event.guestOnlyEvent ? (
-            // Normal events: show host tile or "waiting" message
+        <div className={`h-full gap-2 ${gridClass}`}>
+          {/* Host tile - only if NOT guest-only event */}
+          {!event.guestOnlyEvent && (
             effectiveHostId ? (
               <div className="min-h-0 h-full overflow-hidden">
                 <ParticipantTile
@@ -435,7 +475,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
               </div>
             )
-          ) : null}
+          )}
 
           {/* Guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
