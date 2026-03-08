@@ -144,7 +144,7 @@ function MessageBubbleComponent({
     try {
       await awardTokensOnLike(message.id, message.sender.walletAddress, 10, '❤️', eventId);
       window.dispatchEvent(new CustomEvent('message-tipped', { detail: { messageId: message.id } }));
-      toast.success('🍞 Tipped 10 TOWNS!');
+      // ❌ REMOVED: toast.success('🍞 Tipped 10 TOWNS!');
     } catch (error: any) {
       toast.error('Failed to send tip. Please try again.');
     }
@@ -172,7 +172,7 @@ function MessageBubbleComponent({
     if (!channelId) return;
     try {
       await sendReaction(message.id, '❤️');
-      toast.success('Reacted with ❤️');
+      // ❌ REMOVED: toast.success('Reacted with ❤️');
     } catch (error) {
       toast.error('Could not send reaction');
     }
