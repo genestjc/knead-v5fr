@@ -82,7 +82,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const localSessionId = useLocalSessionId();
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false); // ✅ ADDED
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -144,7 +144,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   const hasGuests = effectiveGuestIds.length > 0;
 
-  // ✅ ADDED: Track fullscreen state
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -354,7 +353,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
-  // ✅ ADDED: Exit fullscreen handler
   const handleExitFullscreen = () => {
     if (document.exitFullscreen) {
       document.exitFullscreen();
@@ -427,9 +425,12 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  // ✅ FIXED: Calculate grid layout based on actual tiles shown
-  const showingHost = !event.guestOnlyEvent && (effectiveHostId || true);
-  const totalTiles = (showingHost ? 1 : 0) + effectiveGuestIds.length;
+  // ✅ FIXED: Calculate grid layout correctly for guest-only vs normal events
+  // Guest-only: only count guests
+  // Normal: count 1 for host section + guests
+  const totalTiles = event.guestOnlyEvent 
+    ? effectiveGuestIds.length 
+    : 1 + effectiveGuestIds.length;
 
   let gridClass = 'flex'; // default: single item
   if (totalTiles === 2) {
@@ -442,7 +443,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     <div ref={videoContainerRef} className="relative h-full bg-gray-900">
       <DailyAudio />
 
-      {/* ✅ ADDED: Exit fullscreen button (only visible in fullscreen) */}
       {isFullscreen && (
         <button
           onClick={handleExitFullscreen}
@@ -490,6 +490,13 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               />
             </div>
           ))}
+
+          {/* ✅ ADDED: Show message when guest-only event has no guests yet */}
+          {event.guestOnlyEvent && !hasGuests && (
+            <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
+              <p className="font-georgia-pro text-gray-400">Waiting for guests to join...</p>
+            </div>
+          )}
         </div>
       </div>
 
