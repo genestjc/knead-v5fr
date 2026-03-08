@@ -17,17 +17,16 @@ export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVid
 
   const handleToggleVideo = () => {
     if (!daily || isViewer) return;
-    daily.setLocalVideo(!videoState.isOff);
+    daily.setLocalVideo(videoState.isOff);
   };
 
   const handleToggleAudio = () => {
     if (!daily || isViewer) return;
-    daily.setLocalAudio(!audioState.isOff);
+    daily.setLocalAudio(audioState.isOff);
   };
 
   return (
     <div className="relative w-full h-full bg-gray-950 rounded-lg overflow-hidden">
-      {/* ✅ Daily's built-in video component */}
       <DailyVideo
         sessionId={sessionId}
         type="video"
@@ -35,15 +34,12 @@ export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVid
         className="w-full h-full object-cover"
       />
 
-      {/* Label overlay */}
-      <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/70 rounded-full">
+      <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/70 rounded-full z-40">
         <span className="text-white text-sm font-georgia-pro font-medium">{label}</span>
       </div>
 
-      {/* ✅ Controls (only for local participant, not viewers) */}
       {isLocal && !isViewer && (
-        <div className="absolute bottom-3 right-3 flex gap-2">
-          {/* Video toggle */}
+        <div className="absolute bottom-3 right-3 flex gap-2 z-50">
           <button
             onClick={handleToggleVideo}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
@@ -58,7 +54,6 @@ export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVid
             </span>
           </button>
 
-          {/* Audio toggle */}
           <button
             onClick={handleToggleAudio}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
@@ -75,18 +70,16 @@ export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVid
         </div>
       )}
 
-      {/* Audio indicator for remote participants */}
       {!isLocal && !isViewer && (
-        <div className="absolute top-3 right-3 px-2 py-1 bg-black/70 rounded-full">
+        <div className="absolute top-3 right-3 px-2 py-1 bg-black/70 rounded-full z-40">
           <span className="text-white text-xs">
             {audioState.isOff ? '🔇' : '🔊'}
           </span>
         </div>
       )}
 
-      {/* Video off indicator */}
       {videoState.isOff && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-30">
           <div className="text-center">
             <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
               <span className="text-4xl">👤</span>
