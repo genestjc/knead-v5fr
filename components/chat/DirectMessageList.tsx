@@ -102,16 +102,35 @@ export function DirectMessageList({
       const fetchContributors = async () => {
         setLoadingContributors(true);
         try {
+          console.log('🔍 Fetching contributors from API...');
+          console.log('   Current userId:', userId);
+          
           const response = await fetch('/api/admin/contributors');
+          console.log('📡 API response status:', response.status);
+          
           const data = await response.json();
+          console.log('📬 Contributors API full response:', data);
+          console.log('   Success:', data.success);
+          console.log('   Data array length:', data.data?.length || 0);
+          
           if (data.success) {
+            console.log('✅ API returned successfully');
+            console.log('   Raw contributors:', data.data);
+            
             const filteredContributors = (data.data || []).filter(
               (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
             );
+            
+            console.log('🔎 After filtering (excluding current user):');
+            console.log('   Filtered count:', filteredContributors.length);
+            console.log('   Filtered contributors:', filteredContributors);
+            
             setContributors(filteredContributors);
+          } else {
+            console.error('❌ API returned error:', data.error);
           }
         } catch (error) {
-          console.error('Failed to fetch contributors:', error);
+          console.error('❌ Failed to fetch contributors:', error);
         } finally {
           setLoadingContributors(false);
         }
