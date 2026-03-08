@@ -433,14 +433,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
             >
               ⛶ Fullscreen
             </button>
-            {isHost && (
-              <button
-                onClick={handleCutFeed}
-                className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-georgia-pro hover:bg-red-700 transition"
-              >
-                🚨 Cut Feed
-              </button>
-            )}
+            
             {isHost && (
               <button
                 onClick={handleEndEvent}
@@ -449,6 +442,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
                 End Event
               </button>
             )}
+            
             {isGuest && (
               <button
                 onClick={handleLeaveCall}
