@@ -64,7 +64,7 @@ export function MessageReactions({
       onClose?.();
       try {
         await sendReaction(messageId, emoji);
-        toast.success(`Reacted with ${emoji}`);
+        // ❌ REMOVED: toast.success(`Reacted with ${emoji}`);
       } catch (error: any) {
         const msg = error?.message?.toLowerCase() || '';
         if (msg.includes('quorum_failed') || msg.includes('deadline_exceeded')) {
