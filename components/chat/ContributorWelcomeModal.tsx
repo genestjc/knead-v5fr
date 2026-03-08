@@ -1,0 +1,324 @@
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Upload, User, Check } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface ContributorWelcomeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  userAddress: string;
+  userId: string;
+  currentAlias?: string;
+  currentAvatar?: string;
+}
+
+export function ContributorWelcomeModal({
+  isOpen,
+  onClose,
+  userAddress,
+  userId,
+  currentAlias,
+  currentAvatar,
+}: ContributorWelcomeModalProps) {
+  const [alias, setAlias] = useState(currentAlias || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatar || '');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (isOpen) {
+      setAlias(currentAlias || '');
+      setAvatarPreview(currentAvatar || '');
+      setAvatarFile(null);
+    }
+  }, [isOpen, currentAlias, currentAvatar]);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image under 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAvatarFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+
+    try {
+      let avatarUrl = currentAvatar;
+
+      if (avatarFile) {
+        setIsUploading(true);
+
+        try {
+          const formData = new FormData();
+          formData.append('file', avatarFile);
+          formData.append('userAddress', userAddress);
+
+          const uploadResponse = await fetch('/api/contributor/upload-avatar', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const uploadData = await uploadResponse.json();
+
+          if (!uploadData.success || !uploadData.data?.url) {
+            throw new Error(uploadData.error || 'Failed to upload avatar');
+          }
+
+          avatarUrl = uploadData.data.url;
+        } catch (uploadError: any) {
+          toast({
+            title: 'Upload failed',
+            description: uploadError.message || 'Failed to upload avatar. Please try again.',
+            variant: 'destructive',
+          });
+          setIsUploading(false);
+          setIsSaving(false);
+          return;
+        }
+
+        setIsUploading(false);
+      }
+
+      const response = await fetch('/api/contributor/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          userAddress,
+          alias: alias.trim() || null,
+          avatar: avatarUrl || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update profile');
+      }
+
+      toast({
+        title: 'Profile saved!',
+        description: 'Your contributor profile has been set up.',
+      });
+
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (error) {
+      toast({
+        title: 'Failed to save',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-8 py-5 flex items-start justify-between z-10 gap-4">
+              <h1 className="font-adonis text-2xl leading-snug">
+                Congratulations, you've been granted Contributor status.
+              </h1>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="overflow-y-auto px-8 py-6 space-y-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+              <p className="font-georgia-pro text-gray-800 leading-relaxed">
+                This is the highest level you can be awarded in the chat, reserved for special guests or
+                Knead Monthly members who've made thoughtful contributions.
+              </p>
+
+              <h2 className="font-adonis text-xl pt-2">What This Means</h2>
+
+              <div className="space-y-4 font-georgia-pro text-gray-800 leading-relaxed">
+                <p>
+                  Contributors are granted full access to the chat, including messaging during non-events,
+                  as well as being able to DM other Contributors in the rolodex.
+                </p>
+                <p>
+                  Contributors are allocated a weekly budget of $TOWNS from the Treasury to spend on Knead
+                  Monthly members, earning 20% back for each 'like' they allocate.
+                </p>
+                <p>
+                  To encourage passive engagement, your allowance is on a 'use it or lose it' basis.
+                </p>
+                <p>
+                  If you're a Contributor who earned this status from making good contributions as a Knead
+                  Monthly member, your weekly allowance will be higher than appointed guests.
+                </p>
+                <p>
+                  Finally, Contributors are also able to set a profile picture + display name in the chat.
+                  Upload a photo below + assign your persona below:
+                </p>
+              </div>
+
+              {/* Inline settings form */}
+              <div className="border border-gray-200 rounded-xl p-6 space-y-6">
+                {/* Profile Photo */}
+                <div>
+                  <label className="block font-adonis text-sm text-gray-700 mb-3">
+                    Profile Photo
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {avatarPreview ? (
+                        <img
+                          src={
+                            avatarPreview.startsWith('ipfs://')
+                              ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}`
+                              : avatarPreview
+                          }
+                          alt="Avatar preview"
+                          className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                          <User className="w-12 h-12 text-white" />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading || isSaving}
+                        className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+                      >
+                        <Upload className="w-6 h-6 text-white" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading || isSaving}
+                        className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-adonis"
+                      >
+                        {isUploading ? 'Uploading...' : 'Choose Photo'}
+                      </button>
+                      <p className="text-xs text-gray-500 mt-2">JPG, PNG, or GIF • Max 5MB</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Display Name */}
+                <div>
+                  <label className="block font-adonis text-sm text-gray-700 mb-2">
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={alias}
+                    onChange={(e) => setAlias(e.target.value)}
+                    placeholder={`${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                    disabled={isSaving}
+                    maxLength={50}
+                  />
+                  <p className="text-xs text-gray-500 mt-1 italic">
+                    If you'd prefer not to use a display name, leaving it blank will default to truncated wallet address
+                  </p>
+                </div>
+
+                {/* Save button */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={onClose}
+                    disabled={isSaving}
+                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition disabled:opacity-50"
+                  >
+                    Skip for now
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || isUploading}
+                    className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isSaving ? (
+                      'Saving...'
+                    ) : isUploading ? (
+                      'Uploading...'
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Save Profile
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Closing thank-you */}
+              <p className="font-adonis text-center text-lg leading-relaxed pb-2">
+                Thank you so much for your contributions to Knead's community, we're excited to have you as a Contributor.
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
