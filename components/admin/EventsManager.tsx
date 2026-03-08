@@ -79,7 +79,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   const [guestAddressesInput, setGuestAddressesInput] = useState('');
 
-  // ✅ ADDED: guestOnlyEvent field
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -90,6 +89,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     videoEnabled: true,
     audioOnly: false,
     guestOnlyEvent: false,
+    musicMode: false, // ✅ ADDED
   });
 
   useEffect(() => {
@@ -199,6 +199,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     console.log('📋 CREATING EVENT');
     console.log('   Title:', formData.title);
     console.log('   Guest-only:', formData.guestOnlyEvent);
+    console.log('   Music mode:', formData.musicMode);
     console.log('   Parsed guest addresses:', rawAddresses);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
@@ -213,7 +214,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         videoEnabled: formData.videoEnabled,
         hostId: adminUserId,
         guestAddresses: rawAddresses,
-        guestOnlyEvent: formData.guestOnlyEvent, // ✅ ADDED
+        guestOnlyEvent: formData.guestOnlyEvent,
+        musicMode: formData.musicMode, // ✅ ADDED
       };
       
       console.log('📨 Sending to API:', requestBody);
@@ -252,7 +254,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       scheduledEnd: '',
       videoEnabled: true,
       audioOnly: false,
-      guestOnlyEvent: false, // ✅ ADDED
+      guestOnlyEvent: false,
+      musicMode: false, // ✅ ADDED
     });
     setGuestAddressesInput('');
   };
@@ -496,6 +499,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                         🎙️ GUEST-ONLY
                       </span>
                     )}
+                    {/* ✅ MUSIC MODE BADGE */}
+                    {event.musicMode && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
+                        🎵 MUSIC MODE
+                      </span>
+                    )}
                   </div>
                   <p className="font-georgia-pro text-sm text-gray-600">{event.description}</p>
                 </div>
@@ -730,24 +739,45 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 )}
               </div>
 
-              {/* ✅ GUEST-ONLY EVENT CHECKBOX */}
               <div className="border-t pt-4">
                 <label className="block font-georgia-pro text-sm font-medium mb-3">Event Settings</label>
                 
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.guestOnlyEvent}
-                    onChange={(e) => setFormData({ ...formData, guestOnlyEvent: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="font-georgia-pro text-sm">🎙️ Guest-only event (no host required)</span>
-                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.guestOnlyEvent}
+                      onChange={(e) => setFormData({ ...formData, guestOnlyEvent: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="font-georgia-pro text-sm">🎙️ Guest-only event (no host required)</span>
+                  </label>
+                  
+                  {/* ✅ MUSIC MODE CHECKBOX */}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.musicMode}
+                      onChange={(e) => setFormData({ ...formData, musicMode: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="font-georgia-pro text-sm">🎵 Music Mode (high-quality audio for musicians)</span>
+                  </label>
+                </div>
                 
                 {formData.guestOnlyEvent && (
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-blue-800">
                       💡 Guests can start streaming immediately without waiting for you to join.
+                    </p>
+                  </div>
+                )}
+                
+                {/* ✅ MUSIC MODE INFO */}
+                {formData.musicMode && (
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                    <p className="font-georgia-pro text-xs text-green-800">
+                      💡 Optimizes audio for music with higher bitrate and less compression. Perfect for live performances!
                     </p>
                   </div>
                 )}
