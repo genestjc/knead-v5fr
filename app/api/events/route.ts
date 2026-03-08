@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         console.log('   guest_addresses type:', typeof event.guest_addresses);
         console.log('   guest_addresses is array?', Array.isArray(event.guest_addresses));
         console.log('   guest_addresses length:', event.guest_addresses?.length || 0);
+        console.log('   guest_only_event:', event.guest_only_event); // ✅ ADDED
         
         // Fetch host
         let host = null;
@@ -88,6 +89,7 @@ export async function GET(req: NextRequest) {
           videoEnabled: event.video_enabled,
           dailyRoomUrl: event.daily_room_url,
           dailyRoomName: event.daily_room_name,
+          guestOnlyEvent: event.guest_only_event || false, // ✅ ADDED
           host: host
             ? {
                 id: host.id,
@@ -97,7 +99,7 @@ export async function GET(req: NextRequest) {
                 avatar: host.avatar,
               }
             : null,
-          guestAddresses: event.guest_addresses || [], // ✅ Return addresses directly
+          guestAddresses: event.guest_addresses || [],
           createdAt: event.created_at,
           updatedAt: event.updated_at,
         };
@@ -132,13 +134,15 @@ export async function POST(req: NextRequest) {
       scheduledEnd,
       videoEnabled,
       hostId,
-      guestAddresses = [], // ✅ Now receiving addresses directly
+      guestAddresses = [],
+      guestOnlyEvent = false, // ✅ ADDED
     } = body;
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📥 [POST /api/events] Creating event');
     console.log('   Title:', title);
     console.log('   Guest addresses received:', guestAddresses);
+    console.log('   Guest-only event:', guestOnlyEvent); // ✅ ADDED
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Validate required fields
@@ -249,13 +253,14 @@ export async function POST(req: NextRequest) {
         channel_id: channelId,
         event_type: eventType,
         host_id: hostId,
-        guest_addresses: normalizedGuestAddresses, // ✅ Store addresses directly
+        guest_addresses: normalizedGuestAddresses,
         scheduled_start: scheduledStart,
         scheduled_end: scheduledEnd,
         status: 'scheduled',
         video_enabled: videoEnabled,
         daily_room_url: dailyRoomUrl,
         daily_room_name: dailyRoomName,
+        guest_only_event: guestOnlyEvent, // ✅ ADDED
       })
       .select()
       .single();
@@ -265,6 +270,7 @@ export async function POST(req: NextRequest) {
     console.log('   Success:', !insertError);
     console.log('   Event created with guest_addresses:', event?.guest_addresses);
     console.log('   Guest count:', event?.guest_addresses?.length || 0);
+    console.log('   Guest-only event:', event?.guest_only_event); // ✅ ADDED
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
