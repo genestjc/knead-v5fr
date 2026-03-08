@@ -137,7 +137,11 @@ export function useStripePayment() {
             </DialogDescription>
           </DialogHeader>
           {clientSecret && stripeOptions && (
-            <Elements stripe={stripePromise} options={stripeOptions}>
+            <Elements 
+              stripe={stripePromise} 
+              options={stripeOptions}
+              key={clientSecret} // ✅ FIX: Prevents re-mounting on parent re-renders
+            >
               <PaymentForm onSuccess={onSuccess} />
             </Elements>
           )}
