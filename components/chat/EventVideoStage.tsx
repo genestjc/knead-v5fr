@@ -83,7 +83,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ ADDED: Ref for fullscreen container
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   const hasJoinedRef = useRef(false);
@@ -143,6 +142,16 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     : (isGuest && localSessionId && !effectiveHostId ? [localSessionId] : []);
 
   const hasGuests = effectiveGuestIds.length > 0;
+
+  // ✅ DEBUG: Log event configuration
+  useEffect(() => {
+    console.log('🎭 [EventVideoStage] Event config:', {
+      guestOnlyEvent: event.guestOnlyEvent,
+      hasHost: !!effectiveHostId,
+      hasGuests: hasGuests,
+      guestCount: effectiveGuestIds.length,
+    });
+  }, [event, effectiveHostId, hasGuests, effectiveGuestIds]);
 
   useEffect(() => {
     console.log('🎬 [EventVideoStage] Tile state:', {
@@ -295,26 +304,54 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     }
   };
 
-  // ✅ UPDATED: Fullscreen with fallback
-  const handleFullscreen = () => {
-    if (daily) {
-      try {
-        daily.requestFullscreen();
+  // ✅ FIXED: Improved fullscreen with async/await and error handling
+  const handleFullscreen = async () => {
+    try {
+      // Try Daily's built-in fullscreen first
+      if (daily) {
+        try {
+          await daily.requestFullscreen();
+          console.log('✅ Daily fullscreen activated');
+          return;
+        } catch (dailyError) {
+          console.warn('Daily fullscreen failed, trying browser API:', dailyError);
+        }
+      }
+      
+      // Fallback to browser Fullscreen API
+      if (!videoContainerRef.current) {
+        console.error('❌ Video container ref not found');
         return;
-      } catch (err) {
-        console.warn('Daily fullscreen failed, trying browser API:', err);
       }
-    }
-    
-    // Fallback to browser Fullscreen API
-    if (videoContainerRef.current) {
-      if (videoContainerRef.current.requestFullscreen) {
-        videoContainerRef.current.requestFullscreen();
-      } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
-        (videoContainerRef.current as any).webkitRequestFullscreen();
-      } else if ((videoContainerRef.current as any).mozRequestFullScreen) {
-        (videoContainerRef.current as any).mozRequestFullScreen();
+
+      const element = videoContainerRef.current;
+
+      // Try standard API
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+        console.log('✅ Browser fullscreen activated (standard)');
+      } 
+      // Try webkit (Safari)
+      else if ((element as any).webkitRequestFullscreen) {
+        await (element as any).webkitRequestFullscreen();
+        console.log('✅ Browser fullscreen activated (webkit)');
+      } 
+      // Try Mozilla
+      else if ((element as any).mozRequestFullScreen) {
+        await (element as any).mozRequestFullScreen();
+        console.log('✅ Browser fullscreen activated (moz)');
+      } 
+      // Try MS
+      else if ((element as any).msRequestFullscreen) {
+        await (element as any).msRequestFullscreen();
+        console.log('✅ Browser fullscreen activated (ms)');
+      } else {
+        console.error('❌ Fullscreen API not supported');
+        alert('Fullscreen not supported in this browser');
       }
+    } catch (error) {
+      console.error('❌ Fullscreen error:', error);
+      alert('Could not enter fullscreen mode');
     }
   };
 
@@ -390,24 +427,27 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               ? 'grid grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1'
               : 'grid grid-cols-1 md:grid-cols-2 auto-rows-fr'
         }`}>
-          {/* ✅ UPDATED: Guest-only event support */}
-          {effectiveHostId ? (
-            <div className="min-h-0 h-full overflow-hidden">
-              <ParticipantTile
-                sessionId={effectiveHostId}
-                localSessionId={localSessionId}
-                hostAddress={hostAddress}
-                invitedGuestAddresses={invitedGuestAddresses}
-                guestIndex={0}
-                isViewer={isViewer}
-              />
-            </div>
-          ) : !event.guestOnlyEvent ? (
-            <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
-              <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
-            </div>
-          ) : null}
+          {/* ✅ FIXED: Only show host tile if NOT a guest-only event */}
+          {!event.guestOnlyEvent && (
+            effectiveHostId ? (
+              <div className="min-h-0 h-full overflow-hidden">
+                <ParticipantTile
+                  sessionId={effectiveHostId}
+                  localSessionId={localSessionId}
+                  hostAddress={hostAddress}
+                  invitedGuestAddresses={invitedGuestAddresses}
+                  guestIndex={0}
+                  isViewer={isViewer}
+                />
+              </div>
+            ) : (
+              <div className="min-h-0 h-full bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
+                <p className="font-georgia-pro text-gray-400">Waiting for host...</p>
+              </div>
+            )
+          )}
 
+          {/* Guest tiles */}
           {hasGuests && effectiveGuestIds.map((guestId, index) => (
             <div key={guestId} className="min-h-0 h-full overflow-hidden">
               <ParticipantTile
@@ -423,7 +463,7 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 z-20">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
