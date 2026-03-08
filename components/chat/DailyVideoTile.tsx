@@ -1,88 +1,100 @@
 'use client';
 
 import React from 'react';
-import { DailyVideo, useDaily, useVideoTrack, useAudioTrack } from '@daily-co/daily-react';
+import { DailyVideo, useVideoTrack, useAudioTrack, useDaily } from '@daily-co/daily-react';
 
 interface DailyVideoTileProps {
   sessionId: string;
   label: string;
-  isLocal?: boolean;
-  isViewer?: boolean;
+  isLocal: boolean;
+  isViewer: boolean;
 }
 
-export function DailyVideoTile({ sessionId, label, isLocal = false, isViewer = false }: DailyVideoTileProps) {
+export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVideoTileProps) {
   const daily = useDaily();
   const videoState = useVideoTrack(sessionId);
   const audioState = useAudioTrack(sessionId);
 
-  const toggleCamera = () => {
-    if (isLocal && daily) {
-      const currentState = daily.localVideo();
-      daily.setLocalVideo(!currentState);
-    }
+  const handleToggleVideo = () => {
+    if (!daily || isViewer) return;
+    daily.setLocalVideo(!videoState.isOff);
   };
 
-  const toggleMicrophone = () => {
-    if (isLocal && daily) {
-      const currentState = daily.localAudio();
-      daily.setLocalAudio(!currentState);
-    }
+  const handleToggleAudio = () => {
+    if (!daily || isViewer) return;
+    daily.setLocalAudio(!audioState.isOff);
   };
 
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-full">
-      {/* ✅ FIX: Add z-0 to video to keep it behind controls */}
-      <div className="absolute inset-0 z-0">
-        <DailyVideo
-          sessionId={sessionId}
-          automirror={isLocal}
-          type="video"
-          className="w-full h-full object-cover"
-          style={{ objectFit: 'cover' }}
-        />
+    <div className="relative w-full h-full bg-gray-950 rounded-lg overflow-hidden">
+      {/* ✅ Daily's built-in video component */}
+      <DailyVideo
+        sessionId={sessionId}
+        type="video"
+        automirror={isLocal}
+        className="w-full h-full object-cover"
+      />
+
+      {/* Label overlay */}
+      <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/70 rounded-full">
+        <span className="text-white text-sm font-georgia-pro font-medium">{label}</span>
       </div>
 
-      {videoState.isOff && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-2">
-              <span className="text-2xl">👤</span>
-            </div>
-            <p className="font-georgia-pro text-white text-sm">{label}</p>
-          </div>
+      {/* ✅ Controls (only for local participant, not viewers) */}
+      {isLocal && !isViewer && (
+        <div className="absolute bottom-3 right-3 flex gap-2">
+          {/* Video toggle */}
+          <button
+            onClick={handleToggleVideo}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+              videoState.isOff
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+            title={videoState.isOff ? 'Turn video on' : 'Turn video off'}
+          >
+            <span className="text-white text-sm">
+              {videoState.isOff ? '📹' : '📷'}
+            </span>
+          </button>
+
+          {/* Audio toggle */}
+          <button
+            onClick={handleToggleAudio}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+              audioState.isOff
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-white/20 hover:bg-white/30'
+            }`}
+            title={audioState.isOff ? 'Unmute' : 'Mute'}
+          >
+            <span className="text-white text-sm">
+              {audioState.isOff ? '🔇' : '🎤'}
+            </span>
+          </button>
         </div>
       )}
 
-      {/* ✅ FIX: Add z-20 to controls to ensure they're on top */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 z-20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-georgia-pro text-white text-sm font-semibold">{label}</span>
-            {audioState.isOff && (
-              <span className="text-red-500 text-xs">🔇</span>
-            )}
-          </div>
-          
-          {isLocal && !isViewer && (
-            <div className="flex gap-2">
-              <button
-                onClick={toggleMicrophone}
-                className={`p-2 rounded-full ${audioState.isOff ? 'bg-red-500' : 'bg-white/20'} hover:bg-white/30 transition`}
-                title={audioState.isOff ? 'Unmute' : 'Mute'}
-              >
-                {audioState.isOff ? '🔇' : '🎤'}
-              </button>
-              <button
-                onClick={toggleCamera}
-                className={`p-2 rounded-full ${videoState.isOff ? 'bg-red-500' : 'bg-white/20'} hover:bg-white/30 transition`}
-                title={videoState.isOff ? 'Turn on camera' : 'Turn off camera'}
-              >
-                {videoState.isOff ? '📹' : '📷'}
-              </button>
-            </div>
-          )}
+      {/* Audio indicator for remote participants */}
+      {!isLocal && !isViewer && (
+        <div className="absolute top-3 right-3 px-2 py-1 bg-black/70 rounded-full">
+          <span className="text-white text-xs">
+            {audioState.isOff ? '🔇' : '🔊'}
+          </span>
         </div>
-      </div>
+      )}
+
+      {/* Video off indicator */}
+      {videoState.isOff && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+              <span className="text-4xl">👤</span>
+            </div>
+            <p className="text-gray-400 text-sm font-georgia-pro">{label}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
