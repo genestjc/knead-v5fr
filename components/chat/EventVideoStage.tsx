@@ -115,7 +115,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     [hostAddress]
   );
 
-  // ✅ ENHANCED: Guest filter with debug logging
   const guestFilter = useCallback(
     (p: any) => {
       const addr = (p.userData?.address || p.user_name || '').toLowerCase();
@@ -133,7 +132,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         return false;
       }
       
-      // Skip if this is the host
       if (hostAddress && (
         addr === hostAddress ||
         (hostAddress.length > 10 && addr.includes(hostAddress.slice(2, 10))) ||
@@ -143,7 +141,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
         return false;
       }
       
-      // Check if matches any guest address
       const isGuest = invitedGuestAddresses.some((guestAddr: string) => {
         const matches = 
           addr === guestAddr ||
@@ -166,8 +163,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
   const guestSessionIds = useParticipantIds({ filter: guestFilter });
 
   const effectiveHostId = hostSessionIds[0] || (isHost && localSessionId ? localSessionId : undefined);
-  
-  // ✅ FIXED: Removed !effectiveHostId check - guest should show regardless of host presence
   const effectiveGuestIds = guestSessionIds.length > 0
     ? guestSessionIds
     : (isGuest && localSessionId ? [localSessionId] : []);
@@ -257,10 +252,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
               url: roomUrl,
               token: token,
               userName: currentUserAddress,
-              userData: {
-                role,
-                address: currentUserAddress,
-              },
             });
             console.log('✅ [EventVideoStage] Camera/mic permissions granted');
           } catch (camError: any) {
@@ -273,10 +264,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
           url: roomUrl,
           token: token,
           userName: currentUserAddress,
-          userData: {
-            role,
-            address: currentUserAddress,
-          },
           startVideoOff: isViewer,
           startAudioOff: isViewer,
         });
@@ -299,6 +286,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
         hasJoinedRef.current = true;
         joinedRoomRef.current = roomUrl;
+
+        // ✅ ADDED: Set custom user data after joining (userData not supported in tokens)
+        try {
+          await daily.setUserData({
+            address: currentUserAddress.toLowerCase(),
+            role,
+          });
+          console.log('✅ [EventVideoStage] User data set:', { address: currentUserAddress, role });
+        } catch (userDataError: any) {
+          console.warn('⚠️ [EventVideoStage] Failed to set user data:', userDataError.message);
+        }
 
         if (!isViewer) {
           try {
@@ -455,7 +453,6 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
     );
   }
 
-  // ✅ FIXED: Calculate grid layout correctly for guest-only vs normal events
   const totalTiles = event.guestOnlyEvent 
     ? effectiveGuestIds.length 
     : 1 + effectiveGuestIds.length;
