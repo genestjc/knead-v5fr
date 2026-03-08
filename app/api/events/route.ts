@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       hostId,
       guestAddresses = [],
       guestOnlyEvent = false,
-      musicMode = false, // ✅ ADDED
+      musicMode = false,
     } = body;
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     console.log('   Title:', title);
     console.log('   Guest addresses received:', guestAddresses);
     console.log('   Guest-only event:', guestOnlyEvent);
-    console.log('   Music mode:', musicMode); // ✅ ADDED
+    console.log('   Music mode:', musicMode);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (!title || !channelId || !eventType || !hostId || !scheduledStart || !scheduledEnd) {
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
 
     if (videoEnabled && process.env.DAILY_API_KEY) {
       try {
-        // ✅ Build room properties with optional music mode
+        // ✅ Simple room properties - music mode handled client-side
         const roomProperties: any = {
           owner_only_broadcast: true,
           enable_screenshare: true,
@@ -182,18 +182,7 @@ export async function POST(req: NextRequest) {
           max_participants: 100,
         };
 
-        // ✅ Add music mode settings if enabled
-        if (musicMode) {
-          roomProperties.enable_advanced_audio = true;
-          roomProperties.audio_codec = 'opus';
-          roomProperties.opus_params = {
-            maxaveragebitrate: 510000, // Studio quality
-            stereo: true,
-            useinbandfec: true,
-            usedtx: false,
-          };
-          console.log('🎵 Music mode enabled for this event');
-        }
+        console.log('🎬 Creating Daily room' + (musicMode ? ' (music mode will be enabled client-side)' : ''));
 
         const dailyResponse = await fetch('https://api.daily.co/v1/rooms', {
           method: 'POST',
@@ -258,7 +247,7 @@ export async function POST(req: NextRequest) {
         daily_room_url: dailyRoomUrl,
         daily_room_name: dailyRoomName,
         guest_only_event: guestOnlyEvent,
-        music_mode: musicMode, // ✅ ADDED
+        music_mode: musicMode,
       })
       .select()
       .single();
@@ -269,7 +258,7 @@ export async function POST(req: NextRequest) {
     console.log('   Event created with guest_addresses:', event?.guest_addresses);
     console.log('   Guest count:', event?.guest_addresses?.length || 0);
     console.log('   Guest-only event:', event?.guest_only_event);
-    console.log('   Music mode:', event?.music_mode); // ✅ ADDED
+    console.log('   Music mode:', event?.music_mode);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
