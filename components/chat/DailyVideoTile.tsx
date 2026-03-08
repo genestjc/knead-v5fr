@@ -38,8 +38,9 @@ export function DailyVideoTile({ sessionId, label, isLocal, isViewer }: DailyVid
         <span className="text-white text-sm font-georgia-pro font-medium">{label}</span>
       </div>
 
+      {/* ✅ FIXED: Added md:bottom-3 and bottom-20 for mobile */}
       {isLocal && !isViewer && (
-        <div className="absolute bottom-3 right-3 flex gap-2 z-50">
+        <div className="absolute bottom-20 md:bottom-3 right-3 flex gap-2 z-50">
           <button
             onClick={handleToggleVideo}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
