@@ -17,6 +17,8 @@ import { BanScreen } from '@/components/chat/BanScreen';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import { WelcomeModal } from '@/components/chat/WelcomeModal';
+import { ContributorWelcomeModal } from '@/components/chat/ContributorWelcomeModal';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -157,6 +159,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
+  // 🆕 Modal states
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showContributorModal, setShowContributorModal] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -184,6 +190,45 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const canReact = useMemo(() => {
     return userRole !== 'freemium';
   }, [userRole]);
+
+  // 🆕 Welcome Modal - Show on first chat entry
+  useEffect(() => {
+    if (!activeAccount?.address || !events) return;
+    
+    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${activeAccount.address}`);
+    if (!hasSeenWelcome) {
+      // Small delay to ensure chat is loaded
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeAccount?.address, events]);
+
+  // 🆕 Contributor Modal - Show when user becomes contributor
+  useEffect(() => {
+    if (!activeAccount?.address || userRole !== 'contributor') return;
+    
+    const hasSeenContributor = localStorage.getItem(`contributor_welcome_${activeAccount.address}`);
+    if (!hasSeenContributor) {
+      setShowContributorModal(true);
+    }
+  }, [userRole, activeAccount?.address]);
+
+  // 🆕 Modal handlers
+  const handleWelcomeClose = () => {
+    if (activeAccount?.address) {
+      localStorage.setItem(`welcome_seen_${activeAccount.address}`, 'true');
+    }
+    setShowWelcomeModal(false);
+  };
+
+  const handleContributorClose = () => {
+    if (activeAccount?.address) {
+      localStorage.setItem(`contributor_welcome_${activeAccount.address}`, 'true');
+    }
+    setShowContributorModal(false);
+  };
 
   // Listen for reply events
   useEffect(() => {
@@ -951,6 +996,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </DailyProvider>
 
       <FreemiumBanner remainingMinutes={remainingMinutes} />
+
+      {/* 🆕 Onboarding Modals */}
+      <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
+      
+      <ContributorWelcomeModal
+        isOpen={showContributorModal}
+        onClose={handleContributorClose}
+        userAddress={activeAccount?.address || ''}
+        userId={currentUser.id}
+        currentAlias={activeAccount?.address ? profileCache[activeAccount.address]?.alias : undefined}
+        currentAvatar={activeAccount?.address ? profileCache[activeAccount.address]?.avatar : undefined}
+      />
     </>
   );
 }
