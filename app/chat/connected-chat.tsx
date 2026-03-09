@@ -43,6 +43,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
@@ -62,10 +63,11 @@ interface UserProfile {
   role?: string;
 }
 
+// ✅ MODIFIED: Accept paymentIntentId from Stripe
 function PaymentForm({
   onSuccess,
 }: {
-  onSuccess: () => void;
+  onSuccess: (paymentIntentId: string) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -82,18 +84,24 @@ function PaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
-    const { error } = await stripe.confirmPayment({
+    // ✅ CHANGED: Stay on page with redirect: 'if_required'
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/join?payment=success`,
-      },
+      redirect: 'if_required', // ← Don't redirect
     });
 
     if (error) {
       setErrorMessage(error.message || 'An error occurred during payment.');
       setIsProcessing(false);
+      return;
+    }
+
+    // ✅ NEW: Pass paymentIntentId to parent
+    if (paymentIntent && paymentIntent.id) {
+      onSuccess(paymentIntent.id);
     } else {
-      onSuccess();
+      setErrorMessage('Payment completed but no payment intent returned.');
+      setIsProcessing(false);
     }
   };
 
@@ -134,7 +142,7 @@ function PaymentForm({
                 <path
                   className="opacity-75"
                   fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
               Processing...
@@ -267,10 +275,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showContributorModal, setShowContributorModal] = useState(false);
 
-  // 💳 Stripe modal states (from /join page)
+  // 💳 Stripe modal states
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
+  
+  // ✅ NEW: Payment verification states
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -280,6 +292,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const lastMessageIdRef = useRef<string | null>(null);
 
   const activeAccount = useActiveAccount();
+  const { toast } = useToast();
   const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
@@ -295,15 +308,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
   const { data: reactionsData } = useReactions(channelId);
 
-  // ✅ Everyone can react except freemium users
   const canReact = useMemo(() => {
     return userRole !== 'freemium';
   }, [userRole]);
 
-  // 💳 Stripe payment handler (from /join page)
+  // 💳 MODIFIED: Stripe payment handler with verification
   const handleOpenPaymentModal = async () => {
     if (!activeAccount?.address) {
-      alert('Please connect your wallet first.');
+      toast({
+        title: 'Wallet Required',
+        description: 'Please connect your wallet first.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -317,32 +333,95 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         },
         body: JSON.stringify({
           walletAddress: activeAccount.address,
-          amount: 500, // $5.00 in cents
+          amount: 500,
         }),
       });
 
       const data = await response.json();
 
       if (data.error) {
-        alert(`Error: ${data.error}`);
+        toast({
+          title: 'Error',
+          description: `Failed to initialize payment: ${data.error}`,
+          variant: 'destructive',
+        });
       } else if (data.clientSecret) {
         setClientSecret(data.clientSecret);
         setIsStripeModalOpen(true);
       } else {
-        alert('Unexpected error. Please try again.');
+        toast({
+          title: 'Error',
+          description: 'Unexpected error. Please try again.',
+          variant: 'destructive',
+        });
       }
     } catch (error) {
       console.error('Error creating payment intent:', error);
-      alert('Failed to initialize payment. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to initialize payment. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoadingIntent(false);
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    setIsStripeModalOpen(false);
-    setClientSecret(null);
-    console.log('✅ Payment completed successfully');
+  // ✅ NEW: Handle payment success with server-side verification
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    if (!activeAccount?.address) return;
+
+    setIsVerifying(true);
+    setIsStripeModalOpen(false); // Close payment modal
+
+    try {
+      console.log('[chat] Verifying payment:', paymentIntentId);
+
+      // Verify payment server-side
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId,
+          walletAddress: activeAccount.address,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // ✅ Payment verified! Grant chat access immediately
+        console.log('[chat] ✅ Payment verified, unlocking chat');
+        setPaymentVerified(true);
+        setIsVerifying(false);
+
+        toast({
+          title: 'Welcome to Knead Monthly! 🎉',
+          description: 'Chat access unlocked. Start participating!',
+        });
+
+        // Background: Refresh membership
+        localStorage.removeItem('knead_membership_cache');
+
+        window.dispatchEvent(new CustomEvent('membershipUpdated'));
+      } else {
+        console.error('[chat] ❌ Verification failed:', result.error);
+        setIsVerifying(false);
+        toast({
+          title: 'Verification Failed',
+          description: result.error || 'Could not verify payment.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('[chat] Error verifying payment:', error);
+      setIsVerifying(false);
+      toast({
+        title: 'Error',
+        description: 'Failed to verify payment. Please refresh.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // 🆕 Welcome Modal - Show on first chat entry
@@ -351,7 +430,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     
     const hasSeenWelcome = localStorage.getItem(`welcome_seen_${activeAccount.address}`);
     if (!hasSeenWelcome) {
-      // Small delay to ensure chat is loaded
       const timer = setTimeout(() => {
         setShowWelcomeModal(true);
       }, 1000);
@@ -389,7 +467,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const handleReply = (event: Event) => {
       const customEvent = event as CustomEvent<{ content: string; sender: string }>;
       setQuotedMessage(customEvent.detail);
-      // Focus textarea after a short delay
       setTimeout(() => {
         const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
         textarea?.focus();
@@ -421,22 +498,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     if (events && events.length > 0) {
       console.log('🔍 Raw timeline event sample:', events[0]);
-      console.log('🔍 Event properties check:', {
-        hasEventId: !!events[0].eventId,
-        hasContent: !!events[0].content,
-        contentKind: events[0].content?.kind,
-        hasBody: !!events[0].content?.body,
-        hasSender: !!events[0].sender,
-        senderId: events[0].sender?.id,
-        hasCreatorDisplayName: !!events[0].creatorDisplayName,
-        hasCreatedAtEpochMs: !!events[0].createdAtEpochMs,
-        hasTimestamp: !!events[0].timestamp,
-        allKeys: Object.keys(events[0]),
-      });
-    } else if (events) {
-      console.log('⚠️ Timeline loaded but returned 0 events');
-    } else {
-      console.log('⏳ Timeline not loaded yet (events is undefined)');
     }
   }, [events]);
 
@@ -444,10 +505,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   useEffect(() => {
     if (reactionsData) {
       console.log('🔍 Reactions data sample:', reactionsData);
-      const firstKey = Object.keys(reactionsData)[0];
-      if (firstKey) {
-        console.log('🔍 First reaction entry:', reactionsData[firstKey]);
-      }
     }
   }, [reactionsData]);
 
@@ -791,14 +848,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     if (!messageInput.trim() || isSending || !channelId) return;
 
-    // Include quoted message if present
     const messageToSend = quotedMessage 
       ? `> ${quotedMessage.sender}: ${quotedMessage.content.substring(0, 100)}${quotedMessage.content.length > 100 ? '...' : ''}\n\n${messageInput.trim()}`
       : messageInput.trim();
 
     try {
       setMessageInput('');
-      setQuotedMessage(null); // Clear quote after sending
+      setQuotedMessage(null);
       setFailedMessage(null);
 
       await Promise.race([
@@ -808,7 +864,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         ),
       ]);
     } catch (error: any) {
-      setMessageInput(messageInput.trim()); // Restore original input (without quote)
+      setMessageInput(messageInput.trim());
       setFailedMessage(messageToSend);
 
       const msg = error.message || '';
@@ -926,7 +982,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const renderDisabledMessageBanner = () => {
-    if (permissions?.canPost) return null;
+    if (permissions?.canPost || paymentVerified) return null;
 
     if (userRole === 'freemium') {
       return (
@@ -960,13 +1016,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const renderChatInput = () => {
-    if (!permissions?.canPost) {
+    // ✅ Allow chat input if payment verified OR has permission
+    if (!permissions?.canPost && !paymentVerified) {
       return renderDisabledMessageBanner();
     }
 
     return (
       <div className="flex flex-col gap-2">
-        {/* Quoted Message Banner */}
         {quotedMessage && (
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
             <div className="flex-1 min-w-0">
@@ -991,7 +1047,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
-        {/* Pending File Preview */}
         {pendingFile && (
           <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-2xl">
             {isImageFile(pendingFile.file.name) ? (
@@ -1024,7 +1079,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           </div>
         )}
 
-        {/* ✅ UPDATED: Enter always creates new line, send button sends message */}
         <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
           <input
             ref={fileInputRef}
@@ -1043,22 +1097,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             <Paperclip className="w-5 h-5" />
           </button>
 
-       {/* ✅ Textarea with smart Enter behavior based on device */}
           <textarea
             value={messageInput}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             onKeyDown={(e) => {
-              // ✅ Only intercept Enter on non-touch devices (desktop)
               const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
               
               if (!isTouchDevice && e.key === 'Enter' && !e.shiftKey) {
-                // Desktop: Enter sends message
                 e.preventDefault();
                 handleSendMessage(e);
               }
-              // Touch devices: Enter always creates new line
-              // Shift+Enter on desktop: Creates new line (default behavior)
             }}
             placeholder={
               isUploading ? "Uploading..." :
@@ -1073,7 +1122,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               height: 'auto',
             }}
             onInput={(e) => {
-              // Auto-resize textarea
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
               target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
@@ -1147,6 +1195,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             />
           )}
 
+          {/* ✅ Show verifying state */}
+          {isVerifying && (
+            <div className="bg-blue-50 border-b border-blue-200 px-4 py-3">
+              <div className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <p className="text-sm font-medium text-blue-700 font-georgia-pro">
+                  Verifying your payment...
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col h-full bg-white">
             {hasVideo && (
               <div className="flex-shrink-0 h-[40vh] md:h-[45vh] lg:h-[50vh] bg-gray-900">
@@ -1181,7 +1241,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
       <FreemiumBanner remainingMinutes={remainingMinutes} />
 
-      {/* 💳 Stripe Payment Modal (from /join page) */}
       <Dialog open={isStripeModalOpen} onOpenChange={setIsStripeModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1200,7 +1259,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </DialogContent>
       </Dialog>
 
-      {/* 🆕 Onboarding Modals */}
       <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
       
       <ContributorWelcomeModal
