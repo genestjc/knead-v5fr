@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { ConnectButton, useActiveAccount } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
@@ -42,75 +42,94 @@ export function ThirdWebConnectButton({
   const { toast } = useToast()
   const [isOnboarding, setIsOnboarding] = useState(false)
   const [onboardingError, setOnboardingError] = useState<string | null>(null)
+  
+  // ✅ Track which addresses we've already onboarded (prevents infinite loop)
+  const onboardedAddresses = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    if (activeAccount?.address && !isOnboarding) {
-      console.log("Wallet connected, onboarding user:", activeAccount.address);
-      setIsOnboarding(true);
-      setOnboardingError(null);
-      
-      fetch("/api/onboard-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          walletAddress: activeAccount.address,
-        }),
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Server returned ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log("Onboarding response:", data);
-        if (data.success) {
-          toast({
-            title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
-            description: data.alreadyMinted 
-              ? "You're already a member." 
-              : "You've been given free access to 3 articles per month.",
-          });
-          
-          if (data.transactionHash) {
-            console.log(`Transaction hash: ${data.transactionHash}`);
-            console.log(`View on Basescan: https://basescan.org/tx/${data.transactionHash}`);
-          }
-        } else {
-          console.error("Onboarding error:", data);
-          setOnboardingError(data.error || "Failed to onboard");
-          toast({
-            title: "Onboarding Error",
-            description: data.error || "Failed to complete onboarding. Please refresh and try again.",
-            variant: "destructive",
-          });
-        }
-      })
-      .catch(err => {
-        console.error("Error onboarding user:", err);
-        setOnboardingError(err.message || "Network error");
+    // ✅ FIXED: Only run once per unique address
+    if (!activeAccount?.address) return;
+    
+    const address = activeAccount.address.toLowerCase();
+    
+    // Skip if we've already onboarded this address
+    if (onboardedAddresses.current.has(address)) {
+      console.log(`[onboard] Skipping - already onboarded ${address}`);
+      return;
+    }
+    
+    // Mark as onboarding
+    onboardedAddresses.current.add(address);
+    setIsOnboarding(true);
+    setOnboardingError(null);
+    
+    console.log("[onboard] Starting onboarding for:", address);
+    
+    fetch("/api/onboard-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        walletAddress: activeAccount.address,
+      }),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log("[onboard] Response:", data);
+      if (data.success) {
         toast({
-          title: "Connection Error",
-          description: "Failed to complete onboarding. Please refresh and try again.",
+          title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
+          description: data.alreadyMinted 
+            ? "You're already a member." 
+            : "You've been given free access to 3 articles per month.",
+        });
+        
+        if (data.transactionHash) {
+          console.log(`[onboard] Transaction: https://basescan.org/tx/${data.transactionHash}`);
+        }
+      } else {
+        console.error("[onboard] API returned success: false", data);
+        // Remove from set so we can retry
+        onboardedAddresses.current.delete(address);
+        setOnboardingError(data.error || "Failed to onboard");
+        toast({
+          title: "Onboarding Error",
+          description: data.error || "Failed to complete onboarding. Please refresh and try again.",
           variant: "destructive",
         });
-      })
-      .finally(() => {
-        setIsOnboarding(false);
+      }
+    })
+    .catch(err => {
+      console.error("[onboard] Error:", err);
+      // Remove from set so we can retry
+      onboardedAddresses.current.delete(address);
+      setOnboardingError(err.message || "Network error");
+      toast({
+        title: "Connection Error",
+        description: "Failed to complete onboarding. Please refresh and try again.",
+        variant: "destructive",
       });
-    }
-  }, [activeAccount?.address, toast, isOnboarding]);
+    })
+    .finally(() => {
+      setIsOnboarding(false);
+    });
+  }, [activeAccount?.address, toast]); // ✅ REMOVED isOnboarding from dependencies
 
   return (
     <div className={className}>
       <ConnectButton
         client={client}
-        chain={base} // ✅ REQUIRED: Specify the chain for EIP-7702 and gas sponsorship
+        chain={base}
         connectModal={{ size }}
         theme={theme}
         wallets={wallets}
+        showThirdwebBranding={false} // ✅ NEW: Removes "Powered by thirdweb" footer
         connectButton={{
           label: isOnboarding ? "Processing..." : "Sign In",
           style: {
