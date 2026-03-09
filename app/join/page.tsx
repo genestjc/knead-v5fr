@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useMembership } from "@/components/membership-provider";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
@@ -20,7 +20,7 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { hasKneadMonthly } from "@/lib/blockchain/check-nft-ownership";
+import { useToast } from "@/hooks/use-toast";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
@@ -29,7 +29,7 @@ const stripePromise = loadStripe(
 function PaymentForm({
   onSuccess,
 }: {
-  onSuccess: () => void;
+  onSuccess: (paymentIntentId: string) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -46,18 +46,24 @@ function PaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
-    const { error } = await stripe.confirmPayment({
+    // ✅ CHANGED: Stay on page with redirect: 'if_required'
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/join?payment=success`,
-      },
+      redirect: 'if_required', // ← Don't redirect
     });
 
     if (error) {
       setErrorMessage(error.message || "An error occurred during payment.");
       setIsProcessing(false);
+      return;
+    }
+
+    // ✅ NEW: Payment succeeded, pass paymentIntentId to parent
+    if (paymentIntent && paymentIntent.id) {
+      onSuccess(paymentIntent.id);
     } else {
-      onSuccess();
+      setErrorMessage("Payment completed but no payment intent returned.");
+      setIsProcessing(false);
     }
   };
 
@@ -98,7 +104,7 @@ function PaymentForm({
                 <path
                   className="opacity-75"
                   fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
               Processing...
@@ -115,73 +121,22 @@ function PaymentForm({
 export default function JoinPage() {
   const account = useActiveAccount();
   const { hasAccess, isLoading, refreshMembership } = useMembership();
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
-  const [isRefreshingMembership, setIsRefreshingMembership] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Check URL for payment success on mount
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('payment') === 'success') {
-      // Payment was successful, refresh membership
-      handlePaymentReturn();
-      // Clean up URL
-      window.history.replaceState({}, '', '/join');
-    }
-  }, []);
-
-  const pollForNFT = async (walletAddress: string, maxAttempts = 15, delayMs = 2000) => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`🔄 Polling for NFT (attempt ${attempt}/${maxAttempts})...`);
-      
-      // Wait before checking (except first attempt)
-      if (attempt > 1) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-      
-      // Use existing blockchain check function
-      const hasNFT = await hasKneadMonthly(walletAddress);
-      
-      if (hasNFT) {
-        console.log("✅ Premium NFT detected on blockchain!");
-        
-        // Now that we confirmed NFT exists, refresh the membership provider
-        // Clear cache first to force fresh check
-        localStorage.removeItem("knead_membership_cache");
-        if (refreshMembership) {
-          await refreshMembership();
-        }
-        
-        return true;
-      }
-    }
-    
-    console.log("⚠️ NFT not detected after max attempts");
-    return false;
-  };
-
-  const handlePaymentReturn = async () => {
-    if (!account?.address) return;
-    
-    setIsRefreshingMembership(true);
-    try {
-      console.log("💎 Payment successful! Checking for NFT mint...");
-      
-      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
-      const success = await pollForNFT(account.address, 15, 2000);
-      
-      if (!success) {
-        alert("Your membership is being activated. Please refresh the page in a moment if you don't see it.");
-      }
-    } finally {
-      setIsRefreshingMembership(false);
-    }
-  };
+  // ✅ NEW: Track payment verification state
+  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const handleOpenPaymentModal = async () => {
     if (!account?.address) {
-      alert("Please connect your wallet first.");
+      toast({
+        title: "Wallet Required",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -202,39 +157,91 @@ export default function JoinPage() {
       const data = await response.json();
 
       if (data.error) {
-        alert(`Error: ${data.error}`);
+        toast({
+          title: "Error",
+          description: `Failed to initialize payment: ${data.error}`,
+          variant: "destructive",
+        });
       } else if (data.clientSecret) {
         setClientSecret(data.clientSecret);
         setIsModalOpen(true);
       } else {
-        alert("Unexpected error. Please try again.");
+        toast({
+          title: "Error",
+          description: "Unexpected error. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error creating payment intent:", error);
-      alert("Failed to initialize payment. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to initialize payment. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingIntent(false);
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    setIsModalOpen(false);
-    setClientSecret(null);
-    
+  // ✅ NEW: Handle payment success with server-side verification
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
     if (!account?.address) return;
-    
-    setIsRefreshingMembership(true);
+
+    setIsVerifying(true);
+    setIsModalOpen(false); // Close payment modal
+
     try {
-      console.log("💎 Payment successful! Checking for NFT mint...");
-      
-      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
-      const success = await pollForNFT(account.address, 15, 2000);
-      
-      if (!success) {
-        alert("Your membership is being activated. Please refresh the page in a moment if you don't see it.");
+      console.log('[join] Verifying payment:', paymentIntentId);
+
+      // Verify payment server-side
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId,
+          walletAddress: account.address,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // ✅ Payment verified!
+        console.log('[join] ✅ Payment verified');
+        setPaymentVerified(true);
+        setIsVerifying(false);
+
+        toast({
+          title: "Welcome to Knead Monthly! 🎉",
+          description: "Your premium membership is now active!",
+        });
+
+        // Background: Clear cache and refresh membership
+        localStorage.removeItem('knead_membership_cache');
+        if (refreshMembership) {
+          refreshMembership();
+        }
+
+        // Emit event
+        window.dispatchEvent(new CustomEvent('membershipUpdated'));
+      } else {
+        console.error('[join] ❌ Verification failed:', result.error);
+        setIsVerifying(false);
+        toast({
+          title: "Verification Failed",
+          description: result.error || "Could not verify payment. Please contact support.",
+          variant: "destructive",
+        });
       }
-    } finally {
-      setIsRefreshingMembership(false);
+    } catch (error) {
+      console.error('[join] Error verifying payment:', error);
+      setIsVerifying(false);
+      toast({
+        title: "Error",
+        description: "Failed to verify payment. Please refresh the page or contact support.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -275,12 +282,8 @@ export default function JoinPage() {
           <h1 className="font-adonis text-4xl md:text-5xl font-normal mb-8 cloud-float text-left">
             Membership Options
           </h1>
-          <div className="mb-12 cloud-float-delay-1">
-            <ul className="space-y-4 font-georgia-pro text-lg text-left">
-            </ul>
-          </div>
           
-          {/* Membership Cards - Flexbox container for responsive layout */}
+          {/* Membership Cards */}
           <div className="flex flex-col md:flex-row md:justify-center md:space-x-6 space-y-6 md:space-y-0 mb-12 cloud-float-delay-2">
             
             {/* Free Membership Card */}
@@ -320,18 +323,18 @@ export default function JoinPage() {
                 <li>Unlimited access to stories</li>
                 <li>Priority access to events and other activations</li>
               </p>
-              {isLoading || isRefreshingMembership ? (
+              {isLoading || isVerifying ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="animate-pulse h-12 bg-gray-100 rounded w-full"></div>
-                  {isRefreshingMembership && (
+                  {isVerifying && (
                     <p className="text-sm text-gray-600 font-georgia-pro">
-                      Checking blockchain for your membership NFT...
+                      Verifying your payment...
                     </p>
                   )}
                 </div>
-              ) : hasAccess("premium") ? (
+              ) : paymentVerified || hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  You're already a premium member
+                  ✅ You're a premium member!
                 </div>
               ) : account?.address ? (
                 <button
@@ -343,7 +346,7 @@ export default function JoinPage() {
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       Loading...
                     </>
@@ -367,7 +370,7 @@ export default function JoinPage() {
                 question="How does the Knead Monthly subscription work?"
                 answer={
                   <span className="faq-answer text-left block">
-                    We mint you a membership that enables access to all paywalls, experiences, and other perks.
+                    We mint you a membership NFT that enables access to all paywalls, experiences, and other perks.
                   </span>
                 }
               />
@@ -399,7 +402,7 @@ export default function JoinPage() {
                 question="Will I get access immediately after subscribing?"
                 answer={
                   <span className="faq-answer text-left block">
-                    Absolutely. We mint you a membership token to access unlimited stories and other perks. If you're having trouble, try refreshing the page after purchase.
+                    Yes! Your payment is verified instantly and access is granted immediately. Your membership NFT is minted in the background.
                   </span>
                 }
               />
@@ -420,9 +423,7 @@ export default function JoinPage() {
           </DialogHeader>
           {clientSecret && stripeOptions && (
             <Elements stripe={stripePromise} options={stripeOptions}>
-              <PaymentForm
-                onSuccess={handlePaymentSuccess}
-              />
+              <PaymentForm onSuccess={handlePaymentSuccess} />
             </Elements>
           )}
         </DialogContent>
