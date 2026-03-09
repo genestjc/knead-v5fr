@@ -43,12 +43,22 @@ export function ThirdWebConnectButton({
   const [isOnboarding, setIsOnboarding] = useState(false)
   const [onboardingError, setOnboardingError] = useState<string | null>(null)
   
-  // ✅ Track which addresses we've already onboarded (prevents infinite loop)
+  // Track which addresses we've already onboarded (prevents infinite loop)
   const onboardedAddresses = useRef<Set<string>>(new Set())
+  // ✅ NEW: Store toast in ref so it doesn't cause re-renders
+  const toastRef = useRef(toast)
+  
+  // ✅ NEW: Update toast ref when it changes (without triggering effect)
+  useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
 
   useEffect(() => {
-    // ✅ FIXED: Only run once per unique address
-    if (!activeAccount?.address) return;
+    // Only run once per unique address
+    if (!activeAccount?.address) {
+      console.log("[onboard] No active account yet");
+      return;
+    }
     
     const address = activeAccount.address.toLowerCase();
     
@@ -75,6 +85,7 @@ export function ThirdWebConnectButton({
       }),
     })
     .then(response => {
+      console.log("[onboard] API response status:", response.status);
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`);
       }
@@ -83,7 +94,8 @@ export function ThirdWebConnectButton({
     .then(data => {
       console.log("[onboard] Response:", data);
       if (data.success) {
-        toast({
+        // ✅ Use toastRef instead of toast directly
+        toastRef.current({
           title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
           description: data.alreadyMinted 
             ? "You're already a member." 
@@ -98,7 +110,7 @@ export function ThirdWebConnectButton({
         // Remove from set so we can retry
         onboardedAddresses.current.delete(address);
         setOnboardingError(data.error || "Failed to onboard");
-        toast({
+        toastRef.current({
           title: "Onboarding Error",
           description: data.error || "Failed to complete onboarding. Please refresh and try again.",
           variant: "destructive",
@@ -110,16 +122,17 @@ export function ThirdWebConnectButton({
       // Remove from set so we can retry
       onboardedAddresses.current.delete(address);
       setOnboardingError(err.message || "Network error");
-      toast({
+      toastRef.current({
         title: "Connection Error",
         description: "Failed to complete onboarding. Please refresh and try again.",
         variant: "destructive",
       });
     })
     .finally(() => {
+      console.log("[onboard] Onboarding complete");
       setIsOnboarding(false);
     });
-  }, [activeAccount?.address, toast]); // ✅ REMOVED isOnboarding from dependencies
+  }, [activeAccount?.address]); // ✅ REMOVED toast from dependencies
 
   return (
     <div className={className}>
@@ -129,7 +142,7 @@ export function ThirdWebConnectButton({
         connectModal={{ size }}
         theme={theme}
         wallets={wallets}
-        showThirdwebBranding={false} // ✅ NEW: Removes "Powered by thirdweb" footer
+        showThirdwebBranding={false}
         connectButton={{
           label: isOnboarding ? "Processing..." : "Sign In",
           style: {
