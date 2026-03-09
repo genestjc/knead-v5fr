@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +20,6 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { hasKneadMonthly } from "@/lib/blockchain/check-nft-ownership";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
@@ -29,7 +28,7 @@ const stripePromise = loadStripe(
 function PaymentForm({
   onSuccess,
 }: {
-  onSuccess: () => void;
+  onSuccess: (paymentIntentId: string) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -46,18 +45,24 @@ function PaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
-    const { error } = await stripe.confirmPayment({
+    // ✅ CHANGED: Stay on page with redirect: 'if_required'
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${window.location.origin}${window.location.pathname}?payment=success`,
-      },
+      redirect: 'if_required', // ← Don't redirect, handle success here
     });
 
     if (error) {
       setErrorMessage(error.message || "An error occurred during payment.");
       setIsProcessing(false);
+      return;
+    }
+
+    // ✅ NEW: Payment succeeded, pass paymentIntentId to parent for verification
+    if (paymentIntent && paymentIntent.id) {
+      onSuccess(paymentIntent.id);
     } else {
-      onSuccess();
+      setErrorMessage("Payment completed but no payment intent returned.");
+      setIsProcessing(false);
     }
   };
 
@@ -116,83 +121,18 @@ interface PaywallProps {
   articleCount?: number;
 }
 
-export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProps) {
+export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const account = useActiveAccount();
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [isRefreshingMembership, setIsRefreshingMembership] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
-  const { membershipType: _membershipType, refreshMembership } = useMembership();
-  const { status: _status, minting } = useFreemiumMembership(account?.address || null);
+  const { membershipType, refreshMembership } = useMembership();
+  const { minting } = useFreemiumMembership(account?.address || null);
 
-  // Check URL for payment success on mount
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('payment') === 'success') {
-      // Payment was successful, refresh membership
-      handlePaymentReturn();
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  const pollForNFT = async (walletAddress: string, maxAttempts = 15, delayMs = 2000) => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`🔄 Polling for NFT (attempt ${attempt}/${maxAttempts})...`);
-      
-      // Wait before checking (except first attempt)
-      if (attempt > 1) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-      
-      // Use existing blockchain check function
-      const hasNFT = await hasKneadMonthly(walletAddress);
-      
-      if (hasNFT) {
-        console.log("✅ Premium NFT detected on blockchain!");
-        
-        // Now that we confirmed NFT exists, refresh the membership provider
-        // Clear cache first to force fresh check
-        localStorage.removeItem("knead_membership_cache");
-        if (refreshMembership) {
-          await refreshMembership();
-        }
-        
-        return true;
-      }
-    }
-    
-    console.log("⚠️ NFT not detected after max attempts");
-    return false;
-  };
-
-  const handlePaymentReturn = async () => {
-    if (!account?.address || !refreshMembership) return;
-    
-    setIsRefreshingMembership(true);
-    try {
-      console.log("💎 Payment successful! Checking for NFT mint...");
-      
-      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
-      const success = await pollForNFT(account.address, 15, 2000);
-      
-      if (success) {
-        toast({
-          title: "Welcome!",
-          description: "Your membership is now active. Enjoy unlimited access!",
-        });
-      } else {
-        toast({
-          title: "Almost there...",
-          description: "Your membership is being activated. Please refresh in a moment.",
-          variant: "default",
-        });
-      }
-    } finally {
-      setIsRefreshingMembership(false);
-    }
-  };
+  // ✅ NEW: Track payment verification state
+  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const handleOpenPaymentModal = async () => {
     if (!account?.address) {
@@ -247,33 +187,65 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    setIsModalOpen(false);
-    setClientSecret(null);
-    
+  // ✅ NEW: Handle payment success with server-side verification
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
     if (!account?.address) return;
-    
-    setIsRefreshingMembership(true);
+
+    setIsVerifying(true);
+    setIsModalOpen(false); // Close payment modal
+
     try {
-      console.log("💎 Payment successful! Checking for NFT mint...");
-      
-      // Poll directly for NFT (15 attempts × 2 seconds = 30 seconds max)
-      const success = await pollForNFT(account.address, 15, 2000);
-      
-      if (success) {
+      console.log('[paywall] Verifying payment:', paymentIntentId);
+
+      // Verify payment server-side (prevents client-side spoofing)
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId,
+          walletAddress: account.address,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // ✅ Payment verified! Grant access immediately
+        console.log('[paywall] ✅ Payment verified, granting access');
+        setPaymentVerified(true);
+        setIsVerifying(false);
+
         toast({
-          title: "Success",
-          description: "Payment successful! Your membership is now active.",
+          title: "Welcome to Knead Monthly! 🎉",
+          description: "Your membership is active. Enjoy unlimited access!",
         });
+
+        // Background: Clear cache and refresh membership to detect NFT
+        localStorage.removeItem('knead_membership_cache');
+        if (refreshMembership) {
+          refreshMembership();
+        }
+
+        // Emit event for other components (e.g., membership provider)
+        window.dispatchEvent(new CustomEvent('membershipUpdated'));
       } else {
+        // Verification failed
+        console.error('[paywall] ❌ Verification failed:', result.error);
+        setIsVerifying(false);
         toast({
-          title: "Almost there...",
-          description: "Your membership is being activated. Please refresh in a moment.",
-          variant: "default",
+          title: "Verification Failed",
+          description: result.error || "Could not verify payment. Please contact support.",
+          variant: "destructive",
         });
       }
-    } finally {
-      setIsRefreshingMembership(false);
+    } catch (error) {
+      console.error('[paywall] Error verifying payment:', error);
+      setIsVerifying(false);
+      toast({
+        title: "Error",
+        description: "Failed to verify payment. Please refresh the page or contact support.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -306,12 +278,34 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
       }
     : null;
 
-  // Show loading state while auto-minting is happening or refreshing membership
-  if (minting || isRefreshingMembership) {
+  // ✅ NEW: Hide paywall if payment verified OR has premium membership
+  if (paymentVerified || membershipType === 'premium') {
+    return null; // Paywall removed, show article content
+  }
+
+  // Show verifying state
+  if (isVerifying) {
     return (
       <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
         <h2 className="font-adonis text-2xl mb-4">
-          {isRefreshingMembership ? "Activating your membership..." : "Setting up your membership..."}
+          Verifying your payment...
+        </h2>
+        <div className="flex justify-center my-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+        <p className="font-georgia-pro text-gray-700">
+          Just a moment while we confirm your membership...
+        </p>
+      </div>
+    );
+  }
+
+  // Show loading state while minting freemium
+  if (minting) {
+    return (
+      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+        <h2 className="font-adonis text-2xl mb-4">
+          Setting up your membership...
         </h2>
         <div className="flex justify-center my-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -323,7 +317,7 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
     );
   }
 
-  // Case 1: Not signed in - show connect button
+  // Not signed in
   if (!account?.address) {
     return (
       <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
@@ -342,7 +336,7 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
     );
   }
 
-  // Case 2: Signed in with freemium but hit article limit
+  // Signed in with freemium but hit article limit
   return (
     <>
       <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
@@ -363,7 +357,7 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
             <>
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               Loading...
             </>
@@ -385,9 +379,7 @@ export default function Paywall({ articleCount: _articleCount = 3 }: PaywallProp
           </DialogHeader>
           {clientSecret && stripeOptions && (
             <Elements stripe={stripePromise} options={stripeOptions}>
-              <PaymentForm
-                onSuccess={handlePaymentSuccess}
-              />
+              <PaymentForm onSuccess={handlePaymentSuccess} />
             </Elements>
           )}
         </DialogContent>
