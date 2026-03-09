@@ -49,11 +49,9 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
         
         if (mounted) {
           setIsFreemiumUser(roleInfo.role === 'freemium');
-          console.log('👤 User role detected:', roleInfo.role); // ✅ DEBUG
           
           // Only fetch remaining time if user is freemium
           if (roleInfo.role === 'freemium') {
-            console.log('⏱️ Fetching remaining time for freemium user...'); // ✅ DEBUG
             await fetchRemainingTime();
           } else {
             setRemainingSeconds(null);
@@ -84,8 +82,6 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
         p_wallet_address: walletAddress.toLowerCase(),
       });
 
-      console.log('📊 RPC result:', { data, error, walletAddress }); // ✅ DEBUG
-
       if (error) throw error;
 
       setRemainingSeconds(data || 0);
@@ -94,7 +90,6 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
       // Start session tracking
       if (!sessionStartRef.current) {
         sessionStartRef.current = new Date();
-        console.log('🎬 Session started:', sessionStartRef.current); // ✅ DEBUG
       }
     } catch (error) {
       console.error('Error fetching remaining time:', error);
@@ -137,11 +132,6 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
 
   async function saveSessionDuration() {
     if (!walletAddress || !isFreemiumUser || !sessionStartRef.current) {
-      console.log('⏭️ Skipping save:', { 
-        hasWallet: !!walletAddress, 
-        isFreemium: isFreemiumUser, 
-        hasSessionStart: !!sessionStartRef.current 
-      }); // ✅ DEBUG
       return;
     }
 
@@ -150,35 +140,20 @@ export function useFreemiumChatTimer(walletAddress: string | null): FreemiumTime
       (sessionEnd.getTime() - sessionStartRef.current.getTime()) / 1000
     );
 
-    console.log('💾 Attempting to save session:', { 
-      walletAddress, 
-      durationSeconds,
-      sessionStart: sessionStartRef.current 
-    }); // ✅ DEBUG
-
-    // ✅ LOWERED threshold from 5 to 1 for testing
-    if (durationSeconds < 1) {
-      console.log('⏭️ Duration too short, skipping save'); // ��� DEBUG
-      return;
-    }
+    // Only save if session was longer than 5 seconds
+    if (durationSeconds < 5) return;
 
     try {
-      // ✅ CAPTURE the insert result
-      const { data, error } = await supabase.from('freemium_chat_sessions').insert({
+      await supabase.from('freemium_chat_sessions').insert({
         wallet_address: walletAddress.toLowerCase(),
         session_start: sessionStartRef.current.toISOString(),
         session_end: sessionEnd.toISOString(),
         duration_seconds: durationSeconds,
       });
 
-      // ✅ LOG what happened
-      if (error) {
-        console.error('❌ Insert failed:', error);
-      } else {
-        console.log(`✅ Saved freemium session: ${durationSeconds}s`, data);
-      }
+      console.log(`Saved freemium session: ${durationSeconds} seconds`);
     } catch (error) {
-      console.error('❌ Exception during insert:', error);
+      console.error('Error saving session duration:', error);
     }
 
     // Reset session start
