@@ -13,6 +13,9 @@ const FREEMIUM_TOKEN_ID = 0;
 // Mark as dynamic to ensure fresh data
 export const dynamic = 'force-dynamic';
 
+// ✅ NEW: In-memory lock to prevent concurrent mints for the same address
+const mintingAddresses = new Set<string>();
+
 export async function POST(req: NextRequest) {
   logger.log("🔍 onboard-user API called");
   const { walletAddress } = await req.json();
@@ -25,7 +28,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  logger.log(`👤 Processing onboarding for wallet: ${walletAddress}`);
+  const normalizedAddress = walletAddress.toLowerCase();
+  logger.log(`👤 Processing onboarding for wallet: ${normalizedAddress}`);
+
+  // ✅ NEW: Check if already minting for this address
+  if (mintingAddresses.has(normalizedAddress)) {
+    logger.log(`⏸️ Mint already in progress for ${normalizedAddress}, rejecting duplicate request`);
+    return NextResponse.json(
+      { 
+        error: "Mint already in progress for this address",
+        success: false,
+        duplicate: true
+      },
+      { status: 409 } // 409 Conflict
+    );
+  }
+
+  // ✅ NEW: Mark as minting
+  mintingAddresses.add(normalizedAddress);
 
   try {
     // Verify we have all required environment variables
@@ -48,8 +68,6 @@ export async function POST(req: NextRequest) {
     
     // Log server wallet address for debugging
     logger.log(`🔐 Using server wallet: ${SERVER_WALLET_ADDRESS}`);
-    
-    const normalizedAddress = walletAddress.toLowerCase();
     
     const supabase = getSupabaseAdmin();
     
@@ -85,18 +103,21 @@ export async function POST(req: NextRequest) {
     // If user already has token, just return success
     if (balance > 0n) {
       logger.log("✅ User already has freemium token, skipping mint");
-      // Make sure user is in database
-      if (!existingUser) {
-        logger.log("📊 Adding existing token holder to database");
-        await supabase.from("users").insert([
-          {
-            wallet_address: normalizedAddress,
-            membership_status: "freemium",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ]);
-      }
+      
+      // ✅ CHANGED: Use upsert instead of conditional insert
+      logger.log("📊 Upserting user to database");
+      await supabase.from("users").upsert(
+        {
+          wallet_address: normalizedAddress,
+          membership_status: "freemium",
+          created_at: existingUser?.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { 
+          onConflict: 'wallet_address',
+          ignoreDuplicates: false
+        }
+      );
       
       return NextResponse.json({ 
         success: true, 
@@ -165,27 +186,20 @@ export async function POST(req: NextRequest) {
         logger.warn("⚠️ Could not verify token mint, but transaction was sent");
       }
 
-      // Update or create user in database
-      if (existingUser) {
-        logger.log("📊 Updating existing user in database");
-        await supabase
-          .from("users")
-          .update({
-            membership_status: "freemium",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("wallet_address", normalizedAddress);
-      } else {
-        logger.log("📊 Adding new user to database");
-        await supabase.from("users").insert([
-          {
-            wallet_address: normalizedAddress,
-            membership_status: "freemium",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ]);
-      }
+      // ✅ CHANGED: Use upsert instead of conditional insert/update
+      logger.log("📊 Upserting user to database");
+      await supabase.from("users").upsert(
+        {
+          wallet_address: normalizedAddress,
+          membership_status: "freemium",
+          created_at: existingUser?.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { 
+          onConflict: 'wallet_address',
+          ignoreDuplicates: false
+        }
+      );
       
       return NextResponse.json({ 
         success: true,
@@ -238,5 +252,8 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 },
     );
+  } finally {
+    // ✅ NEW: Always remove from minting set
+    mintingAddresses.delete(normalizedAddress);
   }
 }
