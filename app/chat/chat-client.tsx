@@ -391,22 +391,6 @@ function TownsChatJoinFlow({
           JOIN_TIMEOUT_MS
         );
 
-        // Freemium mint in parallel (non-blocking)
-        fetch('/api/mint-freemium', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: account.address }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) console.log('✅ Freemium NFT minted');
-          })
-          .catch((err) => {
-            console.warn('Freemium NFT mint failed (non-critical):', err);
-          });
-
-        console.log('✅ Membership minted successfully');
-
         setLoadingStep(4);
         await new Promise((r) => setTimeout(r, 400));
         
