@@ -16,9 +16,16 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // ✅ If only userAddress provided, look up the user first
+    // ✅ If userId looks like a wallet address (starts with 0x), treat it as if we don't have a userId
+    // This handles cases where the client accidentally passes wallet address as userId
     let finalUserId = userId;
     
+    if (userId && typeof userId === 'string' && userId.startsWith('0x')) {
+      console.log('⚠️ userId appears to be a wallet address, using userAddress lookup instead');
+      finalUserId = null;
+    }
+    
+    // ✅ If we don't have a valid userId, look up the user by address
     if (!finalUserId && userAddress) {
       const { data: user, error: lookupError } = await supabase
         .from('chat_users')
