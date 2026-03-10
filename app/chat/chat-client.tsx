@@ -232,7 +232,8 @@ function TownsChat() {
 
         // Connect agent
         setPhase('connecting');
-        await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
+        import { getTownsConfigWithRpc } from '@/lib/towns-config';
+        await connectAgent(signerRef.current, { townsConfig: getTownsConfigWithRpc() });
         
         // Move to joining phase
         setPhase('joining');
