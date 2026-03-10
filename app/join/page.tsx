@@ -229,7 +229,7 @@ export default function JoinPage() {
         // Auto-reload after showing success toast so membership takes effect
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 3000);
       } else {
         console.error('[join] ❌ Verification failed:', result.error);
         setIsVerifying(false);
