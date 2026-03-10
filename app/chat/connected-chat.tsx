@@ -404,6 +404,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         localStorage.removeItem('knead_membership_cache');
 
         window.dispatchEvent(new CustomEvent('membershipUpdated'));
+
+        // Auto-reload after showing success toast so membership takes effect
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         console.error('[chat] ❌ Verification failed:', result.error);
         setIsVerifying(false);
