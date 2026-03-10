@@ -53,16 +53,29 @@ function BreadTipButton({
   isReacting: boolean;
 }) {
   const [earnings, setEarnings] = useState<number>(0);
+  const [optimisticEarnings, setOptimisticEarnings] = useState<number | null>(null);
 
   const fetchEarnings = useCallback(async () => {
     if (!participantAddress) return;
     try {
       const total = await getMessageEarnings(messageId, participantAddress);
-      setEarnings(total);
+      
+      // ✅ If we have an optimistic value, only update if blockchain caught up
+      if (optimisticEarnings !== null) {
+        if (total >= optimisticEarnings) {
+          setEarnings(total);
+          setOptimisticEarnings(null); // Clear optimistic flag
+          console.log('✅ Blockchain confirmed:', total);
+        } else {
+          console.log('⏳ Blockchain not ready yet. Optimistic:', optimisticEarnings, 'Blockchain:', total);
+        }
+      } else {
+        setEarnings(total);
+      }
     } catch (error) {
       console.error('Error fetching earnings:', error);
     }
-  }, [messageId, participantAddress]);
+  }, [messageId, participantAddress, optimisticEarnings]);
 
   useEffect(() => {
     fetchEarnings();
@@ -83,13 +96,17 @@ function BreadTipButton({
         
         // ✅ Optimistic update: immediately show the bonus
         if (customEvent.detail.bonusAmount) {
-          setEarnings(prev => prev + customEvent.detail.bonusAmount!);
+          const newOptimisticTotal = earnings + customEvent.detail.bonusAmount;
+          setEarnings(newOptimisticTotal);
+          setOptimisticEarnings(newOptimisticTotal);
+          console.log('💰 Optimistic update:', earnings, '+', customEvent.detail.bonusAmount, '=', newOptimisticTotal);
         }
         
         // ✅ Multiple retries to fetch real blockchain value
         setTimeout(fetchEarnings, 500);   // Quick first check
         setTimeout(fetchEarnings, 2000);  // Second check
         setTimeout(fetchEarnings, 5000);  // Final confirmation
+        setTimeout(fetchEarnings, 10000); // Extra safety check
       }
     };
     
@@ -98,7 +115,7 @@ function BreadTipButton({
       clearInterval(pollInterval);
       window.removeEventListener('message-tipped', handleTip);
     };
-  }, [messageId, participantAddress, fetchEarnings]);
+  }, [messageId, participantAddress, fetchEarnings, earnings]);
 
   const iconColor = isActive ? '#374151' : '#9ca3af';
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
