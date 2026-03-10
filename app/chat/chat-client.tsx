@@ -570,9 +570,6 @@ export default function ChatTestClient() {
             <p className="font-georgia-pro text-base md:text-lg text-gray-800">
              If this is your first time joining, click the button below to sign-up:
             </p>
-            <p className="font-georgia-pro italic text-sm text-gray-500 mt-2">
-              (Note: Onboarding can take 1-2 minutes for new users)
-            </p>
           </div>
 
           <div className="animate-fade-in-up-delay-3">
