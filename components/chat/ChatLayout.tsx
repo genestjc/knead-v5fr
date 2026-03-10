@@ -67,7 +67,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     };
 
     fetchTreasuryBalance();
-    const interval = setInterval(fetchTreasuryBalance, 60000);
+    const interval = setInterval(fetchTreasuryBalance, 3000);
     return () => clearInterval(interval);
   }, []);
 
