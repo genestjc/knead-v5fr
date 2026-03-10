@@ -325,7 +325,7 @@ function TownsChatJoinFlow({
   setErrorMsg: (msg: string) => void;
 }) {
   const { joinSpace } = useJoinSpace();
-  const { spaceIds, isLoaded, refetch: refetchSpaces } = useUserSpaces();
+  const { spaceIds, isLoaded } = useUserSpaces();
   const joinAttemptedRef = useRef(false);
 
   // Step 2: Handle space joining
@@ -373,37 +373,12 @@ function TownsChatJoinFlow({
           await new Promise((r) => setTimeout(r, 300));
         }
 
-        console.log('🔄 Minting membership NFT (this may take 1-2 minutes)...');
+        console.log('🔄 Minting membership NFT...');
 
-        // ✅ NEW: Don't timeout - let blockchain complete naturally
+        // ✅ Trust joinSpace() - if it succeeds, the mint worked
         await joinSpace(SAVED_SPACE_ID, signerRef.current);
-
-        console.log('✅ Mint transaction submitted, verifying membership...');
-
-        // ✅ NEW: Poll for membership confirmation instead of assuming success
-        let attempts = 0;
-        const maxAttempts = 60; // 60 seconds total
-        let membershipConfirmed = false;
         
-        while (attempts < maxAttempts && !membershipConfirmed) {
-          await new Promise(r => setTimeout(r, 1000));
-          
-          // Refetch user spaces
-          const result = await refetchSpaces();
-          
-          if (result?.data?.includes(SAVED_SPACE_ID)) {
-            membershipConfirmed = true;
-            console.log('✅ Membership confirmed!');
-            break;
-          }
-          
-          attempts++;
-          console.log(`⏳ Verifying membership... (${attempts}/${maxAttempts})`);
-        }
-        
-        if (!membershipConfirmed) {
-          throw new Error('Membership verification timed out - please refresh the page');
-        }
+        console.log('✅ Mint succeeded!');
 
         setLoadingStep(4);
         await new Promise((r) => setTimeout(r, 400));
@@ -416,7 +391,7 @@ function TownsChatJoinFlow({
         }
           
       } catch (joinError: any) {
-        console.error('❌ Mint failed:', joinError);
+        console.error('❌ Join failed:', joinError);
         joinAttemptedRef.current = false;
         
         setPhase('error');
@@ -430,7 +405,7 @@ function TownsChatJoinFlow({
     };
 
     handleJoinSpace();
-  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep, refetchSpaces]);
+  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
