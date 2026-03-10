@@ -70,6 +70,18 @@ export function ContributorWelcomeModal({
   };
 
   const handleSave = async () => {
+    console.log('💾 ContributorWelcomeModal handleSave called', { userId, userAddress });
+
+    if (!userId && !userAddress) {
+      console.error('❌ Missing userId and userAddress');
+      toast({
+        title: 'Setup incomplete',
+        description: 'Your account is not fully set up yet. Please try again in a moment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -77,6 +89,7 @@ export function ContributorWelcomeModal({
 
       if (avatarFile) {
         setIsUploading(true);
+        console.log('📤 Uploading avatar via API route...');
 
         try {
           const formData = new FormData();
@@ -95,7 +108,9 @@ export function ContributorWelcomeModal({
           }
 
           avatarUrl = uploadData.data.url;
+          console.log('✅ Avatar uploaded:', avatarUrl);
         } catch (uploadError: any) {
+          console.error('❌ Avatar upload failed:', uploadError);
           toast({
             title: 'Upload failed',
             description: uploadError.message || 'Failed to upload avatar. Please try again.',
@@ -109,6 +124,7 @@ export function ContributorWelcomeModal({
         setIsUploading(false);
       }
 
+      console.log('💾 Updating contributor profile in database...', { userId, userAddress });
       const response = await fetch('/api/contributor/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,12 +136,15 @@ export function ContributorWelcomeModal({
         }),
       });
 
+      console.log('📡 Update profile response status:', response.status);
       const data = await response.json();
+      console.log('📡 Update profile response data:', data);
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to update profile');
       }
 
+      console.log('✅ Contributor profile set up successfully');
       toast({
         title: 'Profile saved!',
         description: 'Your contributor profile has been set up.',
@@ -135,9 +154,10 @@ export function ContributorWelcomeModal({
         onClose();
       }, 1000);
     } catch (error) {
+      console.error('❌ ContributorWelcomeModal save error:', error);
       toast({
         title: 'Failed to save',
-        description: error instanceof Error ? error.message : 'Please try again',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -156,16 +176,12 @@ export function ContributorWelcomeModal({
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
+          <div
             className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-8 py-5 flex items-start justify-between z-10 gap-4">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-8 py-5 flex items-start justify-between z-10 gap-4 animate-fade-in-up">
               <h1 className="font-adonis text-2xl leading-snug">
                 Congratulations, you've been granted Contributor status.
               </h1>
@@ -180,37 +196,39 @@ export function ContributorWelcomeModal({
 
             {/* Scrollable content */}
             <div className="overflow-y-auto px-8 py-6 space-y-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
-              <p className="font-georgia-pro text-gray-800 leading-relaxed">
+              <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed animate-fade-in-up-delay">
                 This is the highest level you can be awarded in the chat, reserved for special guests or
                 Knead Monthly members who've made thoughtful contributions.
               </p>
 
-              <h2 className="font-adonis text-xl pt-2">What This Means</h2>
+              <div className="animate-fade-in-up-delay-2 space-y-4">
+                <h2 className="font-adonis text-2xl pt-2">What This Means</h2>
 
-              <div className="space-y-4 font-georgia-pro text-gray-800 leading-relaxed">
-                <p>
-                  Contributors are granted full access to the chat, including messaging during non-events,
-                  as well as being able to DM other Contributors in the rolodex.
-                </p>
-                <p>
-                  Contributors are allocated a weekly budget of $TOWNS from the Treasury to spend on Knead
-                  Monthly members, earning 20% back for each 'like' they allocate.
-                </p>
-                <p>
-                  To encourage passive engagement, your allowance is on a 'use it or lose it' basis.
-                </p>
-                <p>
-                  If you're a Contributor who earned this status from making good contributions as a Knead
-                  Monthly member, your weekly allowance will be higher than appointed guests.
-                </p>
-                <p>
-                  Finally, Contributors are also able to set a profile picture + display name in the chat.
-                  Upload a photo below + assign your persona below:
-                </p>
+                <div className="space-y-4 font-georgia-pro text-lg text-gray-800 leading-relaxed">
+                  <p>
+                    Contributors are granted full access to the chat, including messaging during non-events,
+                    as well as being able to DM other Contributors in the rolodex.
+                  </p>
+                  <p>
+                    Contributors are allocated a weekly budget of $TOWNS from the Treasury to spend on Knead
+                    Monthly members, earning 20% back for each 'like' they allocate.
+                  </p>
+                  <p>
+                    To encourage passive engagement, your allowance is on a 'use it or lose it' basis.
+                  </p>
+                  <p>
+                    If you're a Contributor who earned this status from making good contributions as a Knead
+                    Monthly member, your weekly allowance will be higher than appointed guests.
+                  </p>
+                  <p>
+                    Finally, Contributors are also able to set a profile picture + display name in the chat.
+                    Upload a photo below + assign your persona below:
+                  </p>
+                </div>
               </div>
 
               {/* Inline settings form */}
-              <div className="border border-gray-200 rounded-xl p-6 space-y-6">
+              <div className="border border-gray-200 rounded-xl p-6 space-y-6 animate-fade-in-up-delay-3">
                 {/* Profile Photo */}
                 <div>
                   <label className="block font-adonis text-sm text-gray-700 mb-3">
@@ -312,11 +330,11 @@ export function ContributorWelcomeModal({
               <hr className="border-gray-200" />
 
               {/* Closing thank-you */}
-              <p className="font-adonis text-center text-lg leading-relaxed pb-2">
+              <p className="font-adonis text-center text-xl leading-relaxed pb-2">
                 Thank you so much for your contributions to Knead's community, we're excited to have you as a Contributor.
               </p>
             </div>
-          </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
