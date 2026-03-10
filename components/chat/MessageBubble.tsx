@@ -53,21 +53,21 @@ function BreadTipButton({
   isReacting: boolean;
 }) {
   const [earnings, setEarnings] = useState<number>(0);
-  const [optimisticEarnings, setOptimisticEarnings] = useState<number | null>(null);
+  const optimisticEarningsRef = useRef<number | null>(null); // ✅ Use ref instead
 
   const fetchEarnings = useCallback(async () => {
     if (!participantAddress) return;
     try {
       const total = await getMessageEarnings(messageId, participantAddress);
       
-      // ✅ If we have an optimistic value, only update if blockchain caught up
-      if (optimisticEarnings !== null) {
-        if (total >= optimisticEarnings) {
+      // ✅ Use .current to get the latest value
+      if (optimisticEarningsRef.current !== null) {
+        if (total >= optimisticEarningsRef.current) {
           setEarnings(total);
-          setOptimisticEarnings(null); // Clear optimistic flag
+          optimisticEarningsRef.current = null; // Clear optimistic flag
           console.log('✅ Blockchain confirmed:', total);
         } else {
-          console.log('⏳ Blockchain not ready yet. Optimistic:', optimisticEarnings, 'Blockchain:', total);
+          console.log('⏳ Blockchain not ready yet. Optimistic:', optimisticEarningsRef.current, 'Blockchain:', total);
         }
       } else {
         setEarnings(total);
@@ -75,7 +75,7 @@ function BreadTipButton({
     } catch (error) {
       console.error('Error fetching earnings:', error);
     }
-  }, [messageId, participantAddress, optimisticEarnings]);
+  }, [messageId, participantAddress]); // ✅ No optimisticEarnings dependency
 
   useEffect(() => {
     fetchEarnings();
@@ -98,7 +98,7 @@ function BreadTipButton({
         if (customEvent.detail.bonusAmount) {
           const newOptimisticTotal = earnings + customEvent.detail.bonusAmount;
           setEarnings(newOptimisticTotal);
-          setOptimisticEarnings(newOptimisticTotal);
+          optimisticEarningsRef.current = newOptimisticTotal; // ✅ Set ref
           console.log('💰 Optimistic update:', earnings, '+', customEvent.detail.bonusAmount, '=', newOptimisticTotal);
         }
         
