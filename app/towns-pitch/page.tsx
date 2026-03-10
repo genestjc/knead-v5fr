@@ -479,7 +479,7 @@ export default function TownsPitchPage() {
             <div>
               <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Bonuses</h3>
               <p className="font-georgia-pro text-lg mb-8 text-black">
-                Upon reaching benchmarks for Month 3 approvals for, $TOWNS bonuses to fund:
+                Upon reaching benchmark of 150 Contributors (Month 3 quota) approvals for $TOWNS to fund:
               </p>
 
               {/* S-Tier Line */}
@@ -487,7 +487,8 @@ export default function TownsPitchPage() {
                 <div>
                   <h4 className="font-adonis text-2xl mb-4 text-black">The S-Tier Line</h4>
                   <div className="font-georgia-pro text-base space-y-4 text-black">
-                    <p>NFC-enabled clothing (hoodie, crewneck, pocket t-shirt, and dad hat). Gifted to our Contributors as our VIP-seeding before Fall line launch, the S-Tier will enable users to tap the S-Tier (S) tag and give a Contributor membership to a friend (includes an annual Knead membership from the point of redemption too). This drives another batch of influencers to Knead + Towns, creating more sales leads from a group we've already been successful with giving a top level experience.</p>
+                    <p>NFC-enabled clothing. Gifted to our Contributors as VIP-seeding before Fall line launch, the S-Tier will enable users to tap the S-Tier (S) tag and give a Contributor membership to a friend (includes an annual Knead membership from the point of redemption too). This drives another batch of influencers to Knead + Towns, creating more sales leads from a group we've already been successful with giving a top level experience.</p>
+                    <p>The S-Tier line will be how we distribute our semi-annual and annual memberships, as well as via our print magazine.</p>
                     <p>IYK for NFC-chips.</p>
                     <p>Estimated cost: $35-40k for 200-250 people</p>
                   </div>
@@ -503,6 +504,26 @@ export default function TownsPitchPage() {
                 </div>
               </div>
 
+              {/* Knead Print Magazine */}
+              <div className="grid md:grid-cols-2 gap-12 mb-12 items-start">
+                <div>
+                  <h4 className="font-adonis text-2xl mb-4 text-black">Knead Print Magazine</h4>
+                  <div className="font-georgia-pro text-base space-y-4 text-black">
+                    <p>NFC-enabled magazine. Gifted alongside our S-Tier line and unveiled at our Blvck Svm dinner below, the print magazine will have an NFC chip to enable our semi-annual membership. As an additional gift to contributors, enables another access point to onboard into the chat.</p>
+                    <p>Estimated cost: $18,000 for 300 copies, including copy editor + photography + design.</p>
+                  </div>
+                </div>
+                <div>
+                  <Image
+                    src="/print-magazine-mockup.png"
+                    alt="Knead Print Magazine mockup"
+                    width={500}
+                    height={600}
+                    className="rounded-xl w-full"
+                  />
+                </div>
+              </div>
+
               {/* Blvck Svm Dinner */}
               <div className="grid md:grid-cols-2 gap-12 items-start">
                 <div>
@@ -510,7 +531,7 @@ export default function TownsPitchPage() {
                   <div className="font-georgia-pro text-base space-y-4 text-black">
                     <p>Knead will be inviting the rapper Blvck Svm to the Branch Museum in Richmond for an exclusive michelinman dinner pairing.</p>
                     <p>Partnering with Michelin-star chefs around the country, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album michelinman, with the chef defining a dish to accompany.</p>
-                    <p>We'd like to fly five Contributors from the chat in for an all expenses paid experience, highlighting an exclusive experience only for superfans/VIPs.</p>
+                    <p>We'd like to fly five Contributors from the chat in for an all expenses paid experience, highlighting an exclusive experience only for superfans/VIPs. Other Contributors will be able to nominate and vote on who should be treated to the experience.</p>
                     <p>Estimated costs: $15-20k for 5 people</p>
                   </div>
                 </div>
@@ -603,6 +624,19 @@ export default function TownsPitchPage() {
                 <li>250+ Members</li>
                 <li>1 qualified enterprise sales lead</li>
                 <li>3-5 more sales leads in the pipeline</li>
+              </ul>
+            </div>
+
+            {/* Other Role Considerations */}
+            <div>
+              <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Other Role Considerations:</h3>
+              <p className="font-georgia-pro text-lg mb-6 text-black">
+                These are roles that are reasonable expectations to help push Towns + Knead. Not an immediate need, but good to forecast:
+              </p>
+              <ul className="font-georgia-pro text-lg space-y-2 list-disc pl-6 text-black">
+                <li>Part-time blockchain engineer: $5,000/month</li>
+                <li>Visual team (photography/illustration/digital design): $12,000/month</li>
+                <li>Part-time producer: $3,500/month</li>
               </ul>
             </div>
 
