@@ -214,6 +214,11 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         }
 
         window.dispatchEvent(new CustomEvent('membershipUpdated'));
+
+        // Auto-reload after short delay to ensure membership takes effect
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } else {
         console.error('[paywall] ❌ Verification failed:', result.error);
         setIsVerifying(false);

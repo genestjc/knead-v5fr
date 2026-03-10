@@ -225,6 +225,11 @@ export default function JoinPage() {
 
         // Emit event
         window.dispatchEvent(new CustomEvent('membershipUpdated'));
+
+        // Auto-reload after showing success toast so membership takes effect
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         console.error('[join] ❌ Verification failed:', result.error);
         setIsVerifying(false);
