@@ -5,7 +5,6 @@ import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
 import { useMembership } from "./membership-provider";
-import { useFreemiumMembership } from "@/hooks/use-freemium-membership";
 import {
   Dialog,
   DialogContent,
@@ -45,10 +44,9 @@ function PaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
-    // ✅ CHANGED: Stay on page with redirect: 'if_required'
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      redirect: 'if_required', // ← Don't redirect, handle success here
+      redirect: 'if_required',
     });
 
     if (error) {
@@ -57,7 +55,6 @@ function PaymentForm({
       return;
     }
 
-    // ✅ NEW: Payment succeeded, pass paymentIntentId to parent for verification
     if (paymentIntent && paymentIntent.id) {
       onSuccess(paymentIntent.id);
     } else {
@@ -103,7 +100,7 @@ function PaymentForm({
                 <path
                   className="opacity-75"
                   fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
               Processing...
@@ -129,9 +126,8 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
   const { membershipType, refreshMembership } = useMembership();
-  const { minting } = useFreemiumMembership(account?.address || null);
-
-  // ✅ NEW: Track payment verification state
+  
+  // Track payment verification state
   const [paymentVerified, setPaymentVerified] = useState(false);
 
   const handleOpenPaymentModal = async () => {
@@ -154,7 +150,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         },
         body: JSON.stringify({
           walletAddress: account.address,
-          amount: 500, // $5.00 in cents
+          amount: 500,
         }),
       });
 
@@ -187,17 +183,15 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
     }
   };
 
-  // ✅ NEW: Handle payment success with server-side verification
   const handlePaymentSuccess = async (paymentIntentId: string) => {
     if (!account?.address) return;
 
     setIsVerifying(true);
-    setIsModalOpen(false); // Close payment modal
+    setIsModalOpen(false);
 
     try {
       console.log('[paywall] Verifying payment:', paymentIntentId);
 
-      // Verify payment server-side (prevents client-side spoofing)
       const response = await fetch('/api/verify-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,7 +204,6 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
       const result = await response.json();
 
       if (result.success) {
-        // ✅ Payment verified! Grant access immediately
         console.log('[paywall] ✅ Payment verified, granting access');
         setPaymentVerified(true);
         setIsVerifying(false);
@@ -220,16 +213,13 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
           description: "Your membership is active. Enjoy unlimited access!",
         });
 
-        // Background: Clear cache and refresh membership to detect NFT
         localStorage.removeItem('knead_membership_cache');
         if (refreshMembership) {
           refreshMembership();
         }
 
-        // Emit event for other components (e.g., membership provider)
         window.dispatchEvent(new CustomEvent('membershipUpdated'));
       } else {
-        // Verification failed
         console.error('[paywall] ❌ Verification failed:', result.error);
         setIsVerifying(false);
         toast({
@@ -278,9 +268,9 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
       }
     : null;
 
-  // ✅ NEW: Hide paywall if payment verified OR has premium membership
+  // Hide paywall if payment verified OR has premium membership
   if (paymentVerified || membershipType === 'premium') {
-    return null; // Paywall removed, show article content
+    return null;
   }
 
   // Show verifying state
@@ -295,23 +285,6 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         </div>
         <p className="font-georgia-pro text-gray-700">
           Just a moment while we confirm your membership...
-        </p>
-      </div>
-    );
-  }
-
-  // Show loading state while minting freemium
-  if (minting) {
-    return (
-      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
-        <h2 className="font-adonis text-2xl mb-4">
-          Setting up your membership...
-        </h2>
-        <div className="flex justify-center my-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-        </div>
-        <p className="font-georgia-pro text-gray-700">
-          Just a moment while we activate your access...
         </p>
       </div>
     );
