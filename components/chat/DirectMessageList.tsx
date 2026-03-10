@@ -314,13 +314,6 @@ export function DirectMessageList({
           </p>
         </div>
 
-        <button
-          onClick={() => window.location.reload()}
-          className="w-full mt-3 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-georgia-pro"
-        >
-          🔄 Refresh DM List
-        </button>
-
         {showNewDmModal && <NewDmModal />}
       </div>
     );
