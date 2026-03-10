@@ -129,7 +129,8 @@ export function ContributorWelcomeModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
+          // Only pass userId if it is a valid UUID (not a wallet address)
+          userId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId ?? '') ? userId : undefined,
           userAddress,
           alias: alias.trim() || null,
           avatar: avatarUrl || null,

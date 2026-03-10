@@ -92,7 +92,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                   experiences that can be thoughtful, fun, educational, entertaining, or even just a way
                   to pass the time.
                 </p>
-                <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed pb-2">
+                <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed pb-2 mt-4">
                   ...you know, a place where the internet can be fun again.
                 </p>
               </div>
