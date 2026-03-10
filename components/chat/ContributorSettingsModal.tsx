@@ -155,145 +155,145 @@ export function ContributorSettingsModal({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
-        onClick={onClose}
-      >
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
+          onClick={onClose}
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Settings className="w-6 h-6 text-gray-700" />
-              <h2 className="font-adonis text-2xl">Contributor Settings</h2>
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6 animate-fade-in-up">
+              <div className="flex items-center gap-3">
+                <Settings className="w-6 h-6 text-gray-700" />
+                <h2 className="font-adonis text-2xl">Contributor Settings</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
 
-          <div className="mb-6">
-            <label className="block font-adonis text-sm text-gray-700 mb-3">
-              Profile Photo
-            </label>
-            
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                {avatarPreview ? (
-                  <img 
-                    src={
-                      avatarPreview.startsWith('ipfs://') 
-                        ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}` 
-                        : avatarPreview
-                    }
-                    alt="Avatar preview"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+            <div className="mb-6 animate-fade-in-up-delay">
+              <label className="block font-adonis text-sm text-gray-700 mb-3">
+                Profile Photo
+              </label>
+              
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  {avatarPreview ? (
+                    <img 
+                      src={
+                        avatarPreview.startsWith('ipfs://') 
+                          ? `https://ipfs.thirdwebcdn.com/ipfs/${avatarPreview.replace('ipfs://', '')}` 
+                          : avatarPreview
+                      }
+                      alt="Avatar preview"
+                      className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                      <User className="w-12 h-12 text-white" />
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isSaving}
+                    className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+                  >
+                    <Upload className="w-6 h-6 text-white" />
+                  </button>
+                </div>
+
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    accept="image/*"
+                    className="hidden"
                   />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                    <User className="w-12 h-12 text-white" />
-                  </div>
-                )}
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading || isSaving}
-                  className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
-                >
-                  <Upload className="w-6 h-6 text-white" />
-                </button>
-              </div>
-
-              <div className="flex-1">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileSelect}
-                  accept="image/*"
-                  className="hidden"
-                />
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading || isSaving}
-                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-adonis"
-                >
-                  {isUploading ? 'Uploading...' : 'Choose Photo'}
-                </button>
-                
-                <p className="text-xs text-gray-500 mt-2">
-                  JPG, PNG, or GIF • Max 5MB
-                </p>
+                  
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isSaving}
+                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-adonis"
+                  >
+                    {isUploading ? 'Uploading...' : 'Choose Photo'}
+                  </button>
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    JPG, PNG, or GIF • Max 5MB
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <label className="block font-adonis text-sm text-gray-700 mb-2">
-              Display Name
-            </label>
-            <input
-              type="text"
-              value={alias}
-              onChange={(e) => setAlias(e.target.value)}
-              placeholder={`${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
-              disabled={isSaving}
-              maxLength={50}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Optional • Shown instead of wallet address
-            </p>
-          </div>
+            <div className="mb-6 animate-fade-in-up-delay-2">
+              <label className="block font-adonis text-sm text-gray-700 mb-2">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={alias}
+                onChange={(e) => setAlias(e.target.value)}
+                placeholder={`${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                disabled={isSaving}
+                maxLength={50}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Optional • Shown instead of wallet address
+              </p>
+            </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700">
-              💡 <strong>Your profile is public</strong>
-            </p>
-            <p className="text-xs text-gray-600 mt-1">
-              Other contributors will see your display name and photo in chat.
-            </p>
-          </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 animate-fade-in-up-delay-2">
+              <p className="text-sm text-gray-700">
+                💡 <strong>Your profile is public</strong>
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Other contributors will see your display name and photo in chat.
+              </p>
+            </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              disabled={isSaving}
-              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving || isUploading}
-              className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isSaving ? (
-                'Saving...'
-              ) : isUploading ? (
-                'Uploading...'
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  Save Changes
-                </>
-              )}
-            </button>
+            <div className="flex gap-3 animate-fade-in-up-delay-3">
+              <button
+                onClick={onClose}
+                disabled={isSaving}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-full font-georgia-pro text-sm hover:bg-gray-200 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving || isUploading}
+                className="flex-1 px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  'Saving...'
+                ) : isUploading ? (
+                  'Uploading...'
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </motion.div>
-      </div>
+      )}
     </AnimatePresence>
   );
 }
