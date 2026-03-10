@@ -18,15 +18,14 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // ✅ Always look up user by address (more reliable than trusting userId)
-    // The userId from the client might be a wallet address or incorrect
+    // ✅ Always look up user by address
     console.log('🔍 Looking up user by address:', userAddress.toLowerCase());
     
     const { data: user, error: lookupError } = await supabase
       .from('chat_users')
       .select('id, address, alias, avatar')
       .eq('address', userAddress.toLowerCase())
-      .maybeSingle(); // ✅ Changed from .single() to .maybeSingle()
+      .maybeSingle();
 
     if (lookupError) {
       console.error('❌ Database lookup error:', lookupError);
@@ -36,17 +35,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let finalUserId: string;
+
     if (!user) {
-      console.error('❌ User not found in database for address:', userAddress);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
+      // ✅ User doesn't exist - create them first
+      console.log('👤 User not found, creating new user record...');
+      
+      const { data: newUser, error: createError } = await supabase
+        .from('chat_users')
+        .insert({
+          address: userAddress.toLowerCase(),
+          alias: alias || null,
+          avatar: avatar || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (createError || !newUser) {
+        console.error('❌ Error creating user:', createError);
+        return NextResponse.json<ApiResponse<null>>(
+          { success: false, error: 'Failed to create user profile' },
+          { status: 500 }
+        );
+      }
+
+      finalUserId = newUser.id;
+      console.log('✅ Created new user:', finalUserId);
+
+      return NextResponse.json<ApiResponse<null>>({
+        success: true,
+        message: 'Profile created successfully',
+      });
     }
 
-    console.log('✅ Found user:', { id: user.id, address: user.address });
+    // ✅ User exists - update their profile
+    finalUserId = user.id;
+    console.log('✅ Found existing user:', { id: user.id, address: user.address });
 
-    // Update user profile
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
@@ -56,20 +83,20 @@ export async function POST(req: NextRequest) {
 
     console.log('💾 Updating user with data:', updateData);
 
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('chat_users')
       .update(updateData)
-      .eq('id', user.id);
+      .eq('id', finalUserId);
 
-    if (error) {
-      console.error('❌ Error updating profile:', error);
+    if (updateError) {
+      console.error('❌ Error updating profile:', updateError);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to update profile' },
         { status: 500 }
       );
     }
 
-    console.log('✅ Profile updated successfully for user:', user.id);
+    console.log('✅ Profile updated successfully for user:', finalUserId);
 
     return NextResponse.json<ApiResponse<null>>({
       success: true,
