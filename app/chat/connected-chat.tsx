@@ -948,10 +948,7 @@ useEffect(() => {
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              Syncing key encryption. Please wait a moment.
-            </p>
-            <p className="font-georgia-pro text-sm mt-2">
-              (If the Syncing key encryption. Please wait up to 1 minute before refreshing.
+              Syncing key encryption. Please wait up to 1 minute before refreshing.
             </p>
           </div>
         </div>
