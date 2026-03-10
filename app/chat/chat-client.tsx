@@ -26,7 +26,6 @@ declare global {
 }
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
-const JOIN_TIMEOUT_MS = 120000; // 120 seconds for mints
 
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
@@ -196,16 +195,6 @@ const NEW_USER_STEPS = [
   'Kneading the dough',
 ];
 
-// Timeout wrapper
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => 
-      setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms)
-    ),
-  ]);
-}
-
 // Outer component - doesn't call any SDK hooks that require SyncAgent
 function TownsChat() {
   const wallet = useActiveWallet();
@@ -336,7 +325,7 @@ function TownsChatJoinFlow({
   setErrorMsg: (msg: string) => void;
 }) {
   const { joinSpace } = useJoinSpace();
-  const { spaceIds, isLoaded } = useUserSpaces();
+  const { spaceIds, isLoaded, refetch: refetchSpaces } = useUserSpaces();
   const joinAttemptedRef = useRef(false);
 
   // Step 2: Handle space joining
@@ -361,7 +350,7 @@ function TownsChatJoinFlow({
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
       
       if (isAlreadyInSpace) {
-        // ✅ Existing user - fast path (channel join happens in ConnectedChatInner)
+        // ✅ Existing user - fast path
         console.log('✅ User already in space, proceeding to ready');
         setPhase('ready');
         
@@ -386,10 +375,35 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT (this may take 1-2 minutes)...');
 
-        await withTimeout(
-          joinSpace(SAVED_SPACE_ID, signerRef.current),
-          JOIN_TIMEOUT_MS
-        );
+        // ✅ NEW: Don't timeout - let blockchain complete naturally
+        await joinSpace(SAVED_SPACE_ID, signerRef.current);
+
+        console.log('✅ Mint transaction submitted, verifying membership...');
+
+        // ✅ NEW: Poll for membership confirmation instead of assuming success
+        let attempts = 0;
+        const maxAttempts = 60; // 60 seconds total
+        let membershipConfirmed = false;
+        
+        while (attempts < maxAttempts && !membershipConfirmed) {
+          await new Promise(r => setTimeout(r, 1000));
+          
+          // Refetch user spaces
+          const result = await refetchSpaces();
+          
+          if (result?.data?.includes(SAVED_SPACE_ID)) {
+            membershipConfirmed = true;
+            console.log('✅ Membership confirmed!');
+            break;
+          }
+          
+          attempts++;
+          console.log(`⏳ Verifying membership... (${attempts}/${maxAttempts})`);
+        }
+        
+        if (!membershipConfirmed) {
+          throw new Error('Membership verification timed out - please refresh the page');
+        }
 
         setLoadingStep(4);
         await new Promise((r) => setTimeout(r, 400));
@@ -416,7 +430,7 @@ function TownsChatJoinFlow({
     };
 
     handleJoinSpace();
-  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
+  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep, refetchSpaces]);
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
@@ -473,7 +487,6 @@ function TownsChatReadyInner({
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
 
-  // ✅ Debug logging
   console.log('📺 Space data:', { 
     initialized: space.initialized, 
     channelIds: space.channelIds,
