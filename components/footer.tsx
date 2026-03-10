@@ -74,6 +74,15 @@ export function Footer() {
 
         <div className="text-center border-t border-gray-100 pt-8">
           <p className="font-georgia-pro text-gray-400">© {currentYear} Knead. All rights reserved.</p>
+          <div className="mt-2 text-sm">
+            <Link href="/privacy" className="font-georgia-pro text-gray-400 hover:text-black transition-colors">
+              Privacy Policy
+            </Link>
+            <span className="font-georgia-pro text-gray-400 mx-2">|</span>
+            <Link href="/terms" className="font-georgia-pro text-gray-400 hover:text-black transition-colors">
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
