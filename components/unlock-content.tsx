@@ -50,6 +50,19 @@ export function UnlockContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.address, contentId]);
 
+  // ✅ NEW: Listen for payment success and re-check access
+  useEffect(() => {
+    const handleMembershipUpdate = () => {
+      console.log('[unlock-content] Membership updated, re-checking access...');
+      if (account?.address) {
+        checkAccess();
+      }
+    };
+
+    window.addEventListener('membershipUpdated', handleMembershipUpdate);
+    return () => window.removeEventListener('membershipUpdated', handleMembershipUpdate);
+  }, [account?.address, contentId]);
+
   const safeMembershipCheck = (
     level: "premium" | "freemium",
   ): boolean => {
@@ -79,17 +92,13 @@ export function UnlockContent({
       }
 
       // 2. Freemium logic (includes users with NO NFT - race condition handling)
-      // This handles:
-      // - Users with freemium NFT (normal case)
-      // - Users where mint is in progress (membershipType === null)
-      // - Users where mint failed (still get 3 free articles)
       if (membershipType === "freemium" || membershipType === null) {
         console.log(`📖 Checking article limit (membership: ${membershipType || 'none - treating as freemium'})`);
         await checkFreemiumLimit();
         return;
       }
       
-      // 3. Should never reach here (all cases handled above)
+      // 3. Should never reach here
       console.warn('⚠️ Unexpected membership state:', membershipType);
       setCanAccess(false);
       setIsLoading(false);
@@ -110,7 +119,6 @@ export function UnlockContent({
     if (!account?.address) return;
 
     try {
-      // Check if user has already read this article
       const response = await fetch("/api/track-article", {
         method: "POST",
         headers: {
@@ -131,16 +139,13 @@ export function UnlockContent({
       const result = await response.json();
       setArticleCount(result.reads || 0);
 
-      // Already read this article before
       if (result.alreadyRead) {
         setCanAccess(true);
         setIsLoading(false);
         return;
       }
 
-      // Check if under article limit
       if ((result.reads || 0) < ARTICLE_LIMITS.FREEMIUM) {
-        // Record this article view
         const trackResponse = await fetch("/api/track-article", {
           method: "POST",
           headers: {
@@ -160,7 +165,6 @@ export function UnlockContent({
           setCanAccess(false);
         }
       } else {
-        // Hit article limit
         setCanAccess(false);
       }
 
