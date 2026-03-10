@@ -146,9 +146,13 @@ export function AdminContextMenu({
           description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
         });
         
-        // ✅ Trigger refetch of earnings counter
+        // ✅ Enhanced event with participantAddress and bonusAmount for optimistic updates
         window.dispatchEvent(new CustomEvent('message-tipped', { 
-          detail: { messageId: message.id } 
+          detail: { 
+            messageId: message.id,
+            participantAddress: message.sender.id,
+            bonusAmount: amount,
+          } 
         }));
         
         onClose();
