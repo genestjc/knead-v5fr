@@ -3,17 +3,11 @@
 import React, { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { useActiveAccount } from "thirdweb/react";
-import {
-  createThirdwebClient,
-  getContract,
-} from "thirdweb";
-import { balanceOf as erc721BalanceOf } from "thirdweb/extensions/erc721";
-import { zora } from "thirdweb/chains";
+import { createThirdwebClient } from "thirdweb";
 import Paywall from "./paywall";
 import { useMembership } from "@/components/membership-provider";
 import { useToast } from "@/hooks/use-toast";
 import { ARTICLE_LIMITS } from "@/lib/constants";
-import { useFreemiumMembership } from "@/hooks/use-freemium-membership";
 import { getMembershipType } from "@/lib/membership";
 
 // Create ThirdWeb client
@@ -24,77 +18,6 @@ const client = createThirdwebClient({
       ? "44984f2bc038cebc6138d4ceb602c35d"
       : undefined),
 });
-
-// Single-story pass contracts mapped to story slugs (all on Zora)
-const SINGLE_STORY_PASSES: Record<string, string> = {
-  somehoodlum: "0x0d6bd8aa6acf52d2dd23d4f74fed88b7e3cfc2c6",
-  "how-luxury-has-led-web3":
-    "0xc3b7aae8de9100554bbdea648cda311adcf3ef30",
-  "the-role-of-genetics-in-cannabis":
-    "0x2ad4f2e44c2c2855997cded05b2b025be094ac46",
-  fvckrender: "0x5feff3c55cc6155ab80b92960c7be6a6961d977d",
-  "nicola-formichetti-talks-joining-syky":
-    "0x3e58e2c69970a84f628347546de9fe774fadfd1a",
-  "dj-harrison":
-    "0x093d46cd7d2b0785870a7092514bb27aae671d68",
-  mntge: "0xd18225e9d9292f94b3b8d69561b5d647711504b2",
-  "daniel-harthausen":
-    "0x134f97ab28c727e42204feb75278526f87738ad0",
-  "young-flexico":
-    "0x626ec0fcb91e873f149f53874309f79b87fb3317",
-  "sean-anderson-sol3mates":
-    "0x2586346af2e1a0353cd5fee952e6673c96adb7d6",
-  "joey-khamis":
-    "0x08249549c9c29631d2904bf1c0175c0145a27e60",
-  "evan-parker-mantel":
-    "0x13b02c363e8eb8a0e0415005176c169d050c07f2",
-  "nina-chanel-abney":
-    "0xa391369b07cf2c6fd9964b045f4468d8be38a22d",
-  "jeremiah-morris":
-    "0x3b0b3fab4a4ef291ccaf516d4f1862bbb8108265",
-  meshfair: "0xcf456ea4400cb3236d686e77fa8d229d567e9edf",
-  "gmoney-9dcc-nines":
-    "0x3ae58546ddd4144e698a54fd4cd5704b88ffab6d",
-  "clay-hoss-helens":
-    "0x7b8fbf635c681aebd2ddc7ace79213b695dc7e72",
-  "dylan-abruscato-crypto-game":
-    "0x048ac7715eb857e062a0d403e0e3dedbb48dc46f",
-  "julian-holguin-doodles":
-    "0x25ac04f217a4a5f3c6149c8ee688e388cf8e29e7",
-  animal: "0xd7a11b5ae53949bdaac913b2423182a5afbbdd7a",
-  towns: "0x5d27b7ef465a1d5164649447aa8660f15cb463bb",
-  "decentraland-music-festival":
-    "0x1c0765d04328dd6cae84a5fadb7371317b14c6ec",
-  "gmoney-9dcc-black-box":
-    "0xb6a1f823c2ae46c63e1f0262bd6a0e473fa52f37",
-  "blvck-svm": "0x1ff6ccfd3b48aa1711f40aef2b7dd0134bc15d2d",
-};
-
-// Helper function to normalize slugs for comparison
-function normalizeSlug(slug: string): string {
-  return slug.toLowerCase().replace(/[^a-z0-9]/g, "-");
-}
-
-// Helper: Check single-story pass (all on Zora)
-async function checkSingleStoryPass(
-  contractAddress: string,
-  walletAddress: string,
-): Promise<boolean> {
-  try {
-    const contract = getContract({
-      client,
-      chain: zora,
-      address: contractAddress,
-    });
-    const balance = await erc721BalanceOf({
-      contract,
-      owner: walletAddress,
-    });
-    return balance > 0n;
-  } catch (error) {
-    return false;
-  }
-}
 
 interface UnlockContentProps {
   children: ReactNode;
@@ -111,16 +34,11 @@ export function UnlockContent({
     isLoading: membershipLoading,
     hasAccess,
   } = useMembership();
-  const [canAccess, setCanAccess] = useState<
-    boolean | null
-  >(null);
+  const [canAccess, setCanAccess] = useState<boolean | null>(null);
   const [articleCount, setArticleCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { status, minting } = useFreemiumMembership(
-    account?.address || null,
-  );
 
   useEffect(() => {
     if (!account?.address) {
@@ -147,55 +65,40 @@ export function UnlockContent({
 
     setIsLoading(true);
     setError(null);
+    
     try {
-      // 1. Use comprehensive membership checker (checks ALL contracts properly)
+      // Use comprehensive membership checker (checks ALL contracts)
       const membershipType = await getMembershipType(client, account.address);
       
+      // 1. Premium users get unlimited access
       if (membershipType === "premium") {
-        console.log("✅ Premium access granted via comprehensive check");
+        console.log("✅ Premium access granted");
         setCanAccess(true);
         setIsLoading(false);
         return;
       }
 
-      // 2. Single-story pass (Zora)
-      const normalizedContentId = normalizeSlug(contentId);
-      const singleStoryContract =
-        SINGLE_STORY_PASSES[normalizedContentId] ||
-        Object.entries(SINGLE_STORY_PASSES).find(
-          ([key]) =>
-            normalizeSlug(key) === normalizedContentId,
-        )?.[1];
-
-      if (singleStoryContract) {
-        const hasPass = await checkSingleStoryPass(
-          singleStoryContract,
-          account.address,
-        );
-        if (hasPass) {
-          setCanAccess(true);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // 3. Freemium logic
-      if (membershipType === "freemium") {
+      // 2. Freemium logic (includes users with NO NFT - race condition handling)
+      // This handles:
+      // - Users with freemium NFT (normal case)
+      // - Users where mint is in progress (membershipType === null)
+      // - Users where mint failed (still get 3 free articles)
+      if (membershipType === "freemium" || membershipType === null) {
+        console.log(`📖 Checking article limit (membership: ${membershipType || 'none - treating as freemium'})`);
         await checkFreemiumLimit();
         return;
       }
       
-      // 4. No membership found
+      // 3. Should never reach here (all cases handled above)
+      console.warn('⚠️ Unexpected membership state:', membershipType);
       setCanAccess(false);
       setIsLoading(false);
     } catch (error) {
-      setError(
-        "Failed to verify your access. Please try again.",
-      );
+      console.error('Error checking access:', error);
+      setError("Failed to verify your access. Please try again.");
       toast({
         title: "Access Error",
-        description:
-          "We couldn't verify your membership status. Please try again.",
+        description: "We couldn't verify your membership status. Please try again.",
         variant: "destructive",
       });
       setCanAccess(false);
@@ -207,6 +110,7 @@ export function UnlockContent({
     if (!account?.address) return;
 
     try {
+      // Check if user has already read this article
       const response = await fetch("/api/track-article", {
         method: "POST",
         headers: {
@@ -221,64 +125,60 @@ export function UnlockContent({
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `API returned ${response.status}: ${errorText}`,
-        );
+        throw new Error(`API returned ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
       setArticleCount(result.reads || 0);
 
+      // Already read this article before
       if (result.alreadyRead) {
         setCanAccess(true);
         setIsLoading(false);
         return;
       }
 
+      // Check if under article limit
       if ((result.reads || 0) < ARTICLE_LIMITS.FREEMIUM) {
-        const trackResponse = await fetch(
-          "/api/track-article",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              user_address: account.address.toLowerCase(),
-              story_slug: contentId,
-            }),
+        // Record this article view
+        const trackResponse = await fetch("/api/track-article", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({
+            user_address: account.address.toLowerCase(),
+            story_slug: contentId,
+          }),
+        });
 
         if (trackResponse.ok) {
           setCanAccess(true);
         } else {
           const trackResult = await trackResponse.json();
-          setError(
-            trackResult.error ||
-              "Failed to record article view",
-          );
+          setError(trackResult.error || "Failed to record article view");
           setCanAccess(false);
         }
       } else {
+        // Hit article limit
         setCanAccess(false);
       }
 
       setIsLoading(false);
     } catch (error) {
+      console.error('Error checking freemium limit:', error);
       setCanAccess(false);
       setIsLoading(false);
       toast({
         title: "Error",
-        description:
-          "Failed to check your article limit. Please try refreshing.",
+        description: "Failed to check your article limit. Please try refreshing.",
         variant: "destructive",
       });
     }
   };
 
   // Loading state
-  if (isLoading || membershipLoading || minting) {
+  if (isLoading || membershipLoading) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
