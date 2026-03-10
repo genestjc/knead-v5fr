@@ -408,7 +408,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         // Auto-reload after showing success toast so membership takes effect
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 3000);
       } else {
         console.error('[chat] ❌ Verification failed:', result.error);
         setIsVerifying(false);
