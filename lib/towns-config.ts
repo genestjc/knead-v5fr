@@ -1,7 +1,23 @@
 import { townsEnv } from '@towns-protocol/sdk';
 
-// ✅ For Next.js client-side, the SDK checks VITE_ prefixed vars
-// Set this in your .env.local:
-// VITE_BASE_MAINNET_RPC_URL=your_thirdweb_or_alchemy_url
+// Get RPC URL from Next.js env
+const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || 
+                     process.env.NEXT_PUBLIC_BASE_RPC_URL;
 
 export const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
+
+// ✅ Export custom config with RPC override
+export function getTownsConfigWithRpc() {
+  if (!BASE_RPC_URL) {
+    console.warn('⚠️ No custom RPC configured, using public Base RPC');
+    return TOWNS_CONFIG;
+  }
+  
+  return {
+    ...TOWNS_CONFIG,
+    base: {
+      ...TOWNS_CONFIG.base,
+      rpcUrl: BASE_RPC_URL,
+    },
+  };
+}
