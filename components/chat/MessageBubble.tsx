@@ -67,18 +67,38 @@ function BreadTipButton({
   useEffect(() => {
     fetchEarnings();
     const pollInterval = setInterval(fetchEarnings, 30000);
+    
     const handleTip = (event: Event) => {
-      const customEvent = event as CustomEvent<{ messageId: string }>;
-      if (customEvent.detail.messageId === messageId) {
-        setTimeout(fetchEarnings, 3000);
+      const customEvent = event as CustomEvent<{ 
+        messageId: string;
+        participantAddress: string;
+        bonusAmount?: number;
+      }>;
+      
+      // ✅ Verify both messageId AND participantAddress match
+      if (customEvent.detail.messageId === messageId && 
+          customEvent.detail.participantAddress === participantAddress) {
+        
+        console.log('💰 Bonus received for this message:', customEvent.detail);
+        
+        // ✅ Optimistic update: immediately show the bonus
+        if (customEvent.detail.bonusAmount) {
+          setEarnings(prev => prev + customEvent.detail.bonusAmount!);
+        }
+        
+        // ✅ Multiple retries to fetch real blockchain value
+        setTimeout(fetchEarnings, 500);   // Quick first check
+        setTimeout(fetchEarnings, 2000);  // Second check
+        setTimeout(fetchEarnings, 5000);  // Final confirmation
       }
     };
+    
     window.addEventListener('message-tipped', handleTip);
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('message-tipped', handleTip);
     };
-  }, [messageId, fetchEarnings]);
+  }, [messageId, participantAddress, fetchEarnings]);
 
   const iconColor = isActive ? '#374151' : '#9ca3af';
   const textColor = isActive ? 'text-gray-700' : 'text-gray-400';
@@ -143,7 +163,16 @@ function MessageBubbleComponent({
     }
     try {
       await awardTokensOnLike(message.id, message.sender.walletAddress, 10, '❤️', eventId);
-      window.dispatchEvent(new CustomEvent('message-tipped', { detail: { messageId: message.id } }));
+      
+      // ✅ Enhanced event dispatch with participant address and tip amount
+      window.dispatchEvent(new CustomEvent('message-tipped', { 
+        detail: { 
+          messageId: message.id,
+          participantAddress: message.sender.walletAddress,
+          bonusAmount: 10,
+        } 
+      }));
+      
       // ❌ REMOVED: toast.success('🍞 Tipped 10 TOWNS!');
     } catch (error: any) {
       toast.error('Failed to send tip. Please try again.');
