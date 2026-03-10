@@ -46,7 +46,7 @@ export function WalletSummary({
   
   // NEW: Contributor allowance states
   const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
-  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("25");
+  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("100");
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
   
   // NEW: Participant earnings states
