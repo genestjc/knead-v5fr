@@ -2,20 +2,12 @@
 
 import { useEffect, useRef } from "react"
 import { useActiveAccount } from "thirdweb/react"
-import { useToast } from "@/hooks/use-toast"
 
 // Track which addresses we've already onboarded (prevents infinite loop)
 const onboardedAddresses = new Set<string>();
 
 export function OnboardingHandler() {
   const activeAccount = useActiveAccount()
-  const { toast } = useToast()
-  const toastRef = useRef(toast)
-  
-  // Update toast ref when it changes (without triggering effect)
-  useEffect(() => {
-    toastRef.current = toast
-  }, [toast])
 
   useEffect(() => {
     // Only run once per unique address
@@ -55,37 +47,21 @@ export function OnboardingHandler() {
     })
     .then(data => {
       console.log("[onboard] Response:", data);
-      if (data.success) {
-        toastRef.current({
-          title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
-          description: data.alreadyMinted 
-            ? "You're already a member." 
-            : "You've been given free access to 3 articles per month.",
-        });
-        
-        if (data.transactionHash) {
-          console.log(`[onboard] Transaction: https://basescan.org/tx/${data.transactionHash}`);
-        }
-      } else {
+      
+      if (data.transactionHash) {
+        console.log(`[onboard] Transaction: https://basescan.org/tx/${data.transactionHash}`);
+      }
+      
+      if (!data.success) {
         console.error("[onboard] API returned success: false", data);
         // Remove from set so we can retry
         onboardedAddresses.delete(address);
-        toastRef.current({
-          title: "Onboarding Error",
-          description: data.error || "Failed to complete onboarding. Please refresh and try again.",
-          variant: "destructive",
-        });
       }
     })
     .catch(err => {
       console.error("[onboard] Error:", err);
       // Remove from set so we can retry
       onboardedAddresses.delete(address);
-      toastRef.current({
-        title: "Connection Error",
-        description: "Failed to complete onboarding. Please refresh and try again.",
-        variant: "destructive",
-      });
     })
     .finally(() => {
       console.log("[onboard] Onboarding complete");
