@@ -394,12 +394,19 @@ function TownsChatJoinFlow({
         console.error('❌ Join failed:', joinError);
         
         // ✅ If it's a stream sync timeout, the mint likely succeeded
-        // Allow the effect to re-run and check spaceIds
         if (joinError.message?.includes('waitFor timeout') || 
             joinError.message?.includes('streamMembershipUpdated') ||
             joinError.message?.includes('joinSpace timeout') ||
             joinError.message?.includes('Transaction confirmed but failed')) {
-          console.log('⏳ Mint likely succeeded, waiting for River sync...');
+          console.log('⏳ Mint likely succeeded, waiting for blockchain sync...');
+          
+          // ✅ Show "Kneading the dough" during the wait
+          setLoadingStep(4);
+          
+          // ✅ Wait 5 seconds for RPC to see the new NFT
+          await new Promise(r => setTimeout(r, 5000));
+          
+          console.log('🔄 Retrying membership check...');
           joinAttemptedRef.current = false; // ✅ Allow retry
           return; // ✅ Don't show error screen
         }
