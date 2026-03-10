@@ -47,7 +47,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 We're delighted you're here.
               </p>
               <p className="font-georgia-pro text-gray-800 leading-relaxed">
-                Our chat features live streams, interviews, audio events, portfolio reviews, and other events.
+                Our chat features live interviews, portfolio reviews, music streams, and other events.
               </p>
               <p className="font-georgia-pro text-gray-800 leading-relaxed">
                 It's our home for conversation and creativity across an array of disciplines.
@@ -87,13 +87,12 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
               <hr className="border-gray-200" />
 
               <p className="font-georgia-pro text-gray-800 leading-relaxed">
-                We designed the chat to be a smaller space for more intentional conversation, away from
-                gimmicky content and spam. This is our home to reward our community with meaningful
+                We designed the chat to be an intimate home for rewarding our community with meaningful
                 experiences that can be thoughtful, fun, educational, entertaining, or even just a way
                 to pass the time.
               </p>
               <p className="font-georgia-pro text-gray-800 leading-relaxed pb-2">
-                You know, a place where the internet can be fun again.
+                ...you know, a place where the internet can be fun again.
               </p>
             </div>
           </motion.div>
