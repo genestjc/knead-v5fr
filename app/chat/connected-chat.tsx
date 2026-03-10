@@ -950,6 +950,9 @@ useEffect(() => {
             <p className="font-georgia-pro text-sm mt-2">
               Syncing key encryption. Please wait a moment.
             </p>
+            <p className="font-georgia-pro text-sm mt-2">
+              (If the Syncing key encryption. Please wait up to 1 minute before refreshing.
+            </p>
           </div>
         </div>
       );
