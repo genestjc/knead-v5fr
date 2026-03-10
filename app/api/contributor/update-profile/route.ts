@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       .from('chat_users')
       .select('id, address, alias, avatar')
       .eq('address', userAddress.toLowerCase())
-      .single();
+      .maybeSingle(); // ✅ Changed from .single() to .maybeSingle()
 
     if (lookupError) {
       console.error('❌ Database lookup error:', lookupError);
