@@ -53,21 +53,17 @@ function BreadTipButton({
   isReacting: boolean;
 }) {
   const [earnings, setEarnings] = useState<number>(0);
-  const optimisticEarningsRef = useRef<number | null>(null); // ✅ Use ref instead
+  const optimisticEarningsRef = useRef<number | null>(null);
 
   const fetchEarnings = useCallback(async () => {
     if (!participantAddress) return;
     try {
       const total = await getMessageEarnings(messageId, participantAddress);
       
-      // ✅ Use .current to get the latest value
       if (optimisticEarningsRef.current !== null) {
         if (total >= optimisticEarningsRef.current) {
           setEarnings(total);
-          optimisticEarningsRef.current = null; // Clear optimistic flag
-          console.log('✅ Blockchain confirmed:', total);
-        } else {
-          console.log('⏳ Blockchain not ready yet. Optimistic:', optimisticEarningsRef.current, 'Blockchain:', total);
+          optimisticEarningsRef.current = null;
         }
       } else {
         setEarnings(total);
@@ -75,7 +71,7 @@ function BreadTipButton({
     } catch (error) {
       console.error('Error fetching earnings:', error);
     }
-  }, [messageId, participantAddress]); // ✅ No optimisticEarnings dependency
+  }, [messageId, participantAddress]);
 
   useEffect(() => {
     fetchEarnings();
@@ -88,25 +84,22 @@ function BreadTipButton({
         bonusAmount?: number;
       }>;
       
-      // ✅ Verify both messageId AND participantAddress match
+      // Verify both messageId AND participantAddress match
       if (customEvent.detail.messageId === messageId && 
           customEvent.detail.participantAddress === participantAddress) {
         
-        console.log('💰 Bonus received for this message:', customEvent.detail);
-        
-        // ✅ Optimistic update: immediately show the bonus
+        // Optimistic update: immediately show the tip
         if (customEvent.detail.bonusAmount) {
           const newOptimisticTotal = earnings + customEvent.detail.bonusAmount;
           setEarnings(newOptimisticTotal);
-          optimisticEarningsRef.current = newOptimisticTotal; // ✅ Set ref
-          console.log('💰 Optimistic update:', earnings, '+', customEvent.detail.bonusAmount, '=', newOptimisticTotal);
+          optimisticEarningsRef.current = newOptimisticTotal;
         }
         
-        // ✅ Multiple retries to fetch real blockchain value
-        setTimeout(fetchEarnings, 500);   // Quick first check
-        setTimeout(fetchEarnings, 2000);  // Second check
-        setTimeout(fetchEarnings, 5000);  // Final confirmation
-        setTimeout(fetchEarnings, 10000); // Extra safety check
+        // Multiple retries to fetch real blockchain value
+        setTimeout(fetchEarnings, 500);
+        setTimeout(fetchEarnings, 2000);
+        setTimeout(fetchEarnings, 5000);
+        setTimeout(fetchEarnings, 10000);
       }
     };
     
@@ -172,16 +165,13 @@ function MessageBubbleComponent({
 
   const handleLike = async () => {
     if (!message.sender.walletAddress) {
-      const errorMsg = message.sender.name === 'Anonymous'
-        ? '⚠️ Cannot tip this user: Their wallet address is not available.'
-        : `⚠️ Cannot tip ${message.sender.name}: Their wallet address is not configured yet.`;
-      toast.error(errorMsg, { duration: 5000 });
+      toast.error('Cannot tip this user: Wallet address not available.', { duration: 3000 });
       return;
     }
     try {
       await awardTokensOnLike(message.id, message.sender.walletAddress, 10, '❤️', eventId);
       
-      // ✅ Enhanced event dispatch with participant address and tip amount
+      // Dispatch event for optimistic UI update
       window.dispatchEvent(new CustomEvent('message-tipped', { 
         detail: { 
           messageId: message.id,
@@ -189,8 +179,6 @@ function MessageBubbleComponent({
           bonusAmount: 10,
         } 
       }));
-      
-      // ❌ REMOVED: toast.success('🍞 Tipped 10 TOWNS!');
     } catch (error: any) {
       toast.error('Failed to send tip. Please try again.');
     }
@@ -200,7 +188,6 @@ function MessageBubbleComponent({
     if (!confirm('Delete your message?')) return;
     try {
       await redact(message.id);
-      toast.success('Message deleted');
     } catch (error: any) {
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
@@ -218,9 +205,8 @@ function MessageBubbleComponent({
     if (!channelId) return;
     try {
       await sendReaction(message.id, '❤️');
-      // ❌ REMOVED: toast.success('Reacted with ❤️');
     } catch (error) {
-      toast.error('Could not send reaction');
+      // Silent fail for reactions
     }
   };
 
@@ -229,16 +215,13 @@ function MessageBubbleComponent({
     const currentTime = Date.now();
     const tapGap = currentTime - lastTapTimeRef.current;
 
-    // Clear timer only if long-press hasn't fired yet
     if (longPressTimerRef.current && !longPressFiredRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
 
-    // Reset long-press flag
     longPressFiredRef.current = false;
 
-    // Double-tap detected (within 300ms)
     if (tapGap < 300 && tapGap > 0) {
       if (!canReact) {
         lastTapTimeRef.current = 0;
@@ -268,7 +251,6 @@ function MessageBubbleComponent({
         longPressFiredRef.current = true;
         setShowReactionPicker(true);
         
-        // Provide haptic feedback on supported devices
         if (navigator.vibrate) {
           navigator.vibrate(50);
         }
