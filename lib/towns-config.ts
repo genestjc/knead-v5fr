@@ -1,8 +1,7 @@
 import { townsEnv } from '@towns-protocol/sdk';
 
-// ✅ Set RPC URL via environment variable BEFORE creating config
-if (typeof window === 'undefined' && process.env.NEXT_PUBLIC_BASE_RPC_URL) {
-  process.env.BASE_MAINNET_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL;
-}
+// ✅ For Next.js client-side, the SDK checks VITE_ prefixed vars
+// Set this in your .env.local:
+// VITE_BASE_MAINNET_RPC_URL=your_thirdweb_or_alchemy_url
 
 export const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
