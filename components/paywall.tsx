@@ -124,7 +124,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const { toast } = useToast();
+  const {  } = useToast();
   const { membershipType, refreshMembership } = useMembership();
   
   // Track payment verification state
@@ -207,11 +207,6 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         console.log('[paywall] ✅ Payment verified, granting access');
         setPaymentVerified(true);
         setIsVerifying(false);
-
-        toast({
-          title: "Welcome to Knead Monthly! 🎉",
-          description: "Your membership is active. Enjoy unlimited access!",
-        });
 
         localStorage.removeItem('knead_membership_cache');
         if (refreshMembership) {
