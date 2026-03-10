@@ -57,7 +57,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                     connect with like-minded creatives across an array of disciplines.
                   </p>
                   <p>
-                    Every week we'll host events including live video/audio interviews, portfolio
+                    Every week we'll host events including live interviews, portfolio
                     reviews, open discussions, product reviews, and more.
                   </p>
                   <p>
