@@ -333,28 +333,21 @@ function TownsChatJoinFlow({
   // Step 2: Handle space joining
   useEffect(() => {
     const handleJoinSpace = async () => {
-      if (
-        joinAttemptedRef.current || 
-        !signerRef.current || 
-        !SAVED_SPACE_ID ||
-        !isLoaded
-      ) {
-        return;
-      }
+      if (!signerRef.current || !SAVED_SPACE_ID || !isLoaded) return;
 
       const account = wallet?.getAccount();
       if (!account) return;
 
       console.log('✅ Agent ready, checking space membership...');
       console.log('📊 User currently in spaces:', spaceIds);
-      joinAttemptedRef.current = true;
 
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
       
       if (isAlreadyInSpace) {
-        // ✅ Existing user - fast path
+        // ✅ Existing user OR mint succeeded and spaceIds updated
         console.log('✅ User already in space, proceeding to ready');
         setPhase('ready');
+        retryCountRef.current = 0; // Reset for next time
         
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
           window.KEY_SHARER_SPACE_JOINED = true;
@@ -363,7 +356,24 @@ function TownsChatJoinFlow({
         return;
       }
 
-      // ✅ New user - show progressive loader
+      // ✅ If we're retrying, just wait for spaceIds to update — DON'T mint again
+      if (retryCountRef.current > 0) {
+        if (retryCountRef.current >= MAX_RETRIES) {
+          console.error('❌ Max retries reached, membership sync timed out');
+          setPhase('error');
+          setErrorMsg('Membership sync timed out. Please refresh the page.');
+          retryCountRef.current = 0;
+          return;
+        }
+        console.log(`⏳ Retry ${retryCountRef.current}/${MAX_RETRIES}, waiting for spaceIds to update...`);
+        setLoadingStep(4); // Keep showing "Kneading the dough"
+        return; // Exit and let effect re-fire when spaceIds changes
+      }
+
+      // ✅ First attempt only — mint the NFT
+      if (joinAttemptedRef.current) return;
+      joinAttemptedRef.current = true;
+
       console.log('🆕 User not in space, starting mint process...');
       setPhase('joining');
 
@@ -377,7 +387,7 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT...');
 
-        // ✅ Trust joinSpace() - if it succeeds, the mint worked
+        // ✅ Mint the NFT (only happens once)
         await joinSpace(SAVED_SPACE_ID, signerRef.current);
         
         console.log('✅ Mint succeeded!');
@@ -396,27 +406,22 @@ function TownsChatJoinFlow({
         console.error('❌ Join failed:', joinError);
         
         // ✅ Retry on River sync timeouts AND receipt-reading failures
-        if (retryCountRef.current < MAX_RETRIES && 
-            (joinError.message?.includes('waitFor timeout') || 
-             joinError.message?.includes('streamMembershipUpdated') ||
-             joinError.message?.includes('joinSpace timeout') ||
-             joinError.message?.includes('Transaction confirmed but failed'))) {
+        if (joinError.message?.includes('waitFor timeout') || 
+            joinError.message?.includes('streamMembershipUpdated') ||
+            joinError.message?.includes('joinSpace timeout') ||
+            joinError.message?.includes('Transaction confirmed but failed')) {
           retryCountRef.current++;
           console.log(`⏳ Mint likely succeeded, waiting for sync... (retry ${retryCountRef.current}/${MAX_RETRIES})`);
           
-          // Show "Kneading the dough" during the wait
-          setLoadingStep(4);
+          setLoadingStep(4); // Show "Kneading the dough"
           
-          // Wait 5 seconds for blockchain state to propagate
-          await new Promise(r => setTimeout(r, 5000));
-          
-          console.log('🔄 Retrying membership check...');
-          joinAttemptedRef.current = false;
+          // ✅ DON'T reset joinAttemptedRef — prevents duplicate mint
+          // Effect will re-run when spaceIds updates
           return;
         }
 
-        // Real errors (max retries hit, user rejection, etc.)
-        joinAttemptedRef.current = false;
+        // Real errors (user rejection, network failure, etc.)
+        joinAttemptedRef.current = false; // Allow retry button to work
         retryCountRef.current = 0;
         setPhase('error');
         setErrorMsg(friendlyError(joinError));
