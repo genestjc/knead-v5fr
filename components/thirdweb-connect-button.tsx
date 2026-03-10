@@ -44,7 +44,6 @@ export function ThirdWebConnectButton({
         connectModal={{ size }}
         theme={theme}
         wallets={wallets}
-        showThirdwebBranding={false}
         connectButton={{
           label: "Sign In",
           style: {
