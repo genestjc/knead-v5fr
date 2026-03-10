@@ -1,11 +1,9 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { ConnectButton, useActiveAccount } from "thirdweb/react"
+import { ConnectButton } from "thirdweb/react"
 import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
 import { base } from "thirdweb/chains"
-import { useToast } from "@/hooks/use-toast"
 
 const wallets = [
   inAppWallet({
@@ -38,102 +36,6 @@ export function ThirdWebConnectButton({
   theme = "light",
   size = "compact",
 }: ThirdWebConnectButtonProps) {
-  const activeAccount = useActiveAccount()
-  const { toast } = useToast()
-  const [isOnboarding, setIsOnboarding] = useState(false)
-  const [onboardingError, setOnboardingError] = useState<string | null>(null)
-  
-  // Track which addresses we've already onboarded (prevents infinite loop)
-  const onboardedAddresses = useRef<Set<string>>(new Set())
-  // ✅ NEW: Store toast in ref so it doesn't cause re-renders
-  const toastRef = useRef(toast)
-  
-  // ✅ NEW: Update toast ref when it changes (without triggering effect)
-  useEffect(() => {
-    toastRef.current = toast
-  }, [toast])
-
-  useEffect(() => {
-    // Only run once per unique address
-    if (!activeAccount?.address) {
-      console.log("[onboard] No active account yet");
-      return;
-    }
-    
-    const address = activeAccount.address.toLowerCase();
-    
-    // Skip if we've already onboarded this address
-    if (onboardedAddresses.current.has(address)) {
-      console.log(`[onboard] Skipping - already onboarded ${address}`);
-      return;
-    }
-    
-    // Mark as onboarding
-    onboardedAddresses.current.add(address);
-    setIsOnboarding(true);
-    setOnboardingError(null);
-    
-    console.log("[onboard] Starting onboarding for:", address);
-    
-    fetch("/api/onboard-user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        walletAddress: activeAccount.address,
-      }),
-    })
-    .then(response => {
-      console.log("[onboard] API response status:", response.status);
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log("[onboard] Response:", data);
-      if (data.success) {
-        // ✅ Use toastRef instead of toast directly
-        toastRef.current({
-          title: data.alreadyMinted ? "Welcome back!" : "Welcome to Knead!",
-          description: data.alreadyMinted 
-            ? "You're already a member." 
-            : "You've been given free access to 3 articles per month.",
-        });
-        
-        if (data.transactionHash) {
-          console.log(`[onboard] Transaction: https://basescan.org/tx/${data.transactionHash}`);
-        }
-      } else {
-        console.error("[onboard] API returned success: false", data);
-        // Remove from set so we can retry
-        onboardedAddresses.current.delete(address);
-        setOnboardingError(data.error || "Failed to onboard");
-        toastRef.current({
-          title: "Onboarding Error",
-          description: data.error || "Failed to complete onboarding. Please refresh and try again.",
-          variant: "destructive",
-        });
-      }
-    })
-    .catch(err => {
-      console.error("[onboard] Error:", err);
-      // Remove from set so we can retry
-      onboardedAddresses.current.delete(address);
-      setOnboardingError(err.message || "Network error");
-      toastRef.current({
-        title: "Connection Error",
-        description: "Failed to complete onboarding. Please refresh and try again.",
-        variant: "destructive",
-      });
-    })
-    .finally(() => {
-      console.log("[onboard] Onboarding complete");
-      setIsOnboarding(false);
-    });
-  }, [activeAccount?.address]); // ✅ REMOVED toast from dependencies
-
   return (
     <div className={className}>
       <ConnectButton
@@ -144,7 +46,7 @@ export function ThirdWebConnectButton({
         wallets={wallets}
         showThirdwebBranding={false}
         connectButton={{
-          label: isOnboarding ? "Processing..." : "Sign In",
+          label: "Sign In",
           style: {
             backgroundColor: "#000",
             color: "#fff",
@@ -154,8 +56,7 @@ export function ThirdWebConnectButton({
             fontFamily: "adonis-web, serif",
             fontWeight: "300",
             fontSize: "13px",
-            cursor: isOnboarding ? "default" : "pointer",
-            opacity: isOnboarding ? 0.7 : 1,
+            cursor: "pointer",
             minWidth: "90px",
             display: "flex",
             alignItems: "center",
@@ -184,11 +85,6 @@ export function ThirdWebConnectButton({
           },
         }}
       />
-      {onboardingError && (
-        <div className="text-red-500 text-xs mt-1">
-          {onboardingError}
-        </div>
-      )}
     </div>
   )
 }
