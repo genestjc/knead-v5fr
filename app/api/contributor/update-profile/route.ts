@@ -6,43 +6,45 @@ export async function POST(req: NextRequest) {
   try {
     const { userId, userAddress, alias, avatar } = await req.json();
 
-    // ✅ Allow either userId OR userAddress (more flexible)
-    if (!userId && !userAddress) {
+    console.log('📥 Update profile request:', { userId, userAddress, hasAlias: !!alias, hasAvatar: !!avatar });
+
+    // ✅ Require at least userAddress
+    if (!userAddress) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing required field: userId or userAddress' },
+        { success: false, error: 'Missing required field: userAddress' },
         { status: 400 }
       );
     }
 
     const supabase = createSupabaseAdmin();
 
-    // ✅ If userId looks like a wallet address (starts with 0x), treat it as if we don't have a userId
-    // This handles cases where the client accidentally passes wallet address as userId
-    let finalUserId = userId;
+    // ✅ Always look up user by address (more reliable than trusting userId)
+    // The userId from the client might be a wallet address or incorrect
+    console.log('🔍 Looking up user by address:', userAddress.toLowerCase());
     
-    if (userId && typeof userId === 'string' && userId.startsWith('0x')) {
-      console.log('⚠️ userId appears to be a wallet address, using userAddress lookup instead');
-      finalUserId = null;
-    }
-    
-    // ✅ If we don't have a valid userId, look up the user by address
-    if (!finalUserId && userAddress) {
-      const { data: user, error: lookupError } = await supabase
-        .from('chat_users')
-        .select('id')
-        .eq('address', userAddress.toLowerCase())
-        .single();
+    const { data: user, error: lookupError } = await supabase
+      .from('chat_users')
+      .select('id, address, alias, avatar')
+      .eq('address', userAddress.toLowerCase())
+      .single();
 
-      if (lookupError || !user) {
-        console.error('Error looking up user:', lookupError);
-        return NextResponse.json<ApiResponse<null>>(
-          { success: false, error: 'User not found' },
-          { status: 404 }
-        );
-      }
-
-      finalUserId = user.id;
+    if (lookupError) {
+      console.error('❌ Database lookup error:', lookupError);
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: `Database error: ${lookupError.message}` },
+        { status: 500 }
+      );
     }
+
+    if (!user) {
+      console.error('❌ User not found in database for address:', userAddress);
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('✅ Found user:', { id: user.id, address: user.address });
 
     // Update user profile
     const updateData: any = {
@@ -52,27 +54,29 @@ export async function POST(req: NextRequest) {
     if (alias !== undefined) updateData.alias = alias || null;
     if (avatar !== undefined) updateData.avatar = avatar || null;
 
+    console.log('💾 Updating user with data:', updateData);
+
     const { error } = await supabase
       .from('chat_users')
       .update(updateData)
-      .eq('id', finalUserId);
+      .eq('id', user.id);
 
     if (error) {
-      console.error('Error updating profile:', error);
+      console.error('❌ Error updating profile:', error);
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Failed to update profile' },
         { status: 500 }
       );
     }
 
-    console.log('✅ Profile updated for user:', finalUserId);
+    console.log('✅ Profile updated successfully for user:', user.id);
 
     return NextResponse.json<ApiResponse<null>>({
       success: true,
       message: 'Profile updated successfully',
     });
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('❌ Update profile error:', error);
     return NextResponse.json<ApiResponse<null>>(
       { success: false, error: 'Internal server error' },
       { status: 500 }
