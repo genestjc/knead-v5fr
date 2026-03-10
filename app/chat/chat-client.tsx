@@ -392,8 +392,20 @@ function TownsChatJoinFlow({
           
       } catch (joinError: any) {
         console.error('❌ Join failed:', joinError);
-        joinAttemptedRef.current = false;
         
+        // ✅ If it's a stream sync timeout, the mint likely succeeded
+        // Allow the effect to re-run and check spaceIds
+        if (joinError.message?.includes('waitFor timeout') || 
+            joinError.message?.includes('streamMembershipUpdated') ||
+            joinError.message?.includes('joinSpace timeout') ||
+            joinError.message?.includes('Transaction confirmed but failed')) {
+          console.log('⏳ Mint likely succeeded, waiting for River sync...');
+          joinAttemptedRef.current = false; // ✅ Allow retry
+          return; // ✅ Don't show error screen
+        }
+
+        // Real errors only
+        joinAttemptedRef.current = false;
         setPhase('error');
         setErrorMsg(friendlyError(joinError));
 
