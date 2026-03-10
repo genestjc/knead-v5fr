@@ -1,23 +1,28 @@
 import { townsEnv } from '@towns-protocol/sdk';
 
-// Get RPC URL from Next.js env
-const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || 
-                     process.env.NEXT_PUBLIC_BASE_RPC_URL;
+// ✅ Pass RPC URL directly to townsEnv (works at module load time)
+export const TOWNS_CONFIG = townsEnv({
+  env: {
+    BASE_MAINNET_RPC_URL: 'https://8453.rpc.thirdweb.com',
+  }
+}).makeTownsConfig('omega');
 
-export const TOWNS_CONFIG = townsEnv().makeTownsConfig('omega');
-
-// ✅ Export custom config with RPC override
+// ✅ Keep this for the connect() call (uses your full ThirdWeb URL with client ID)
 export function getTownsConfigWithRpc() {
-  if (!BASE_RPC_URL) {
-    console.warn('⚠️ No custom RPC configured, using public Base RPC');
+  const customRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL; // Your full ThirdWeb URL
+  
+  if (!customRpcUrl) {
+    console.log('🔗 Using public ThirdWeb RPC');
     return TOWNS_CONFIG;
   }
+  
+  console.log('🔗 Using custom RPC:', customRpcUrl);
   
   return {
     ...TOWNS_CONFIG,
     base: {
       ...TOWNS_CONFIG.base,
-      rpcUrl: BASE_RPC_URL,
+      rpcUrl: customRpcUrl, // Your authenticated endpoint
     },
   };
 }
