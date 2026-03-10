@@ -77,7 +77,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                   <span className="mt-1 shrink-0">•</span>
                   <span>
                     <strong>Contributors</strong> are special guests or earned members. They have full chat
-                    privileges, including DMs, and are allocated a weekly allowance to spend from the treasury
+                    privileges, including DMs, and are allocated a weekly allowance to spend from the Treasury
                     on Knead Monthly member comments. Contributors earn 20% back on the $TOWNS they spend from
                     their budget, which is on a 'use it or lose it' basis.
                   </span>
