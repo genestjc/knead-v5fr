@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { OnboardingHandler } from "@/components/onboarding-handler"; // ✅ ADD THIS
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -39,8 +40,8 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <Providers>
+          <OnboardingHandler /> {/* ✅ ADD THIS - Always mounted, handles auto-mint */}
           {children}
-          {/* ✅ Footer removed - now handled by template.tsx */}
         </Providers>
       </body>
     </html>
