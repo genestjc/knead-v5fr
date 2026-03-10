@@ -327,8 +327,8 @@ function TownsChatJoinFlow({
   const { joinSpace } = useJoinSpace();
   const { spaceIds, isLoaded } = useUserSpaces();
   const joinAttemptedRef = useRef(false);
-  const retryCountRef = useRef(0); // ✅ ADD THIS LINE
-  const MAX_RETRIES = 3; // ✅ ADD THIS LINE
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
 
   // Step 2: Handle space joining
   useEffect(() => {
@@ -395,19 +395,19 @@ function TownsChatJoinFlow({
       } catch (joinError: any) {
         console.error('❌ Join failed:', joinError);
         
-        // ✅ REPLACE THE ENTIRE CATCH BLOCK WITH THIS:
-        // Only retry on River sync timeouts (NOT contract reverts)
+        // ✅ Retry on River sync timeouts AND receipt-reading failures
         if (retryCountRef.current < MAX_RETRIES && 
             (joinError.message?.includes('waitFor timeout') || 
              joinError.message?.includes('streamMembershipUpdated') ||
-             joinError.message?.includes('joinSpace timeout'))) {
+             joinError.message?.includes('joinSpace timeout') ||
+             joinError.message?.includes('Transaction confirmed but failed'))) {
           retryCountRef.current++;
-          console.log(`⏳ Mint likely succeeded, waiting for River sync... (retry ${retryCountRef.current}/${MAX_RETRIES})`);
+          console.log(`⏳ Mint likely succeeded, waiting for sync... (retry ${retryCountRef.current}/${MAX_RETRIES})`);
           
           // Show "Kneading the dough" during the wait
           setLoadingStep(4);
           
-          // Wait 5 seconds for RPC to see the new NFT
+          // Wait 5 seconds for blockchain state to propagate
           await new Promise(r => setTimeout(r, 5000));
           
           console.log('🔄 Retrying membership check...');
@@ -415,9 +415,9 @@ function TownsChatJoinFlow({
           return;
         }
 
-        // Real errors (contract reverts, max retries hit, etc.)
+        // Real errors (max retries hit, user rejection, etc.)
         joinAttemptedRef.current = false;
-        retryCountRef.current = 0; // Reset for next attempt
+        retryCountRef.current = 0;
         setPhase('error');
         setErrorMsg(friendlyError(joinError));
 
