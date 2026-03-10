@@ -9,7 +9,7 @@ import { client, activeChain } from '@/thirdweb-client';
 import { privateKeyToAccount } from 'thirdweb/wallets';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
-import { TOWNS_CONFIG } from '@/lib/towns-config';
+import { TOWNS_CONFIG, getTownsConfigWithRpc } from '@/lib/towns-config';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 
 declare global {
@@ -232,7 +232,6 @@ function TownsChat() {
 
         // Connect agent
         setPhase('connecting');
-        import { getTownsConfigWithRpc } from '@/lib/towns-config';
         await connectAgent(signerRef.current, { townsConfig: getTownsConfigWithRpc() });
         
         // Move to joining phase
