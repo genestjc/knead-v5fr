@@ -476,23 +476,32 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
 
-  // Ensure channel is joined
-  useEffect(() => {
-    if (!syncAgent || !channelId || !spaceId) return;
-    
-    const joinChannel = async () => {
+  // Ensure channel is joined and keys synced
+useEffect(() => {
+  if (!syncAgent || !channelId || !spaceId) return;
+  
+  const joinChannel = async () => {
+    try {
+      const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+      console.log('📺 Joining channel stream...');
+      await channel.join();
+      console.log('✅ Channel stream joined');
+      
+      // ✅ NEW: Force initial key sync
+      console.log('🔑 Initiating key sync...');
       try {
-        const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
-        console.log('📺 Joining channel stream...');
-        await channel.join();
-        console.log('✅ Channel stream joined');
-      } catch (err) {
-        console.warn('Channel join failed (may already be joined):', err);
+        await channel.waitForKeysToSync({ timeout: 30000 });
+        console.log('✅ Keys synced');
+      } catch (syncErr) {
+        console.warn('⚠️ Key sync timeout (normal for new users):', syncErr);
       }
-    };
-    
-    joinChannel();
-  }, [syncAgent, spaceId, channelId]);
+    } catch (err) {
+      console.warn('Channel join failed (may already be joined):', err);
+    }
+  };
+  
+  joinChannel();
+}, [syncAgent, spaceId, channelId]);
 
   // DIAGNOSTIC: Log raw event shape
   useEffect(() => {
