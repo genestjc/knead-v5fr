@@ -948,7 +948,7 @@ useEffect(() => {
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              Syncing key encryption. Please wait up to 1 minute before refreshing.
+              Syncing key encryption. If no messages show up in 5-10 seconds, try refreshing the page.
             </p>
           </div>
         </div>
