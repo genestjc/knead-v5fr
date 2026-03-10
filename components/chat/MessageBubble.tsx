@@ -9,6 +9,7 @@ import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { MessageReactions } from './MessageReactions';
 import { toast } from 'sonner';
+import { isImageFile } from '@/lib/thirdweb/storage';
 
 interface ChatMessage {
   id: string;
@@ -191,7 +192,7 @@ function MessageBubbleComponent({
     } catch (error: any) {
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
-        toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
+        toast.error('���️ Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
         toast.error('❌ Permission denied');
       } else {
@@ -316,6 +317,9 @@ function MessageBubbleComponent({
   const isFileMessage = !!fileMatch;
   const fileName = fileMatch?.[1];
   const ipfsUri = fileMatch?.[2];
+  
+  // Check if it's specifically an image file
+  const isImageMessage = isFileMessage && fileName ? isImageFile(fileName) : false;
 
   return (
     <>
@@ -360,9 +364,9 @@ function MessageBubbleComponent({
               )}
             </div>
 
-            {/* Floating Reaction Picker */}
+            {/* Floating Reaction Picker - positioned at bottom for images, top for everything else */}
             {showReactionPicker && canReact && channelId && (
-              <div className="absolute bottom-full left-0 mb-2 z-50">
+              <div className={`absolute ${isImageMessage ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 z-50`}>
                 <MessageReactions
                   messageId={message.id}
                   channelId={channelId}
