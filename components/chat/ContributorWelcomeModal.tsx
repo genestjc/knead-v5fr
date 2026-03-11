@@ -23,6 +23,7 @@ export function ContributorWelcomeModal({
   currentAvatar,
 }: ContributorWelcomeModalProps) {
   const [alias, setAlias] = useState(currentAlias || '');
+  const [email, setEmail] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatar || '');
   const [isUploading, setIsUploading] = useState(false);
@@ -33,6 +34,7 @@ export function ContributorWelcomeModal({
   useEffect(() => {
     if (isOpen) {
       setAlias(currentAlias || '');
+      setEmail('');
       setAvatarPreview(currentAvatar || '');
       setAvatarFile(null);
     }
@@ -82,6 +84,15 @@ export function ContributorWelcomeModal({
       return;
     }
 
+    if (!email || !email.includes('@')) {
+      toast({
+        title: 'Email required',
+        description: 'Please provide a valid email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -122,6 +133,28 @@ export function ContributorWelcomeModal({
         }
 
         setIsUploading(false);
+      }
+
+      // Subscribe to contributor mailing list
+      try {
+        const subscribeResponse = await fetch('/api/mailing/subscribe-contributor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            userAddress,
+            userId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId ?? '') ? userId : undefined,
+          }),
+        });
+
+        const subscribeData = await subscribeResponse.json();
+        if (!subscribeData.success) {
+          console.warn('Email subscription failed:', subscribeData.error);
+          // Don't block profile save if email subscription fails
+        }
+      } catch (subscribeError) {
+        console.warn('Email subscription error:', subscribeError);
+        // Continue with profile save even if email fails
       }
 
       console.log('💾 Updating contributor profile in database...', { userId, userAddress });
@@ -297,6 +330,25 @@ export function ContributorWelcomeModal({
                   />
                   <p className="text-xs text-gray-500 mt-1 italic">
                     If you'd prefer not to use a display name, leaving it blank will default to truncated wallet address
+                  </p>
+                </div>
+
+                {/* Email Address (Required) */}
+                <div>
+                  <label className="block font-adonis text-sm text-gray-700 mb-2">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="contributor@example.com"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                    disabled={isSaving}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1 italic">
+                    Please give us your email to be notified about exclusive events and perks for Contributors:
                   </p>
                 </div>
 

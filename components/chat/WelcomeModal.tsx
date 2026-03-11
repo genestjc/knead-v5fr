@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { EventsEmailSignup } from '@/components/chat/EventsEmailSignup';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -95,6 +96,14 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed pb-2 mt-4">
                   ...you know, a place where the internet can be fun again.
                 </p>
+              </div>
+
+              <div className="animate-fade-in-up-delay-4 border-t border-gray-200 pt-6 mt-6">
+                <h3 className="font-adonis text-xl mb-3">Stay Updated</h3>
+                <p className="font-georgia-pro text-sm text-gray-600 mb-4">
+                  Sign-up for our mailing list to keep up with events:
+                </p>
+                <EventsEmailSignup />
               </div>
             </div>
           </div>
