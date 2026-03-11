@@ -216,6 +216,46 @@ function RetryMessageBanner({
   );
 }
 
+function PinnedMessageBanner({
+  pinnedMessage,
+  isAdmin,
+  onUnpin,
+}: {
+  pinnedMessage: { id: string; content: string; senderName: string; senderAddress: string };
+  isAdmin: boolean;
+  onUnpin: () => void;
+}) {
+  return (
+    <div className="bg-purple-50 border-b-2 border-purple-200 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 mt-0.5">
+          <span className="text-lg">📌</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-purple-700 mb-1 font-georgia-pro">
+            Pinned Message
+          </p>
+          <p className="text-sm font-georgia-pro text-gray-800 mb-1">
+            <strong>{pinnedMessage.senderName}</strong>
+          </p>
+          <p className="text-sm text-gray-700 font-georgia-pro break-words line-clamp-3">
+            {pinnedMessage.content}
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={onUnpin}
+            className="flex-shrink-0 p-1 hover:bg-purple-100 rounded-full transition-colors"
+            title="Unpin message"
+          >
+            <X className="w-4 h-4 text-purple-700" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ConnectedChat(props: ConnectedChatProps) {
   const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
@@ -270,6 +310,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [quotedMessage, setQuotedMessage] = useState<{ content: string; sender: string } | null>(null);
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
+  const [pinnedMessage, setPinnedMessage] = useState<{
+    id: string;
+    content: string;
+    senderName: string;
+    senderAddress: string;
+  } | null>(null);
 
   // 🆕 Modal states
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -481,6 +527,97 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     window.addEventListener('reply-to-message', handleReply);
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
+
+  // Fetch pinned message from Towns Protocol stream
+  useEffect(() => {
+    if (!syncAgent || !channelId || !spaceId) return;
+
+    const updatePinnedMessage = () => {
+      try {
+        const stream = syncAgent.client?.stream(channelId);
+
+        if (!stream) {
+          setPinnedMessage(null);
+          return;
+        }
+
+        // Get pins from Towns Protocol membershipContent
+        const pins = (stream.view as any).membershipContent?.pins;
+
+        if (!pins || pins.length === 0) {
+          setPinnedMessage(null);
+          return;
+        }
+
+        // Get the most recent pin (Towns stores array of pins, use latest)
+        const latestPin = pins[pins.length - 1];
+        if (!latestPin) {
+          setPinnedMessage(null);
+          return;
+        }
+        const pinnedEventId: string = latestPin.event?.hashStr ?? latestPin.eventId;
+
+        if (!pinnedEventId) {
+          setPinnedMessage(null);
+          return;
+        }
+
+        // Find the actual message in the timeline
+        const pinnedEvent = (stream.view as any).timeline?.find(
+          (e: any) => e.eventId === pinnedEventId,
+        );
+
+        if (!pinnedEvent || !pinnedEvent.content?.body) {
+          setPinnedMessage(null);
+          return;
+        }
+
+        const senderAddress: string = pinnedEvent.sender?.id || '';
+        const profile = senderAddress ? profileCache[senderAddress] : null;
+
+        setPinnedMessage({
+          id: pinnedEventId,
+          content: pinnedEvent.content.body,
+          senderName: profile?.alias || profile?.displayName || 'Anonymous',
+          senderAddress,
+        });
+      } catch (error) {
+        console.error('Failed to read pinned message:', error);
+        setPinnedMessage(null);
+      }
+    };
+
+    updatePinnedMessage();
+
+    // Listen for pin updates
+    const handlePinnedUpdate = () => updatePinnedMessage();
+    window.addEventListener('pinned-message-updated', handlePinnedUpdate);
+
+    return () => {
+      window.removeEventListener('pinned-message-updated', handlePinnedUpdate);
+    };
+  }, [syncAgent, channelId, spaceId, profileCache]);
+
+  const handleUnpinMessage = async () => {
+    if (!activeAccount?.address || !syncAgent || !channelId || !spaceId || !pinnedMessage) return;
+
+    try {
+      const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+
+      // Call Towns Protocol's native unpin method
+      await channel.unpin(pinnedMessage.id);
+
+      setPinnedMessage(null);
+      toast({ title: 'Message unpinned' });
+    } catch (error: any) {
+      console.error('Failed to unpin message:', error);
+      toast({
+        title: 'Failed to unpin message',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Ensure channel is joined and keys synced
 useEffect(() => {
@@ -1237,6 +1374,17 @@ useEffect(() => {
             {activeEvent && !hasVideo && (
               <div className="flex-shrink-0">
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
+              </div>
+            )}
+
+            {/* 📌 Pinned Message Banner */}
+            {pinnedMessage && (
+              <div className="flex-shrink-0">
+                <PinnedMessageBanner
+                  pinnedMessage={pinnedMessage}
+                  isAdmin={isAdmin}
+                  onUnpin={handleUnpinMessage}
+                />
               </div>
             )}
 
