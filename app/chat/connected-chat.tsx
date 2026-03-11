@@ -216,6 +216,54 @@ function RetryMessageBanner({
   );
 }
 
+function PinnedMessageBanner({
+  pinnedMessage,
+  isAdmin,
+  onUnpin,
+}: {
+  pinnedMessage: {
+    id: string;
+    messageId: string;
+    content: string;
+    senderName: string | null;
+    senderAddress: string;
+    pinnedBy: string;
+    pinnedAt: string;
+  };
+  isAdmin: boolean;
+  onUnpin: () => void;
+}) {
+  return (
+    <div className="bg-purple-50 border-b-2 border-purple-200 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 mt-0.5">
+          <span className="text-lg">📌</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-purple-700 mb-1 font-georgia-pro">
+            Pinned by admin
+          </p>
+          <p className="text-sm font-georgia-pro text-gray-800 mb-1">
+            <strong>{pinnedMessage.senderName || pinnedMessage.senderAddress}</strong>
+          </p>
+          <p className="text-sm text-gray-700 font-georgia-pro break-words">
+            {pinnedMessage.content}
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={onUnpin}
+            className="flex-shrink-0 p-1 hover:bg-purple-100 rounded-full transition-colors"
+            title="Unpin message"
+          >
+            <X className="w-4 h-4 text-purple-700" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ConnectedChat(props: ConnectedChatProps) {
   const { isAgentConnected, isAgentConnecting } = useAgentConnection();
 
@@ -271,6 +319,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
+  const [pinnedMessage, setPinnedMessage] = useState<{
+    id: string;
+    messageId: string;
+    content: string;
+    senderName: string | null;
+    senderAddress: string;
+    pinnedBy: string;
+    pinnedAt: string;
+  } | null>(null);
+
   // 🆕 Modal states
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showContributorModal, setShowContributorModal] = useState(false);
@@ -311,6 +369,35 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const canReact = useMemo(() => {
     return userRole !== 'freemium';
   }, [userRole]);
+
+  // Fetch pinned message on mount and when channel changes
+  useEffect(() => {
+    if (!channelId) return;
+
+    const fetchPinnedMessage = async () => {
+      try {
+        const response = await fetch(`/api/chat/pinned-message?channelId=${channelId}`);
+        const data = await response.json();
+        if (data.success && data.pinnedMessage) {
+          setPinnedMessage(data.pinnedMessage);
+        } else {
+          setPinnedMessage(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch pinned message:', error);
+        setPinnedMessage(null);
+      }
+    };
+
+    fetchPinnedMessage();
+
+    const handlePinnedUpdate = () => fetchPinnedMessage();
+    window.addEventListener('pinned-message-updated', handlePinnedUpdate);
+
+    return () => {
+      window.removeEventListener('pinned-message-updated', handlePinnedUpdate);
+    };
+  }, [channelId]);
 
   // 💳 MODIFIED: Stripe payment handler with verification
   const handleOpenPaymentModal = async () => {
@@ -441,6 +528,32 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return () => clearTimeout(timer);
     }
   }, [activeAccount?.address, events]);
+
+  const handleUnpinMessage = async () => {
+    if (!activeAccount?.address || !channelId) return;
+
+    try {
+      const response = await fetch('/api/admin/unpin-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminAddress: activeAccount.address,
+          channelId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPinnedMessage(null);
+        toast({ title: 'Message unpinned' });
+      } else {
+        toast({ title: data.error || 'Failed to unpin message', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: error.message || 'Failed to unpin message', variant: 'destructive' });
+    }
+  };
 
   // 🆕 Contributor Modal - Show when user becomes contributor
   useEffect(() => {
@@ -1237,6 +1350,16 @@ useEffect(() => {
             {activeEvent && !hasVideo && (
               <div className="flex-shrink-0">
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
+              </div>
+            )}
+
+            {pinnedMessage && (
+              <div className="flex-shrink-0">
+                <PinnedMessageBanner
+                  pinnedMessage={pinnedMessage}
+                  isAdmin={isAdmin}
+                  onUnpin={handleUnpinMessage}
+                />
               </div>
             )}
 

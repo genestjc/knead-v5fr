@@ -230,6 +230,43 @@ export function AdminContextMenu({
     }
   };
 
+  const handlePinMessage = async () => {
+    if (!activeAccount?.address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch('/api/admin/pin-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminAddress: activeAccount.address,
+          channelId,
+          messageId: message.id,
+          messageContent: message.content,
+          senderAddress: message.sender.id,
+          senderName: message.sender.name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Message pinned to top of chat');
+        window.dispatchEvent(new CustomEvent('pinned-message-updated'));
+        onClose();
+      } else {
+        toast.error(data.error || 'Failed to pin message');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to pin message');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleBanUser = async () => {
     console.log('🚫 BAN USER - START');
 
@@ -379,6 +416,23 @@ export function AdminContextMenu({
               <span>{option.label}</span>
             </button>
           ))}
+        </div>
+
+        <div className="border-t border-gray-200"></div>
+
+        <div className="py-1">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handlePinMessage();
+            }}
+            disabled={isProcessing}
+            className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-purple-50 active:bg-purple-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
+          >
+            <span>📌</span>
+            <span>Pin Message</span>
+          </button>
         </div>
 
         <div className="border-t border-gray-200"></div>
