@@ -89,7 +89,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
 
                 <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed">
                   We designed the chat to be an intimate home for rewarding our community with meaningful
-                  experiences that can be thoughtful, fun, educational, entertaining, or even just a way
+                  experiences that can be thoughtful, educational, entertaining, or even just a way
                   to pass the time.
                 </p>
                 <p className="font-georgia-pro text-lg text-gray-800 leading-relaxed pb-2 mt-4">
