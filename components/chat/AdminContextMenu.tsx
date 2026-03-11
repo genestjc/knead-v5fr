@@ -36,9 +36,26 @@ export function AdminContextMenu({
   const [isProcessing, setIsProcessing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [isPinned, setIsPinned] = useState(false);
   
   const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
   const sync = useSyncAgent();
+
+  // Check if this message is currently pinned
+  useEffect(() => {
+    if (!sync || !channelId || !spaceId) return;
+
+    try {
+      const stream = sync.client?.stream(channelId);
+      const pins = (stream?.view as any)?.membershipContent?.pins || [];
+      const isCurrentlyPinned = pins.some(
+        (pin: any) => (pin.event?.hashStr ?? pin.eventId) === message.id,
+      );
+      setIsPinned(isCurrentlyPinned);
+    } catch (error) {
+      console.error('Failed to check pin status:', error);
+    }
+  }, [sync, channelId, spaceId, message.id]);
 
   // Adjust position to prevent off-screen menu
   useEffect(() => {
@@ -137,6 +154,7 @@ export function AdminContextMenu({
 
       // Dispatch event to refresh UI
       window.dispatchEvent(new CustomEvent('pinned-message-updated'));
+      setIsPinned(true);
       onClose();
 
     } catch (error: any) {
@@ -144,7 +162,11 @@ export function AdminContextMenu({
 
       const errorMsg = error?.message?.toLowerCase() || '';
 
-      if (errorMsg.includes('permission') || errorMsg.includes('not entitled')) {
+      if (errorMsg.includes('already_exists') || errorMsg.includes('already pinned')) {
+        toast.error('Another message is already pinned', {
+          description: 'Unpin the existing message first.',
+        });
+      } else if (errorMsg.includes('permission') || errorMsg.includes('not entitled')) {
         toast.error('Permission Denied', {
           description: 'You need admin permissions to pin messages.',
         });
@@ -153,6 +175,44 @@ export function AdminContextMenu({
           description: error.message || 'Please try again.',
         });
       }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUnpinMessage = async () => {
+    if (!activeAccount?.address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    if (!sync) {
+      toast.error('Connection error', {
+        description: 'Try refreshing the page.',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      console.log('📍 Unpinning message:', message.id);
+
+      const channel = sync.spaces.getSpace(spaceId).getChannel(channelId);
+
+      await channel.unpin(message.id);
+
+      console.log('✅ Message unpinned successfully');
+      toast.success('Message unpinned');
+
+      window.dispatchEvent(new CustomEvent('pinned-message-updated'));
+      setIsPinned(false);
+      onClose();
+
+    } catch (error: any) {
+      console.error('❌ Unpin failed:', error);
+      toast.error('Failed to unpin message', {
+        description: error.message || 'Please try again.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -434,13 +494,13 @@ export function AdminContextMenu({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              handlePinMessage();
+              isPinned ? handleUnpinMessage() : handlePinMessage();
             }}
             disabled={isProcessing}
             className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-purple-50 active:bg-purple-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
           >
-            <span>📌</span>
-            <span>Pin Message</span>
+            <span>{isPinned ? '📍' : '📌'}</span>
+            <span>{isPinned ? 'Unpin Message' : 'Pin Message'}</span>
           </button>
         </div>
 
