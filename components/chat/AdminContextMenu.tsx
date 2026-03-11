@@ -110,6 +110,54 @@ export function AdminContextMenu({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
+  const handlePinMessage = async () => {
+    if (!activeAccount?.address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    if (!sync) {
+      toast.error('Connection error', {
+        description: 'Try refreshing the page.',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      console.log('📌 Pinning message:', message.id);
+
+      const channel = sync.spaces.getSpace(spaceId).getChannel(channelId);
+
+      // Call Towns Protocol's native pin method
+      await channel.pin(message.id);
+
+      console.log('✅ Message pinned successfully');
+      toast.success('Message pinned to top of chat');
+
+      // Dispatch event to refresh UI
+      window.dispatchEvent(new CustomEvent('pinned-message-updated'));
+      onClose();
+
+    } catch (error: any) {
+      console.error('❌ Pin failed:', error);
+
+      const errorMsg = error?.message?.toLowerCase() || '';
+
+      if (errorMsg.includes('permission') || errorMsg.includes('not entitled')) {
+        toast.error('Permission Denied', {
+          description: 'You need admin permissions to pin messages.',
+        });
+      } else {
+        toast.error('Failed to pin message', {
+          description: error.message || 'Please try again.',
+        });
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleAwardBonus = async (amount: number, bonusType: string) => {
     if (!activeAccount?.address) {
       toast.error('Please connect your wallet');
@@ -379,6 +427,21 @@ export function AdminContextMenu({
               <span>{option.label}</span>
             </button>
           ))}
+        </div>
+
+        <div className="py-1">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handlePinMessage();
+            }}
+            disabled={isProcessing}
+            className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-purple-50 active:bg-purple-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
+          >
+            <span>📌</span>
+            <span>Pin Message</span>
+          </button>
         </div>
 
         <div className="border-t border-gray-200"></div>
