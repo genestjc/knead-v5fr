@@ -1,0 +1,304 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useToast } from '@/hooks/use-toast';
+
+interface Subscriber {
+  id: string;
+  email: string;
+  subscribed_at: string;
+  user_address?: string;
+}
+
+interface MailingListManagerProps {
+  adminAddress: string;
+  listType: 'events' | 'contributors';
+}
+
+export function MailingListManager({ adminAddress, listType }: MailingListManagerProps) {
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showComposer, setShowComposer] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [htmlContent, setHtmlContent] = useState('');
+  const [campaignName, setCampaignName] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
+
+  const fromEmail =
+    listType === 'events' ? 'events@kneadmag.com' : 'contributors@kneadmag.com';
+
+  const listLabel = listType === 'events' ? 'Events' : 'Contributors';
+
+  const fetchSubscribers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/mailing/list?type=${listType}&adminAddress=${encodeURIComponent(adminAddress)}`
+      );
+      const data = await res.json();
+      if (data.success) {
+        setSubscribers(data.data);
+      } else {
+        toast({
+          title: 'Error',
+          description: data.error || 'Failed to load subscribers',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      console.error('Fetch subscribers error:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to load subscribers',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [adminAddress, listType, toast]);
+
+  useEffect(() => {
+    fetchSubscribers();
+  }, [fetchSubscribers]);
+
+  const handleExportCSV = () => {
+    const headers =
+      listType === 'contributors' ? 'Email,Wallet,Subscribed At' : 'Email,Subscribed At';
+    const rows = [headers];
+    subscribers.forEach((s) => {
+      if (listType === 'contributors') {
+        rows.push(
+          `"${s.email}","${s.user_address || ''}","${new Date(s.subscribed_at).toLocaleString()}"`
+        );
+      } else {
+        rows.push(`"${s.email}","${new Date(s.subscribed_at).toLocaleString()}"`);
+      }
+    });
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${listType}-subscribers.csv`;
+    link.click();
+  };
+
+  const handleSendCampaign = async () => {
+    if (!campaignName || !subject || !htmlContent) {
+      toast({
+        title: 'Missing fields',
+        description: 'Please fill in Campaign Name, Subject, and HTML Content.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Send "${subject}" to ${subscribers.length} ${listLabel} subscribers?`
+    );
+    if (!confirmed) return;
+
+    setIsSending(true);
+    try {
+      const res = await fetch('/api/mailing/send-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listType,
+          subject,
+          htmlContent,
+          fromEmail,
+          campaignName,
+          adminAddress,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to send campaign');
+      }
+
+      toast({
+        title: 'Campaign sent!',
+        description: `Sent to ${data.sentCount} subscribers.${
+          data.errors?.length ? ` ${data.errors.length} batch error(s).` : ''
+        }`,
+      });
+
+      setShowComposer(false);
+      setSubject('');
+      setHtmlContent('');
+      setCampaignName('');
+    } catch (err) {
+      console.error('Send campaign error:', err);
+      toast({
+        title: 'Send failed',
+        description: err instanceof Error ? err.message : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-adonis text-2xl">{listLabel} Mailing List</h2>
+          <p className="font-georgia-pro text-sm text-gray-600 mt-1">
+            Sent from: <span className="font-medium">{fromEmail}</span>
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={handleExportCSV}
+            disabled={isLoading || subscribers.length === 0}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-georgia-pro text-sm hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowComposer(!showComposer)}
+            className="px-4 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition"
+          >
+            {showComposer ? 'Hide Composer' : 'Send Campaign'}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <p className="font-georgia-pro text-sm text-gray-500">Active Subscribers</p>
+        <p className="font-adonis text-4xl mt-1">
+          {isLoading ? '...' : subscribers.length.toLocaleString()}
+        </p>
+      </div>
+
+      {/* Email Composer */}
+      {showComposer && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h3 className="font-adonis text-xl">Compose Campaign</h3>
+
+          <div>
+            <label className="block font-adonis text-sm text-gray-700 mb-1">From</label>
+            <input
+              type="text"
+              value={fromEmail}
+              readOnly
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 font-georgia-pro text-sm text-gray-500 cursor-not-allowed"
+            />
+          </div>
+
+          <div>
+            <label className="block font-adonis text-sm text-gray-700 mb-1">Campaign Name</label>
+            <input
+              type="text"
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
+              placeholder="e.g. March Events Newsletter"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+              disabled={isSending}
+            />
+          </div>
+
+          <div>
+            <label className="block font-adonis text-sm text-gray-700 mb-1">Subject</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Email subject line"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+              disabled={isSending}
+            />
+          </div>
+
+          <div>
+            <label className="block font-adonis text-sm text-gray-700 mb-1">HTML Content</label>
+            <textarea
+              value={htmlContent}
+              onChange={(e) => setHtmlContent(e.target.value)}
+              placeholder="<p>Your email HTML content here...</p>"
+              rows={10}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm resize-y"
+              disabled={isSending}
+            />
+          </div>
+
+          <button
+            onClick={handleSendCampaign}
+            disabled={isSending || subscribers.length === 0}
+            className="w-full px-4 py-3 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSending
+              ? 'Sending...'
+              : `Send to ${subscribers.length.toLocaleString()} Subscriber${subscribers.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      )}
+
+      {/* Subscribers Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="font-adonis text-lg">Subscribers</h3>
+        </div>
+
+        {isLoading ? (
+          <div className="px-6 py-8 text-center font-georgia-pro text-sm text-gray-500">
+            Loading subscribers...
+          </div>
+        ) : subscribers.length === 0 ? (
+          <div className="px-6 py-8 text-center font-georgia-pro text-sm text-gray-500">
+            No active subscribers yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left font-adonis text-xs text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  {listType === 'contributors' && (
+                    <th className="px-6 py-3 text-left font-adonis text-xs text-gray-500 uppercase tracking-wider">
+                      Wallet
+                    </th>
+                  )}
+                  <th className="px-6 py-3 text-left font-adonis text-xs text-gray-500 uppercase tracking-wider">
+                    Subscribed At
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {subscribers.map((sub) => (
+                  <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-georgia-pro text-sm text-gray-800">
+                      {sub.email}
+                    </td>
+                    {listType === 'contributors' && (
+                      <td className="px-6 py-4 font-georgia-pro text-sm text-gray-500 font-mono">
+                        {sub.user_address
+                          ? `${sub.user_address.slice(0, 6)}...${sub.user_address.slice(-4)}`
+                          : '—'}
+                      </td>
+                    )}
+                    <td className="px-6 py-4 font-georgia-pro text-sm text-gray-500">
+                      {new Date(sub.subscribed_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

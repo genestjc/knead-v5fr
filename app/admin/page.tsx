@@ -7,6 +7,7 @@ import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
 import { UserManager } from '@/components/admin/UserManager';
 import { MonthlyMintManager } from '@/components/admin/MonthlyMintManager';
+import { MailingListManager } from '@/components/admin/MailingListManager';
 
 // ✅ Prevents static generation
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ function getClient() {
 
 export default function AdminPage() {
   const account = useActiveAccount();
-  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail'>('events');
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
   const client = getClient();
@@ -142,6 +143,28 @@ export default function AdminPage() {
             >
               🎫 Monthly Mint
             </button>
+
+            <button 
+              onClick={() => setActiveTab('events-mail')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'events-mail' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📧 Events List
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('contributors-mail')} 
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'contributors-mail' 
+                  ? 'border-black text-black' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📬 Contributors List
+            </button>
           </nav>
         </div>
       </div>
@@ -153,6 +176,12 @@ export default function AdminPage() {
             {activeTab === 'contributors' && <ContributorManager adminAddress={account.address} />}
             {activeTab === 'users' && <UserManager adminAddress={account.address} />}
             {activeTab === 'mint' && <MonthlyMintManager adminAddress={account.address} />}
+            {activeTab === 'events-mail' && (
+              <MailingListManager adminAddress={account.address} listType="events" />
+            )}
+            {activeTab === 'contributors-mail' && (
+              <MailingListManager adminAddress={account.address} listType="contributors" />
+            )}
           </>
         )}
       </main>
