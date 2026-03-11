@@ -216,41 +216,111 @@ function RetryMessageBanner({
   );
 }
 
-function PinnedMessageBanner({
-  pinnedMessage,
+function PinnedMessageBubble({
+  message,
   isAdmin,
   onUnpin,
+  onScrollToOriginal,
 }: {
-  pinnedMessage: { id: string; content: string; senderName: string; senderAddress: string };
+  message: {
+    id: string;
+    content: string;
+    sender: { id: string; walletAddress: string; name: string; avatar?: string };
+    timestamp: number;
+    isOwn: boolean;
+    isContributor: boolean;
+  };
   isAdmin: boolean;
   onUnpin: () => void;
+  onScrollToOriginal: () => void;
 }) {
+  const formattedTime = useMemo(
+    () =>
+      new Date(message.timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    [message.timestamp],
+  );
+
   return (
-    <div className="bg-purple-50 border-b-2 border-purple-200 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 mt-0.5">
-          <span className="text-lg">📌</span>
+    <div
+      className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm"
+      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+    >
+      <div className="px-4 py-3">
+        <div
+          onClick={onScrollToOriginal}
+          className="relative cursor-pointer hover:bg-gray-50/80 transition-all rounded-xl p-3"
+          style={{
+            opacity: 0.85,
+            border: '1px solid rgba(147, 51, 234, 0.2)',
+            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.02) 0%, rgba(147, 51, 234, 0.05) 100%)',
+          }}
+        >
+          {/* Pin Badge */}
+          <div className="absolute -top-2 -left-2 bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md">
+            📌
+          </div>
+
+          {/* Unpin Button (Admin Only) */}
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnpin();
+              }}
+              className="absolute -top-2 -right-2 bg-gray-700 hover:bg-gray-900 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md transition-colors"
+              title="Unpin message"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* Message Content */}
+          <div className="flex items-start gap-3">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+              {message.sender.avatar ? (
+                <img
+                  src={message.sender.avatar}
+                  alt={message.sender.name}
+                  className="w-10 h-10 rounded-full border-2 border-purple-200"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold border-2 border-purple-200">
+                  {message.sender.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+
+            {/* Message Body */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="font-semibold text-gray-900 font-georgia-pro">
+                  {message.sender.name}
+                  {message.isContributor && (
+                    <span className="ml-1 text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-1.5 py-0.5 rounded">
+                      ✨
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-gray-500 font-georgia-pro">
+                  {formattedTime}
+                </span>
+              </div>
+
+              <p className="text-sm text-gray-800 font-georgia-pro break-words whitespace-pre-wrap line-clamp-3">
+                {message.content}
+              </p>
+
+              <p className="text-xs text-purple-600 mt-2 font-georgia-pro italic">
+                Click to view in timeline →
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-purple-700 mb-1 font-georgia-pro">
-            Pinned Message
-          </p>
-          <p className="text-sm font-georgia-pro text-gray-800 mb-1">
-            <strong>{pinnedMessage.senderName}</strong>
-          </p>
-          <p className="text-sm text-gray-700 font-georgia-pro break-words line-clamp-3">
-            {pinnedMessage.content}
-          </p>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={onUnpin}
-            className="flex-shrink-0 p-1 hover:bg-purple-100 rounded-full transition-colors"
-            title="Unpin message"
-          >
-            <X className="w-4 h-4 text-purple-700" />
-          </button>
-        )}
       </div>
     </div>
   );
@@ -313,8 +383,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [pinnedMessage, setPinnedMessage] = useState<{
     id: string;
     content: string;
-    senderName: string;
-    senderAddress: string;
+    sender: {
+      id: string;
+      walletAddress: string;
+      name: string;
+      avatar?: string;
+    };
+    timestamp: number;
+    isOwn: boolean;
+    isContributor: boolean;
   } | null>(null);
 
   // 🆕 Modal states
@@ -578,8 +655,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         setPinnedMessage({
           id: pinnedEventId,
           content: pinnedEvent.content.body,
-          senderName: profile?.alias || profile?.displayName || 'Anonymous',
-          senderAddress,
+          sender: {
+            id: senderAddress,
+            walletAddress: senderAddress,
+            name: profile?.alias || profile?.displayName || 'Anonymous',
+            avatar: profile?.avatar ?? undefined,
+          },
+          timestamp: pinnedEvent.createdAtEpochMs || Date.now(),
+          isOwn: senderAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
+          isContributor: senderAddress ? contributorAddresses.has(senderAddress) : false,
         });
       } catch (error) {
         console.error('Failed to read pinned message:', error);
@@ -596,7 +680,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => {
       window.removeEventListener('pinned-message-updated', handlePinnedUpdate);
     };
-  }, [syncAgent, channelId, spaceId, profileCache]);
+  }, [syncAgent, channelId, spaceId, profileCache, activeAccount?.address, contributorAddresses]);
 
   const handleUnpinMessage = async () => {
     if (!activeAccount?.address || !syncAgent || !channelId || !spaceId || !pinnedMessage) return;
@@ -615,6 +699,29 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         title: 'Failed to unpin message',
         description: error.message || 'Please try again.',
         variant: 'destructive',
+      });
+    }
+  };
+
+  const handleScrollToPinnedMessage = () => {
+    if (!pinnedMessage) return;
+
+    const messageElement = document.querySelector(`[data-message-id="${pinnedMessage.id}"]`);
+
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      messageElement.classList.add('highlight-flash');
+      const el = messageElement;
+      const timer = setTimeout(() => {
+        el.classList.remove('highlight-flash');
+      }, 2000);
+      // Store timer on element to allow cleanup if needed
+      (el as any).__highlightTimer = timer;
+    } else {
+      toast({
+        title: 'Original message not visible',
+        description: 'The message may be further back in history.',
       });
     }
   };
@@ -1377,15 +1484,14 @@ useEffect(() => {
               </div>
             )}
 
-            {/* 📌 Pinned Message Banner */}
+            {/* 📌 Pinned Message Bubble - Sticky under header */}
             {pinnedMessage && (
-              <div className="flex-shrink-0">
-                <PinnedMessageBanner
-                  pinnedMessage={pinnedMessage}
-                  isAdmin={isAdmin}
-                  onUnpin={handleUnpinMessage}
-                />
-              </div>
+              <PinnedMessageBubble
+                message={pinnedMessage}
+                isAdmin={isAdmin}
+                onUnpin={handleUnpinMessage}
+                onScrollToOriginal={handleScrollToPinnedMessage}
+              />
             )}
 
             <div 
