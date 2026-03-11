@@ -83,7 +83,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Knead Monthly</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Unlimited viewing access + the ability to chat during live events.
+                      <span className="font-semibold">Permissions:</span> Unlimited viewing/reacting + the ability to participate during live events.
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
                       Knead Monthly members earn $TOWNS for noteworthy comments (with bonuses
