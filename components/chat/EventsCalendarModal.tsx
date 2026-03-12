@@ -31,6 +31,8 @@ interface EventsCalendarModalProps {
 export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,6 +56,38 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      const response = await fetch('/api/mailing/subscribe-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Successfully subscribed to event updates!');
+        setEmail('');
+      } else {
+        toast.error(data.error || 'Failed to subscribe');
+      }
+    } catch (error) {
+      console.error('Subscribe error:', error);
+      toast.error('Failed to subscribe. Please try again.');
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -185,6 +219,35 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                   ))}
                 </div>
               )}
+
+              {/* Subscribe Section */}
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <div className="text-center mb-4">
+                  <p className="font-georgia-pro text-gray-700">
+                    Want to stay current on all of our events? Subscribe below:
+                  </p>
+                </div>
+                
+                <form onSubmit={handleSubscribe} className="max-w-md mx-auto">
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                      disabled={isSubscribing}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubscribing}
+                      className="px-6 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubscribing ? 'Subscribing...' : 'Subscribe'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </motion.div>
         </motion.div>
