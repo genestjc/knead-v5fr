@@ -10,11 +10,12 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
-import { Paperclip, ArrowRight } from 'lucide-react';
+import { DailyDmVideoCall } from './DailyDmVideoCall';
+import { Paperclip, ArrowRight, Video, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DirectMessageInterfaceProps {
@@ -145,16 +146,47 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
+  const syncAgent = useSyncAgent();
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Video call state
+  const [videoCallActive, setVideoCallActive] = useState(false);
+  const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
+  const [videoToken, setVideoToken] = useState<string | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
+
   // ✅ Filter for ChannelMessage events only
   const messages = (events || []).filter(
     (event) => event.content?.kind === RiverTimelineEvent.ChannelMessage
   );
+
+  // Join DM stream and sync encryption keys on mount (Towns Protocol best practice)
+  useEffect(() => {
+    if (!townsDmId || !syncAgent) return;
+
+    const joinDmStream = async () => {
+      try {
+        const dmStream = (syncAgent.dms as any).getDm(townsDmId);
+        if (dmStream) {
+          if (typeof dmStream.join === 'function') {
+            await dmStream.join();
+          }
+          if (typeof dmStream.waitForKeysToSync === 'function') {
+            await dmStream.waitForKeysToSync({ timeout: 30000 });
+          }
+          console.log('✅ DM stream joined and keys synced');
+        }
+      } catch (error) {
+        console.error('❌ Failed to join DM stream:', error);
+      }
+    };
+
+    joinDmStream();
+  }, [townsDmId, syncAgent]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -167,9 +199,18 @@ export function DirectMessageInterface({
     try {
       await sendMessage(messageInput);
       setMessageInput('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send DM:', error);
-      alert('Failed to send message. Please try again.');
+      const errorMsg = error.message?.toLowerCase() || '';
+      if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
+        toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
+      } else if (errorMsg.includes('timeout')) {
+        toast.error('Network timeout. Please try again.');
+      } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+        toast.error('❌ Permission denied');
+      } else {
+        toast.error('Failed to send message. Please try again.');
+      }
     }
   };
 
@@ -233,111 +274,196 @@ export function DirectMessageInterface({
   const displayName = otherUserName;
   const displayAvatar = otherUserAvatar;
 
+  const handleStartVideoCall = async () => {
+    setLoadingVideo(true);
+    try {
+      const roomResponse = await fetch('/api/dm/create-video-room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId1: currentUserId, userId2: dmId }),
+      });
+
+      const roomData = await roomResponse.json();
+      if (!roomData.success) {
+        throw new Error(roomData.error);
+      }
+
+      const tokenResponse = await fetch('/api/dm/generate-dm-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomName: roomData.data.roomName,
+          walletAddress: currentUserId,
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.success) {
+        throw new Error(tokenData.error);
+      }
+
+      setVideoRoomUrl(roomData.data.roomUrl);
+      setVideoToken(tokenData.data.token);
+      setVideoCallActive(true);
+    } catch (error: any) {
+      console.error('Failed to start video call:', error);
+      toast.error(`Failed to start video call: ${error.message}`);
+    } finally {
+      setLoadingVideo(false);
+    }
+  };
+
+  const handleCloseVideoCall = () => {
+    setVideoCallActive(false);
+    setVideoRoomUrl(null);
+    setVideoToken(null);
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b px-6 py-4 bg-white">
-        <div className="flex items-center gap-3">
-          {displayAvatar ? (
-            <img
-              src={convertIpfsToGatewayUrl(displayAvatar)}
-              alt={displayName}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-              {displayName.slice(0, 2).toUpperCase()}
+      {videoCallActive && videoRoomUrl && videoToken ? (
+        <DailyDmVideoCall
+          roomUrl={videoRoomUrl}
+          token={videoToken}
+          currentUserAddress={currentUserId}
+          otherUserName={displayName}
+          onClose={handleCloseVideoCall}
+        />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="border-b px-6 py-4 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {displayAvatar ? (
+                  <img
+                    src={convertIpfsToGatewayUrl(displayAvatar)}
+                    alt={displayName}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+                    {displayName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h2 className="font-adonis text-lg">{displayName}</h2>
+                </div>
+              </div>
+
+              {/* Video + menu controls */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleStartVideoCall}
+                  disabled={loadingVideo}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+                  title="Start video call"
+                >
+                  {loadingVideo ? (
+                    <span className="text-sm">⏳</span>
+                  ) : (
+                    <Video className="w-5 h-5" />
+                  )}
+                </button>
+                <button
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                  title="More options"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-          )}
-          <div>
-            <h2 className="font-adonis text-lg">{displayName}</h2>
           </div>
-        </div>
-      </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-        {isLoading ? (
-          <div className="text-center text-gray-500 py-8 font-georgia-pro">
-            Loading messages...
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="text-center text-gray-500 py-8 font-georgia-pro">
-            <p>No messages yet.</p>
-            <p className="text-sm mt-2">Start the conversation!</p>
-          </div>
-        ) : (
-          messages.map((event, index) => {
-            const senderId = event.sender?.id || '';
-            const isCurrentUser = myUserId
-              ? senderId === myUserId
-              : Boolean(currentUserId && senderId?.toLowerCase() === currentUserId.toLowerCase());
-            
-            const timestamp = event.localEvent?.confirmationTimeStampMs || Date.now();
-            
-            return (
-              <DmMessageItem
-                key={event.eventId || index}
-                event={event}
-                isCurrentUser={isCurrentUser}
-                timestamp={timestamp}
-                displayAvatar={displayAvatar}
-                displayName={displayName}
-                townsDmId={townsDmId}
-                deletingEventId={deletingEventId}
-                onDelete={handleDeleteMessage}
-                convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
-              />
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="border-t p-4 bg-white">
-        <div className="flex gap-2 items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileSelect}
-            className="hidden"
-            accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
-          />
-          
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || isSending}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
-            title="Upload file"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-          
-          <input
-            type="text"
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={isUploading ? "Uploading file..." : "Type a message"}
-            className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro"
-            disabled={isSending || isUploading}
-          />
-          
-          <button
-            onClick={handleSendMessage}
-            disabled={isSending || isUploading || !messageInput.trim()}
-            className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Send message"
-          >
-            {isSending || isUploading ? (
-              <span className="text-sm">⏳</span>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+            {isLoading ? (
+              <div className="text-center text-gray-500 py-8 font-georgia-pro">
+                Loading messages...
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-gray-500 py-8 font-georgia-pro">
+                <p>No messages yet.</p>
+                <p className="text-sm mt-2">Start the conversation!</p>
+              </div>
             ) : (
-              <ArrowRight className="w-5 h-5" />
+              messages.map((event, index) => {
+                const senderId = event.sender?.id || '';
+                const isCurrentUser = myUserId
+                  ? senderId === myUserId
+                  : Boolean(currentUserId && senderId?.toLowerCase() === currentUserId.toLowerCase());
+
+                // ✅ Use protocol's authoritative timestamp field
+                const timestamp =
+                  (event as any).createdAtEpochMs ||
+                  (event as any).created_at_epoch_ms ||
+                  Date.now();
+
+                return (
+                  <DmMessageItem
+                    key={event.eventId || index}
+                    event={event}
+                    isCurrentUser={isCurrentUser}
+                    timestamp={timestamp}
+                    displayAvatar={displayAvatar}
+                    displayName={displayName}
+                    townsDmId={townsDmId}
+                    deletingEventId={deletingEventId}
+                    onDelete={handleDeleteMessage}
+                    convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
+                  />
+                );
+              })
             )}
-          </button>
-        </div>
-      </div>
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t p-4 bg-white">
+            <div className="flex gap-2 items-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileSelect}
+                className="hidden"
+                accept="image/*,.pdf,.txt,.doc,.docx,.mp4,.mov"
+              />
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || isSending}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+                title="Upload file"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
+              <input
+                type="text"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={isUploading ? 'Uploading file...' : 'Type a message'}
+                className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro"
+                disabled={isSending || isUploading}
+              />
+
+              <button
+                onClick={handleSendMessage}
+                disabled={isSending || isUploading || !messageInput.trim()}
+                className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Send message"
+              >
+                {isSending || isUploading ? (
+                  <span className="text-sm">⏳</span>
+                ) : (
+                  <ArrowRight className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
