@@ -72,8 +72,12 @@ export function DirectMessageList({
       const errorMessage = error.message || String(error);
       
       if (errorMessage.includes('already exists')) {
-        setCreateError('✅ DM already exists! Syncing... Refreshing in 3 seconds.');
-        setTimeout(() => { window.location.reload(); }, 3000);
+        setCreateError('✅ DM already exists! Close this modal to see it in the list.');
+        setTimeout(() => {
+          setShowNewDmModal(false);
+          setNewDmAddress('');
+          setCreateError(null);
+        }, 2000);
         return;
       }
       
@@ -103,29 +107,13 @@ export function DirectMessageList({
       const fetchContributors = async () => {
         setLoadingContributors(true);
         try {
-          console.log('🔍 Fetching contributors from API...');
-          console.log('   Current userId:', userId);
-          
           const response = await fetch('/api/admin/contributors');
-          console.log('📡 API response status:', response.status);
-          
           const data = await response.json();
-          console.log('📬 Contributors API full response:', data);
-          console.log('   Success:', data.success);
-          console.log('   Data array length:', data.data?.length || 0);
           
           if (data.success) {
-            console.log('✅ API returned successfully');
-            console.log('   Raw contributors:', data.data);
-            
             const filteredContributors = (data.data || []).filter(
               (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
             );
-            
-            console.log('🔎 After filtering (excluding current user):');
-            console.log('   Filtered count:', filteredContributors.length);
-            console.log('   Filtered contributors:', filteredContributors);
-            
             setContributors(filteredContributors);
           } else {
             console.error('❌ API returned error:', data.error);
@@ -348,8 +336,6 @@ export function DirectMessageList({
   );
 }
 
-// ✅ FIXED: Passes resolved displayName + avatar to onSelect so DirectMessageInterface
-// receives the correct single name (no duplicate fetch / double alias)
 function DmListItem({ 
   streamId, 
   currentUserId,
@@ -368,10 +354,18 @@ function DmListItem({
   const { data: members } = useMemberList(streamId);
   const { data: timelineEvents } = useTimeline(streamId);
   
+  // ✅ Wait for members to load before rendering
+  if (!members?.userIds || members.userIds.length === 0) {
+    return null;
+  }
+  
   // Find the other user's ID
-  const otherUserId = members?.userIds?.find(
+  const otherUserId = members.userIds.find(
     (id) => id.toLowerCase() !== currentUserId.toLowerCase()
   ) || '';
+
+  // ✅ Handle self-DM case (messaging yourself)
+  const isSelfDm = members.userIds.length === 1 || otherUserId.toLowerCase() === currentUserId.toLowerCase();
 
   // Check if the last message is an incoming video call invite
   const hasIncomingCall = (() => {
@@ -407,14 +401,13 @@ function DmListItem({
     fetchProfile();
   }, [otherUserId]);
   
-  const displayName = userProfile?.displayName || (otherUserId 
-    ? formatAddressForDisplay(otherUserId)
-    : 'Unknown User');
+  // ✅ Show wallet address for anonymous users, handle self-DM
+  const displayName = isSelfDm 
+    ? userProfile?.displayName || formatAddressForDisplay(currentUserId) + ' (You)'
+    : userProfile?.displayName || formatAddressForDisplay(otherUserId);
   
-  const avatarInitials = (displayName.length >= 2 
-    ? displayName.slice(0, 2) 
-    : otherUserId.slice(2, 4)
-  ).toUpperCase();
+  // ✅ Simplified avatar initials
+  const avatarInitials = displayName.slice(0, 2).toUpperCase();
   
   const convertIpfsToGatewayUrl = (uri: string): string => {
     if (uri && uri.startsWith('ipfs://')) {
@@ -425,7 +418,6 @@ function DmListItem({
   
   return (
     <button
-      // ✅ Pass displayName and avatar so DirectMessageInterface uses them directly
       onClick={() => onSelect(streamId, streamId, displayName, userProfile?.avatar || undefined)}
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
