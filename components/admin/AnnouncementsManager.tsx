@@ -50,7 +50,9 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
           fetchAnnouncements();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Announcements subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -60,10 +62,14 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
   const fetchAnnouncements = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/announcements?isContributor=true');
+      const timestamp = Date.now();
+      const response = await fetch(`/api/announcements?isContributor=true&_t=${timestamp}`, {
+        cache: 'no-store',
+      });
       const data = await response.json();
 
       if (data.success) {
+        console.log('📢 Admin fetched announcements:', data.data.length);
         setAnnouncements(data.data || []);
       }
     } catch (error) {
@@ -94,7 +100,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
         toast.success('Announcement posted!');
         setShowCreateModal(false);
         setFormData({ title: '', content: '', contributorsOnly: false });
-        fetchAnnouncements();
+        await fetchAnnouncements();
       } else {
         toast.error(data.error || 'Failed to post announcement');
       }
@@ -107,23 +113,28 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this announcement?')) return;
 
-    try {
-      const response = await fetch(
-        `/api/admin/announcements/${id}?adminAddress=${adminAddress}`,
-        { method: 'DELETE' }
-      );
+    console.log('🗑️ Deleting announcement:', id);
 
+    try {
+      const url = `/api/admin/announcements/${id}?adminAddress=${adminAddress}`;
+      console.log('🗑️ DELETE URL:', url);
+
+      const response = await fetch(url, { method: 'DELETE' });
       const data = await response.json();
+
+      console.log('🗑️ DELETE Response:', { status: response.status, data });
 
       if (data.success) {
         toast.success('Announcement deleted');
-        fetchAnnouncements();
+        console.log('🗑️ Fetching announcements after delete...');
+        await fetchAnnouncements();
+        console.log('🗑️ Current announcements count:', announcements.length);
       } else {
         toast.error(data.error || 'Failed to delete');
       }
     } catch (error) {
       toast.error('Error deleting announcement');
-      console.error(error);
+      console.error('🗑️ DELETE Error:', error);
     }
   };
 
@@ -166,7 +177,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                     <h3 className="font-adonis text-xl">{announcement.title}</h3>
                     {announcement.contributors_only && (
                       <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-georgia-pro font-medium">
-                        Contributors Only
+                        ✨ Contributors Only
                       </span>
                     )}
                   </div>
@@ -233,7 +244,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                     className="rounded"
                   />
                   <span className="font-georgia-pro text-sm">
-                    Contributors Only (hide from free members)
+                    ✨ Contributors Only (hide from free members)
                   </span>
                 </label>
               </div>
