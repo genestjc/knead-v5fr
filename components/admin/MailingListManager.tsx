@@ -19,10 +19,17 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [campaignName, setCampaignName] = useState('');
   const [isSending, setIsSending] = useState(false);
+  
+  // Add subscriber form state
+  const [newEmail, setNewEmail] = useState('');
+  const [newWallet, setNewWallet] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  
   const { toast } = useToast();
 
   const fromEmail =
@@ -61,6 +68,110 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
   useEffect(() => {
     fetchSubscribers();
   }, [fetchSubscribers]);
+
+  const handleAddSubscriber = async () => {
+    if (!newEmail) {
+      toast({
+        title: 'Email required',
+        description: 'Please enter an email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (listType === 'contributors' && !newWallet) {
+      toast({
+        title: 'Wallet required',
+        description: 'Please enter a wallet address for contributors',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      const endpoint = listType === 'events' 
+        ? '/api/mailing/subscribe-events'
+        : '/api/mailing/subscribe-contributor';
+
+      const body = listType === 'events'
+        ? { email: newEmail }
+        : { email: newEmail, userAddress: newWallet };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to add subscriber');
+      }
+
+      toast({
+        title: 'Subscriber added!',
+        description: `${newEmail} has been added to the ${listLabel} list.`,
+      });
+
+      setNewEmail('');
+      setNewWallet('');
+      setShowAddForm(false);
+      fetchSubscribers();
+    } catch (err) {
+      console.error('Add subscriber error:', err);
+      toast({
+        title: 'Failed to add subscriber',
+        description: err instanceof Error ? err.message : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemoveSubscriber = async (subscriberId: string, email: string) => {
+    const confirmed = window.confirm(
+      `Remove ${email} from the ${listLabel} mailing list?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const endpoint = listType === 'events'
+        ? '/api/mailing/unsubscribe-events'
+        : '/api/mailing/unsubscribe-contributor';
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          subscriberId,
+          adminAddress 
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to remove subscriber');
+      }
+
+      toast({
+        title: 'Subscriber removed',
+        description: `${email} has been removed from the list.`,
+      });
+
+      fetchSubscribers();
+    } catch (err) {
+      console.error('Remove subscriber error:', err);
+      toast({
+        title: 'Failed to remove subscriber',
+        description: err instanceof Error ? err.message : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleExportCSV = () => {
     const headers =
@@ -154,6 +265,12 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
         </div>
         <div className="flex gap-3">
           <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-georgia-pro text-sm hover:bg-gray-50 transition"
+          >
+            {showAddForm ? 'Cancel' : 'Add Subscriber'}
+          </button>
+          <button
             onClick={handleExportCSV}
             disabled={isLoading || subscribers.length === 0}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-georgia-pro text-sm hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -176,6 +293,49 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
           {isLoading ? '...' : subscribers.length.toLocaleString()}
         </p>
       </div>
+
+      {/* Add Subscriber Form */}
+      {showAddForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h3 className="font-adonis text-xl">Add Subscriber</h3>
+
+          <div>
+            <label className="block font-adonis text-sm text-gray-700 mb-1">Email Address</label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="subscriber@example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+              disabled={isAdding}
+            />
+          </div>
+
+          {listType === 'contributors' && (
+            <div>
+              <label className="block font-adonis text-sm text-gray-700 mb-1">
+                Wallet Address
+              </label>
+              <input
+                type="text"
+                value={newWallet}
+                onChange={(e) => setNewWallet(e.target.value)}
+                placeholder="0x..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm font-mono"
+                disabled={isAdding}
+              />
+            </div>
+          )}
+
+          <button
+            onClick={handleAddSubscriber}
+            disabled={isAdding}
+            className="w-full px-4 py-3 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isAdding ? 'Adding...' : 'Add Subscriber'}
+          </button>
+        </div>
+      )}
 
       {/* Email Composer */}
       {showComposer && (
@@ -270,6 +430,9 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
                   <th className="px-6 py-3 text-left font-adonis text-xs text-gray-500 uppercase tracking-wider">
                     Subscribed At
                   </th>
+                  <th className="px-6 py-3 text-right font-adonis text-xs text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -291,6 +454,14 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
                         month: 'short',
                         day: 'numeric',
                       })}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleRemoveSubscriber(sub.id, sub.email)}
+                        className="text-red-600 hover:text-red-800 font-georgia-pro text-sm font-medium transition"
+                      >
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 ))}
