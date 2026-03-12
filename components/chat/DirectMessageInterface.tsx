@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useMemberList, useMember } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -23,30 +23,23 @@ interface DmMessageItemProps {
   event: any;
   isCurrentUser: boolean;
   timestamp: number;
-  streamId: string;
-  townsDmId: string;
+  displayAvatar?: string;
+  displayName: string;
   deletingEventId: string | null;
   onDelete: (eventId: string) => void;
+  convertIpfsToGatewayUrl: (uri: string) => string;
 }
 
 function DmMessageItem({
   event,
   isCurrentUser,
   timestamp,
-  streamId,
-  townsDmId,
+  displayAvatar,
+  displayName,
   deletingEventId,
   onDelete,
+  convertIpfsToGatewayUrl,
 }: DmMessageItemProps) {
-  // ✅ Use SDK to get sender info
-  const senderId = event.sender?.id || '';
-  const { displayName, username } = useMember({
-    streamId,
-    userId: senderId,
-  });
-  
-  const senderName = displayName || username || senderId.slice(0, 8);
-  
   const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage
     ? event.content.body
     : '';
@@ -55,22 +48,23 @@ function DmMessageItem({
   const fileName = fileMatch?.[1];
   const ipfsUri = fileMatch?.[2];
 
-  const convertIpfsToGatewayUrl = (uri: string): string => {
-    if (uri && uri.startsWith('ipfs://')) {
-      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
-    }
-    return uri || '';
-  };
-
   return (
     <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
       <div className={`flex gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%] relative`}>
         {/* Profile picture for other user */}
         {!isCurrentUser && (
           <div className="flex-shrink-0">
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
-              {senderName.slice(0, 2).toUpperCase()}
-            </div>
+            {displayAvatar ? (
+              <img
+                src={convertIpfsToGatewayUrl(displayAvatar)}
+                alt={displayName}
+                className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200"
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
+                {displayName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
           </div>
         )}
 
@@ -134,22 +128,14 @@ export function DirectMessageInterface({
   dmId,
   townsDmId,
   currentUserId,
-}: Omit<DirectMessageInterfaceProps, 'otherUserName' | 'otherUserAvatar'>) {
+  otherUserName,
+  otherUserAvatar,
+}: DirectMessageInterfaceProps) {
   const { data: dm } = useDm(townsDmId);
   const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
-  
-  // ✅ Get other user from member list (SDK pattern)
-  const { data: members } = useMemberList(townsDmId);
-  const otherUserId = members?.userIds?.find((id) => id !== myUserId) || myUserId;
-  const { displayName, username } = useMember({
-    streamId: townsDmId,
-    userId: otherUserId,
-  });
-  
-  const otherUserName = displayName || username || otherUserId.slice(0, 8);
   
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -270,6 +256,13 @@ export function DirectMessageInterface({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const convertIpfsToGatewayUrl = (uri: string): string => {
+    if (uri && uri.startsWith('ipfs://')) {
+      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
+    }
+    return uri || '';
   };
 
   const handleDeleteMessage = async (eventId: string) => {
@@ -401,9 +394,17 @@ export function DirectMessageInterface({
           <div className="border-b px-6 py-4 bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-                  {otherUserName.slice(0, 2).toUpperCase()}
-                </div>
+                {otherUserAvatar ? (
+                  <img
+                    src={convertIpfsToGatewayUrl(otherUserAvatar)}
+                    alt={otherUserName}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+                    {otherUserName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <h2 className="font-adonis text-lg">{otherUserName}</h2>
                 </div>
@@ -509,10 +510,11 @@ export function DirectMessageInterface({
                     event={event}
                     isCurrentUser={isCurrentUser}
                     timestamp={timestamp}
-                    streamId={townsDmId}
-                    townsDmId={townsDmId}
+                    displayAvatar={otherUserAvatar}
+                    displayName={otherUserName}
                     deletingEventId={deletingEventId}
                     onDelete={handleDeleteMessage}
+                    convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
                   />
                 );
               })
