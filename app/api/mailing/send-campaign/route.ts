@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
     const masterAdmin = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
     if (!adminAddress || adminAddress.toLowerCase() !== masterAdmin.toLowerCase()) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     }
 
