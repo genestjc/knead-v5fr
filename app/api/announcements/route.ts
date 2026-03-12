@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client'; // ← Change this
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const isContributor = searchParams.get('isContributor') === 'true';
 
   try {
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseAdmin(); // ← Change this
 
     let query = supabase
       .from('chat_announcements')
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
+    console.error('Error fetching announcements:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
