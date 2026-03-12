@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0; // ← Add this
+export const fetchCache = 'force-no-store'; // ← Add this
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,18 +52,27 @@ export async function GET(req: NextRequest) {
     });
 
     if (error) {
-      console.error('Error fetching subscribers:', error);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch subscribers' },
-        { status: 500 }
-      );
+      console.error('❌ Supabase query error:', error);
+      throw error;
     }
 
-    return NextResponse.json({ success: true, data: subscribers || [] });
-  } catch (err) {
-    console.error('List subscribers error:', err);
+    console.log('📧 API returning subscribers:', subscribers?.length || 0, 'rows');
+    console.log('📧 Data:', JSON.stringify(subscribers, null, 2));
+
     return NextResponse.json(
-      { success: false, error: 'An unexpected error occurred' },
+      { success: true, data: subscribers || [] },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
+  } catch (err: any) {
+    console.error('❌ List subscribers error:', err);
+    return NextResponse.json(
+      { success: false, error: err.message || 'An unexpected error occurred' },
       { status: 500 }
     );
   }
