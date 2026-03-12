@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0; // ← Add this
-export const fetchCache = 'force-no-store'; // ← Add this
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     const { data: subscribers, error } = await supabase
       .from(table)
       .select('*')
-      // .eq('is_active', true)  // ← TEMPORARILY COMMENTED OUT
+      .eq('is_active', true)
       .order('subscribed_at', { ascending: false });
 
     console.log('📥 Supabase response:', {
