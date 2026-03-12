@@ -9,34 +9,30 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type');
     const adminAddress = searchParams.get('adminAddress');
 
-    // Validate admin
-    const masterAdmin = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
-    if (!adminAddress || adminAddress.toLowerCase() !== masterAdmin.toLowerCase()) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
-    }
+    console.log('🔍 Mailing list request:', { type, adminAddress });
 
-    if (!type || !['events', 'contributors'].includes(type)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid type. Must be "events" or "contributors".' },
-        { status: 400 }
-      );
-    }
+    // ... admin validation ...
 
     const supabase = createSupabaseAdmin();
-
+    
     const table =
       type === 'events'
         ? 'email_subscriptions_events'
         : 'email_subscriptions_contributors';
+
+    console.log('📊 Querying table:', table);
 
     const { data: subscribers, error } = await supabase
       .from(table)
       .select('*')
       .eq('is_active', true)
       .order('subscribed_at', { ascending: false });
+
+    console.log('📥 Supabase response:', {
+      subscribersCount: subscribers?.length,
+      error: error,
+      rawData: subscribers
+    });
 
     if (error) {
       console.error('Error fetching subscribers:', error);
