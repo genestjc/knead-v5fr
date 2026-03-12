@@ -63,6 +63,16 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
     let sentCount = 0;
 
+    const listLabel = listType === 'events' ? 'Events' : 'Contributors';
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kneadmag.com';
+    const unsubscribeFooter = `
+<hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e7eb;">
+<p style="font-size: 12px; color: #6b7280; text-align: center; margin: 20px 0;">
+  You're receiving this email because you subscribed to Knead Magazine ${listLabel} updates.<br>
+  <a href="${siteUrl}/unsubscribe?type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
+</p>`;
+    const htmlWithFooter = htmlContent + unsubscribeFooter;
+
     // Send in batches of BATCH_SIZE
     for (let i = 0; i < emails.length; i += BATCH_SIZE) {
       const batch = emails.slice(i, i + BATCH_SIZE);
@@ -72,7 +82,7 @@ export async function POST(req: NextRequest) {
           to: fromEmail,
           bcc: batch,
           subject,
-          html: htmlContent,
+          html: htmlWithFooter,
         });
         sentCount += batch.length;
       } catch (batchError: unknown) {
