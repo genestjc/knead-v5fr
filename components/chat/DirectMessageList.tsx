@@ -10,7 +10,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList } from '@towns-protocol/react-sdk';
+import { useUserDms, useCreateDm, useDm, useMemberList, useTimeline } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
@@ -360,15 +361,29 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
 }) {
+  const VIDEO_CALL_INVITE_PREFIX = '📹 [VIDEO_CALL_INVITE]';
   const [userProfile, setUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
   
   const { data: dm } = useDm(streamId);
   const { data: members } = useMemberList(streamId);
+  const { data: timelineEvents } = useTimeline(streamId);
   
   // Find the other user's ID
   const otherUserId = members?.userIds?.find(
     (id) => id.toLowerCase() !== currentUserId.toLowerCase()
   ) || '';
+
+  // Check if the last message is an incoming video call invite
+  const hasIncomingCall = (() => {
+    if (!timelineEvents || timelineEvents.length === 0) return false;
+    const lastEvent = timelineEvents[timelineEvents.length - 1];
+    const senderId = lastEvent?.sender?.id || '';
+    const isFromOtherUser = senderId.toLowerCase() !== currentUserId.toLowerCase();
+    if (!isFromOtherUser) return false;
+    if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return false;
+    const messageText = (lastEvent.content as any).body || '';
+    return messageText.startsWith(VIDEO_CALL_INVITE_PREFIX);
+  })();
   
   // Fetch other user's profile from chat_users
   useEffect(() => {
@@ -415,6 +430,7 @@ function DmListItem({
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
         ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
+        ${hasIncomingCall && !isSelected ? 'bg-green-50 border-l-4 border-green-600' : ''}
       `}
     >
       <div className="flex items-center gap-3">
@@ -434,6 +450,11 @@ function DmListItem({
           <div className="font-adonis text-sm truncate">
             {displayName}
           </div>
+          {hasIncomingCall && (
+            <div className="text-xs text-green-700 font-medium">
+              📹 Incoming video call
+            </div>
+          )}
         </div>
 
         <div className="text-xs text-gray-400 font-georgia-pro">
