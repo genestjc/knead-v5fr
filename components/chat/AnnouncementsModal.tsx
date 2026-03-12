@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { createSupabaseClient } from '@/lib/supabase/chat-client';
 
 interface Announcement {
   id: string;
@@ -42,12 +43,13 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
       if (data.success) {
         console.log('📢 Modal fetched announcements:', data.data.length);
         setAnnouncements(data.data || []);
-      } else {
-        toast.error('Failed to load announcements');
+        return data.data || [];
       }
+      return [];
     } catch (error) {
       console.error('Error fetching announcements:', error);
       toast.error('Failed to load announcements');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -58,6 +60,55 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
       fetchAnnouncements();
     }
   }, [isOpen, fetchAnnouncements]);
+
+  // Real-time subscription for live updates
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel('user_announcements_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_announcements',
+        },
+        (payload) => {
+          console.log('📢 Modal received realtime update:', payload.eventType);
+
+          // Direct state updates instead of refetching
+          if (payload.eventType === 'DELETE') {
+            setAnnouncements((prev) => prev.filter((a) => a.id !== payload.old.id));
+            console.log('🗑️ Removed announcement from modal:', payload.old.id);
+          } else if (payload.eventType === 'INSERT') {
+            const newAnnouncement = payload.new as Announcement;
+            
+            // Only show if user has permission to see it
+            if (newAnnouncement.contributors_only && !isContributor) {
+              console.log('🔒 Skipping contributors-only announcement for non-contributor');
+              return;
+            }
+            
+            setAnnouncements((prev) => [newAnnouncement, ...prev]);
+            console.log('➕ Added announcement to modal:', payload.new.id);
+          } else if (payload.eventType === 'UPDATE') {
+            setAnnouncements((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? (payload.new as Announcement) : p))
+            );
+            console.log('🔄 Updated announcement in modal:', payload.new.id);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Modal subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, isContributor]);
 
   return (
     <AnimatePresence>
@@ -112,6 +163,7 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
                       key={announcement.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                       className="border border-gray-200 rounded-2xl p-5 hover:border-gray-300 transition-colors"
                     >
