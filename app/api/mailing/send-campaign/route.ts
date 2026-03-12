@@ -4,7 +4,11 @@ import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 100;
+// Rate limiting: emails per minute
+const RATE_LIMIT = 100;
+
+// Helper function to sleep
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,32 +69,51 @@ export async function POST(req: NextRequest) {
 
     const listLabel = listType === 'events' ? 'Events' : 'Contributors';
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kneadmag.com';
-    const unsubscribeFooter = `
+
+    console.log(`📧 Starting campaign: "${campaignName}" to ${emails.length} subscribers`);
+
+    // Send individual emails with rate limiting
+    for (let i = 0; i < emails.length; i++) {
+      const recipientEmail = emails[i];
+
+      // Create personalized unsubscribe footer
+      const unsubscribeFooter = `
 <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e7eb;">
 <p style="font-size: 12px; color: #6b7280; text-align: center; margin: 20px 0;">
   You're receiving this email because you subscribed to Knead Magazine ${listLabel} updates.<br>
-  <a href="${siteUrl}/unsubscribe?type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
+  <a href="${siteUrl}/unsubscribe?email=${encodeURIComponent(recipientEmail)}&type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
 </p>`;
-    const htmlWithFooter = htmlContent + unsubscribeFooter;
 
-    // Send in batches of BATCH_SIZE
-    for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-      const batch = emails.slice(i, i + BATCH_SIZE);
+      const personalizedHtml = htmlContent + unsubscribeFooter;
+
       try {
         await resend.emails.send({
           from: fromEmail,
-          to: fromEmail,
-          bcc: batch,
+          to: recipientEmail,
           subject,
-          html: htmlWithFooter,
+          html: personalizedHtml,
         });
-        sentCount += batch.length;
-      } catch (batchError: unknown) {
-        const message = batchError instanceof Error ? batchError.message : String(batchError);
-        console.error(`Error sending batch ${i / BATCH_SIZE + 1}:`, batchError);
-        errors.push(`Batch ${i / BATCH_SIZE + 1} failed: ${message}`);
+
+        sentCount++;
+
+        // Log progress every 10 emails
+        if (sentCount % 10 === 0) {
+          console.log(`📧 Sent ${sentCount}/${emails.length} emails`);
+        }
+      } catch (emailError: unknown) {
+        const message = emailError instanceof Error ? emailError.message : String(emailError);
+        console.error(`Error sending to ${recipientEmail}:`, emailError);
+        errors.push(`Failed to send to ${recipientEmail}: ${message}`);
+      }
+
+      // Rate limiting: pause after every RATE_LIMIT emails
+      if ((i + 1) % RATE_LIMIT === 0 && i + 1 < emails.length) {
+        console.log(`⏸️  Rate limit: Pausing for 60 seconds after ${i + 1} emails...`);
+        await sleep(60000); // Wait 1 minute
       }
     }
+
+    console.log(`✅ Campaign complete: ${sentCount}/${emails.length} sent, ${errors.length} errors`);
 
     // Save campaign record
     const { error: campaignError } = await supabase.from('email_campaigns').insert({
@@ -109,7 +132,12 @@ export async function POST(req: NextRequest) {
       // Don't fail the whole request if only the record save fails
     }
 
-    return NextResponse.json({ success: true, sentCount, errors });
+    return NextResponse.json({
+      success: true,
+      sentCount,
+      totalSubscribers: emails.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   } catch (err) {
     console.error('Send campaign error:', err);
     return NextResponse.json(

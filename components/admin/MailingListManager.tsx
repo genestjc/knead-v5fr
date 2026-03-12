@@ -37,18 +37,18 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
 
   const listLabel = listType === 'events' ? 'Events' : 'Contributors';
 
-  // Unsubscribe footer snippet
+  // Unsubscribe footer snippet (for reference — the system adds this automatically per recipient)
   const unsubscribeFooter = `<hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e7eb;">
 <p style="font-size: 12px; color: #6b7280; text-align: center; margin: 20px 0;">
   You're receiving this email because you subscribed to Knead Magazine ${listLabel} updates.<br>
-  <a href="https://kneadmag.com/unsubscribe?email={{EMAIL}}&type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
+  <a href="https://kneadmag.com/unsubscribe?email=SUBSCRIBER_EMAIL&type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
 </p>`;
 
   const handleCopyFooter = () => {
     navigator.clipboard.writeText(unsubscribeFooter);
     toast({
       title: 'Copied!',
-      description: 'Unsubscribe footer copied to clipboard. Replace {{EMAIL}} with actual email addresses.',
+      description: 'Unsubscribe footer copied to clipboard.',
     });
   };
 
@@ -248,7 +248,7 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
       toast({
         title: 'Campaign sent!',
         description: `Sent to ${data.sentCount} subscribers.${
-          data.errors?.length ? ` ${data.errors.length} batch error(s).` : ''
+          data.errors?.length ? ` ${data.errors.length} error(s).` : ''
         }`,
       });
 
@@ -417,7 +417,7 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
               </button>
             </div>
             <p className="font-georgia-pro text-xs text-yellow-800 mb-2">
-              Paste this at the end of your HTML content. Replace {'{{'}{'{'}EMAIL{'}}'}{'}'} with recipient emails when sending.
+              This footer is automatically appended to every email with each subscriber&apos;s personalized unsubscribe link. Shown here for reference only.
             </p>
             <pre className="bg-white border border-yellow-300 rounded p-3 text-xs overflow-x-auto font-mono text-gray-800">
               {unsubscribeFooter}
