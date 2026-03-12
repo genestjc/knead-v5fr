@@ -32,10 +32,15 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
   const fetchAnnouncements = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/announcements?isContributor=${isContributor}`);
+      const timestamp = Date.now();
+      const response = await fetch(
+        `/api/announcements?isContributor=${isContributor}&_t=${timestamp}`,
+        { cache: 'no-store' }
+      );
       const data = await response.json();
 
       if (data.success) {
+        console.log('📢 Modal fetched announcements:', data.data.length);
         setAnnouncements(data.data || []);
       } else {
         toast.error('Failed to load announcements');
@@ -118,7 +123,7 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
                             </h3>
                             {announcement.contributors_only && (
                               <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-georgia-pro font-medium">
-                              Contributors Only
+                                ✨ Contributors Only
                               </span>
                             )}
                           </div>
