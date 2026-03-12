@@ -175,7 +175,7 @@ export function AnnouncementsModal({ isOpen, onClose }: AnnouncementsModalProps)
                             </h3>
                             {announcement.contributors_only && (
                               <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-georgia-pro font-medium">
-                                ✨ Contributors Only
+                                Contributors Only
                               </span>
                             )}
                           </div>
