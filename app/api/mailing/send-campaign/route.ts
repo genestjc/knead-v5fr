@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
       try {
         await resend.emails.send({
           from: fromEmail,
-          to: batch,
+          to: fromEmail,
+          bcc: batch,
           subject,
           html: htmlContent,
         });
