@@ -46,8 +46,21 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
           table: 'chat_announcements',
         },
         (payload) => {
-          console.log('🔄 Announcement change:', payload.eventType);
-          fetchAnnouncements();
+          console.log('🔄 Announcement change payload:', payload);
+          
+          // Direct state updates instead of refetching
+          if (payload.eventType === 'DELETE') {
+            setAnnouncements((prev) => prev.filter((a) => a.id !== payload.old.id));
+            console.log('🗑️ Removed announcement from state:', payload.old.id);
+          } else if (payload.eventType === 'INSERT') {
+            setAnnouncements((prev) => [payload.new as Announcement, ...prev]);
+            console.log('➕ Added announcement to state:', payload.new.id);
+          } else if (payload.eventType === 'UPDATE') {
+            setAnnouncements((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? (payload.new as Announcement) : p))
+            );
+            console.log('🔄 Updated announcement in state:', payload.new.id);
+          }
         }
       )
       .subscribe((status) => {
@@ -71,9 +84,12 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
       if (data.success) {
         console.log('📢 Admin fetched announcements:', data.data.length);
         setAnnouncements(data.data || []);
+        return data.data || [];
       }
+      return [];
     } catch (error) {
       console.error('Error fetching announcements:', error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -100,6 +116,11 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
         toast.success('Announcement posted!');
         setShowCreateModal(false);
         setFormData({ title: '', content: '', contributorsOnly: false });
+        
+        // Optimistic update
+        setAnnouncements((prev) => [data.data, ...prev]);
+        
+        // Reconcile with server
         await fetchAnnouncements();
       } else {
         toast.error(data.error || 'Failed to post announcement');
@@ -126,9 +147,14 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
 
       if (data.success) {
         toast.success('Announcement deleted');
-        console.log('🗑️ Fetching announcements after delete...');
-        await fetchAnnouncements();
-        console.log('🗑️ Current announcements count:', announcements.length);
+        
+        // Optimistic update - remove immediately from UI
+        setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+        console.log('🗑️ Optimistically removed from state');
+        
+        // Reconcile with server
+        const newList = await fetchAnnouncements();
+        console.log('🗑️ After refetch, announcements count:', newList.length);
       } else {
         toast.error(data.error || 'Failed to delete');
       }
@@ -177,7 +203,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                     <h3 className="font-adonis text-xl">{announcement.title}</h3>
                     {announcement.contributors_only && (
                       <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-georgia-pro font-medium">
-                        ✨ Contributors Only
+                        Contributors Only
                       </span>
                     )}
                   </div>
@@ -244,7 +270,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                     className="rounded"
                   />
                   <span className="font-georgia-pro text-sm">
-                    ✨ Contributors Only (hide from free members)
+                    Contributors Only (hide from free members)
                   </span>
                 </label>
               </div>
