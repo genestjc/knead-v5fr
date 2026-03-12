@@ -11,10 +11,24 @@ export async function GET(req: NextRequest) {
 
     console.log('🔍 Mailing list request:', { type, adminAddress });
 
-    // ... admin validation ...
+    // Validate admin
+    const masterAdmin = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
+    if (!adminAddress || adminAddress.toLowerCase() !== masterAdmin.toLowerCase()) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+
+    if (!type || !['events', 'contributors'].includes(type)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid type. Must be "events" or "contributors".' },
+        { status: 400 }
+      );
+    }
 
     const supabase = createSupabaseAdmin();
-    
+
     const table =
       type === 'events'
         ? 'email_subscriptions_events'
@@ -25,12 +39,13 @@ export async function GET(req: NextRequest) {
     const { data: subscribers, error } = await supabase
       .from(table)
       .select('*')
-      .eq('is_active', true)
+      // .eq('is_active', true)  // ← TEMPORARILY COMMENTED OUT
       .order('subscribed_at', { ascending: false });
 
     console.log('📥 Supabase response:', {
       subscribersCount: subscribers?.length,
       error: error,
+      firstRow: subscribers?.[0],
       rawData: subscribers
     });
 
