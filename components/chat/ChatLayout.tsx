@@ -6,7 +6,6 @@ import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
 import { DirectMessageList } from './DirectMessageList';
 import { DirectMessageInterface } from './DirectMessageInterface';
-import { DailyProvider } from './DailyProvider';
 import { EventsCalendarModal } from './EventsCalendarModal';
 import { AboutFAQModal } from './AboutFAQModal';
 import { AnnouncementsModal } from './AnnouncementsModal';
@@ -248,23 +247,22 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 ) : selectedDm ? (
                   <div className="h-full flex flex-col">
                     <div className="p-3 bg-gray-50 border-b border-gray-200">
-                    <button
-                    onClick={() => setSelectedDm(null)}
-                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1 font-georgia-pro"
-                  >
-                      ← Back to DMs
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => setSelectedDm(null)}
+                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1 font-georgia-pro"
+                      >
+                        ← Back to DMs
+                      </button>
+                    </div>
                     
-                    <DailyProvider>
-                      <DirectMessageInterface
-                        dmId={selectedDm.dmId}
-                        townsDmId={selectedDm.townsDmId}
-                        currentUserId={activeAccount?.address || ''}
-                        otherUserName={selectedDm.otherUserName}
-                        otherUserAvatar={selectedDm.otherUserAvatar}
-                      />
-                    </DailyProvider>
+                    {/* ✅ REMOVED DailyProvider wrapper - DM video uses iframe instead */}
+                    <DirectMessageInterface
+                      dmId={selectedDm.dmId}
+                      townsDmId={selectedDm.townsDmId}
+                      currentUserId={activeAccount?.address || ''}
+                      otherUserName={selectedDm.otherUserName}
+                      otherUserAvatar={selectedDm.otherUserAvatar}
+                    />
                   </div>
                 ) : (
                   <DirectMessageList
