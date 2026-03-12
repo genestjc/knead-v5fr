@@ -37,6 +37,21 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
 
   const listLabel = listType === 'events' ? 'Events' : 'Contributors';
 
+  // Unsubscribe footer snippet
+  const unsubscribeFooter = `<hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e7eb;">
+<p style="font-size: 12px; color: #6b7280; text-align: center; margin: 20px 0;">
+  You're receiving this email because you subscribed to Knead Magazine ${listLabel} updates.<br>
+  <a href="https://kneadmag.com/unsubscribe?email={{EMAIL}}&type=${listType}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a>
+</p>`;
+
+  const handleCopyFooter = () => {
+    navigator.clipboard.writeText(unsubscribeFooter);
+    toast({
+      title: 'Copied!',
+      description: 'Unsubscribe footer copied to clipboard. Replace {{EMAIL}} with actual email addresses.',
+    });
+  };
+
   const fetchSubscribers = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -386,6 +401,27 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm resize-y"
               disabled={isSending}
             />
+          </div>
+
+          {/* Unsubscribe Footer Snippet */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block font-adonis text-sm text-yellow-900">
+                ⚠️ Required: Unsubscribe Footer
+              </label>
+              <button
+                onClick={handleCopyFooter}
+                className="px-3 py-1 bg-yellow-600 text-white rounded text-xs font-georgia-pro hover:bg-yellow-700 transition"
+              >
+                Copy Footer
+              </button>
+            </div>
+            <p className="font-georgia-pro text-xs text-yellow-800 mb-2">
+              Paste this at the end of your HTML content. Replace {'{{'}{'{'}EMAIL{'}}'}{'}'} with recipient emails when sending.
+            </p>
+            <pre className="bg-white border border-yellow-300 rounded p-3 text-xs overflow-x-auto font-mono text-gray-800">
+              {unsubscribeFooter}
+            </pre>
           </div>
 
           <button
