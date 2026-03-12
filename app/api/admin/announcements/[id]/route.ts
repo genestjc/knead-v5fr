@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ← Change to Promise
 ) {
   try {
+    const { id } = await params; // ← Await params
     const searchParams = request.nextUrl.searchParams;
     const adminAddress = searchParams.get('adminAddress');
 
@@ -38,12 +39,16 @@ export async function DELETE(
     const { error } = await supabase
       .from('chat_announcements')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Delete error:', error);
+      throw error;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error('DELETE announcement error:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
