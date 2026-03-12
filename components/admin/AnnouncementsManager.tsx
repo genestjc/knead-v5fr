@@ -165,8 +165,8 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-adonis text-xl">{announcement.title}</h3>
                     {announcement.contributors_only && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
-                        ✨ Contributors Only
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-georgia-pro font-medium">
+                        Contributors Only
                       </span>
                     )}
                   </div>
@@ -233,7 +233,7 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
                     className="rounded"
                   />
                   <span className="font-georgia-pro text-sm">
-                    ✨ Contributors Only (hide from free members)
+                    Contributors Only (hide from free members)
                   </span>
                 </label>
               </div>
