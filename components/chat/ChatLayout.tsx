@@ -6,6 +6,7 @@ import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
 import { DirectMessageList } from './DirectMessageList';
 import { DirectMessageInterface } from './DirectMessageInterface';
+import { DailyProvider } from './DailyProvider';
 import { EventsCalendarModal } from './EventsCalendarModal';
 import { AboutFAQModal } from './AboutFAQModal';
 import { AnnouncementsModal } from './AnnouncementsModal';
@@ -255,13 +256,15 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     </button>
                   </div>
                     
-                    <DirectMessageInterface
-                      dmId={selectedDm.dmId}
-                      townsDmId={selectedDm.townsDmId}
-                      currentUserId={activeAccount?.address || ''}
-                      otherUserName={selectedDm.otherUserName}
-                      otherUserAvatar={selectedDm.otherUserAvatar}
-                    />
+                    <DailyProvider>
+                      <DirectMessageInterface
+                        dmId={selectedDm.dmId}
+                        townsDmId={selectedDm.townsDmId}
+                        currentUserId={activeAccount?.address || ''}
+                        otherUserName={selectedDm.otherUserName}
+                        otherUserAvatar={selectedDm.otherUserAvatar}
+                      />
+                    </DailyProvider>
                   </div>
                 ) : (
                   <DirectMessageList

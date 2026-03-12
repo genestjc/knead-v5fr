@@ -10,13 +10,15 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { DailyDmVideoCall } from './DailyDmVideoCall';
 import { Paperclip, ArrowRight, Video, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
+
+const VIDEO_CALL_INVITE_PREFIX = '📹 [VIDEO_CALL_INVITE]';
 
 interface DirectMessageInterfaceProps {
   dmId: string;
@@ -146,6 +148,7 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
+  const syncAgent = useSyncAgent();
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -158,14 +161,20 @@ export function DirectMessageInterface({
   const [videoToken, setVideoToken] = useState<string | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
 
+  // Incoming video call state
+  const [incomingCallRoomUrl, setIncomingCallRoomUrl] = useState<string | null>(null);
+  const [incomingCallRoomName, setIncomingCallRoomName] = useState<string | null>(null);
+
   // Three-dot menu state
   const [showVideoMenu, setShowVideoMenu] = useState(false);
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Filter for ChannelMessage events only
+  // ✅ Filter for ChannelMessage events only, hide video invite system messages
   const messages = (events || []).filter(
-    (event) => event.content?.kind === RiverTimelineEvent.ChannelMessage
+    (event) =>
+      event.content?.kind === RiverTimelineEvent.ChannelMessage &&
+      !(event.content?.body || '').startsWith(VIDEO_CALL_INVITE_PREFIX)
   );
 
   // Close video menu when clicking outside
@@ -181,6 +190,57 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
+  // ✅ Join DM and sync encryption keys (same pattern as connected-chat for channels)
+  useEffect(() => {
+    if (!syncAgent || !townsDmId) return;
+
+    const syncDm = async () => {
+      try {
+        // Access dms.getDm via type cast since TypeScript types may not include this API
+        const dmStream = (syncAgent as any).dms?.getDm?.(townsDmId);
+        if (!dmStream) return;
+        await dmStream.join();
+        try {
+          await dmStream.waitForKeysToSync({ timeout: 30000 });
+          console.log('✅ DM encryption keys synced');
+        } catch (syncErr) {
+          console.warn('⚠️ DM key sync timeout (normal for new conversations):', syncErr);
+        }
+      } catch (err) {
+        console.warn('DM join failed (may already be joined):', err);
+      }
+    };
+
+    syncDm();
+  }, [syncAgent, townsDmId]);
+
+  // Detect incoming video call invites from messages
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+
+    const lastEvent = events[events.length - 1];
+    if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return;
+
+    const senderId = lastEvent.sender?.id || '';
+    const isFromOtherUser = myUserId
+      ? senderId !== myUserId
+      : Boolean(currentUserId && senderId.toLowerCase() !== currentUserId.toLowerCase());
+
+    if (!isFromOtherUser) return;
+
+    const messageText = lastEvent.content?.body || '';
+    if (!messageText.startsWith(VIDEO_CALL_INVITE_PREFIX)) return;
+
+    const urlMatch = messageText.match(/\((.+?)\)$/);
+    if (urlMatch?.[1]) {
+      const roomUrl = urlMatch[1];
+      const roomName = roomUrl.split('/').pop() || '';
+      setIncomingCallRoomUrl(roomUrl);
+      setIncomingCallRoomName(roomName);
+      toast.info(`${otherUserName} is calling you! 📹`);
+    }
+  }, [events, myUserId, currentUserId, otherUserName]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -195,12 +255,14 @@ export function DirectMessageInterface({
     } catch (error: any) {
       console.error('Failed to send DM:', error);
       const errorMsg = error.message?.toLowerCase() || '';
-      if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
-        toast.error('⚠️ Towns network issue. Please try again in a moment.');
+      if (errorMsg.includes('resource_exhausted') || errorMsg.includes('429')) {
+        toast.error('⏱️ Network is busy. Please wait a moment and try again.');
       } else if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
         toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('timeout')) {
         toast.error('Network timeout. Please try again.');
+      } else if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
+        toast.error('⚠️ Towns network issue. Please try again in a moment.');
       } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
         toast.error('❌ Permission denied');
       } else {
@@ -270,6 +332,11 @@ export function DirectMessageInterface({
   const displayAvatar = otherUserAvatar;
 
   const handleStartVideoCall = async () => {
+    if (!videoCallsEnabled) {
+      toast.error('Video calls are disabled for this conversation');
+      return;
+    }
+
     setLoadingVideo(true);
     try {
       const roomResponse = await fetch('/api/dm/create-video-room', {
@@ -283,11 +350,17 @@ export function DirectMessageInterface({
         throw new Error(roomData.error);
       }
 
+      const { roomUrl, roomName } = roomData.data;
+
+      // ✅ Send video call invite via DM so both users join the same room
+      const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
+      await sendMessage(inviteMessage);
+
       const tokenResponse = await fetch('/api/dm/generate-dm-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roomName: roomData.data.roomName,
+          roomName,
           walletAddress: currentUserId,
         }),
       });
@@ -297,15 +370,58 @@ export function DirectMessageInterface({
         throw new Error(tokenData.error);
       }
 
-      setVideoRoomUrl(roomData.data.roomUrl);
+      setVideoRoomUrl(roomUrl);
       setVideoToken(tokenData.data.token);
       setVideoCallActive(true);
+      toast.success('Video call started');
     } catch (error: any) {
       console.error('Failed to start video call:', error);
       toast.error(`Failed to start video call: ${error.message}`);
     } finally {
       setLoadingVideo(false);
     }
+  };
+
+  const handleJoinIncomingCall = async () => {
+    if (!incomingCallRoomUrl || !incomingCallRoomName) {
+      toast.error('Call information is missing. Please ask the caller to try again.');
+      return;
+    }
+
+    setLoadingVideo(true);
+    try {
+      const tokenResponse = await fetch('/api/dm/generate-dm-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomName: incomingCallRoomName,
+          walletAddress: currentUserId,
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.success) {
+        throw new Error(tokenData.error);
+      }
+
+      setVideoRoomUrl(incomingCallRoomUrl);
+      setVideoToken(tokenData.data.token);
+      setVideoCallActive(true);
+      setIncomingCallRoomUrl(null);
+      setIncomingCallRoomName(null);
+      toast.success('Joined video call');
+    } catch (error: any) {
+      console.error('Failed to join video call:', error);
+      toast.error('Failed to join video call. Please try again.');
+    } finally {
+      setLoadingVideo(false);
+    }
+  };
+
+  const handleDismissIncomingCall = () => {
+    setIncomingCallRoomUrl(null);
+    setIncomingCallRoomName(null);
+    toast.info('Call dismissed');
   };
 
   const handleCloseVideoCall = () => {
@@ -387,6 +503,35 @@ export function DirectMessageInterface({
               </div>
             </div>
           </div>
+
+          {/* ✅ Incoming call banner */}
+          {incomingCallRoomUrl && !videoCallActive && (
+            <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="font-georgia-pro text-sm font-medium text-blue-900">
+                    📹 {displayName} is calling you
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleJoinIncomingCall}
+                    disabled={loadingVideo}
+                    className="px-4 py-1.5 bg-green-600 text-white rounded-full text-sm font-georgia-pro hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {loadingVideo ? 'Joining...' : 'Join Call'}
+                  </button>
+                  <button
+                    onClick={handleDismissIncomingCall}
+                    className="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-full text-sm font-georgia-pro hover:bg-gray-300 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
