@@ -8,9 +8,10 @@ import { DirectMessageList } from './DirectMessageList';
 import { DirectMessageInterface } from './DirectMessageInterface';
 import { EventsCalendarModal } from './EventsCalendarModal';
 import { AboutFAQModal } from './AboutFAQModal';
+import { AnnouncementsModal } from './AnnouncementsModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
-import { Home, Calendar, BookOpen, Send, Landmark } from 'lucide-react';
+import { Home, Calendar, BookOpen, Megaphone, Send, Landmark } from 'lucide-react';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -30,6 +31,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string; otherUserAvatar?: string } | null>(null);
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
 
   const activeAccount = useActiveAccount();
@@ -77,6 +79,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       label: 'Events',
       onClick: () => {
         setShowEventsModal(true);
+        setLogoExpanded(false);
+      },
+    },
+    {
+      icon: <Megaphone className="w-5 h-5" />,
+      label: 'Announcements',
+      onClick: () => {
+        setShowAnnouncementsModal(true);
         setLogoExpanded(false);
       },
     },
@@ -371,6 +381,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <AboutFAQModal
         isOpen={showAboutModal}
         onClose={() => setShowAboutModal(false)}
+      />
+
+      {/* Announcements Modal */}
+      <AnnouncementsModal
+        isOpen={showAnnouncementsModal}
+        onClose={() => setShowAnnouncementsModal(false)}
       />
     </div>
   );
