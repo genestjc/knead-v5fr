@@ -216,7 +216,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-adonis text-xl">Direct Messages</h2>
+                  <button
+                    onClick={() => setSelectedDm(null)}
+                    className="font-adonis text-xl hover:text-gray-600 transition-colors text-left"
+                    title={selectedDm ? 'Back to Direct Messages' : undefined}
+                  >
+                    Direct Messages
+                  </button>
                   <button
                     onClick={() => {
                       setDmsOpen(false);
