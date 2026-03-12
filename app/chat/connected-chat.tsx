@@ -1094,7 +1094,7 @@ useEffect(() => {
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
+        <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
           <input
             ref={fileInputRef}
             type="file"
