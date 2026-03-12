@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -148,7 +148,7 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
-  const syncAgent = useSyncAgent();
+  
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -190,29 +190,7 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
-  // ✅ Join DM and sync encryption keys (same pattern as connected-chat for channels)
-  useEffect(() => {
-    if (!syncAgent || !townsDmId) return;
-
-    const syncDm = async () => {
-      try {
-        // Access dms.getDm via type cast since TypeScript types may not include this API
-        const dmStream = (syncAgent as any).dms?.getDm?.(townsDmId);
-        if (!dmStream) return;
-        await dmStream.join();
-        try {
-          await dmStream.waitForKeysToSync({ timeout: 30000 });
-          console.log('✅ DM encryption keys synced');
-        } catch (syncErr) {
-          console.warn('⚠️ DM key sync timeout (normal for new conversations):', syncErr);
-        }
-      } catch (err) {
-        console.warn('DM join failed (may already be joined):', err);
-      }
-    };
-
-    syncDm();
-  }, [syncAgent, townsDmId]);
+  // ✅ No manual sync needed - useTimeline, useSendMessage, etc. handle encryption automatically
 
   // Detect incoming video call invites from messages
   useEffect(() => {
@@ -292,7 +270,7 @@ export function DirectMessageInterface({
       }
     } catch (error: any) {
       console.error('File upload failed:', error);
-      alert(error.message || 'Failed to upload file. Please try again.');
+      toast.error(error.message || 'Failed to upload file. Please try again.');
     } finally {
       setIsUploading(false);
     }
