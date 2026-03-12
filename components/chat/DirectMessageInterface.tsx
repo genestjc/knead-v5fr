@@ -170,7 +170,7 @@ export function DirectMessageInterface({
 
     const joinDmStream = async () => {
       try {
-        const dmStream = (syncAgent.dms as any).getDm(townsDmId);
+        const dmStream = (syncAgent.dms as any).getDm(townsDmId); // cast needed: SDK types don't expose getDm
         if (dmStream) {
           if (typeof dmStream.join === 'function') {
             await dmStream.join();
@@ -365,9 +365,11 @@ export function DirectMessageInterface({
                     <Video className="w-5 h-5" />
                   )}
                 </button>
+                {/* More options menu — reserved for future settings (mute, block, etc.) */}
                 <button
-                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                  title="More options"
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors opacity-50 cursor-not-allowed"
+                  title="More options (coming soon)"
+                  disabled
                 >
                   <MoreVertical className="w-5 h-5" />
                 </button>
