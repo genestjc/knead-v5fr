@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
 import { useAdminRedact, useSyncAgent } from '@towns-protocol/react-sdk';
+
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
 
@@ -36,26 +37,9 @@ export function AdminContextMenu({
   const [isProcessing, setIsProcessing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
-  const [isPinned, setIsPinned] = useState(false);
   
   const { adminRedact, isPending: isRedacting } = useAdminRedact(channelId);
   const sync = useSyncAgent();
-
-  // Check if this message is currently pinned
-  useEffect(() => {
-    if (!sync || !channelId || !spaceId) return;
-
-    try {
-      const stream = sync.client?.stream(channelId);
-      const pins = (stream?.view as any)?.membershipContent?.pins || [];
-      const isCurrentlyPinned = pins.some(
-        (pin: any) => (pin.event?.hashStr ?? pin.eventId) === message.id,
-      );
-      setIsPinned(isCurrentlyPinned);
-    } catch (error) {
-      console.error('Failed to check pin status:', error);
-    }
-  }, [sync, channelId, spaceId, message.id]);
 
   // Adjust position to prevent off-screen menu
   useEffect(() => {
@@ -126,97 +110,6 @@ export function AdminContextMenu({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
-
-  const handlePinMessage = async () => {
-    if (!activeAccount?.address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (!sync) {
-      toast.error('Connection error', {
-        description: 'Try refreshing the page.',
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      console.log('📌 Pinning message:', message.id);
-
-      const channel = sync.spaces.getSpace(spaceId).getChannel(channelId);
-
-      // Call Towns Protocol's native pin method
-      await channel.pin(message.id);
-
-      console.log('✅ Message pinned successfully');
-      toast.success('Message pinned to top of chat');
-
-      // Dispatch event to refresh UI
-      window.dispatchEvent(new CustomEvent('pinned-message-updated'));
-      setIsPinned(true);
-      onClose();
-
-    } catch (error: any) {
-      console.error('❌ Pin failed:', error);
-
-      const errorMsg = error?.message?.toLowerCase() || '';
-
-      if (errorMsg.includes('already_exists') || errorMsg.includes('already pinned')) {
-        toast.error('Another message is already pinned', {
-          description: 'Unpin the existing message first.',
-        });
-      } else if (errorMsg.includes('permission') || errorMsg.includes('not entitled')) {
-        toast.error('Permission Denied', {
-          description: 'You need admin permissions to pin messages.',
-        });
-      } else {
-        toast.error('Failed to pin message', {
-          description: error.message || 'Please try again.',
-        });
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleUnpinMessage = async () => {
-    if (!activeAccount?.address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (!sync) {
-      toast.error('Connection error', {
-        description: 'Try refreshing the page.',
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      console.log('📍 Unpinning message:', message.id);
-
-      const channel = sync.spaces.getSpace(spaceId).getChannel(channelId);
-
-      await channel.unpin(message.id);
-
-      console.log('✅ Message unpinned successfully');
-      toast.success('Message unpinned');
-
-      window.dispatchEvent(new CustomEvent('pinned-message-updated'));
-      setIsPinned(false);
-      onClose();
-
-    } catch (error: any) {
-      console.error('❌ Unpin failed:', error);
-      toast.error('Failed to unpin message', {
-        description: error.message || 'Please try again.',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleAwardBonus = async (amount: number, bonusType: string) => {
     if (!activeAccount?.address) {
@@ -487,21 +380,6 @@ export function AdminContextMenu({
               <span>{option.label}</span>
             </button>
           ))}
-        </div>
-
-        <div className="py-1">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              isPinned ? handleUnpinMessage() : handlePinMessage();
-            }}
-            disabled={isProcessing}
-            className="w-full px-3 py-3 text-left text-sm font-georgia-pro hover:bg-purple-50 active:bg-purple-100 transition disabled:opacity-50 flex items-center gap-2 touch-manipulation"
-          >
-            <span>{isPinned ? '📍' : '📌'}</span>
-            <span>{isPinned ? 'Unpin Message' : 'Pin Message'}</span>
-          </button>
         </div>
 
         <div className="border-t border-gray-200"></div>
