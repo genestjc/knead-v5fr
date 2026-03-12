@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
           enable_screenshare: false,
           enable_chat: false,
           enable_prejoin_ui: false,
-          enable_recording: 'off',
           start_video_off: false,
           start_audio_off: false,
           max_participants: 2,

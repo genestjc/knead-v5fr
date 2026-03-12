@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -146,7 +146,6 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
-  const syncAgent = useSyncAgent();
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -159,34 +158,28 @@ export function DirectMessageInterface({
   const [videoToken, setVideoToken] = useState<string | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
 
+  // Three-dot menu state
+  const [showVideoMenu, setShowVideoMenu] = useState(false);
+  const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   // ✅ Filter for ChannelMessage events only
   const messages = (events || []).filter(
     (event) => event.content?.kind === RiverTimelineEvent.ChannelMessage
   );
 
-  // Join DM stream and sync encryption keys on mount (Towns Protocol best practice)
+  // Close video menu when clicking outside
   useEffect(() => {
-    if (!townsDmId || !syncAgent) return;
-
-    const joinDmStream = async () => {
-      try {
-        const dmStream = (syncAgent.dms as any).getDm(townsDmId); // cast needed: SDK types don't expose getDm
-        if (dmStream) {
-          if (typeof dmStream.join === 'function') {
-            await dmStream.join();
-          }
-          if (typeof dmStream.waitForKeysToSync === 'function') {
-            await dmStream.waitForKeysToSync({ timeout: 30000 });
-          }
-          console.log('✅ DM stream joined and keys synced');
-        }
-      } catch (error) {
-        console.error('❌ Failed to join DM stream:', error);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowVideoMenu(false);
       }
     };
-
-    joinDmStream();
-  }, [townsDmId, syncAgent]);
+    if (showVideoMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showVideoMenu]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -202,7 +195,9 @@ export function DirectMessageInterface({
     } catch (error: any) {
       console.error('Failed to send DM:', error);
       const errorMsg = error.message?.toLowerCase() || '';
-      if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
+      if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
+        toast.error('⚠️ Towns network issue. Please try again in a moment.');
+      } else if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
         toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('timeout')) {
         toast.error('Network timeout. Please try again.');
@@ -355,9 +350,9 @@ export function DirectMessageInterface({
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleStartVideoCall}
-                  disabled={loadingVideo}
-                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
-                  title="Start video call"
+                  disabled={loadingVideo || !videoCallsEnabled}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={videoCallsEnabled ? 'Start video call' : 'Video calls disabled'}
                 >
                   {loadingVideo ? (
                     <span className="text-sm">⏳</span>
@@ -365,14 +360,30 @@ export function DirectMessageInterface({
                     <Video className="w-5 h-5" />
                   )}
                 </button>
-                {/* More options menu — reserved for future settings (mute, block, etc.) */}
-                <button
-                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors opacity-50 cursor-not-allowed"
-                  title="More options (coming soon)"
-                  disabled
-                >
-                  <MoreVertical className="w-5 h-5" />
-                </button>
+                {/* Three-dot menu */}
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setShowVideoMenu(!showVideoMenu)}
+                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                    title="More options"
+                  >
+                    <MoreVertical className="w-5 h-5" />
+                  </button>
+                  {showVideoMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                      <button
+                        onClick={() => {
+                          setVideoCallsEnabled(!videoCallsEnabled);
+                          toast.success(videoCallsEnabled ? 'Video calls disabled' : 'Video calls enabled');
+                          setShowVideoMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-sm font-georgia-pro hover:bg-gray-50 rounded-lg transition-colors"
+                      >
+                        {videoCallsEnabled ? '🚫 Disable video calls' : '✅ Enable video calls'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
