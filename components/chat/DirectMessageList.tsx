@@ -10,8 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
-import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
@@ -347,76 +346,55 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
 }) {
-  const VIDEO_CALL_INVITE_PREFIX = '📹 [VIDEO_CALL_INVITE]';
-  const [userProfile, setUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
-  
   const { data: dm } = useDm(streamId);
-  
-  // ✅ Use SDK's userId, NOT the passed wallet address
   const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
-  const { data: timelineEvents } = useTimeline(streamId);
   
-  // ✅ Debug logging
-  useEffect(() => {
-    console.log('🔍 DmListItem Debug:');
-    console.log('   streamId:', streamId);
-    console.log('   myUserId (from SDK):', myUserId);
-    console.log('   currentUserId (wallet):', currentUserId);
-    console.log('   members.userIds:', members?.userIds);
-  }, [streamId, myUserId, currentUserId, members]);
-  
-  // ✅ Wait for members to load before rendering
+  // ✅ Wait for members before proceeding
   if (!members?.userIds || members.userIds.length === 0) {
     return null;
   }
   
-  // ✅ Find the other user using SDK's userId (NOT wallet address)
-  const otherUserId = members.userIds.find(
-    (id) => id !== myUserId // Compare against SDK userId
-  ) || myUserId; // Fallback to self for self-DMs
-
-  // ✅ Handle self-DM case
-  const isSelfDm = members.userIds.length === 1 || otherUserId === myUserId;
-
-  // Check if the last message is an incoming video call invite
-  const hasIncomingCall = (() => {
-    if (!timelineEvents || timelineEvents.length === 0) return false;
-    const lastEvent = timelineEvents[timelineEvents.length - 1];
-    const senderId = lastEvent?.sender?.id || '';
-    const isFromOtherUser = senderId !== myUserId; // Use SDK userId
-    if (!isFromOtherUser) return false;
-    if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return false;
-    const messageText = (lastEvent.content as any).body || '';
-    return messageText.startsWith(VIDEO_CALL_INVITE_PREFIX);
-  })();
+  // ✅ Find other user using SDK pattern
+  const otherUserIdFromSdk = members.userIds.find(
+    (id) => id !== myUserId
+  ) || myUserId;
   
-  // Fetch other user's profile from chat_users
+  // ✅ Use SDK's useMember hook instead of timeline + custom API
+  const { displayName: sdkDisplayName, username } = useMember({
+    streamId,
+    userId: otherUserIdFromSdk,
+  });
+  
+  // ✅ Handle self-DM
+  const isSelfDm = otherUserIdFromSdk === myUserId;
+  
+  // ✅ Custom persona fallback (optional - keep your chat_users integration)
+  const [customProfile, setCustomProfile] = useState<{ displayName: string | null; avatar: string | null } | null>(null);
+  
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!otherUserId) return;
+    const fetchCustomProfile = async () => {
+      if (!otherUserIdFromSdk) return;
       try {
-        const response = await fetch(`/api/chat/user?address=${otherUserId}`);
+        const response = await fetch(`/api/chat/user?address=${otherUserIdFromSdk}`);
         const data = await response.json();
-        
         if (data.success && data.user) {
-          setUserProfile({
-            displayName: data.user.alias || formatAddressForDisplay(data.user.address || otherUserId),
+          setCustomProfile({
+            displayName: data.user.alias || null,
             avatar: data.user.avatar,
           });
         }
       } catch (error) {
-        console.error('Failed to fetch user profile:', error);
+        console.error('Failed to fetch custom profile:', error);
       }
     };
-
-    fetchProfile();
-  }, [otherUserId]);
+    fetchCustomProfile();
+  }, [otherUserIdFromSdk]);
   
-  // ✅ Show wallet address for anonymous users, handle self-DM
+  // ✅ Prefer custom persona, fallback to SDK username, then formatted address
   const displayName = isSelfDm 
-    ? userProfile?.displayName || formatAddressForDisplay(myUserId) + ' (You)'
-    : userProfile?.displayName || formatAddressForDisplay(otherUserId);
+    ? (customProfile?.displayName || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
+    : customProfile?.displayName || sdkDisplayName || username || formatAddressForDisplay(otherUserIdFromSdk);
   
   const avatarInitials = displayName.slice(0, 2).toUpperCase();
   
@@ -429,17 +407,16 @@ function DmListItem({
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, displayName, userProfile?.avatar || undefined)}
+      onClick={() => onSelect(streamId, streamId, displayName, customProfile?.avatar || undefined)}
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
         ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
-        ${hasIncomingCall && !isSelected ? 'bg-green-50 border-l-4 border-green-600' : ''}
       `}
     >
       <div className="flex items-center gap-3">
-        {userProfile?.avatar ? (
+        {customProfile?.avatar ? (
           <img
-            src={convertIpfsToGatewayUrl(userProfile.avatar)}
+            src={convertIpfsToGatewayUrl(customProfile.avatar)}
             alt={displayName}
             className="w-10 h-10 rounded-full object-cover"
           />
@@ -453,11 +430,6 @@ function DmListItem({
           <div className="font-adonis text-sm truncate">
             {displayName}
           </div>
-          {hasIncomingCall && (
-            <div className="text-xs text-green-700 font-medium">
-              📹 Incoming video call
-            </div>
-          )}
         </div>
 
         <div className="text-xs text-gray-400 font-georgia-pro">
