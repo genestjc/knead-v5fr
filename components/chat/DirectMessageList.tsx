@@ -175,9 +175,16 @@ export function DirectMessageList({
         
         if (data.success) {
           console.log('✅ Batch profiles fetched:', data.profiles);
+          
+          // ✅ Normalize all keys to lowercase
+          const normalizedProfiles: ProfileMap = {};
+          Object.entries(data.profiles).forEach(([address, profile]) => {
+            normalizedProfiles[address.toLowerCase()] = profile as any;
+          });
+          
           setProfileMap(prev => ({
             ...prev,
-            ...data.profiles,
+            ...normalizedProfiles,
           }));
         }
       } catch (error) {
@@ -453,15 +460,13 @@ function DmListItem({
     (id) => id !== myUserId
   ) || myUserId;
   
-  // ✅ TEMPORARY: Debug logging
   useEffect(() => {
     console.log('🔑 DM Debug for stream:', streamId.slice(0, 16) + '...');
     console.log('   My SDK userId:', myUserId);
     console.log('   My wallet (prop):', currentUserId);
     console.log('   Match?', myUserId?.toLowerCase() === currentUserId?.toLowerCase());
     console.log('   Other SDK userId:', otherUserIdFromSdk);
-    console.log('   All members:', members.userIds);
-  }, [streamId, myUserId, currentUserId, otherUserIdFromSdk, members]);
+  }, [streamId, myUserId, currentUserId, otherUserIdFromSdk]);
   
   useEffect(() => {
     if (otherUserIdFromSdk) {
@@ -478,14 +483,11 @@ function DmListItem({
   
   const cachedProfile = profileMap[otherUserIdFromSdk?.toLowerCase()];
   
-  // ✅ TEMPORARY: Debug profile lookup
   useEffect(() => {
     console.log('👤 Profile lookup for:', otherUserIdFromSdk);
     console.log('   Found in cache?', !!cachedProfile);
     console.log('   Cache has alias?', cachedProfile?.alias);
-    console.log('   SDK displayName:', sdkDisplayName);
-    console.log('   SDK username:', username);
-  }, [otherUserIdFromSdk, cachedProfile, sdkDisplayName, username]);
+  }, [otherUserIdFromSdk, cachedProfile]);
   
   const displayName = isSelfDm 
     ? (cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
