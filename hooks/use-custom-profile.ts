@@ -17,6 +17,7 @@ export function useCustomProfile(address: string | undefined): CustomProfile | n
   useEffect(() => {
     if (!address) return;
 
+    // ✅ Normalize once for all operations
     const normalizedAddress = address.toLowerCase();
 
     // Check cache first
@@ -31,8 +32,8 @@ export function useCustomProfile(address: string | undefined): CustomProfile | n
       return;
     }
 
-    // Fetch new profile
-    const fetchPromise = fetch(`/api/chat/user?address=${address}`)
+    // ✅ Fetch using normalized address for consistency
+    const fetchPromise = fetch(`/api/chat/user?address=${normalizedAddress}`)
       .then(r => r.json())
       .then(d => {
         if (d.success && d.user) {
@@ -40,12 +41,25 @@ export function useCustomProfile(address: string | undefined): CustomProfile | n
             alias: d.user.alias,
             avatar: d.user.avatar,
           };
+          
+          // ✅ Store under normalized address
           profileCache.set(normalizedAddress, customProfile);
+          
+          console.log('✅ Cached profile:', {
+            address: normalizedAddress.slice(0, 10) + '...',
+            alias: customProfile.alias,
+          });
+          
           return customProfile;
         }
+        
+        console.log('⚠️ No profile found for:', normalizedAddress.slice(0, 10) + '...');
         return null;
       })
-      .catch(() => null)
+      .catch((error) => {
+        console.error('❌ Profile fetch failed:', normalizedAddress.slice(0, 10) + '...', error);
+        return null;
+      })
       .finally(() => {
         pendingFetches.delete(normalizedAddress);
       });
