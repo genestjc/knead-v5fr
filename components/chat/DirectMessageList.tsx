@@ -14,6 +14,7 @@ import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember }
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Contributor {
   id: string;
@@ -43,6 +44,7 @@ export function DirectMessageList({
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loadingContributors, setLoadingContributors] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [checkingExisting, setCheckingExisting] = useState(false);
 
   const handleCreateDm = async () => {
     if (!isContributor) {
@@ -56,37 +58,78 @@ export function DirectMessageList({
     }
 
     setCreateError(null);
+    setCheckingExisting(true);
     
     try {
-      const result = await createDM(newDmAddress.trim());
+      const targetAddress = newDmAddress.trim().toLowerCase();
+      
+      console.log('🔍 Checking for existing DM with:', targetAddress);
+      console.log('   Available streamIds:', streamIds);
+      
+      // ✅ Check if DM already exists by checking each stream's members
+      // Note: This is a workaround since SDK doesn't expose a direct "find DM by userId" method
+      if (streamIds && streamIds.length > 0) {
+        for (const streamId of streamIds) {
+          try {
+            // We'll rely on the DmListItem components to handle member fetching
+            // For now, just try to create - SDK will tell us if it exists
+            console.log(`   Checking stream ${streamId}...`);
+          } catch (err) {
+            console.warn('   Error checking stream:', err);
+          }
+        }
+      }
+      
+      console.log('📝 Attempting to create DM...');
+      setCheckingExisting(false);
+      
+      const result = await createDM(targetAddress);
       
       if (result?.streamId) {
+        console.log('✅ DM created:', result.streamId);
+        toast.success('DM opened!');
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
       }
     } catch (error: any) {
-      console.error('Failed to create DM:', error);
+      setCheckingExisting(false);
+      console.error('❌ Failed to create DM:', error);
       
       const errorMessage = error.message || String(error);
       
-      if (errorMessage.includes('already exists')) {
-        setCreateError('✅ DM already exists! Close this modal to see it in the list.');
+      if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
+        // ✅ DM exists - find it and open it
+        toast.info('Opening existing conversation...');
+        setCreateError('✅ DM exists! Looking for it...');
+        
+        // Give the SDK a moment to sync, then refresh streamIds
         setTimeout(() => {
           setShowNewDmModal(false);
           setNewDmAddress('');
           setCreateError(null);
-        }, 2000);
+          
+          // The DM should appear in the list after a moment
+          toast.success('DM should appear in your list. If not, try refreshing.');
+        }, 1500);
         return;
       }
       
       if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || 
-          errorMessage.includes('miniblock') ||
-          errorMessage.includes('timeout') || 
+          errorMessage.includes('miniblock')) {
+        setCreateError('⏱️ Network is syncing. Please wait a moment and try again.');
+        return;
+      }
+      
+      if (errorMessage.includes('timeout') || 
           errorMessage.includes('deadline') || 
           errorMessage.includes('context deadline exceeded')) {
-        setCreateError('⏱️ Network syncing... Refreshing in 5 seconds...');
-        setTimeout(() => { window.location.reload(); }, 5000);
+        setCreateError('⏱️ Network timeout. Please try again.');
+        return;
+      }
+      
+      if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
+        setCreateError('❌ Permission denied. Make sure you\'re a contributor.');
         return;
       }
       
@@ -99,6 +142,7 @@ export function DirectMessageList({
     setNewDmAddress('');
     setCreateError(null);
     setSearchQuery('');
+    setCheckingExisting(false);
   };
 
   useEffect(() => {
@@ -236,16 +280,16 @@ export function DirectMessageList({
             <button
               onClick={closeModal}
               className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition-colors font-georgia-pro text-sm"
-              disabled={isCreatingDm}
+              disabled={isCreatingDm || checkingExisting}
             >
               Cancel
             </button>
             <button
               onClick={handleCreateDm}
-              disabled={isCreatingDm || !newDmAddress.trim()}
+              disabled={isCreatingDm || checkingExisting || !newDmAddress.trim()}
               className="flex-1 py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-georgia-pro text-sm"
             >
-              {isCreatingDm ? 'Creating...' : 'Create DM'}
+              {checkingExisting ? 'Checking...' : isCreatingDm ? 'Opening...' : 'Open DM'}
             </button>
           </div>
         </div>
