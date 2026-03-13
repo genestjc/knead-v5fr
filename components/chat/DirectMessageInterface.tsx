@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -25,6 +25,7 @@ interface DmMessageItemProps {
   timestamp: number;
   displayAvatar?: string;
   displayName: string;
+  townsDmId: string;
   deletingEventId: string | null;
   onDelete: (eventId: string) => void;
   convertIpfsToGatewayUrl: (uri: string) => string;
@@ -36,6 +37,7 @@ function DmMessageItem({
   timestamp,
   displayAvatar,
   displayName,
+  townsDmId,
   deletingEventId,
   onDelete,
   convertIpfsToGatewayUrl,
@@ -51,7 +53,6 @@ function DmMessageItem({
   return (
     <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
       <div className={`flex gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%] relative`}>
-        {/* Profile picture for other user */}
         {!isCurrentUser && (
           <div className="flex-shrink-0">
             {displayAvatar ? (
@@ -104,7 +105,6 @@ function DmMessageItem({
           )}
         </div>
 
-        {/* Delete button */}
         {isCurrentUser && event.eventId && (
           <button
             onClick={() => onDelete(event.eventId!)}
@@ -136,6 +136,7 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
+  const syncAgent = useSyncAgent();
   
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -158,14 +159,12 @@ export function DirectMessageInterface({
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Filter for ChannelMessage events only, hide video invite system messages
   const messages = (events || []).filter(
     (event) =>
       event.content?.kind === RiverTimelineEvent.ChannelMessage &&
       !(event.content?.body || '').startsWith(VIDEO_CALL_INVITE_PREFIX)
   );
 
-  // Close video menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -178,7 +177,29 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
-  // Detect incoming video call invites from messages
+  // ✅ RESTORED: Join DM and sync encryption keys
+  useEffect(() => {
+    if (!syncAgent || !townsDmId) return;
+
+    const syncDm = async () => {
+      try {
+        const dmStream = (syncAgent as any).dms?.getDm?.(townsDmId);
+        if (!dmStream) return;
+        await dmStream.join();
+        try {
+          await dmStream.waitForKeysToSync({ timeout: 30000 });
+          console.log('✅ DM encryption keys synced');
+        } catch (syncErr) {
+          console.warn('⚠️ DM key sync timeout (normal for new conversations):', syncErr);
+        }
+      } catch (err) {
+        console.warn('DM join failed (may already be joined):', err);
+      }
+    };
+
+    syncDm();
+  }, [syncAgent, townsDmId]);
+
   useEffect(() => {
     if (!events || events.length === 0) return;
 
@@ -205,7 +226,6 @@ export function DirectMessageInterface({
     }
   }, [events, myUserId, currentUserId, otherUserName]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -279,6 +299,9 @@ export function DirectMessageInterface({
       setDeletingEventId(null);
     }
   };
+
+  const displayName = otherUserName;
+  const displayAvatar = otherUserAvatar;
 
   const handleStartVideoCall = async () => {
     if (!videoCallsEnabled) {
@@ -385,32 +408,30 @@ export function DirectMessageInterface({
           roomUrl={videoRoomUrl}
           token={videoToken}
           currentUserAddress={currentUserId}
-          otherUserName={otherUserName}
+          otherUserName={displayName}
           onClose={handleCloseVideoCall}
         />
       ) : (
         <>
-          {/* Header */}
           <div className="border-b px-6 py-4 bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {otherUserAvatar ? (
+                {displayAvatar ? (
                   <img
-                    src={convertIpfsToGatewayUrl(otherUserAvatar)}
-                    alt={otherUserName}
+                    src={convertIpfsToGatewayUrl(displayAvatar)}
+                    alt={displayName}
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-                    {otherUserName.slice(0, 2).toUpperCase()}
+                    {displayName.slice(0, 2).toUpperCase()}
                   </div>
                 )}
                 <div>
-                  <h2 className="font-adonis text-lg">{otherUserName}</h2>
+                  <h2 className="font-adonis text-lg">{displayName}</h2>
                 </div>
               </div>
 
-              {/* Video + menu controls */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleStartVideoCall}
@@ -424,7 +445,6 @@ export function DirectMessageInterface({
                     <Video className="w-5 h-5" />
                   )}
                 </button>
-                {/* Three-dot menu */}
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setShowVideoMenu(!showVideoMenu)}
@@ -452,14 +472,13 @@ export function DirectMessageInterface({
             </div>
           </div>
 
-          {/* ✅ Incoming call banner */}
           {incomingCallRoomUrl && !videoCallActive && (
             <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="font-georgia-pro text-sm font-medium text-blue-900">
-                    📹 {otherUserName} is calling you
+                    📹 {displayName} is calling you
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -481,7 +500,6 @@ export function DirectMessageInterface({
             </div>
           )}
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
             {isLoading ? (
               <div className="text-center text-gray-500 py-8 font-georgia-pro">
@@ -510,8 +528,9 @@ export function DirectMessageInterface({
                     event={event}
                     isCurrentUser={isCurrentUser}
                     timestamp={timestamp}
-                    displayAvatar={otherUserAvatar}
-                    displayName={otherUserName}
+                    displayAvatar={displayAvatar}
+                    displayName={displayName}
+                    townsDmId={townsDmId}
                     deletingEventId={deletingEventId}
                     onDelete={handleDeleteMessage}
                     convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
@@ -522,7 +541,6 @@ export function DirectMessageInterface({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="border-t p-4 bg-white">
             <div className="flex gap-2 items-center">
               <input
