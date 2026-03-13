@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList } from '@towns-protocol/react-sdk';
+import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
@@ -20,6 +20,14 @@ interface DirectMessageListProps {
   selectedDmId?: string;
 }
 
+// ✅ Extracted helper function
+function convertIpfsToGatewayUrl(uri: string): string {
+  if (uri && uri.startsWith('ipfs://')) {
+    return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
+  }
+  return uri || '';
+}
+
 export function DirectMessageList({ 
   userId, 
   onSelectDm, 
@@ -35,29 +43,23 @@ export function DirectMessageList({
   const [loadingContributors, setLoadingContributors] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch all contributors on modal open
   useEffect(() => {
     if (showNewDmModal && contributors.length === 0) {
       const fetchContributors = async () => {
         setLoadingContributors(true);
         try {
-          console.log('🔍 Fetching contributors from blockchain...');
           const response = await fetch('/api/contributors/all');
           const data = await response.json();
           
           if (data.success) {
-            // Filter out current user
             const filtered = data.contributors.filter(
               (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
             );
-            console.log('✅ Loaded', filtered.length, 'contributors');
             setContributors(filtered);
           } else {
-            console.error('❌ Failed to load contributors:', data.error);
             toast.error('Failed to load contributors');
           }
         } catch (error) {
-          console.error('❌ Error loading contributors:', error);
           toast.error('Failed to load contributors');
         } finally {
           setLoadingContributors(false);
@@ -75,13 +77,9 @@ export function DirectMessageList({
     
     try {
       const targetAddress = newDmAddress.trim().toLowerCase();
-      console.log('🔍 Creating DM with:', targetAddress);
-      console.log('📋 Current streams:', streamIds?.length || 0);
-      
       const result = await createDM(targetAddress);
       
       if (result?.streamId) {
-        console.log('✅ DM created:', result.streamId);
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
@@ -89,24 +87,15 @@ export function DirectMessageList({
         toast.success('DM opened!');
       }
     } catch (error: any) {
-      console.error('❌ Failed to create DM:', error);
       const errorMessage = error.message || String(error);
       
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
-        console.log('⚠️ DM already exists - this is a Towns SDK sync issue');
-        
-        // Close modal and clear form
         setShowNewDmModal(false);
         setNewDmAddress('');
         setSearchQuery('');
-        
-        // Show helpful message
         toast.error('This conversation already exists! Check your DM list on the left.', {
           duration: 5000,
         });
-        
-        // If it's truly not showing, that's a Towns SDK bug we can't fix
-        console.warn('💡 If DM is not visible in list, the Towns SDK has not synced it yet.');
       } else if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
         toast.error('⏱️ Network is syncing. Please wait a moment and try again.');
       } else if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
@@ -130,13 +119,6 @@ export function DirectMessageList({
   const selectContributor = (address: string) => {
     setNewDmAddress(address);
     setSearchQuery('');
-  };
-
-  const convertIpfsToGatewayUrl = (uri: string): string => {
-    if (uri && uri.startsWith('ipfs://')) {
-      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
-    }
-    return uri || '';
   };
 
   if (isLoading) {
@@ -179,18 +161,15 @@ export function DirectMessageList({
           <DmListItem
             key={streamId}
             streamId={streamId}
-            currentUserId={userId}
             onSelect={onSelectDm}
             isSelected={selectedDmId === streamId}
           />
         ))}
       </div>
 
-      {/* New DM Modal */}
       {showNewDmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
-            {/* Header */}
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-adonis text-xl">New Direct Message</h3>
@@ -206,7 +185,6 @@ export function DirectMessageList({
                 </button>
               </div>
               
-              {/* Search Box */}
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -219,7 +197,6 @@ export function DirectMessageList({
               </div>
             </div>
 
-            {/* Contributors List */}
             <div className="flex-1 overflow-y-auto">
               {loadingContributors ? (
                 <div className="flex items-center justify-center py-8">
@@ -262,7 +239,6 @@ export function DirectMessageList({
               )}
             </div>
 
-            {/* Footer - Manual Entry */}
             <div className="p-6 border-t border-gray-200">
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
@@ -305,47 +281,72 @@ export function DirectMessageList({
   );
 }
 
-function DmListItem({ streamId, currentUserId, onSelect, isSelected }: any) {
-  const [profile, setProfile] = useState<any>(null);
-  const { data: dm } = useDm(streamId);
+// ✅ Properly typed DmListItem following Towns SDK pattern
+function DmListItem({ 
+  streamId,
+  onSelect,
+  isSelected 
+}: {
+  streamId: string;
+  onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
+  isSelected: boolean;
+}) {
+  // ✅ Use SDK hooks as per Towns docs
+  const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   
-  const otherUserId = members?.userIds?.find(id => id.toLowerCase() !== currentUserId.toLowerCase()) || '';
+  const otherUserId = members?.userIds?.find((id) => id !== myUserId) || myUserId;
+  
+  // ✅ Use useMember for SDK data
+  const { displayName: sdkDisplayName, username } = useMember({
+    streamId,
+    userId: otherUserId,
+  });
+  
+  // ✅ ALSO fetch our custom persona data (our feature!)
+  const [customProfile, setCustomProfile] = useState<{alias: string | null; avatar: string | null} | null>(null);
   
   useEffect(() => {
     if (!otherUserId) return;
+    
     fetch(`/api/chat/user?address=${otherUserId}`)
       .then(r => r.json())
-      .then(d => d.success && setProfile(d.user));
+      .then(d => {
+        if (d.success && d.user) {
+          setCustomProfile({
+            alias: d.user.alias,
+            avatar: d.user.avatar,
+          });
+        }
+      })
+      .catch(() => {
+        // Silently fail, SDK data will be used
+      });
   }, [otherUserId]);
   
-  const name = profile?.alias || formatAddressForDisplay(otherUserId);
-  
-  const convertIpfsToGatewayUrl = (uri: string): string => {
-    if (uri && uri.startsWith('ipfs://')) {
-      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
-    }
-    return uri || '';
-  };
+  // ✅ Prefer custom alias, fallback to SDK, then format address
+  const displayName = customProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserId);
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, name, profile?.avatar)}
-      className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors font-georgia-pro ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}`}
+      onClick={() => onSelect(streamId, streamId, displayName, customProfile?.avatar || undefined)}
+      className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors font-georgia-pro ${
+        isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''
+      }`}
     >
       <div className="flex items-center gap-3">
-        {profile?.avatar ? (
+        {customProfile?.avatar ? (
           <img
-            src={convertIpfsToGatewayUrl(profile.avatar)}
-            alt={name}
+            src={convertIpfsToGatewayUrl(customProfile.avatar)}
+            alt={displayName}
             className="w-10 h-10 rounded-full object-cover"
           />
         ) : (
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-            {name.slice(0, 2).toUpperCase()}
+            {displayName.slice(0, 2).toUpperCase()}
           </div>
         )}
-        <div className="flex-1 font-georgia-pro text-sm">{name}</div>
+        <div className="flex-1 font-georgia-pro text-sm">{displayName}</div>
       </div>
     </button>
   );
