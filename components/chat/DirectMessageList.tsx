@@ -1,15 +1,6 @@
 'use client';
 
-/**
- * Direct Message List Component
- * 
- * Displays list of DM conversations in sidebar
- * - Shows other user's info from chat_users table
- * - Click to open DM
- * - New message button (contributor-only)
- */
-
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
@@ -29,6 +20,13 @@ interface DirectMessageListProps {
   selectedDmId?: string;
 }
 
+interface ProfileMap {
+  [address: string]: {
+    alias: string | null;
+    avatar: string | null;
+  };
+}
+
 export function DirectMessageList({ 
   userId, 
   onSelectDm, 
@@ -45,6 +43,16 @@ export function DirectMessageList({
   const [loadingContributors, setLoadingContributors] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [checkingExisting, setCheckingExisting] = useState(false);
+  
+  const [profileMap, setProfileMap] = useState<ProfileMap>({});
+  const [otherUserIds, setOtherUserIds] = useState<string[]>([]);
+  
+  const profileMapRef = useRef(profileMap);
+  profileMapRef.current = profileMap;
+  
+  // ✅ Debounce refs to batch ID collection
+  const pendingIdsRef = useRef<string[]>([]);
+  const batchTimerRef = useRef<NodeJS.Timeout>();
 
   const handleCreateDm = async () => {
     if (!isContributor) {
@@ -63,67 +71,39 @@ export function DirectMessageList({
     try {
       const targetAddress = newDmAddress.trim().toLowerCase();
       
-      console.log('🔍 Checking for existing DM with:', targetAddress);
-      console.log('   Available streamIds:', streamIds);
-      
-      // ✅ Check if DM already exists by checking each stream's members
-      // Note: This is a workaround since SDK doesn't expose a direct "find DM by userId" method
-      if (streamIds && streamIds.length > 0) {
-        for (const streamId of streamIds) {
-          try {
-            // We'll rely on the DmListItem components to handle member fetching
-            // For now, just try to create - SDK will tell us if it exists
-            console.log(`   Checking stream ${streamId}...`);
-          } catch (err) {
-            console.warn('   Error checking stream:', err);
-          }
-        }
-      }
-      
-      console.log('📝 Attempting to create DM...');
-      setCheckingExisting(false);
+      console.log('🔍 Attempting to create/open DM with:', targetAddress);
       
       const result = await createDM(targetAddress);
       
       if (result?.streamId) {
-        console.log('✅ DM created:', result.streamId);
+        console.log('✅ DM opened:', result.streamId);
         toast.success('DM opened!');
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
       }
     } catch (error: any) {
-      setCheckingExisting(false);
-      console.error('❌ Failed to create DM:', error);
+      console.error('❌ Failed to open DM:', error);
       
       const errorMessage = error.message || String(error);
       
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
-        // ✅ DM exists - find it and open it
-        toast.info('Opening existing conversation...');
-        setCreateError('✅ DM exists! Looking for it...');
-        
-        // Give the SDK a moment to sync, then refresh streamIds
+        toast.info('DM already exists - it should appear in your list shortly.');
+        setCreateError('✅ DM exists! Check your conversation list below.');
         setTimeout(() => {
           setShowNewDmModal(false);
           setNewDmAddress('');
           setCreateError(null);
-          
-          // The DM should appear in the list after a moment
-          toast.success('DM should appear in your list. If not, try refreshing.');
-        }, 1500);
+        }, 2000);
         return;
       }
       
-      if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || 
-          errorMessage.includes('miniblock')) {
+      if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
         setCreateError('⏱️ Network is syncing. Please wait a moment and try again.');
         return;
       }
       
-      if (errorMessage.includes('timeout') || 
-          errorMessage.includes('deadline') || 
-          errorMessage.includes('context deadline exceeded')) {
+      if (errorMessage.includes('timeout') || errorMessage.includes('deadline') || errorMessage.includes('context deadline exceeded')) {
         setCreateError('⏱️ Network timeout. Please try again.');
         return;
       }
@@ -133,7 +113,9 @@ export function DirectMessageList({
         return;
       }
       
-      setCreateError(errorMessage || 'Failed to create DM. Please try again.');
+      setCreateError(errorMessage || 'Failed to open DM. Please try again.');
+    } finally {
+      setCheckingExisting(false);
     }
   };
 
@@ -170,6 +152,74 @@ export function DirectMessageList({
       fetchContributors();
     }
   }, [showNewDmModal, contributors.length, userId]);
+
+  // ✅ Batch fetch profiles
+  useEffect(() => {
+    if (!otherUserIds.length) return;
+    
+    const uncached = otherUserIds.filter(
+      id => !profileMapRef.current[id.toLowerCase()]
+    );
+    
+    if (!uncached.length) return;
+
+    console.log('📦 Batch fetching profiles for:', uncached);
+
+    const fetchBatchProfiles = async () => {
+      try {
+        const response = await fetch('/api/chat/users/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses: uncached }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          console.log('✅ Batch profiles fetched:', data.profiles);
+          setProfileMap(prev => ({
+            ...prev,
+            ...data.profiles,
+          }));
+        }
+      } catch (error) {
+        console.error('❌ Failed to batch fetch profiles:', error);
+      }
+    };
+
+    fetchBatchProfiles();
+  }, [otherUserIds]);
+
+  // ✅ Debounced ID collection - accumulates IDs before triggering batch
+  const handleOtherUserIdResolved = useCallback((id: string) => {
+    if (!pendingIdsRef.current.includes(id)) {
+      pendingIdsRef.current.push(id);
+    }
+    
+    // Debounce: wait 300ms for all DmListItems to report their IDs
+    clearTimeout(batchTimerRef.current);
+    batchTimerRef.current = setTimeout(() => {
+      const ids = [...pendingIdsRef.current];
+      pendingIdsRef.current = [];
+      
+      if (ids.length) {
+        console.log('⏰ Debounce complete - processing', ids.length, 'user IDs');
+        setOtherUserIds(prev => {
+          const newIds = ids.filter(id => !prev.includes(id));
+          return newIds.length ? [...prev, ...newIds] : prev;
+        });
+      }
+    }, 300);
+  }, []);
+
+  // ✅ Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+      }
+    };
+  }, []);
 
   const filteredContributors = contributors.filter((c) => {
     const query = searchQuery.toLowerCase();
@@ -370,6 +420,8 @@ export function DirectMessageList({
             currentUserId={userId}
             onSelect={onSelectDm}
             isSelected={selectedDmId === streamId}
+            profileMap={profileMap}
+            onOtherUserIdResolved={handleOtherUserIdResolved}
           />
         ))}
       </div>
@@ -383,62 +435,47 @@ function DmListItem({
   streamId, 
   currentUserId,
   onSelect, 
-  isSelected 
+  isSelected,
+  profileMap,
+  onOtherUserIdResolved,
 }: { 
   streamId: string;
   currentUserId: string;
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
+  profileMap: ProfileMap;
+  onOtherUserIdResolved: (userId: string) => void;
 }) {
   const { data: dm } = useDm(streamId);
   const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   
-  // ✅ Wait for members before proceeding
   if (!members?.userIds || members.userIds.length === 0) {
     return null;
   }
   
-  // ✅ Find other user using SDK pattern
   const otherUserIdFromSdk = members.userIds.find(
     (id) => id !== myUserId
   ) || myUserId;
   
-  // ✅ Use SDK's useMember hook instead of timeline + custom API
+  useEffect(() => {
+    if (otherUserIdFromSdk) {
+      onOtherUserIdResolved(otherUserIdFromSdk);
+    }
+  }, [otherUserIdFromSdk, onOtherUserIdResolved]);
+  
   const { displayName: sdkDisplayName, username } = useMember({
     streamId,
     userId: otherUserIdFromSdk,
   });
   
-  // ✅ Handle self-DM
   const isSelfDm = otherUserIdFromSdk === myUserId;
   
-  // ✅ Custom persona fallback (optional - keep your chat_users integration)
-  const [customProfile, setCustomProfile] = useState<{ displayName: string | null; avatar: string | null } | null>(null);
+  const cachedProfile = profileMap[otherUserIdFromSdk?.toLowerCase()];
   
-  useEffect(() => {
-    const fetchCustomProfile = async () => {
-      if (!otherUserIdFromSdk) return;
-      try {
-        const response = await fetch(`/api/chat/user?address=${otherUserIdFromSdk}`);
-        const data = await response.json();
-        if (data.success && data.user) {
-          setCustomProfile({
-            displayName: data.user.alias || null,
-            avatar: data.user.avatar,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch custom profile:', error);
-      }
-    };
-    fetchCustomProfile();
-  }, [otherUserIdFromSdk]);
-  
-  // ✅ Prefer custom persona, fallback to SDK username, then formatted address
   const displayName = isSelfDm 
-    ? (customProfile?.displayName || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
-    : customProfile?.displayName || sdkDisplayName || username || formatAddressForDisplay(otherUserIdFromSdk);
+    ? (cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
+    : cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserIdFromSdk);
   
   const avatarInitials = displayName.slice(0, 2).toUpperCase();
   
@@ -451,16 +488,16 @@ function DmListItem({
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, displayName, customProfile?.avatar || undefined)}
+      onClick={() => onSelect(streamId, streamId, displayName, cachedProfile?.avatar || undefined)}
       className={`
         w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
         ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
       `}
     >
       <div className="flex items-center gap-3">
-        {customProfile?.avatar ? (
+        {cachedProfile?.avatar ? (
           <img
-            src={convertIpfsToGatewayUrl(customProfile.avatar)}
+            src={convertIpfsToGatewayUrl(cachedProfile.avatar)}
             alt={displayName}
             className="w-10 h-10 rounded-full object-cover"
           />
