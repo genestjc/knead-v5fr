@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList, useTimeline } from '@towns-protocol/react-sdk';
+import { useUserDms, useCreateDm, useDm, useMemberList, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
@@ -351,28 +351,40 @@ function DmListItem({
   const [userProfile, setUserProfile] = useState<{ displayName: string; avatar: string | null } | null>(null);
   
   const { data: dm } = useDm(streamId);
+  
+  // ✅ Use SDK's userId, NOT the passed wallet address
+  const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   const { data: timelineEvents } = useTimeline(streamId);
+  
+  // ✅ Debug logging
+  useEffect(() => {
+    console.log('🔍 DmListItem Debug:');
+    console.log('   streamId:', streamId);
+    console.log('   myUserId (from SDK):', myUserId);
+    console.log('   currentUserId (wallet):', currentUserId);
+    console.log('   members.userIds:', members?.userIds);
+  }, [streamId, myUserId, currentUserId, members]);
   
   // ✅ Wait for members to load before rendering
   if (!members?.userIds || members.userIds.length === 0) {
     return null;
   }
   
-  // Find the other user's ID
+  // ✅ Find the other user using SDK's userId (NOT wallet address)
   const otherUserId = members.userIds.find(
-    (id) => id.toLowerCase() !== currentUserId.toLowerCase()
-  ) || '';
+    (id) => id !== myUserId // Compare against SDK userId
+  ) || myUserId; // Fallback to self for self-DMs
 
-  // ✅ Handle self-DM case (messaging yourself)
-  const isSelfDm = members.userIds.length === 1 || otherUserId.toLowerCase() === currentUserId.toLowerCase();
+  // ✅ Handle self-DM case
+  const isSelfDm = members.userIds.length === 1 || otherUserId === myUserId;
 
   // Check if the last message is an incoming video call invite
   const hasIncomingCall = (() => {
     if (!timelineEvents || timelineEvents.length === 0) return false;
     const lastEvent = timelineEvents[timelineEvents.length - 1];
     const senderId = lastEvent?.sender?.id || '';
-    const isFromOtherUser = senderId.toLowerCase() !== currentUserId.toLowerCase();
+    const isFromOtherUser = senderId !== myUserId; // Use SDK userId
     if (!isFromOtherUser) return false;
     if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return false;
     const messageText = (lastEvent.content as any).body || '';
@@ -403,10 +415,9 @@ function DmListItem({
   
   // ✅ Show wallet address for anonymous users, handle self-DM
   const displayName = isSelfDm 
-    ? userProfile?.displayName || formatAddressForDisplay(currentUserId) + ' (You)'
+    ? userProfile?.displayName || formatAddressForDisplay(myUserId) + ' (You)'
     : userProfile?.displayName || formatAddressForDisplay(otherUserId);
   
-  // ✅ Simplified avatar initials
   const avatarInitials = displayName.slice(0, 2).toUpperCase();
   
   const convertIpfsToGatewayUrl = (uri: string): string => {
