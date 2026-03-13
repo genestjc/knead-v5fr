@@ -1,18 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
+import { useEffect, useState } from 'react';
+import { useUserDms, useCreateDm, useDm, useMemberList } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Contributor {
-  id: string;
-  address: string;
-  displayName: string;
-  avatar: string | null;
-}
 
 interface DirectMessageListProps {
   userId: string;
@@ -20,558 +13,137 @@ interface DirectMessageListProps {
   selectedDmId?: string;
 }
 
-interface ProfileMap {
-  [address: string]: {
-    alias: string | null;
-    avatar: string | null;
-  };
-}
-
 export function DirectMessageList({ 
   userId, 
   onSelectDm, 
   selectedDmId 
 }: DirectMessageListProps) {
-  const { isContributor, loading: permissionsLoading } = useContributorPermissions(userId);
-  const { streamIds, isLoading, error: dmsError } = useUserDms();
+  const { isContributor } = useContributorPermissions(userId);
+  const { streamIds, isLoading } = useUserDms();
   const { createDM, isPending: isCreatingDm } = useCreateDm();
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [contributors, setContributors] = useState<Contributor[]>([]);
-  const [loadingContributors, setLoadingContributors] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [checkingExisting, setCheckingExisting] = useState(false);
-  
-  const [profileMap, setProfileMap] = useState<ProfileMap>({});
-  const [otherUserIds, setOtherUserIds] = useState<string[]>([]);
-  
-  const [dmUserMap, setDmUserMap] = useState<Record<string, string>>({});
-  
-  const profileMapRef = useRef(profileMap);
-  profileMapRef.current = profileMap;
-  
-  const pendingIdsRef = useRef<string[]>([]);
-  const batchTimerRef = useRef<NodeJS.Timeout>();
 
   const handleCreateDm = async () => {
-    if (!isContributor) {
-      setCreateError('Only Contributors can send direct messages');
-      return;
-    }
-
     if (!newDmAddress.trim()) {
-      setCreateError('Please enter a wallet address');
+      toast.error('Please enter a wallet address');
       return;
     }
-
-    setCreateError(null);
-    setCheckingExisting(true);
     
     try {
-      const targetAddress = newDmAddress.trim().toLowerCase();
-      
-      console.log('🔍 Checking for existing DM with:', targetAddress);
-      console.log('🗺️ Current DM map:', dmUserMap);
-      
-      const existingStreamId = dmUserMap[targetAddress];
-      
-      if (existingStreamId) {
-        console.log('✅ Found existing DM:', existingStreamId);
-        toast.success('Opening existing conversation');
-        onSelectDm(existingStreamId, existingStreamId);
-        setShowNewDmModal(false);
-        setNewDmAddress('');
-        setCheckingExisting(false);
-        return;
-      }
-      
-      console.log('🆕 No existing DM found, creating new one...');
-      
-      const result = await createDM(targetAddress);
+      const result = await createDM(newDmAddress.trim().toLowerCase());
       
       if (result?.streamId) {
-        console.log('✅ DM created:', result.streamId);
-        toast.success('DM opened!');
-        
-        setDmUserMap(prev => ({
-          ...prev,
-          [targetAddress]: result.streamId,
-        }));
-        
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
+        toast.success('DM opened!');
       }
     } catch (error: any) {
-      console.error('❌ Failed to create DM:', error);
-      
-      const errorMessage = error.message || String(error);
-      
-      if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
-        toast.info('DM exists - refreshing list...');
-        setCreateError('✅ DM exists! Refreshing...');
-        setTimeout(() => {
-          setShowNewDmModal(false);
-          setNewDmAddress('');
-          setCreateError(null);
-        }, 2000);
-        return;
+      if (error.message?.includes('already exists')) {
+        toast.info('DM exists - refreshing...');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        toast.error('Failed to create DM. Please try again.');
       }
-      
-      if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
-        setCreateError('⏱️ Network is syncing. Please wait a moment and try again.');
-        return;
-      }
-      
-      if (errorMessage.includes('timeout') || errorMessage.includes('deadline') || errorMessage.includes('context deadline exceeded')) {
-        setCreateError('⏱️ Network timeout. Please try again.');
-        return;
-      }
-      
-      if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
-        setCreateError('❌ Permission denied. Make sure you\'re a contributor.');
-        return;
-      }
-      
-      setCreateError(errorMessage || 'Failed to open DM. Please try again.');
-    } finally {
-      setCheckingExisting(false);
     }
   };
 
-  const closeModal = () => {
-    setShowNewDmModal(false);
-    setNewDmAddress('');
-    setCreateError(null);
-    setSearchQuery('');
-    setCheckingExisting(false);
-  };
-
-  useEffect(() => {
-    if (showNewDmModal && contributors.length === 0) {
-      const fetchContributors = async () => {
-        setLoadingContributors(true);
-        try {
-          const response = await fetch('/api/admin/contributors');
-          const data = await response.json();
-          
-          if (data.success) {
-            const filteredContributors = (data.data || []).filter(
-              (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
-            );
-            setContributors(filteredContributors);
-          } else {
-            console.error('❌ API returned error:', data.error);
-          }
-        } catch (error) {
-          console.error('❌ Failed to fetch contributors:', error);
-        } finally {
-          setLoadingContributors(false);
-        }
-      };
-      fetchContributors();
-    }
-  }, [showNewDmModal, contributors.length, userId]);
-
-  useEffect(() => {
-    if (!otherUserIds.length) return;
-    
-    const uncached = otherUserIds.filter(
-      id => !profileMapRef.current[id.toLowerCase()]
-    );
-    
-    if (!uncached.length) return;
-
-    console.log('📦 Batch fetching profiles for:', uncached);
-
-    const fetchBatchProfiles = async () => {
-      try {
-        const response = await fetch('/api/chat/users/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ addresses: uncached }),
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          console.log('✅ Batch profiles fetched:', data.profiles);
-          
-          const normalizedProfiles: ProfileMap = {};
-          Object.entries(data.profiles).forEach(([address, profile]) => {
-            normalizedProfiles[address.toLowerCase()] = profile as any;
-          });
-          
-          setProfileMap(prev => ({
-            ...prev,
-            ...normalizedProfiles,
-          }));
-        }
-      } catch (error) {
-        console.error('❌ Failed to batch fetch profiles:', error);
-      }
-    };
-
-    fetchBatchProfiles();
-  }, [otherUserIds]);
-
-  // ✅ FIXED: Update dmUserMap synchronously, debounce only profile fetching
-  const handleOtherUserIdResolved = useCallback((id: string, streamId: string) => {
-    // ✅ Update the map IMMEDIATELY (synchronously)
-    setDmUserMap(prev => {
-      if (prev[id.toLowerCase()] === streamId) {
-        return prev; // No change needed
-      }
-      console.log('🗺️ Adding to DM map:', id.toLowerCase(), '→', streamId);
-      return {
-        ...prev,
-        [id.toLowerCase()]: streamId,
-      };
-    });
-    
-    // ✅ ALSO add to pending IDs for profile fetching (debounced)
-    if (!pendingIdsRef.current.includes(id)) {
-      pendingIdsRef.current.push(id);
-    }
-    
-    clearTimeout(batchTimerRef.current);
-    batchTimerRef.current = setTimeout(() => {
-      const ids = [...pendingIdsRef.current];
-      pendingIdsRef.current = [];
-      
-      if (ids.length) {
-        console.log('⏰ Debounce complete - processing', ids.length, 'user IDs');
-        setOtherUserIds(prev => {
-          const newIds = ids.filter(id => !prev.includes(id));
-          return newIds.length ? [...prev, ...newIds] : prev;
-        });
-      }
-    }, 300);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (batchTimerRef.current) {
-        clearTimeout(batchTimerRef.current);
-      }
-    };
-  }, []);
-
-  const filteredContributors = contributors.filter((c) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      c.displayName.toLowerCase().includes(query) ||
-      c.address.toLowerCase().includes(query)
-    );
-  });
-
-  const selectContributor = (address: string) => {
-    setNewDmAddress(address);
-    setSearchQuery('');
-  };
-
-  const NewDmModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-adonis text-xl">New Direct Message</h3>
-            <button
-              onClick={closeModal}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-          
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search contributors..."
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {loadingContributors ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
-            </div>
-          ) : filteredContributors.length > 0 ? (
-            <div className="p-2">
-              {filteredContributors.map((contributor) => (
-                <button
-                  key={contributor.id}
-                  onClick={() => selectContributor(contributor.address)}
-                  className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
-                >
-                  {contributor.avatar ? (
-                    <img
-                      src={contributor.avatar}
-                      alt={contributor.displayName}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-                      {contributor.displayName.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-georgia-pro font-medium text-sm text-gray-900 truncate">
-                      {contributor.displayName}
-                    </p>
-                    <p className="font-georgia-pro text-xs text-gray-500 truncate">
-                      {contributor.address.slice(0, 8)}...{contributor.address.slice(-6)}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="p-4 text-center text-sm text-gray-500 font-georgia-pro">
-              {searchQuery ? 'No contributors found' : 'No contributors available'}
-            </div>
-          )}
-        </div>
-
-        <div className="p-6 border-t border-gray-200">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
-              Or enter wallet address directly
-            </label>
-            <input
-              type="text"
-              value={newDmAddress}
-              onChange={(e) => setNewDmAddress(e.target.value)}
-              placeholder="0x..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro text-sm"
-            />
-          </div>
-
-          {createError && (
-            <div className={`mb-4 p-3 border rounded-lg text-sm font-georgia-pro ${
-              createError.includes('✅') || createError.includes('⏱️')
-                ? 'bg-blue-50 border-blue-200 text-blue-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              {createError}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={closeModal}
-              className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition-colors font-georgia-pro text-sm"
-              disabled={isCreatingDm || checkingExisting}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCreateDm}
-              disabled={isCreatingDm || checkingExisting || !newDmAddress.trim()}
-              className="flex-1 py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-georgia-pro text-sm"
-            >
-              {checkingExisting ? 'Checking...' : isCreatingDm ? 'Opening...' : 'Open DM'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (permissionsLoading || isLoading) {
-    return (
-      <div className="p-4 text-sm text-gray-500 font-georgia-pro">
-        Loading conversations...
-      </div>
-    );
-  }
-
+  if (isLoading) return <div className="p-4 text-sm text-gray-500">Loading...</div>;
+  
   if (!isContributor) {
     return (
       <div className="p-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-adonis font-medium text-blue-900 mb-2">Direct Messages</h3>
-          <p className="text-sm text-blue-700 font-georgia-pro">
-            Direct messaging is available only to Contributors.
-          </p>
-          <p className="text-xs text-blue-600 mt-2 font-georgia-pro">
-            💡 Contributors have full access to DMs and can message each other anytime.
-          </p>
+          <p className="text-sm text-blue-700">Direct messaging is available only to Contributors.</p>
         </div>
-      </div>
-    );
-  }
-
-  if (dmsError) {
-    return (
-      <div className="p-4 text-sm text-red-500 font-georgia-pro">
-        {dmsError.message || 'Failed to load conversations'}
-      </div>
-    );
-  }
-
-  if (!streamIds || streamIds.length === 0) {
-    return (
-      <div className="p-4">
-        <button
-          onClick={() => setShowNewDmModal(true)}
-          className="w-full py-3 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro font-medium text-sm mb-4"
-        >
-          + New Message
-        </button>
-        
-        <div className="text-sm text-gray-500 font-georgia-pro">
-          <p>No conversations yet.</p>
-          <p className="mt-2 text-xs">
-            Contributors can start direct messages with each other.
-          </p>
-        </div>
-
-        {showNewDmModal && <NewDmModal />}
       </div>
     );
   }
 
   return (
     <div>
-      <div className="p-3 border-b border-gray-200">
+      <div className="p-3 border-b">
         <button
           onClick={() => setShowNewDmModal(true)}
-          className="w-full py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro text-sm font-medium"
+          className="w-full py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800"
         >
           + New Message
         </button>
       </div>
 
       <div className="space-y-1">
-        {streamIds.map((streamId) => (
+        {streamIds?.map((streamId) => (
           <DmListItem
             key={streamId}
             streamId={streamId}
             currentUserId={userId}
             onSelect={onSelectDm}
             isSelected={selectedDmId === streamId}
-            profileMap={profileMap}
-            onOtherUserIdResolved={handleOtherUserIdResolved}
           />
         ))}
       </div>
 
-      {showNewDmModal && <NewDmModal />}
+      {showNewDmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-adonis text-xl">New Message</h3>
+              <button onClick={() => setShowNewDmModal(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <input
+              type="text"
+              value={newDmAddress}
+              onChange={(e) => setNewDmAddress(e.target.value)}
+              placeholder="0x..."
+              className="w-full px-3 py-2 border rounded-lg mb-4"
+            />
+            
+            <button
+              onClick={handleCreateDm}
+              disabled={isCreatingDm}
+              className="w-full py-2 bg-black text-white rounded-full disabled:bg-gray-400"
+            >
+              {isCreatingDm ? 'Creating...' : 'Create DM'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function DmListItem({ 
-  streamId, 
-  currentUserId,
-  onSelect, 
-  isSelected,
-  profileMap,
-  onOtherUserIdResolved,
-}: { 
-  streamId: string;
-  currentUserId: string;
-  onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
-  isSelected: boolean;
-  profileMap: ProfileMap;
-  onOtherUserIdResolved: (userId: string, streamId: string) => void;
-}) {
+function DmListItem({ streamId, currentUserId, onSelect, isSelected }: any) {
+  const [profile, setProfile] = useState<any>(null);
   const { data: dm } = useDm(streamId);
-  const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   
-  if (!members?.userIds || members.userIds.length === 0) {
-    return null;
-  }
+  const otherUserId = members?.userIds?.find(id => id.toLowerCase() !== currentUserId.toLowerCase()) || '';
   
-  const otherUserIdFromSdk = members.userIds.find(
-    (id) => id !== myUserId
-  ) || myUserId;
-  
-  // ✅ Call immediately on mount - synchronous update
   useEffect(() => {
-    if (otherUserIdFromSdk) {
-      onOtherUserIdResolved(otherUserIdFromSdk, streamId);
-    }
-  }, [otherUserIdFromSdk, streamId, onOtherUserIdResolved]);
+    if (!otherUserId) return;
+    fetch(`/api/chat/user?address=${otherUserId}`)
+      .then(r => r.json())
+      .then(d => d.success && setProfile(d.user));
+  }, [otherUserId]);
   
-  const { displayName: sdkDisplayName, username } = useMember({
-    streamId,
-    userId: otherUserIdFromSdk,
-  });
-  
-  const isSelfDm = otherUserIdFromSdk === myUserId;
-  
-  const cachedProfile = profileMap[otherUserIdFromSdk?.toLowerCase()];
-  
-  const displayName = isSelfDm 
-    ? (cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
-    : cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserIdFromSdk);
-  
-  const avatarInitials = displayName.slice(0, 2).toUpperCase();
-  
-  const convertIpfsToGatewayUrl = (uri: string): string => {
-    if (uri && uri.startsWith('ipfs://')) {
-      return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
-    }
-    return uri || '';
-  };
+  const name = profile?.alias || formatAddressForDisplay(otherUserId);
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, displayName, cachedProfile?.avatar || undefined)}
-      className={`
-        w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors
-        ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}
-      `}
+      onClick={() => onSelect(streamId, streamId, name, profile?.avatar)}
+      className={`w-full text-left px-4 py-3 hover:bg-gray-100 ${isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''}`}
     >
       <div className="flex items-center gap-3">
-        {cachedProfile?.avatar ? (
-          <img
-            src={convertIpfsToGatewayUrl(cachedProfile.avatar)}
-            alt={displayName}
-            className="w-10 h-10 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-            {avatarInitials}
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0">
-          <div className="font-adonis text-sm truncate">
-            {displayName}
-          </div>
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm">
+          {name.slice(0, 2).toUpperCase()}
         </div>
-
-        <div className="text-xs text-gray-400 font-georgia-pro">
-          {dm?.lastMessageAt ? formatTimestamp(dm.lastMessageAt) : ''}
-        </div>
+        <div className="flex-1">{name}</div>
       </div>
     </button>
   );
-}
-
-function formatTimestamp(timestamp: string | number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  
-  return date.toLocaleDateString();
 }
