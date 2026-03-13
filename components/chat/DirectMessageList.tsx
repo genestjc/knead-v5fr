@@ -295,20 +295,29 @@ function DmListItem({
   
   const otherUserId = members?.userIds?.find((userId) => userId !== myUserId) || myUserId;
   
-  // ✅ Use SDK hooks
   const { displayName: sdkDisplayName, username, nft } = useMember({
     streamId,
     userId: otherUserId,
   });
   
-  // ✅ Use custom hook for our persona data
   const customProfile = useCustomProfile(otherUserId);
   
-  // ✅ Avatar priority: Custom avatar → SDK NFT avatar → null (fallback to initials)
   const avatarUrl = customProfile?.avatar || nft?.pfpUrl || null;
-  
-  // ✅ Name priority: Custom alias → SDK displayName → SDK username → formatted address
   const displayName = customProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserId);
+  
+  // ✅ Debug logging
+  console.log('🔍 DM List Item:', {
+    streamId: streamId.slice(0, 16) + '...',
+    myUserId: myUserId?.slice(0, 12) + '...',
+    otherUserId: otherUserId?.slice(0, 12) + '...',
+    isSelfDm: otherUserId === myUserId,
+    customAlias: customProfile?.alias,
+    sdkDisplayName,
+    username,
+    finalDisplayName: displayName,
+    hasNftAvatar: !!nft?.pfpUrl,
+    hasCustomAvatar: !!customProfile?.avatar,
+  });
   
   return (
     <button
