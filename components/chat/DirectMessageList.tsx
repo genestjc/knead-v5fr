@@ -47,7 +47,6 @@ export function DirectMessageList({
   const [profileMap, setProfileMap] = useState<ProfileMap>({});
   const [otherUserIds, setOtherUserIds] = useState<string[]>([]);
   
-  // ✅ NEW: Map userId -> streamId for existing DMs
   const [dmUserMap, setDmUserMap] = useState<Record<string, string>>({});
   
   const profileMapRef = useRef(profileMap);
@@ -74,8 +73,8 @@ export function DirectMessageList({
       const targetAddress = newDmAddress.trim().toLowerCase();
       
       console.log('🔍 Checking for existing DM with:', targetAddress);
+      console.log('🗺️ Current DM map:', dmUserMap);
       
-      // ✅ CHECK: Does a DM already exist with this user?
       const existingStreamId = dmUserMap[targetAddress];
       
       if (existingStreamId) {
@@ -85,7 +84,7 @@ export function DirectMessageList({
         setShowNewDmModal(false);
         setNewDmAddress('');
         setCheckingExisting(false);
-        return; // ✅ Exit early - don't call createDM!
+        return;
       }
       
       console.log('🆕 No existing DM found, creating new one...');
@@ -96,7 +95,6 @@ export function DirectMessageList({
         console.log('✅ DM created:', result.streamId);
         toast.success('DM opened!');
         
-        // ✅ Update the map immediately
         setDmUserMap(prev => ({
           ...prev,
           [targetAddress]: result.streamId,
@@ -111,7 +109,6 @@ export function DirectMessageList({
       
       const errorMessage = error.message || String(error);
       
-      // This should rarely happen now since we check first
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
         toast.info('DM exists - refreshing list...');
         setCreateError('✅ DM exists! Refreshing...');
@@ -202,7 +199,6 @@ export function DirectMessageList({
         if (data.success) {
           console.log('✅ Batch profiles fetched:', data.profiles);
           
-          // ✅ Normalize all keys to lowercase
           const normalizedProfiles: ProfileMap = {};
           Object.entries(data.profiles).forEach(([address, profile]) => {
             normalizedProfiles[address.toLowerCase()] = profile as any;
@@ -221,17 +217,24 @@ export function DirectMessageList({
     fetchBatchProfiles();
   }, [otherUserIds]);
 
-  // ✅ UPDATED: Now accepts streamId too
+  // ✅ FIXED: Update dmUserMap synchronously, debounce only profile fetching
   const handleOtherUserIdResolved = useCallback((id: string, streamId: string) => {
+    // ✅ Update the map IMMEDIATELY (synchronously)
+    setDmUserMap(prev => {
+      if (prev[id.toLowerCase()] === streamId) {
+        return prev; // No change needed
+      }
+      console.log('🗺️ Adding to DM map:', id.toLowerCase(), '→', streamId);
+      return {
+        ...prev,
+        [id.toLowerCase()]: streamId,
+      };
+    });
+    
+    // ✅ ALSO add to pending IDs for profile fetching (debounced)
     if (!pendingIdsRef.current.includes(id)) {
       pendingIdsRef.current.push(id);
     }
-    
-    // ✅ Update the user -> stream mapping
-    setDmUserMap(prev => ({
-      ...prev,
-      [id.toLowerCase()]: streamId,
-    }));
     
     clearTimeout(batchTimerRef.current);
     batchTimerRef.current = setTimeout(() => {
@@ -479,7 +482,7 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
   profileMap: ProfileMap;
-  onOtherUserIdResolved: (userId: string, streamId: string) => void; // ✅ Updated signature
+  onOtherUserIdResolved: (userId: string, streamId: string) => void;
 }) {
   const { data: dm } = useDm(streamId);
   const { userId: myUserId } = useMyMember(streamId);
@@ -493,9 +496,10 @@ function DmListItem({
     (id) => id !== myUserId
   ) || myUserId;
   
+  // ✅ Call immediately on mount - synchronous update
   useEffect(() => {
     if (otherUserIdFromSdk) {
-      onOtherUserIdResolved(otherUserIdFromSdk, streamId); // ✅ Pass streamId too
+      onOtherUserIdResolved(otherUserIdFromSdk, streamId);
     }
   }, [otherUserIdFromSdk, streamId, onOtherUserIdResolved]);
   
