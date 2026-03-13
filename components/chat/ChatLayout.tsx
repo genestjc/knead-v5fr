@@ -220,7 +220,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
       {/* ✅ OPTIMIZED: Hide instead of unmount - keeps SDK subscriptions alive */}
       <main className="flex-1 overflow-hidden relative min-h-0">
-        <div className={shouldShowMainChat ? '' : 'hidden'}>
+        <div className={`h-full ${shouldShowMainChat ? '' : 'hidden'}`}>
           {children}
         </div>
       </main>
