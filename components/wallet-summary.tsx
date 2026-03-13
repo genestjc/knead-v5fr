@@ -38,24 +38,20 @@ export function WalletSummary({
   
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
   
-  // Contributor-specific states
   const [isContributor, setIsContributor] = useState(false);
   const [claimableBalance, setClaimableBalance] = useState<string>("0");
   const [isLoadingClaimable, setIsLoadingClaimable] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   
-  // NEW: Contributor allowance states
   const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
   const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("100");
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
   
-  // NEW: Participant earnings states
   const [totalEarned, setTotalEarned] = useState<string>("0");
   const [graduationThreshold, setGraduationThreshold] = useState<string>("3334");
   const [hasGraduated, setHasGraduated] = useState(false);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
   
-  // Contributor Settings Modal states
   const [showContributorSettings, setShowContributorSettings] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   
@@ -65,7 +61,6 @@ export function WalletSummary({
   const isInAppWallet = wallet?.walletId === "inApp" || wallet?.id === "inApp";
   const isChatContext = context === "chat";
 
-  // 🔍 DEBUG: Log component mount and props
   useEffect(() => {
     console.log('🔍 WalletSummary mounted');
     console.log('🔍 Context:', context);
@@ -73,7 +68,6 @@ export function WalletSummary({
     console.log('🔍 Account:', account?.address);
   }, []);
 
-  // Check contributor status
   useEffect(() => {
     console.log('🔍 Contributor check useEffect triggered');
     console.log('🔍 Account address:', account?.address);
@@ -108,7 +102,6 @@ export function WalletSummary({
         
         console.log('✅ NFT Contract created');
         
-        // Check if they own any of the contributor tokens (1, 2, or 3)
         const contributorTokenIds = [1, 2, 3];
         
         console.log('🔍 Checking token IDs:', contributorTokenIds);
@@ -144,12 +137,10 @@ export function WalletSummary({
     checkContributorStatus();
   }, [account?.address]);
 
-  // 🔍 DEBUG: Watch isContributor state changes
   useEffect(() => {
     console.log('🔍 isContributor state changed to:', isContributor);
   }, [isContributor]);
 
-  // Fetch user data for contributor settings
   useEffect(() => {
     if (!account?.address || !isChatContext) return;
     
@@ -169,7 +160,6 @@ export function WalletSummary({
     fetchUserData();
   }, [account?.address, isChatContext]);
 
-  // Fetch TOWNS balance
   useEffect(() => {
     if (!isChatContext || !account?.address) return;
 
@@ -210,7 +200,6 @@ export function WalletSummary({
     return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
 
-  // NEW: Fetch contract constants (graduation threshold, weekly allowance cap)
   useEffect(() => {
     if (!isChatContext) return;
     
@@ -228,7 +217,6 @@ export function WalletSummary({
     fetchConstants();
   }, [isChatContext]);
 
-  // NEW: Fetch contributor stats (weekly allowance)
   useEffect(() => {
     if (!isContributor || !account?.address || !isChatContext) return;
     
@@ -251,7 +239,6 @@ export function WalletSummary({
     return () => clearInterval(interval);
   }, [isContributor, account?.address, isChatContext]);
 
-  // NEW: Fetch participant stats (total earned, graduation status)
   useEffect(() => {
     if (!account?.address || !isChatContext) return;
     
@@ -275,7 +262,6 @@ export function WalletSummary({
     return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
 
-  // UPDATED: Fetch claimable balance using cashbackEarnings from getContributorStats
   useEffect(() => {
     console.log('🔍 Claimable balance useEffect triggered');
     console.log('🔍 isContributor:', isContributor);
@@ -375,7 +361,6 @@ export function WalletSummary({
       
       console.log(`✅ Claim TX: https://basescan.org/tx/${result.transactionHash}`);
       
-      // Refresh balances
       setClaimableBalance('0');
       setTimeout(() => {
         window.location.reload();
@@ -473,7 +458,6 @@ export function WalletSummary({
       
       setShowWithdrawalModal(false);
       
-      // Refresh balance
       setTimeout(async () => {
         try {
           const balance = await getWalletBalance({
@@ -528,15 +512,14 @@ export function WalletSummary({
       setIsSigningOut(true);
       setIsDropdownOpen(false);
       
-      // ✅ CLEAR TOWNS BEARER TOKEN
-      console.log('🧹 Clearing Towns authentication...');
-      try {
-        localStorage.removeItem('knead_towns_bearer_token');
-        localStorage.removeItem('knead_towns_token_expiry');
-        console.log('✅ Cleared Towns authentication');
-      } catch (error) {
-        console.error('❌ Failed to clear Towns auth:', error);
-      }
+      console.log('🧹 Clearing authentication...');
+      
+      // ✅ Clear Towns bearer token (authentication)
+      localStorage.removeItem('knead_towns_bearer_token');
+      localStorage.removeItem('knead_towns_token_expiry');
+      
+      // ✅ DON'T clear Towns device encryption keys - they should persist
+      console.log('🔐 Preserving Towns device encryption keys for DM continuity');
       
       try {
         await disconnect();
@@ -548,22 +531,34 @@ export function WalletSummary({
       // ✅ Clear membership cache
       localStorage.removeItem("knead_membership_cache");
       
-      // ✅ Clear ThirdWeb keys
-      const thirdwebKeys = Object.keys(localStorage).filter(key => 
-        key.includes('thirdweb') || 
-        key.includes('walletconnect') || 
-        key.startsWith('email_') ||
-        key.startsWith('tw-') ||
-        key.includes('wallet')
-      );
+      // ✅ Clear ThirdWeb wallet keys (but NOT Towns device keys)
+      const thirdwebKeys = Object.keys(localStorage).filter(key => {
+        // Exclude Towns device/encryption keys - these must persist for DMs
+        if (key.includes('towns') || 
+            key.includes('@river-build') || 
+            key.includes('river_') ||
+            key.startsWith('device_') ||
+            key.includes('crypto_')) {
+          console.log(`🔐 Preserving: ${key}`);
+          return false;
+        }
+        
+        // Only clear ThirdWeb-related keys
+        return key.includes('thirdweb') || 
+               key.includes('walletconnect') || 
+               key.startsWith('email_') ||
+               key.startsWith('tw-');
+      });
       
-      thirdwebKeys.forEach(key => localStorage.removeItem(key));
+      thirdwebKeys.forEach(key => {
+        console.log(`❌ Removing: ${key}`);
+        localStorage.removeItem(key);
+      });
       
       const sessionKeys = Object.keys(sessionStorage).filter(key => 
         key.includes('thirdweb') || 
         key.includes('walletconnect') || 
-        key.startsWith('tw-') ||
-        key.includes('wallet')
+        key.startsWith('tw-')
       );
       
       sessionKeys.forEach(key => sessionStorage.removeItem(key));
@@ -571,12 +566,12 @@ export function WalletSummary({
       // ✅ Clear cookies
       document.cookie.split(";").forEach(cookie => {
         const [name] = cookie.trim().split("=");
-        if (name.includes("thirdweb") || name.includes("wallet")) {
+        if (name.includes("thirdweb")) {
           document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
         }
       });
       
-      console.log('✅ All authentication cleared - redirecting...');
+      console.log('✅ Authentication cleared - redirecting...');
       
       setTimeout(() => {
         window.location.href = '/?nocache=' + new Date().getTime();
@@ -621,7 +616,6 @@ export function WalletSummary({
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="py-1">
-              {/* Copy Address */}
               <button
                 onClick={handleCopy}
                 className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -634,7 +628,6 @@ export function WalletSummary({
                 <>
                   <div className="border-t border-gray-100 my-1"></div>
                   
-                  {/* $TOWNS Balance */}
                   <div className="px-4 py-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -647,10 +640,8 @@ export function WalletSummary({
                     </div>
                   </div>
 
-                  {/* CONTRIBUTOR SECTION */}
                   {isContributor && (
                     <>
-                      {/* Weekly Allowance - NEW */}
                       <div className="px-4 py-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -663,7 +654,6 @@ export function WalletSummary({
                         </div>
                       </div>
 
-                      {/* Claimable with tooltip - UPDATED */}
                       <div className="px-4 py-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -695,10 +685,8 @@ export function WalletSummary({
                     </>
                   )}
 
-                  {/* PARTICIPANT SECTION (Non-Contributors) - NEW */}
                   {!isContributor && (
                     <>
-                      {/* Total Earned */}
                       <div className="px-4 py-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -711,7 +699,6 @@ export function WalletSummary({
                         </div>
                       </div>
 
-                      {/* Progress to Graduation */}
                       {!hasGraduated && (
                         <div className="px-4 py-2">
                           <div className="flex items-center justify-between">
@@ -726,7 +713,6 @@ export function WalletSummary({
                         </div>
                       )}
 
-                      {/* Graduated Badge */}
                       {hasGraduated && (
                         <div className="px-4 py-2 bg-gradient-to-r from-yellow-50 to-yellow-100">
                           <div className="flex items-center justify-center text-sm font-adonis text-yellow-800">
@@ -737,7 +723,6 @@ export function WalletSummary({
                     </>
                   )}
 
-                  {/* Send $TOWNS */}
                   <button
                     onClick={handleWithdrawClick}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -748,7 +733,6 @@ export function WalletSummary({
 
                   <div className="border-t border-gray-100 my-1"></div>
 
-                  {/* Contributor Settings - Contributors only */}
                   {isContributor && (
                     <button
                       onClick={handleContributorSettings}
@@ -759,7 +743,6 @@ export function WalletSummary({
                     </button>
                   )}
 
-                  {/* Export Private Key */}
                   <button
                     onClick={handleExportKey}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -772,7 +755,6 @@ export function WalletSummary({
 
               <div className="border-t border-gray-100 my-1"></div>
 
-              {/* Sign Out */}
               <button
                 onClick={handleSignOut}
                 disabled={isSigningOut}
@@ -786,7 +768,6 @@ export function WalletSummary({
         )}
       </div>
 
-      {/* Send $TOWNS Modal */}
       <AnimatePresence>
         {showWithdrawalModal && (
           <div 
@@ -905,7 +886,6 @@ export function WalletSummary({
         )}
       </AnimatePresence>
 
-      {/* External Wallet Message Modal */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div 
@@ -955,7 +935,6 @@ export function WalletSummary({
         )}
       </AnimatePresence>
 
-      {/* Contributor Settings Modal */}
       <ContributorSettingsModal
         isOpen={showContributorSettings}
         onClose={() => setShowContributorSettings(false)}
