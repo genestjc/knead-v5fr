@@ -28,6 +28,7 @@ import { useTypingIndicator } from '@/hooks/use-typing-indicator';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
+import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Paperclip, X, Reply } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -63,7 +64,6 @@ interface UserProfile {
   role?: string;
 }
 
-// ✅ MODIFIED: Accept paymentIntentId from Stripe
 function PaymentForm({
   onSuccess,
 }: {
@@ -84,10 +84,9 @@ function PaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
-    // ✅ CHANGED: Stay on page with redirect: 'if_required'
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      redirect: 'if_required', // ← Don't redirect
+      redirect: 'if_required',
     });
 
     if (error) {
@@ -96,7 +95,6 @@ function PaymentForm({
       return;
     }
 
-    // ✅ NEW: Pass paymentIntentId to parent
     if (paymentIntent && paymentIntent.id) {
       onSuccess(paymentIntent.id);
     } else {
@@ -142,7 +140,7 @@ function PaymentForm({
                 <path
                   className="opacity-75"
                   fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
               Processing...
@@ -271,16 +269,13 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
 
-  // 🆕 Modal states
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showContributorModal, setShowContributorModal] = useState(false);
 
-  // 💳 Stripe modal states
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoadingIntent, setIsLoadingIntent] = useState(false);
   
-  // ✅ NEW: Payment verification states
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -290,6 +285,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const profileFetchingRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
+  
+  const profileCacheRef = useRef(profileCache);
+  profileCacheRef.current = profileCache;
 
   const activeAccount = useActiveAccount();
   const { toast } = useToast();
@@ -312,7 +310,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return userRole !== 'freemium';
   }, [userRole]);
 
-  // 💳 MODIFIED: Stripe payment handler with verification
   const handleOpenPaymentModal = async () => {
     if (!activeAccount?.address) {
       toast({
@@ -367,17 +364,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // ✅ NEW: Handle payment success with server-side verification
   const handlePaymentSuccess = async (paymentIntentId: string) => {
     if (!activeAccount?.address) return;
 
     setIsVerifying(true);
-    setIsStripeModalOpen(false); // Close payment modal
+    setIsStripeModalOpen(false);
 
     try {
       console.log('[chat] Verifying payment:', paymentIntentId);
 
-      // Verify payment server-side
       const response = await fetch('/api/verify-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -390,7 +385,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       const result = await response.json();
 
       if (result.success) {
-        // ✅ Payment verified! Grant chat access immediately
         console.log('[chat] ✅ Payment verified, unlocking chat');
         setPaymentVerified(true);
         setIsVerifying(false);
@@ -400,12 +394,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           description: 'Chat access unlocked. Start participating!',
         });
 
-        // Background: Refresh membership
         localStorage.removeItem('knead_membership_cache');
-
         window.dispatchEvent(new CustomEvent('membershipUpdated'));
 
-        // Auto-reload after showing success toast so membership takes effect
         setTimeout(() => {
           window.location.reload();
         }, 3000);
@@ -429,7 +420,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
-  // 🆕 Welcome Modal - Show on first chat entry
   useEffect(() => {
     if (!activeAccount?.address || !events) return;
     
@@ -442,7 +432,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [activeAccount?.address, events]);
 
-  // 🆕 Contributor Modal - Show when user becomes contributor
   useEffect(() => {
     if (!activeAccount?.address || userRole !== 'contributor') return;
     
@@ -452,7 +441,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [userRole, activeAccount?.address]);
 
-  // 🆕 Modal handlers
   const handleWelcomeClose = () => {
     if (activeAccount?.address) {
       localStorage.setItem(`welcome_seen_${activeAccount.address}`, 'true');
@@ -468,7 +456,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     setShowContributorModal(false);
   };
 
-  // Listen for reply events
   useEffect(() => {
     const handleReply = (event: Event) => {
       const customEvent = event as CustomEvent<{ content: string; sender: string }>;
@@ -482,68 +469,103 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
 
-  // Ensure channel is joined and keys synced
-useEffect(() => {
-  if (!syncAgent || !channelId || !spaceId) return;
-  
-  const joinChannel = async () => {
-    try {
-      const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
-      console.log('📺 Joining channel stream...');
-      await channel.join();
-      console.log('✅ Channel stream joined');
-      
-      // ✅ NEW: Force initial key sync
-      console.log('🔑 Initiating key sync...');
+  useEffect(() => {
+    if (!syncAgent || !channelId || !spaceId) return;
+    
+    const joinChannel = async () => {
       try {
-        await channel.waitForKeysToSync({ timeout: 30000 });
-        console.log('✅ Keys synced');
-      } catch (syncErr) {
-        console.warn('⚠️ Key sync timeout (normal for new users):', syncErr);
+        const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+        console.log('📺 Joining channel stream...');
+        await channel.join();
+        console.log('✅ Channel stream joined');
+        
+        console.log('🔑 Initiating key sync...');
+        try {
+          await channel.waitForKeysToSync({ timeout: 30000 });
+          console.log('✅ Keys synced');
+        } catch (syncErr) {
+          console.warn('⚠️ Key sync timeout (normal for new users):', syncErr);
+        }
+      } catch (err) {
+        console.warn('Channel join failed (may already be joined):', err);
       }
-    } catch (err) {
-      console.warn('Channel join failed (may already be joined):', err);
-    }
-  };
-  
-  joinChannel();
-}, [syncAgent, spaceId, channelId]);
+    };
+    
+    joinChannel();
+  }, [syncAgent, spaceId, channelId]);
 
-  // DIAGNOSTIC: Log raw event shape
   useEffect(() => {
     if (events && events.length > 0) {
       console.log('🔍 Raw timeline event sample:', events[0]);
     }
   }, [events]);
 
-  // DIAGNOSTIC: Log reactions data
   useEffect(() => {
     if (reactionsData) {
       console.log('🔍 Reactions data sample:', reactionsData);
     }
   }, [reactionsData]);
 
-  const getProfile = useCallback(async (walletAddress: string) => {
-    try {
-      const response = await fetch(`/api/chat/user?address=${walletAddress}`);
-      const data = await response.json();
+  useEffect(() => {
+    if (!events || events.length === 0) return;
 
-      if (data.success && data.user) {
-        setProfileCache(prev => ({
-          ...prev,
-          [walletAddress]: {
-            alias: data.user.alias,
-            avatar: data.user.avatar,
-            displayName: data.user.displayName,
-            walletAddress,
-            role: data.user.role,
-          },
-        }));
+    const uncachedAddresses = events
+      .map((event: any) => event.sender?.id)
+      .filter(
+        (addr): addr is string =>
+          !!addr && 
+          !profileCacheRef.current[addr] &&
+          !profileFetchingRef.current.has(addr)
+      );
+
+    if (uncachedAddresses.length === 0) return;
+
+    uncachedAddresses.forEach((addr) => {
+      profileFetchingRef.current.add(addr);
+    });
+
+    const fetchBatchProfiles = async () => {
+      try {
+        console.log('📦 Batch fetching', uncachedAddresses.length, 'chat profiles');
+        
+        const response = await fetch('/api/chat/users/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses: [...new Set(uncachedAddresses)] }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.profiles) {
+          console.log('✅ Chat profiles fetched:', Object.keys(data.profiles).length);
+          
+          const newProfiles: Record<string, UserProfile> = {};
+          
+          Object.entries(data.profiles).forEach(([address, profile]: [string, any]) => {
+            newProfiles[address] = {
+              alias: profile.alias,
+              avatar: profile.avatar,
+              displayName: profile.alias || formatAddressForDisplay(address),
+              walletAddress: address,
+              role: profile.role,
+            };
+          });
+          
+          setProfileCache(prev => ({
+            ...prev,
+            ...newProfiles,
+          }));
+        }
+      } catch (error) {
+        console.error('❌ Failed to batch fetch chat profiles:', error);
+        uncachedAddresses.forEach((addr) => {
+          profileFetchingRef.current.delete(addr);
+        });
       }
-    } catch {
-      // Silent
-    }
-  }, []);
+    };
+
+    fetchBatchProfiles();
+  }, [events]);
 
   const loadMoreMessages = useCallback(async () => {
     if (isLoadingMore || hasReachedStart || isScrollbackPending) return;
@@ -592,22 +614,6 @@ useEffect(() => {
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
 
-  useEffect(() => {
-    if (!events || events.length === 0) return;
-
-    const addresses = events
-      .map((event: any) => event.sender?.id)
-      .filter(
-        (addr): addr is string =>
-          !!addr && !profileCache[addr] && !profileFetchingRef.current.has(addr),
-      );
-
-    addresses.forEach((addr) => {
-      profileFetchingRef.current.add(addr);
-      getProfile(addr);
-    });
-  }, [events, profileCache, getProfile]);
-
   const messages = useMemo(() => {
     if (!events) return [];
 
@@ -650,7 +656,6 @@ useEffect(() => {
       .sort((a: any, b: any) => a.timestamp - b.timestamp);
   }, [events, profileCache, activeAccount?.address, reactionsData]);
   
-  // Blockchain contributor checking
   useEffect(() => {
     if (!messages || messages.length === 0) return;
 
@@ -708,19 +713,23 @@ useEffect(() => {
       const roleInfo = await getUserRole(activeAccount!.address);
       setUserRole(roleInfo.role);
 
-      try {
-        const response = await fetch(`/api/chat/user?address=${activeAccount!.address}`);
-        const data = await response.json();
-        if (data.success && data.user) {
-          setIsAdmin(data.user.role === 'admin' || data.user.role === 'master-admin');
-        }
-      } catch {
-        // Silent
+      const cachedProfile = profileCacheRef.current[activeAccount!.address];
+      if (cachedProfile?.role) {
+        setIsAdmin(cachedProfile.role === 'admin' || cachedProfile.role === 'master-admin');
       }
     }
 
     detectRole();
   }, [activeAccount?.address]);
+
+  useEffect(() => {
+    if (!activeAccount?.address) return;
+    
+    const profile = profileCache[activeAccount.address];
+    if (profile?.role) {
+      setIsAdmin(profile.role === 'admin' || profile.role === 'master-admin');
+    }
+  }, [activeAccount?.address, profileCache]);
 
   useEffect(() => {
     if (!activeAccount?.address) return;
@@ -1031,7 +1040,6 @@ useEffect(() => {
   };
 
   const renderChatInput = () => {
-    // ✅ Allow chat input if payment verified OR has permission
     if (!permissions?.canPost && !paymentVerified) {
       return renderDisabledMessageBanner();
     }
@@ -1210,7 +1218,6 @@ useEffect(() => {
             />
           )}
 
-          {/* ✅ Show verifying state */}
           {isVerifying && (
             <div className="bg-blue-50 border-b border-blue-200 px-4 py-3">
               <div className="flex items-center justify-center gap-2">
