@@ -76,7 +76,15 @@ export function DirectMessageList({
     }
     
     try {
-      const targetAddress = newDmAddress.trim().toLowerCase();
+      // ✅ Don't lowercase - pass address as-is
+      const targetAddress = newDmAddress.trim();
+      
+      // Prevent DMing yourself
+      if (targetAddress.toLowerCase() === userId.toLowerCase()) {
+        toast.error('You cannot send a message to yourself');
+        return;
+      }
+      
       const result = await createDM(targetAddress);
       
       if (result?.streamId) {
@@ -129,21 +137,21 @@ export function DirectMessageList({
     );
   }
   
-  if (!isContributor) {
-    return (
-      <div className="p-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-adonis font-medium text-blue-900 mb-2">Direct Messages</h3>
-          <p className="text-sm text-blue-700 font-georgia-pro">
-            Direct messaging is available only to Contributors.
-          </p>
-          <p className="text-xs text-blue-600 mt-2 font-georgia-pro">
-            💡 Contributors have full access to DMs and can message each other anytime.
-          </p>
-        </div>
+ if (!isContributor) {
+  return (
+    <div className="p-4">
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 className="font-adonis font-medium text-gray-900 mb-2">Direct Messages</h3>
+        <p className="text-sm text-gray-700 font-georgia-pro">
+          Direct messaging is available only to Contributors.
+        </p>
+        <p className="text-xs text-gray-600 mt-2 font-georgia-pro">
+          💡 Contributors have full access to DMs and can message each other anytime.
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div>
@@ -157,12 +165,15 @@ export function DirectMessageList({
       </div>
 
       <div className="space-y-1">
+        {/* ✅ Only load details for selected DM to avoid rate limiting */}
         {streamIds?.map((streamId) => (
           <DmListItem
             key={streamId}
             streamId={streamId}
+            currentUserId={userId}
             onSelect={onSelectDm}
             isSelected={selectedDmId === streamId}
+            shouldLoadDetails={selectedDmId === streamId}
           />
         ))}
       </div>
@@ -281,43 +292,37 @@ export function DirectMessageList({
   );
 }
 
+// ✅ Simplified: Only load full details when needed
 function DmListItem({ 
   streamId,
+  currentUserId,
   onSelect,
-  isSelected 
+  isSelected,
+  shouldLoadDetails = false
 }: {
   streamId: string;
+  currentUserId: string;
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
+  shouldLoadDetails?: boolean;
 }) {
-  const { userId: myUserId } = useMyMember(streamId);
-  const { data: members } = useMemberList(streamId);
+  // ✅ Only call SDK hooks if we should load details (to avoid rate limiting)
+  const { userId: myUserId } = shouldLoadDetails ? useMyMember(streamId) : { userId: undefined };
+  const { data: members } = shouldLoadDetails ? useMemberList(streamId) : { data: undefined };
   
   const otherUserId = members?.userIds?.find((userId) => userId !== myUserId) || myUserId;
   
-  const { displayName: sdkDisplayName, username, nft } = useMember({
-    streamId,
-    userId: otherUserId,
-  });
+  const { displayName: sdkDisplayName, username, nft } = shouldLoadDetails && otherUserId 
+    ? useMember({ streamId, userId: otherUserId })
+    : { displayName: undefined, username: undefined, nft: undefined };
   
-  const customProfile = useCustomProfile(otherUserId);
+  const customProfile = useCustomProfile(shouldLoadDetails ? otherUserId : undefined);
   
   const avatarUrl = customProfile?.avatar || nft?.pfpUrl || null;
-  const displayName = customProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserId);
+  const displayName = customProfile?.alias || sdkDisplayName || username || streamId.slice(0, 8) + '...';
   
-  // ✅ Debug logging
-  console.log('🔍 DM List Item:', {
-    streamId: streamId.slice(0, 16) + '...',
-    myUserId: myUserId?.slice(0, 12) + '...',
-    otherUserId: otherUserId?.slice(0, 12) + '...',
-    isSelfDm: otherUserId === myUserId,
-    customAlias: customProfile?.alias,
-    sdkDisplayName,
-    username,
-    finalDisplayName: displayName,
-    hasNftAvatar: !!nft?.pfpUrl,
-    hasCustomAvatar: !!customProfile?.avatar,
-  });
+  // ✅ Show streamId as placeholder until clicked
+  const placeholderName = streamId.slice(0, 8) + '...' + streamId.slice(-6);
   
   return (
     <button
@@ -327,18 +332,20 @@ function DmListItem({
       }`}
     >
       <div className="flex items-center gap-3">
-        {avatarUrl ? (
-          <img
-            src={convertIpfsToGatewayUrl(avatarUrl)}
-            alt={displayName}
-            className="w-10 h-10 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-            {displayName.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-        <div className="flex-1 font-georgia-pro text-sm">{displayName}</div>
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+          {shouldLoadDetails && avatarUrl ? (
+            <img
+              src={convertIpfsToGatewayUrl(avatarUrl)}
+              alt={displayName}
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            (shouldLoadDetails ? displayName : placeholderName).slice(0, 2).toUpperCase()
+          )}
+        </div>
+        <div className="flex-1 font-georgia-pro text-sm">
+          {shouldLoadDetails ? displayName : placeholderName}
+        </div>
       </div>
     </button>
   );
