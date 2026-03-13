@@ -74,8 +74,11 @@ export function DirectMessageList({
     }
     
     try {
-      console.log('🔍 Creating DM with:', newDmAddress);
-      const result = await createDM(newDmAddress.trim().toLowerCase());
+      const targetAddress = newDmAddress.trim().toLowerCase();
+      console.log('🔍 Creating DM with:', targetAddress);
+      console.log('📋 Current streams:', streamIds?.length || 0);
+      
+      const result = await createDM(targetAddress);
       
       if (result?.streamId) {
         console.log('✅ DM created:', result.streamId);
@@ -87,10 +90,29 @@ export function DirectMessageList({
       }
     } catch (error: any) {
       console.error('❌ Failed to create DM:', error);
+      const errorMessage = error.message || String(error);
       
-      if (error.message?.includes('already exists')) {
-        toast.info('DM already exists - refreshing...');
-        setTimeout(() => window.location.reload(), 1500);
+      if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
+        console.log('⚠️ DM already exists - this is a Towns SDK sync issue');
+        
+        // Close modal and clear form
+        setShowNewDmModal(false);
+        setNewDmAddress('');
+        setSearchQuery('');
+        
+        // Show helpful message
+        toast.error('This conversation already exists! Check your DM list on the left.', {
+          duration: 5000,
+        });
+        
+        // If it's truly not showing, that's a Towns SDK bug we can't fix
+        console.warn('💡 If DM is not visible in list, the Towns SDK has not synced it yet.');
+      } else if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
+        toast.error('⏱️ Network is syncing. Please wait a moment and try again.');
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
+        toast.error('⏱️ Network timeout. Please try again.');
+      } else if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
+        toast.error('❌ Permission denied. Contact support.');
       } else {
         toast.error('Failed to create DM. Please try again.');
       }
