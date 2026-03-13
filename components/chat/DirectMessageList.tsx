@@ -50,7 +50,6 @@ export function DirectMessageList({
   const profileMapRef = useRef(profileMap);
   profileMapRef.current = profileMap;
   
-  // ✅ Debounce refs to batch ID collection
   const pendingIdsRef = useRef<string[]>([]);
   const batchTimerRef = useRef<NodeJS.Timeout>();
 
@@ -153,7 +152,6 @@ export function DirectMessageList({
     }
   }, [showNewDmModal, contributors.length, userId]);
 
-  // ✅ Batch fetch profiles
   useEffect(() => {
     if (!otherUserIds.length) return;
     
@@ -190,13 +188,11 @@ export function DirectMessageList({
     fetchBatchProfiles();
   }, [otherUserIds]);
 
-  // ✅ Debounced ID collection - accumulates IDs before triggering batch
   const handleOtherUserIdResolved = useCallback((id: string) => {
     if (!pendingIdsRef.current.includes(id)) {
       pendingIdsRef.current.push(id);
     }
     
-    // Debounce: wait 300ms for all DmListItems to report their IDs
     clearTimeout(batchTimerRef.current);
     batchTimerRef.current = setTimeout(() => {
       const ids = [...pendingIdsRef.current];
@@ -212,7 +208,6 @@ export function DirectMessageList({
     }, 300);
   }, []);
 
-  // ✅ Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (batchTimerRef.current) {
@@ -458,6 +453,16 @@ function DmListItem({
     (id) => id !== myUserId
   ) || myUserId;
   
+  // ✅ TEMPORARY: Debug logging
+  useEffect(() => {
+    console.log('🔑 DM Debug for stream:', streamId.slice(0, 16) + '...');
+    console.log('   My SDK userId:', myUserId);
+    console.log('   My wallet (prop):', currentUserId);
+    console.log('   Match?', myUserId?.toLowerCase() === currentUserId?.toLowerCase());
+    console.log('   Other SDK userId:', otherUserIdFromSdk);
+    console.log('   All members:', members.userIds);
+  }, [streamId, myUserId, currentUserId, otherUserIdFromSdk, members]);
+  
   useEffect(() => {
     if (otherUserIdFromSdk) {
       onOtherUserIdResolved(otherUserIdFromSdk);
@@ -472,6 +477,15 @@ function DmListItem({
   const isSelfDm = otherUserIdFromSdk === myUserId;
   
   const cachedProfile = profileMap[otherUserIdFromSdk?.toLowerCase()];
+  
+  // ✅ TEMPORARY: Debug profile lookup
+  useEffect(() => {
+    console.log('👤 Profile lookup for:', otherUserIdFromSdk);
+    console.log('   Found in cache?', !!cachedProfile);
+    console.log('   Cache has alias?', cachedProfile?.alias);
+    console.log('   SDK displayName:', sdkDisplayName);
+    console.log('   SDK username:', username);
+  }, [otherUserIdFromSdk, cachedProfile, sdkDisplayName, username]);
   
   const displayName = isSelfDm 
     ? (cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
