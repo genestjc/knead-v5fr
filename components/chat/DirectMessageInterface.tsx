@@ -160,15 +160,14 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
-  // ✅ Detect incoming video calls
+  // ✅ Detect incoming video calls - FIXED to use SDK userId only
   useEffect(() => {
-    if (!events || events.length === 0) return;
+    if (!events || events.length === 0 || !myUserId) return;
     const lastEvent = events[events.length - 1];
     if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return;
     const senderId = lastEvent.sender?.id || '';
-    const isFromOtherUser = myUserId
-      ? senderId !== myUserId
-      : Boolean(currentUserId && senderId.toLowerCase() !== currentUserId.toLowerCase());
+    // ✅ Use SDK userId only - no wallet address comparison
+    const isFromOtherUser = senderId !== myUserId;
     if (!isFromOtherUser) return;
     const messageText = lastEvent.content?.body || '';
     if (!messageText.startsWith(VIDEO_CALL_INVITE_PREFIX)) return;
@@ -180,7 +179,7 @@ export function DirectMessageInterface({
       setIncomingCallRoomName(roomName);
       toast.info(`${otherUserName} is calling you! 📹`);
     }
-  }, [events, myUserId, currentUserId, otherUserName]);
+  }, [events, myUserId, otherUserName]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -189,7 +188,6 @@ export function DirectMessageInterface({
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending) return;
 
-    // ✅ Debug logging
     console.log('🔍 Attempting to send message...');
     console.log('   townsDmId:', townsDmId);
     console.log('   myUserId:', myUserId);
@@ -206,7 +204,6 @@ export function DirectMessageInterface({
       console.error('❌ Failed to send DM:', error);
       console.error('   Error type:', error.constructor.name);
       console.error('   Error message:', error.message);
-      console.error('   Full error:', error);
       
       const errorMsg = error.message?.toLowerCase() || '';
       if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
@@ -288,7 +285,6 @@ export function DirectMessageInterface({
       
       const { roomUrl, roomName } = roomData.data;
       
-      // Send invite message
       const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
       await sendMessage(inviteMessage);
       
@@ -461,9 +457,8 @@ export function DirectMessageInterface({
             ) : (
               messages.map((event, index) => {
                 const senderId = event.sender?.id || '';
-                const isCurrentUser = myUserId
-                  ? senderId === myUserId
-                  : Boolean(currentUserId && senderId?.toLowerCase() === currentUserId.toLowerCase());
+                // ✅ Use SDK userId only - no wallet address fallback
+                const isCurrentUser = senderId === myUserId;
                 const timestamp =
                   (event as any).createdAtEpochMs ||
                   (event as any).created_at_epoch_ms ||
