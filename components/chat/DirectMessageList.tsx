@@ -5,8 +5,15 @@ import { useUserDms, useCreateDm, useMemberList, useMyMember, useMember } from '
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
-import { X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface Contributor {
+  id: string;
+  address: string;
+  displayName: string;
+  avatar: string | null;
+}
 
 interface DirectMessageListProps {
   userId: string;
@@ -32,10 +39,39 @@ export function DirectMessageList({
   
   const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newDmAddress, setNewDmAddress] = useState('');
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [loadingContributors, setLoadingContributors] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (showNewDmModal && contributors.length === 0) {
+      const fetchContributors = async () => {
+        setLoadingContributors(true);
+        try {
+          const response = await fetch('/api/contributors/all');
+          const data = await response.json();
+          
+          if (data.success) {
+            const filtered = data.contributors.filter(
+              (c: Contributor) => c.address.toLowerCase() !== userId.toLowerCase()
+            );
+            setContributors(filtered);
+          } else {
+            console.warn('Contributors API returned error:', data.error);
+          }
+        } catch (error) {
+          console.warn('Failed to load contributors:', error);
+        } finally {
+          setLoadingContributors(false);
+        }
+      };
+      fetchContributors();
+    }
+  }, [showNewDmModal, contributors.length, userId]);
 
   const handleCreateDm = async () => {
     if (!newDmAddress.trim()) {
-      toast.error('Please enter a wallet address');
+      toast.error('Please select a contributor or enter an address');
       return;
     }
     
@@ -55,6 +91,7 @@ export function DirectMessageList({
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
+        setSearchQuery('');
         toast.success('DM opened!');
       }
     } catch (error: any) {
@@ -63,8 +100,8 @@ export function DirectMessageList({
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
         setShowNewDmModal(false);
         setNewDmAddress('');
+        setSearchQuery('');
         
-        // ✅ Better approach - wait and refetch instead of full page reload
         toast.info('DM exists, syncing...', { duration: 3000 });
         
         setTimeout(async () => {
@@ -82,6 +119,19 @@ export function DirectMessageList({
         toast.error('Failed to create DM. Please try again.');
       }
     }
+  };
+
+  const filteredContributors = contributors.filter((c) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      c.displayName.toLowerCase().includes(query) ||
+      c.address.toLowerCase().includes(query)
+    );
+  });
+
+  const selectContributor = (address: string) => {
+    setNewDmAddress(address);
+    setSearchQuery('');
   };
 
   if (isLoading) {
@@ -133,51 +183,110 @@ export function DirectMessageList({
 
       {showNewDmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-adonis text-xl">New Direct Message</h3>
-              <button
-                onClick={() => {
-                  setShowNewDmModal(false);
-                  setNewDmAddress('');
-                }}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
-                Enter wallet address
-              </label>
-              <input
-                type="text"
-                value={newDmAddress}
-                onChange={(e) => setNewDmAddress(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro text-sm"
-              />
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-adonis text-xl">New Direct Message</h3>
+                <button
+                  onClick={() => {
+                    setShowNewDmModal(false);
+                    setNewDmAddress('');
+                    setSearchQuery('');
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search contributors..."
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro text-sm"
+                />
+              </div>
             </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowNewDmModal(false);
-                  setNewDmAddress('');
-                }}
-                className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition-colors font-georgia-pro text-sm"
-                disabled={isCreatingDm}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateDm}
-                disabled={isCreatingDm || !newDmAddress.trim()}
-                className="flex-1 py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-georgia-pro text-sm"
-              >
-                {isCreatingDm ? 'Creating...' : 'Open DM'}
-              </button>
+            <div className="flex-1 overflow-y-auto">
+              {loadingContributors ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                </div>
+              ) : filteredContributors.length > 0 ? (
+                <div className="p-2">
+                  {filteredContributors.map((contributor) => (
+                    <button
+                      key={contributor.id}
+                      onClick={() => selectContributor(contributor.address)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                    >
+                      {contributor.avatar ? (
+                        <img
+                          src={convertIpfsToGatewayUrl(contributor.avatar)}
+                          alt={contributor.displayName}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+                          {contributor.displayName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-georgia-pro font-medium text-sm text-gray-900 truncate">
+                          {contributor.displayName}
+                        </p>
+                        <p className="font-georgia-pro text-xs text-gray-500 truncate">
+                          {contributor.address.slice(0, 8)}...{contributor.address.slice(-6)}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-gray-500 font-georgia-pro">
+                  {searchQuery ? 'No contributors found' : contributors.length === 0 ? 'Loading contributors...' : 'No contributors available'}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2 font-georgia-pro">
+                  Or enter wallet address directly
+                </label>
+                <input
+                  type="text"
+                  value={newDmAddress}
+                  onChange={(e) => setNewDmAddress(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowNewDmModal(false);
+                    setNewDmAddress('');
+                    setSearchQuery('');
+                  }}
+                  className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition-colors font-georgia-pro text-sm"
+                  disabled={isCreatingDm}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateDm}
+                  disabled={isCreatingDm || !newDmAddress.trim()}
+                  className="flex-1 py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-georgia-pro text-sm"
+                >
+                  {isCreatingDm ? 'Creating...' : 'Open DM'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -186,7 +295,7 @@ export function DirectMessageList({
   );
 }
 
-// ✅ Simple component - always calls hooks
+// ✅ Always calls hooks unconditionally
 function DmListItem({ 
   streamId,
   currentUserId,
@@ -198,13 +307,10 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
 }) {
-  // ✅ Always call hooks unconditionally
   const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   
   const otherUserId = members?.userIds?.find((userId) => userId !== myUserId) || myUserId;
-  
-  // Filter out self-DMs
   const isSelfDm = otherUserId?.toLowerCase() === myUserId?.toLowerCase();
   
   const { displayName: sdkDisplayName, username, nft } = useMember({
@@ -217,7 +323,6 @@ function DmListItem({
   const avatarUrl = customProfile?.avatar || nft?.pfpUrl || null;
   const displayName = customProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserId);
   
-  // Don't render self-DMs
   if (isSelfDm) {
     return null;
   }
