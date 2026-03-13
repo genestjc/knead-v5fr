@@ -47,6 +47,9 @@ export function DirectMessageList({
   const [profileMap, setProfileMap] = useState<ProfileMap>({});
   const [otherUserIds, setOtherUserIds] = useState<string[]>([]);
   
+  // ✅ NEW: Map userId -> streamId for existing DMs
+  const [dmUserMap, setDmUserMap] = useState<Record<string, string>>({});
+  
   const profileMapRef = useRef(profileMap);
   profileMapRef.current = profileMap;
   
@@ -70,25 +73,48 @@ export function DirectMessageList({
     try {
       const targetAddress = newDmAddress.trim().toLowerCase();
       
-      console.log('🔍 Attempting to create/open DM with:', targetAddress);
+      console.log('🔍 Checking for existing DM with:', targetAddress);
+      
+      // ✅ CHECK: Does a DM already exist with this user?
+      const existingStreamId = dmUserMap[targetAddress];
+      
+      if (existingStreamId) {
+        console.log('✅ Found existing DM:', existingStreamId);
+        toast.success('Opening existing conversation');
+        onSelectDm(existingStreamId, existingStreamId);
+        setShowNewDmModal(false);
+        setNewDmAddress('');
+        setCheckingExisting(false);
+        return; // ✅ Exit early - don't call createDM!
+      }
+      
+      console.log('🆕 No existing DM found, creating new one...');
       
       const result = await createDM(targetAddress);
       
       if (result?.streamId) {
-        console.log('✅ DM opened:', result.streamId);
+        console.log('✅ DM created:', result.streamId);
         toast.success('DM opened!');
+        
+        // ✅ Update the map immediately
+        setDmUserMap(prev => ({
+          ...prev,
+          [targetAddress]: result.streamId,
+        }));
+        
         onSelectDm(result.streamId, result.streamId);
         setShowNewDmModal(false);
         setNewDmAddress('');
       }
     } catch (error: any) {
-      console.error('❌ Failed to open DM:', error);
+      console.error('❌ Failed to create DM:', error);
       
       const errorMessage = error.message || String(error);
       
+      // This should rarely happen now since we check first
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
-        toast.info('DM already exists - it should appear in your list shortly.');
-        setCreateError('✅ DM exists! Check your conversation list below.');
+        toast.info('DM exists - refreshing list...');
+        setCreateError('✅ DM exists! Refreshing...');
         setTimeout(() => {
           setShowNewDmModal(false);
           setNewDmAddress('');
@@ -195,10 +221,17 @@ export function DirectMessageList({
     fetchBatchProfiles();
   }, [otherUserIds]);
 
-  const handleOtherUserIdResolved = useCallback((id: string) => {
+  // ✅ UPDATED: Now accepts streamId too
+  const handleOtherUserIdResolved = useCallback((id: string, streamId: string) => {
     if (!pendingIdsRef.current.includes(id)) {
       pendingIdsRef.current.push(id);
     }
+    
+    // ✅ Update the user -> stream mapping
+    setDmUserMap(prev => ({
+      ...prev,
+      [id.toLowerCase()]: streamId,
+    }));
     
     clearTimeout(batchTimerRef.current);
     batchTimerRef.current = setTimeout(() => {
@@ -446,7 +479,7 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
   profileMap: ProfileMap;
-  onOtherUserIdResolved: (userId: string) => void;
+  onOtherUserIdResolved: (userId: string, streamId: string) => void; // ✅ Updated signature
 }) {
   const { data: dm } = useDm(streamId);
   const { userId: myUserId } = useMyMember(streamId);
@@ -461,18 +494,10 @@ function DmListItem({
   ) || myUserId;
   
   useEffect(() => {
-    console.log('🔑 DM Debug for stream:', streamId.slice(0, 16) + '...');
-    console.log('   My SDK userId:', myUserId);
-    console.log('   My wallet (prop):', currentUserId);
-    console.log('   Match?', myUserId?.toLowerCase() === currentUserId?.toLowerCase());
-    console.log('   Other SDK userId:', otherUserIdFromSdk);
-  }, [streamId, myUserId, currentUserId, otherUserIdFromSdk]);
-  
-  useEffect(() => {
     if (otherUserIdFromSdk) {
-      onOtherUserIdResolved(otherUserIdFromSdk);
+      onOtherUserIdResolved(otherUserIdFromSdk, streamId); // ✅ Pass streamId too
     }
-  }, [otherUserIdFromSdk, onOtherUserIdResolved]);
+  }, [otherUserIdFromSdk, streamId, onOtherUserIdResolved]);
   
   const { displayName: sdkDisplayName, username } = useMember({
     streamId,
@@ -482,12 +507,6 @@ function DmListItem({
   const isSelfDm = otherUserIdFromSdk === myUserId;
   
   const cachedProfile = profileMap[otherUserIdFromSdk?.toLowerCase()];
-  
-  useEffect(() => {
-    console.log('👤 Profile lookup for:', otherUserIdFromSdk);
-    console.log('   Found in cache?', !!cachedProfile);
-    console.log('   Cache has alias?', cachedProfile?.alias);
-  }, [otherUserIdFromSdk, cachedProfile]);
   
   const displayName = isSelfDm 
     ? (cachedProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(myUserId)) + ' (You)'
