@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUserDms, useCreateDm, useDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
+import { useUserDms, useCreateDm, useMemberList, useMyMember, useMember } from '@towns-protocol/react-sdk';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,7 +21,6 @@ interface DirectMessageListProps {
   selectedDmId?: string;
 }
 
-// ✅ Extracted helper function
 function convertIpfsToGatewayUrl(uri: string): string {
   if (uri && uri.startsWith('ipfs://')) {
     return `https://ipfs.thirdwebcdn.com/ipfs/${uri.replace('ipfs://', '')}`;
@@ -97,11 +97,11 @@ export function DirectMessageList({
           duration: 5000,
         });
       } else if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
-        toast.error('⏱️ Network is syncing. Please wait a moment and try again.');
+        toast.error('Network is syncing. Please wait a moment and try again.');
       } else if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
-        toast.error('⏱️ Network timeout. Please try again.');
+        toast.error('Network timeout. Please try again.');
       } else if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
-        toast.error('❌ Permission denied. Contact support.');
+        toast.error('Permission denied. Contact support.');
       } else {
         toast.error('Failed to create DM. Please try again.');
       }
@@ -281,7 +281,6 @@ export function DirectMessageList({
   );
 }
 
-// ✅ Properly typed DmListItem following Towns SDK pattern
 function DmListItem({ 
   streamId,
   onSelect,
@@ -291,53 +290,37 @@ function DmListItem({
   onSelect: (dmId: string, townsDmId: string, otherUserName?: string, otherUserAvatar?: string) => void;
   isSelected: boolean;
 }) {
-  // ✅ Use SDK hooks as per Towns docs
   const { userId: myUserId } = useMyMember(streamId);
   const { data: members } = useMemberList(streamId);
   
-  const otherUserId = members?.userIds?.find((id) => id !== myUserId) || myUserId;
+  const otherUserId = members?.userIds?.find((userId) => userId !== myUserId) || myUserId;
   
-  // ✅ Use useMember for SDK data
-  const { displayName: sdkDisplayName, username } = useMember({
+  // ✅ Use SDK hooks
+  const { displayName: sdkDisplayName, username, nft } = useMember({
     streamId,
     userId: otherUserId,
   });
   
-  // ✅ ALSO fetch our custom persona data (our feature!)
-  const [customProfile, setCustomProfile] = useState<{alias: string | null; avatar: string | null} | null>(null);
+  // ✅ Use custom hook for our persona data
+  const customProfile = useCustomProfile(otherUserId);
   
-  useEffect(() => {
-    if (!otherUserId) return;
-    
-    fetch(`/api/chat/user?address=${otherUserId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && d.user) {
-          setCustomProfile({
-            alias: d.user.alias,
-            avatar: d.user.avatar,
-          });
-        }
-      })
-      .catch(() => {
-        // Silently fail, SDK data will be used
-      });
-  }, [otherUserId]);
+  // ✅ Avatar priority: Custom avatar → SDK NFT avatar → null (fallback to initials)
+  const avatarUrl = customProfile?.avatar || nft?.pfpUrl || null;
   
-  // ✅ Prefer custom alias, fallback to SDK, then format address
+  // ✅ Name priority: Custom alias → SDK displayName → SDK username → formatted address
   const displayName = customProfile?.alias || sdkDisplayName || username || formatAddressForDisplay(otherUserId);
   
   return (
     <button
-      onClick={() => onSelect(streamId, streamId, displayName, customProfile?.avatar || undefined)}
+      onClick={() => onSelect(streamId, streamId, displayName, avatarUrl || undefined)}
       className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors font-georgia-pro ${
         isSelected ? 'bg-gray-100 border-l-4 border-blue-600' : ''
       }`}
     >
       <div className="flex items-center gap-3">
-        {customProfile?.avatar ? (
+        {avatarUrl ? (
           <img
-            src={convertIpfsToGatewayUrl(customProfile.avatar)}
+            src={convertIpfsToGatewayUrl(avatarUrl)}
             alt={displayName}
             className="w-10 h-10 rounded-full object-cover"
           />
