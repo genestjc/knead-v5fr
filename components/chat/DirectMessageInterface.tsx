@@ -118,9 +118,8 @@ export function DirectMessageInterface({
   otherUserName,
   otherUserAvatar,
 }: DirectMessageInterfaceProps) {
-  // ✅ SDK hooks - these automatically handle stream loading and encryption
-  const { data: dm, isLoading: isDmLoading } = useDm(townsDmId);
-  const { data: events, isLoading: isTimelineLoading } = useTimeline(townsDmId);
+  const { data: dm } = useDm(townsDmId);
+  const { data: events, isLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
@@ -142,14 +141,12 @@ export function DirectMessageInterface({
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // ✅ Filter messages and hide video invites
   const messages = (events || []).filter(
     (event) =>
       event.content?.kind === RiverTimelineEvent.ChannelMessage &&
       !(event.content?.body || '').startsWith(VIDEO_CALL_INVITE_PREFIX)
   );
-
-  // ✅ Wait for DM to be initialized before allowing actions
-  const isReady = dm?.initialized && dm?.isJoined;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -163,6 +160,7 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
+  // ✅ Detect incoming video calls
   useEffect(() => {
     if (!events || events.length === 0) return;
     const lastEvent = events[events.length - 1];
@@ -190,25 +188,35 @@ export function DirectMessageInterface({
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending) return;
-    
-    // ✅ Check if DM is ready before sending
-    if (!isReady) {
-      toast.error('⏱️ Please wait for DM to sync...');
-      return;
-    }
+
+    // ✅ Debug logging
+    console.log('🔍 Attempting to send message...');
+    console.log('   townsDmId:', townsDmId);
+    console.log('   myUserId:', myUserId);
+    console.log('   dm initialized:', dm?.initialized);
+    console.log('   dm isJoined:', dm?.isJoined);
+    console.log('   message:', messageInput);
 
     try {
-      await sendMessage(messageInput);
+      console.log('📤 Calling sendMessage...');
+      const result = await sendMessage(messageInput);
+      console.log('✅ Message sent successfully:', result);
       setMessageInput('');
     } catch (error: any) {
-      console.error('Failed to send DM:', error);
+      console.error('❌ Failed to send DM:', error);
+      console.error('   Error type:', error.constructor.name);
+      console.error('   Error message:', error.message);
+      console.error('   Full error:', error);
+      
       const errorMsg = error.message?.toLowerCase() || '';
-      if (errorMsg.includes('resource_exhausted') || errorMsg.includes('429')) {
-        toast.error('⏱️ Network is busy. Please wait a moment and try again.');
+      if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
+        toast.error('⚠️ Towns network issue. Please try again in a moment.');
       } else if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
         toast.error('⏱️ Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('timeout')) {
         toast.error('Network timeout. Please try again.');
+      } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+        toast.error('❌ Permission denied');
       } else {
         toast.error('Failed to send message. Please try again.');
       }
@@ -225,11 +233,6 @@ export function DirectMessageInterface({
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    if (!isReady) {
-      toast.error('⏱️ Please wait for DM to sync...');
-      return;
-    }
     
     setIsUploading(true);
     try {
@@ -282,9 +285,13 @@ export function DirectMessageInterface({
       });
       const roomData = await roomResponse.json();
       if (!roomData.success) throw new Error(roomData.error);
+      
       const { roomUrl, roomName } = roomData.data;
+      
+      // Send invite message
       const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
       await sendMessage(inviteMessage);
+      
       const tokenResponse = await fetch('/api/dm/generate-dm-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -292,6 +299,7 @@ export function DirectMessageInterface({
       });
       const tokenData = await tokenResponse.json();
       if (!tokenData.success) throw new Error(tokenData.error);
+      
       setVideoRoomUrl(roomUrl);
       setVideoToken(tokenData.data.token);
       setVideoCallActive(true);
@@ -318,6 +326,7 @@ export function DirectMessageInterface({
       });
       const tokenData = await tokenResponse.json();
       if (!tokenData.success) throw new Error(tokenData.error);
+      
       setVideoRoomUrl(incomingCallRoomUrl);
       setVideoToken(tokenData.data.token);
       setVideoCallActive(true);
@@ -343,26 +352,6 @@ export function DirectMessageInterface({
     setVideoRoomUrl(null);
     setVideoToken(null);
   };
-
-  // ✅ Show loading state while DM initializes
-  if (isDmLoading || !dm) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-        <p className="mt-4 text-sm text-gray-500 font-georgia-pro">Loading conversation...</p>
-      </div>
-    );
-  }
-
-  // ✅ Show syncing state if not ready
-  if (!isReady) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-        <p className="mt-4 text-sm text-gray-500 font-georgia-pro">Syncing encryption keys...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -460,7 +449,7 @@ export function DirectMessageInterface({
           )}
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-            {isTimelineLoading ? (
+            {isLoading ? (
               <div className="text-center text-gray-500 py-8 font-georgia-pro">
                 Loading messages...
               </div>
@@ -509,7 +498,7 @@ export function DirectMessageInterface({
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isSending || !isReady}
+                disabled={isUploading || isSending}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
                 title="Upload file"
               >
@@ -521,14 +510,14 @@ export function DirectMessageInterface({
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={isUploading ? 'Uploading file...' : isReady ? 'Type a message' : 'Syncing...'}
+                placeholder={isUploading ? 'Uploading file...' : 'Type a message'}
                 className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro"
-                disabled={isSending || isUploading || !isReady}
+                disabled={isSending || isUploading}
               />
 
               <button
                 onClick={handleSendMessage}
-                disabled={isSending || isUploading || !messageInput.trim() || !isReady}
+                disabled={isSending || isUploading || !messageInput.trim()}
                 className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Send message"
               >
