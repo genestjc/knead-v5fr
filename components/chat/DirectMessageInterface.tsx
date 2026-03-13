@@ -130,7 +130,6 @@ export function DirectMessageInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Video call state
   const [videoCallActive, setVideoCallActive] = useState(false);
   const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
   const [videoToken, setVideoToken] = useState<string | null>(null);
@@ -141,7 +140,6 @@ export function DirectMessageInterface({
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Filter messages and hide video invites
   const messages = (events || []).filter(
     (event) =>
       event.content?.kind === RiverTimelineEvent.ChannelMessage &&
@@ -160,13 +158,11 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
-  // ✅ Detect incoming video calls - FIXED to use SDK userId only
   useEffect(() => {
     if (!events || events.length === 0 || !myUserId) return;
     const lastEvent = events[events.length - 1];
     if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return;
     const senderId = lastEvent.sender?.id || '';
-    // ✅ Use SDK userId only - no wallet address comparison
     const isFromOtherUser = senderId !== myUserId;
     if (!isFromOtherUser) return;
     const messageText = lastEvent.content?.body || '';
@@ -193,17 +189,13 @@ export function DirectMessageInterface({
     console.log('   myUserId:', myUserId);
     console.log('   dm initialized:', dm?.initialized);
     console.log('   dm isJoined:', dm?.isJoined);
-    console.log('   message:', messageInput);
 
     try {
-      console.log('📤 Calling sendMessage...');
-      const result = await sendMessage(messageInput);
-      console.log('✅ Message sent successfully:', result);
+      await sendMessage(messageInput);
+      console.log('✅ Message sent successfully');
       setMessageInput('');
     } catch (error: any) {
       console.error('❌ Failed to send DM:', error);
-      console.error('   Error type:', error.constructor.name);
-      console.error('   Error message:', error.message);
       
       const errorMsg = error.message?.toLowerCase() || '';
       if (errorMsg.includes('unimplemented') || errorMsg.includes('404')) {
@@ -457,7 +449,6 @@ export function DirectMessageInterface({
             ) : (
               messages.map((event, index) => {
                 const senderId = event.sender?.id || '';
-                // ✅ Use SDK userId only - no wallet address fallback
                 const isCurrentUser = senderId === myUserId;
                 const timestamp =
                   (event as any).createdAtEpochMs ||
