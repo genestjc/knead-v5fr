@@ -7,6 +7,7 @@ import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import { Search, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAddress } from 'viem'; // ✅ ADD THIS
 
 interface Contributor {
   id: string;
@@ -76,8 +77,8 @@ export function DirectMessageList({
     }
     
     try {
-      // ✅ Pass address as-is (no lowercasing)
-      const targetAddress = newDmAddress.trim();
+      // ✅ Always checksum before calling createDM
+      const targetAddress = getAddress(newDmAddress.trim());
       
       // Prevent DMing yourself
       if (targetAddress.toLowerCase() === userId.toLowerCase()) {
@@ -85,7 +86,7 @@ export function DirectMessageList({
         return;
       }
       
-      const result = await createDM(targetAddress);
+      const result = await createDM(targetAddress); // ✅ Checksummed address
       
       if (result?.streamId) {
         onSelectDm(result.streamId, result.streamId);
@@ -96,6 +97,12 @@ export function DirectMessageList({
       }
     } catch (error: any) {
       const errorMessage = error.message || String(error);
+      
+      // Handle invalid address error from viem
+      if (errorMessage.includes('Invalid') || errorMessage.includes('address')) {
+        toast.error('Invalid wallet address format');
+        return;
+      }
       
       if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
         setShowNewDmModal(false);
@@ -130,8 +137,13 @@ export function DirectMessageList({
   });
 
   const selectContributor = (address: string) => {
-    setNewDmAddress(address);
-    setSearchQuery('');
+    try {
+      setNewDmAddress(getAddress(address)); // ✅ Checksum it
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Invalid address:', address);
+      toast.error('Invalid wallet address');
+    }
   };
 
   if (isLoading) {
