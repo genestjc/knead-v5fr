@@ -22,11 +22,11 @@ export async function POST(request: NextRequest) {
     // Normalize addresses to lowercase for consistent lookup
     const normalizedAddresses = addresses.map(addr => addr.toLowerCase());
 
-    // Fetch all profiles in a single query
+    // ✅ Updated table/field names
     const { data: users, error } = await supabase
-      .from('chat_users')
-      .select('address, alias, avatar, role, created_at')
-      .in('address', normalizedAddresses);
+      .from('chat_user_profiles')
+      .select('wallet_address, alias, avatar, role, created_at')
+      .in('wallet_address', normalizedAddresses);
 
     if (error) {
       console.error('❌ Supabase error:', error);
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Add found profiles
     (users || []).forEach(user => {
-      profiles[user.address.toLowerCase()] = {
+      profiles[user.wallet_address.toLowerCase()] = {
         alias: user.alias,
         avatar: user.avatar,
         role: user.role,
