@@ -39,7 +39,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
   
-  // ✅ Track if DM panel has ever been opened for lazy initialization
   const [dmPanelEverOpened, setDmPanelEverOpened] = useState(false);
 
   const activeAccount = useActiveAccount();
@@ -48,7 +47,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
       setDmsOpen(true);
-      // ✅ Mark panel as opened
       if (!dmPanelEverOpened) {
         setDmPanelEverOpened(true);
       }
@@ -66,7 +64,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
-  // ✅ OPTIMIZED: Fetch treasury balance every 30 seconds instead of 3
   useEffect(() => {
     const fetchTreasuryBalance = async () => {
       try {
@@ -81,7 +78,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     };
 
     fetchTreasuryBalance();
-    const interval = setInterval(fetchTreasuryBalance, 30000); // ✅ Changed from 3000 to 30000
+    const interval = setInterval(fetchTreasuryBalance, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -119,7 +116,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     },
   ];
 
-  // ✅ Determine if we should show main chat (pause on mobile when DMs open)
   const [isMobile, setIsMobile] = useState(false);
   
   useEffect(() => {
@@ -136,7 +132,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   return (
     <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
-      {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white">
         <div className="flex items-center justify-between">
           <motion.div
@@ -164,7 +159,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               <button
                 onClick={() => {
                   setDmsOpen(true);
-                  // ✅ Mark panel as opened
                   if (!dmPanelEverOpened) {
                     setDmPanelEverOpened(true);
                   }
@@ -224,17 +218,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
       <div className="h-[72px] lg:h-[88px] flex-shrink-0" />
 
-      {/* ✅ OPTIMIZED: Unmount main chat on mobile when DMs are open */}
+      {/* ✅ OPTIMIZED: Hide instead of unmount - keeps SDK subscriptions alive */}
       <main className="flex-1 overflow-hidden relative min-h-0">
-        {shouldShowMainChat && children}
-        {!shouldShowMainChat && (
-          <div className="flex items-center justify-center h-full text-gray-400 font-georgia-pro text-sm">
-            Main chat paused while DMs are open
-          </div>
-        )}
+        <div className={shouldShowMainChat ? '' : 'hidden'}>
+          {children}
+        </div>
       </main>
 
-      {/* ✅ DM Side Panel - only renders DirectMessageList after first open */}
       <AnimatePresence>
         {dmsOpen && (
           <motion.div
@@ -296,7 +286,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     />
                   </div>
                 ) : (
-                  // ✅ Only render DirectMessageList after panel has been opened at least once
                   dmPanelEverOpened && (
                     <DirectMessageList
                       userId={activeAccount?.address || ''}
