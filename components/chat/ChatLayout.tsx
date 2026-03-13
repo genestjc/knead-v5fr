@@ -28,23 +28,35 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [dmsOpen, setDmsOpen] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
-  const [selectedDm, setSelectedDm] = useState<{ dmId: string; townsDmId: string; otherUserName: string; otherUserAvatar?: string } | null>(null);
+  const [selectedDm, setSelectedDm] = useState<{
+    dmId: string;
+    townsDmId: string;
+    otherUserName: string;
+    otherUserAvatar?: string
+  } | null>(null);
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
+  
+  // ✅ Track if DM panel has ever been opened for lazy initialization
+  const [dmPanelEverOpened, setDmPanelEverOpened] = useState(false);
 
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
 
-  // Swipe left to open DMs
   const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => setDmsOpen(true),
+    onSwipedLeft: () => {
+      setDmsOpen(true);
+      // ✅ Mark panel as opened
+      if (!dmPanelEverOpened) {
+        setDmPanelEverOpened(true);
+      }
+    },
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
 
-  // Swipe right to close DM panel
   const dmSwipeHandlers = useSwipeable({
     onSwipedRight: () => {
       setDmsOpen(false);
@@ -54,7 +66,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     preventScrollOnSwipe: true,
   });
 
-  // Fetch treasury balance
+  // ✅ OPTIMIZED: Fetch treasury balance every 30 seconds instead of 3
   useEffect(() => {
     const fetchTreasuryBalance = async () => {
       try {
@@ -69,7 +81,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     };
 
     fetchTreasuryBalance();
-    const interval = setInterval(fetchTreasuryBalance, 3000);
+    const interval = setInterval(fetchTreasuryBalance, 30000); // ✅ Changed from 3000 to 30000
     return () => clearInterval(interval);
   }, []);
 
@@ -107,102 +119,122 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     },
   ];
 
+  // ✅ Determine if we should show main chat (pause on mobile when DMs open)
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const shouldShowMainChat = !isMobile || !dmsOpen;
+
   return (
-  <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
-    {/* ✅ FIXED HEADER — position: fixed keeps it on screen at all times */}
-    <header className="fixed top-0 left-0 right-0 border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white">
-      <div className="flex items-center justify-between">
-        <motion.div
-          className="cursor-pointer relative"
-          onClick={() => setLogoExpanded(!logoExpanded)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <motion.h1
-            className="font-adonis text-3xl tracking-tight"
-            animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
-            transition={{ duration: 0.2 }}
-          >
-            {logoExpanded ? 'Knead' : 'K'}
-          </motion.h1>
-        </motion.div>
-
-        <div className="flex items-center gap-3">
-          <WalletSummary
-            context="chat"
-            onExternalWalletExport={() => setShowExternalWalletMessage(true)}
-          />
-
-          {/* Paper Plane Icon for DMs (Contributors Only) — hidden when DM panel is open */}
-          {isContributor && !dmsOpen && (
-            <button
-              onClick={() => setDmsOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              title="Direct Messages"
-            >
-              <Send className="w-5 h-5 text-gray-700" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {logoExpanded && (
+    <div {...swipeHandlers} className="h-screen bg-white flex flex-col">
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 border-b border-gray-200 px-4 py-2 lg:py-4 z-50 bg-white">
+        <div className="flex items-center justify-between">
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
+            className="cursor-pointer relative"
+            onClick={() => setLogoExpanded(!logoExpanded)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {menuItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={item.onClick}
-                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
-              >
-                {item.icon}
-                <span className="font-georgia-pro text-sm">{item.label}</span>
-              </button>
-            ))}
-
-            {/* Divider */}
-            <div className="border-t-2 border-gray-200"></div>
-
-            {/* Treasury Balance */}
-            <a
-              href="https://basescan.org/address/0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            <motion.h1
+              className="font-adonis text-3xl tracking-tight"
+              animate={{ letterSpacing: logoExpanded ? '0.05em' : '0em' }}
+              transition={{ duration: 0.2 }}
             >
-              <Landmark className="w-5 h-5 text-gray-700" />
-              <div className="flex-1 text-left">
-                <span className="font-georgia-pro text-sm text-gray-700">
-                  Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
-                </span>
-              </div>
-            </a>
+              {logoExpanded ? 'Knead' : 'K'}
+            </motion.h1>
           </motion.div>
+
+          <div className="flex items-center gap-3">
+            <WalletSummary
+              context="chat"
+              onExternalWalletExport={() => setShowExternalWalletMessage(true)}
+            />
+            
+            {isContributor && !dmsOpen && (
+              <button
+                onClick={() => {
+                  setDmsOpen(true);
+                  // ✅ Mark panel as opened
+                  if (!dmPanelEverOpened) {
+                    setDmPanelEverOpened(true);
+                  }
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="Direct Messages"
+              >
+                <Send className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {logoExpanded && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full left-4 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 min-w-[220px]"
+            >
+              {menuItems.map((item, index) => (
+                <button
+                  key={index}
+                  onClick={item.onClick}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                >
+                  {item.icon}
+                  <span className="font-georgia-pro text-sm">{item.label}</span>
+                </button>
+              ))}
+              
+              <div className="border-t-2 border-gray-200"></div>
+              
+              <a
+                href="https://basescan.org/address/0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+              >
+                <Landmark className="w-5 h-5 text-gray-700" />
+                <div className="flex-1 text-left">
+                  <span className="font-georgia-pro text-sm text-gray-700">
+                    Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
+                  </span>
+                </div>
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {logoExpanded && (
+          <div className="fixed inset-0 z-40" onClick={() => setLogoExpanded(false)} />
         )}
-      </AnimatePresence>
+      </header>
 
-      {logoExpanded && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setLogoExpanded(false)}
-        />
-      )}
-    </header>
+      <div className="h-[72px] lg:h-[88px] flex-shrink-0" />
 
-    {/* Spacer to prevent content from hiding under fixed header */}
-    <div className="h-[72px] lg:h-[88px] flex-shrink-0" />
+      {/* ✅ OPTIMIZED: Unmount main chat on mobile when DMs are open */}
+      <main className="flex-1 overflow-hidden relative min-h-0">
+        {shouldShowMainChat && children}
+        {!shouldShowMainChat && (
+          <div className="flex items-center justify-center h-full text-gray-400 font-georgia-pro text-sm">
+            Main chat paused while DMs are open
+          </div>
+        )}
+      </main>
 
-    <main className="flex-1 overflow-hidden relative min-h-0">
-      {children}
-    </main>
-
-      {/* ✅ DM Side Panel — z-[60] to fully cover header on mobile */}
+      {/* ✅ DM Side Panel - only renders DirectMessageList after first open */}
       <AnimatePresence>
         {dmsOpen && (
           <motion.div
@@ -255,7 +287,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                       </button>
                     </div>
                     
-                    {/* ✅ REMOVED DailyProvider wrapper - DM video uses iframe instead */}
                     <DirectMessageInterface
                       dmId={selectedDm.dmId}
                       townsDmId={selectedDm.townsDmId}
@@ -265,13 +296,16 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                     />
                   </div>
                 ) : (
-                  <DirectMessageList
-                    userId={activeAccount?.address || ''}
-                    onSelectDm={(dmId, townsDmId, otherUserName = 'User', otherUserAvatar) =>
-                      setSelectedDm({ dmId, townsDmId, otherUserName, otherUserAvatar })
-                    }
-                    selectedDmId={selectedDm?.dmId}
-                  />
+                  // ✅ Only render DirectMessageList after panel has been opened at least once
+                  dmPanelEverOpened && (
+                    <DirectMessageList
+                      userId={activeAccount?.address || ''}
+                      onSelectDm={(dmId, townsDmId, otherUserName = 'User', otherUserAvatar) =>
+                        setSelectedDm({ dmId, townsDmId, otherUserName, otherUserAvatar })
+                      }
+                      selectedDmId={selectedDm?.dmId}
+                    />
+                  )
                 )}
               </div>
             </div>
@@ -333,7 +367,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* External Wallet Message Modal */}
       <AnimatePresence>
         {showExternalWalletMessage && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -346,18 +379,16 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               <div className="text-center mb-6">
                 <span className="text-6xl">🔐</span>
               </div>
-
               <h2 className="font-adonis text-2xl text-center mb-4">External Wallet Detected</h2>
-
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <p className="font-georgia-pro text-sm text-gray-700">
                   You're using <strong>MetaMask, Coinbase, or another external wallet</strong>.
                 </p>
                 <p className="font-georgia-pro text-sm text-gray-700 mt-3">
-                  For security, your private key is managed by your wallet app and is <strong>never accessible to this site</strong>.
+                  For security, your private key is managed by your wallet app and is{' '}
+                  <strong>never accessible to this site</strong>.
                 </p>
               </div>
-
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <h3 className="font-adonis text-sm font-semibold mb-2">To export your private key:</h3>
                 <ol className="font-georgia-pro text-sm text-gray-700 space-y-1 list-decimal list-inside">
@@ -366,7 +397,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                   <li>Select "Show Private Key" or "Export Private Key"</li>
                 </ol>
               </div>
-
               <button
                 onClick={() => setShowExternalWalletMessage(false)}
                 className="w-full px-4 py-3 bg-black text-white rounded-full font-georgia-pro text-sm hover:bg-gray-800 transition"
@@ -378,23 +408,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Events Calendar Modal */}
-      <EventsCalendarModal
-        isOpen={showEventsModal}
-        onClose={() => setShowEventsModal(false)}
-      />
-
-      {/* About/FAQ Modal */}
-      <AboutFAQModal
-        isOpen={showAboutModal}
-        onClose={() => setShowAboutModal(false)}
-      />
-
-      {/* Announcements Modal */}
-      <AnnouncementsModal
-        isOpen={showAnnouncementsModal}
-        onClose={() => setShowAnnouncementsModal(false)}
-      />
+      <EventsCalendarModal isOpen={showEventsModal} onClose={() => setShowEventsModal(false)} />
+      <AboutFAQModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
+      <AnnouncementsModal isOpen={showAnnouncementsModal} onClose={() => setShowAnnouncementsModal(false)} />
     </div>
   );
 }
