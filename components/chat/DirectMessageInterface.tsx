@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useDm, useSendMessage, useTimeline, useMyMember, useRedact, useSyncAgent } from '@towns-protocol/react-sdk';
+import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
 import { FileMessageDisplay } from './FileMessageDisplay';
@@ -19,29 +19,16 @@ interface DirectMessageInterfaceProps {
   otherUserAvatar?: string;
 }
 
-interface DmMessageItemProps {
-  event: any;
-  isCurrentUser: boolean;
-  timestamp: number;
-  displayAvatar?: string;
-  displayName: string;
-  townsDmId: string;
-  deletingEventId: string | null;
-  onDelete: (eventId: string) => void;
-  convertIpfsToGatewayUrl: (uri: string) => string;
-}
-
 function DmMessageItem({
   event,
   isCurrentUser,
   timestamp,
   displayAvatar,
   displayName,
-  townsDmId,
   deletingEventId,
   onDelete,
   convertIpfsToGatewayUrl,
-}: DmMessageItemProps) {
+}: any) {
   const messageText = event.content?.kind === RiverTimelineEvent.ChannelMessage
     ? event.content.body
     : '';
@@ -131,12 +118,12 @@ export function DirectMessageInterface({
   otherUserName,
   otherUserAvatar,
 }: DirectMessageInterfaceProps) {
-  const { data: dm } = useDm(townsDmId);
-  const { data: events, isLoading } = useTimeline(townsDmId);
+  // ✅ SDK hooks - these automatically handle stream loading and encryption
+  const { data: dm, isLoading: isDmLoading } = useDm(townsDmId);
+  const { data: events, isLoading: isTimelineLoading } = useTimeline(townsDmId);
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
-  const syncAgent = useSyncAgent();
   
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -149,12 +136,8 @@ export function DirectMessageInterface({
   const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
   const [videoToken, setVideoToken] = useState<string | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
-
-  // Incoming video call state
   const [incomingCallRoomUrl, setIncomingCallRoomUrl] = useState<string | null>(null);
   const [incomingCallRoomName, setIncomingCallRoomName] = useState<string | null>(null);
-
-  // Three-dot menu state
   const [showVideoMenu, setShowVideoMenu] = useState(false);
   const [videoCallsEnabled, setVideoCallsEnabled] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -164,6 +147,9 @@ export function DirectMessageInterface({
       event.content?.kind === RiverTimelineEvent.ChannelMessage &&
       !(event.content?.body || '').startsWith(VIDEO_CALL_INVITE_PREFIX)
   );
+
+  // ✅ Wait for DM to be initialized before allowing actions
+  const isReady = dm?.initialized && dm?.isJoined;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -177,45 +163,17 @@ export function DirectMessageInterface({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showVideoMenu]);
 
-  // ✅ RESTORED: Join DM and sync encryption keys
-  useEffect(() => {
-    if (!syncAgent || !townsDmId) return;
-
-    const syncDm = async () => {
-      try {
-        const dmStream = (syncAgent as any).dms?.getDm?.(townsDmId);
-        if (!dmStream) return;
-        await dmStream.join();
-        try {
-          await dmStream.waitForKeysToSync({ timeout: 30000 });
-          console.log('✅ DM encryption keys synced');
-        } catch (syncErr) {
-          console.warn('⚠️ DM key sync timeout (normal for new conversations):', syncErr);
-        }
-      } catch (err) {
-        console.warn('DM join failed (may already be joined):', err);
-      }
-    };
-
-    syncDm();
-  }, [syncAgent, townsDmId]);
-
   useEffect(() => {
     if (!events || events.length === 0) return;
-
     const lastEvent = events[events.length - 1];
     if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return;
-
     const senderId = lastEvent.sender?.id || '';
     const isFromOtherUser = myUserId
       ? senderId !== myUserId
       : Boolean(currentUserId && senderId.toLowerCase() !== currentUserId.toLowerCase());
-
     if (!isFromOtherUser) return;
-
     const messageText = lastEvent.content?.body || '';
     if (!messageText.startsWith(VIDEO_CALL_INVITE_PREFIX)) return;
-
     const urlMatch = messageText.match(/\((.+?)\)$/);
     if (urlMatch?.[1]) {
       const roomUrl = urlMatch[1];
@@ -232,6 +190,12 @@ export function DirectMessageInterface({
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending) return;
+    
+    // ✅ Check if DM is ready before sending
+    if (!isReady) {
+      toast.error('⏱️ Please wait for DM to sync...');
+      return;
+    }
 
     try {
       await sendMessage(messageInput);
@@ -262,6 +226,11 @@ export function DirectMessageInterface({
     const file = e.target.files?.[0];
     if (!file) return;
     
+    if (!isReady) {
+      toast.error('⏱️ Please wait for DM to sync...');
+      return;
+    }
+    
     setIsUploading(true);
     try {
       const ipfsUri = await uploadToIPFS(file);
@@ -287,7 +256,6 @@ export function DirectMessageInterface({
 
   const handleDeleteMessage = async (eventId: string) => {
     if (!confirm('Delete your message?')) return;
-
     setDeletingEventId(eventId);
     try {
       await redact(eventId);
@@ -300,15 +268,11 @@ export function DirectMessageInterface({
     }
   };
 
-  const displayName = otherUserName;
-  const displayAvatar = otherUserAvatar;
-
   const handleStartVideoCall = async () => {
     if (!videoCallsEnabled) {
       toast.error('Video calls are disabled for this conversation');
       return;
     }
-
     setLoadingVideo(true);
     try {
       const roomResponse = await fetch('/api/dm/create-video-room', {
@@ -316,31 +280,18 @@ export function DirectMessageInterface({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId1: currentUserId, userId2: dmId }),
       });
-
       const roomData = await roomResponse.json();
-      if (!roomData.success) {
-        throw new Error(roomData.error);
-      }
-
+      if (!roomData.success) throw new Error(roomData.error);
       const { roomUrl, roomName } = roomData.data;
-
       const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
       await sendMessage(inviteMessage);
-
       const tokenResponse = await fetch('/api/dm/generate-dm-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomName,
-          walletAddress: currentUserId,
-        }),
+        body: JSON.stringify({ roomName, walletAddress: currentUserId }),
       });
-
       const tokenData = await tokenResponse.json();
-      if (!tokenData.success) {
-        throw new Error(tokenData.error);
-      }
-
+      if (!tokenData.success) throw new Error(tokenData.error);
       setVideoRoomUrl(roomUrl);
       setVideoToken(tokenData.data.token);
       setVideoCallActive(true);
@@ -358,23 +309,15 @@ export function DirectMessageInterface({
       toast.error('Call information is missing. Please ask the caller to try again.');
       return;
     }
-
     setLoadingVideo(true);
     try {
       const tokenResponse = await fetch('/api/dm/generate-dm-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomName: incomingCallRoomName,
-          walletAddress: currentUserId,
-        }),
+        body: JSON.stringify({ roomName: incomingCallRoomName, walletAddress: currentUserId }),
       });
-
       const tokenData = await tokenResponse.json();
-      if (!tokenData.success) {
-        throw new Error(tokenData.error);
-      }
-
+      if (!tokenData.success) throw new Error(tokenData.error);
       setVideoRoomUrl(incomingCallRoomUrl);
       setVideoToken(tokenData.data.token);
       setVideoCallActive(true);
@@ -401,6 +344,26 @@ export function DirectMessageInterface({
     setVideoToken(null);
   };
 
+  // ✅ Show loading state while DM initializes
+  if (isDmLoading || !dm) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+        <p className="mt-4 text-sm text-gray-500 font-georgia-pro">Loading conversation...</p>
+      </div>
+    );
+  }
+
+  // ✅ Show syncing state if not ready
+  if (!isReady) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+        <p className="mt-4 text-sm text-gray-500 font-georgia-pro">Syncing encryption keys...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {videoCallActive && videoRoomUrl && videoToken ? (
@@ -408,7 +371,7 @@ export function DirectMessageInterface({
           roomUrl={videoRoomUrl}
           token={videoToken}
           currentUserAddress={currentUserId}
-          otherUserName={displayName}
+          otherUserName={otherUserName}
           onClose={handleCloseVideoCall}
         />
       ) : (
@@ -416,19 +379,19 @@ export function DirectMessageInterface({
           <div className="border-b px-6 py-4 bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {displayAvatar ? (
+                {otherUserAvatar ? (
                   <img
-                    src={convertIpfsToGatewayUrl(displayAvatar)}
-                    alt={displayName}
+                    src={convertIpfsToGatewayUrl(otherUserAvatar)}
+                    alt={otherUserName}
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
-                    {displayName.slice(0, 2).toUpperCase()}
+                    {otherUserName.slice(0, 2).toUpperCase()}
                   </div>
                 )}
                 <div>
-                  <h2 className="font-adonis text-lg">{displayName}</h2>
+                  <h2 className="font-adonis text-lg">{otherUserName}</h2>
                 </div>
               </div>
 
@@ -439,11 +402,7 @@ export function DirectMessageInterface({
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title={videoCallsEnabled ? 'Start video call' : 'Video calls disabled'}
                 >
-                  {loadingVideo ? (
-                    <span className="text-sm">⏳</span>
-                  ) : (
-                    <Video className="w-5 h-5" />
-                  )}
+                  {loadingVideo ? <span className="text-sm">⏳</span> : <Video className="w-5 h-5" />}
                 </button>
                 <div className="relative" ref={menuRef}>
                   <button
@@ -478,7 +437,7 @@ export function DirectMessageInterface({
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="font-georgia-pro text-sm font-medium text-blue-900">
-                    📹 {displayName} is calling you
+                    📹 {otherUserName} is calling you
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -501,7 +460,7 @@ export function DirectMessageInterface({
           )}
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-            {isLoading ? (
+            {isTimelineLoading ? (
               <div className="text-center text-gray-500 py-8 font-georgia-pro">
                 Loading messages...
               </div>
@@ -516,21 +475,18 @@ export function DirectMessageInterface({
                 const isCurrentUser = myUserId
                   ? senderId === myUserId
                   : Boolean(currentUserId && senderId?.toLowerCase() === currentUserId.toLowerCase());
-
                 const timestamp =
                   (event as any).createdAtEpochMs ||
                   (event as any).created_at_epoch_ms ||
                   Date.now();
-
                 return (
                   <DmMessageItem
                     key={event.eventId || index}
                     event={event}
                     isCurrentUser={isCurrentUser}
                     timestamp={timestamp}
-                    displayAvatar={displayAvatar}
-                    displayName={displayName}
-                    townsDmId={townsDmId}
+                    displayAvatar={otherUserAvatar}
+                    displayName={otherUserName}
                     deletingEventId={deletingEventId}
                     onDelete={handleDeleteMessage}
                     convertIpfsToGatewayUrl={convertIpfsToGatewayUrl}
@@ -553,7 +509,7 @@ export function DirectMessageInterface({
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isSending}
+                disabled={isUploading || isSending || !isReady}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
                 title="Upload file"
               >
@@ -565,14 +521,14 @@ export function DirectMessageInterface({
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={isUploading ? 'Uploading file...' : 'Type a message'}
+                placeholder={isUploading ? 'Uploading file...' : isReady ? 'Type a message' : 'Syncing...'}
                 className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-georgia-pro"
-                disabled={isSending || isUploading}
+                disabled={isSending || isUploading || !isReady}
               />
 
               <button
                 onClick={handleSendMessage}
-                disabled={isSending || isUploading || !messageInput.trim()}
+                disabled={isSending || isUploading || !messageInput.trim() || !isReady}
                 className="w-10 h-10 flex items-center justify-center bg-[#007AFF] text-white rounded-full hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Send message"
               >
