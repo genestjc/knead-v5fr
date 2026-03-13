@@ -4,6 +4,7 @@ import { client } from '@/thirdweb-client';
 import { getContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { balanceOf } from 'thirdweb/extensions/erc1155';
+import { getAddress } from 'viem'; // ✅ ADD THIS
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,13 +12,12 @@ const supabase = createClient(
 );
 
 const NFT_CONTRACT = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS!;
-const CONTRIBUTOR_TOKEN_IDS = [1, 2, 3]; // Token IDs for contributors
+const CONTRIBUTOR_TOKEN_IDS = [1, 2, 3];
 
 export async function GET() {
   try {
     console.log('🔍 Fetching all contributors from blockchain...');
 
-    // Get all chat users who might be contributors
     const { data: allUsers, error: dbError } = await supabase
       .from('chat_users')
       .select('address, alias, avatar, role')
@@ -40,23 +40,25 @@ export async function GET() {
 
     for (const user of allUsers || []) {
       try {
-        // Check each token ID
+        // ✅ Checksum the address early
+        const checksummedAddress = getAddress(user.address);
+        
         for (const tokenId of CONTRIBUTOR_TOKEN_IDS) {
           const balance = await balanceOf({
             contract,
-            owner: user.address,
+            owner: checksummedAddress,
             tokenId: BigInt(tokenId),
           });
 
           if (balance > 0n) {
             contributors.push({
-              id: user.address,
-              address: user.address,
-              displayName: user.alias || user.address.slice(0, 8) + '...' + user.address.slice(-6),
+              id: checksummedAddress,
+              address: checksummedAddress, // ✅ Always checksummed
+              displayName: user.alias || checksummedAddress.slice(0, 8) + '...' + checksummedAddress.slice(-6),
               avatar: user.avatar,
               role: user.role,
             });
-            break; // Found NFT, no need to check other token IDs
+            break;
           }
         }
       } catch (error) {
