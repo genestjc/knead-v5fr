@@ -5,9 +5,9 @@ import { useUserDms, useCreateDm, useMemberList, useMyMember, useMember } from '
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
-import { Search, X } from 'lucide-react';
+import { Search, X, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAddress } from 'viem'; // ✅ ADD THIS
+import { getAddress } from 'viem';
 
 interface Contributor {
   id: string;
@@ -43,6 +43,44 @@ export function DirectMessageList({
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loadingContributors, setLoadingContributors] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ✅ Step 1: One-time migration on app load
+  useEffect(() => {
+    const performMigration = async () => {
+      const migrationDone = localStorage.getItem('dm_migration_omega_nodes');
+      
+      if (migrationDone) {
+        console.log('✅ DM migration already completed');
+        return;
+      }
+      
+      console.log('🔄 Performing one-time DM stream migration...');
+      
+      try {
+        // Clear any cached DM data so SDK re-queries fresh from Stream Registry
+        localStorage.removeItem('towns_user_dms_cache');
+        localStorage.removeItem('towns_dm_metadata');
+        
+        // Refetch DM list - will only get streams that exist on active nodes
+        await refetch?.();
+        
+        // Mark migration as done
+        localStorage.setItem('dm_migration_omega_nodes', 'true');
+        
+        console.log('✅ DM streams migrated to active nodes');
+        toast.success('DMs synced to active network nodes');
+      } catch (error) {
+        console.error('Migration error:', error);
+        // Even if refetch fails, mark it done to avoid retry loops
+        localStorage.setItem('dm_migration_omega_nodes', 'true');
+      }
+    };
+    
+    if (isContributor && !isLoading) {
+      performMigration();
+    }
+  }, [isContributor, isLoading, refetch]);
 
   useEffect(() => {
     if (showNewDmModal && contributors.length === 0) {
@@ -70,6 +108,7 @@ export function DirectMessageList({
     }
   }, [showNewDmModal, contributors.length, userId]);
 
+  // ✅ Step 2: Handle DM creation with fallback logic
   const handleCreateDm = async () => {
     if (!newDmAddress.trim()) {
       toast.error('Please select a contributor or enter an address');
@@ -77,16 +116,14 @@ export function DirectMessageList({
     }
     
     try {
-      // ✅ Always checksum before calling createDM
       const targetAddress = getAddress(newDmAddress.trim());
       
-      // Prevent DMing yourself
       if (targetAddress.toLowerCase() === userId.toLowerCase()) {
         toast.error('You cannot send a message to yourself');
         return;
       }
       
-      const result = await createDM(targetAddress); // ✅ Checksummed address
+      const result = await createDM(targetAddress);
       
       if (result?.streamId) {
         onSelectDm(result.streamId, result.streamId);
@@ -98,33 +135,77 @@ export function DirectMessageList({
     } catch (error: any) {
       const errorMessage = error.message || String(error);
       
-      // Handle invalid address error from viem
+      // ✅ Old DM exists on dead node - create fresh one
+      if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
+        console.log('📋 Old DM detected on stale node, starting fresh...');
+        
+        // Clear the specific DM from cache
+        localStorage.removeItem(`dm_${newDmAddress.trim().toLowerCase()}`);
+        
+        toast.info('Creating fresh conversation...');
+        
+        // Wait a moment then retry
+        setTimeout(async () => {
+          try {
+            const freshResult = await createDM(getAddress(newDmAddress.trim()));
+            if (freshResult?.streamId) {
+              onSelectDm(freshResult.streamId, freshResult.streamId);
+              setShowNewDmModal(false);
+              setNewDmAddress('');
+              setSearchQuery('');
+              toast.success('DM opened on active nodes!');
+            }
+          } catch (retryError) {
+            console.error('Fresh DM creation failed:', retryError);
+            toast.error('Failed to create DM. Please try again.');
+          }
+        }, 500);
+        return;
+      }
+      
+      // Handle invalid address error
       if (errorMessage.includes('Invalid') || errorMessage.includes('address')) {
         toast.error('Invalid wallet address format');
         return;
       }
       
-      if (errorMessage.includes('already exists') || errorMessage.includes('stream already exists')) {
-        setShowNewDmModal(false);
-        setNewDmAddress('');
-        setSearchQuery('');
-        
-        toast.info('DM exists, syncing...', { duration: 3000 });
-        
-        setTimeout(async () => {
-          await refetch?.();
-          toast.success('DM list refreshed');
-        }, 3000);
-        
-      } else if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
+      if (errorMessage.includes('BAD_PREV_MINIBLOCK_HASH') || errorMessage.includes('miniblock')) {
         toast.error('Network is syncing. Please wait a moment and try again.');
-      } else if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
-        toast.error('Network timeout. Please try again.');
-      } else if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
-        toast.error('Permission denied. Contact support.');
-      } else {
-        toast.error('Failed to create DM. Please try again.');
+        return;
       }
+      
+      if (errorMessage.includes('timeout') || errorMessage.includes('deadline')) {
+        toast.error('Network timeout. Please try again.');
+        return;
+      }
+      
+      if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
+        toast.error('Permission denied. Contact support.');
+        return;
+      }
+      
+      toast.error('Failed to create DM. Please try again.');
+    }
+  };
+
+  // ✅ Step 4: Manual refresh function for future crashes
+  const handleManualRefresh = async () => {
+    console.log('🔄 Manually refreshing DM streams...');
+    setIsRefreshing(true);
+    
+    try {
+      // Clear cache
+      localStorage.removeItem('towns_user_dms_cache');
+      
+      // Refetch
+      await refetch?.();
+      
+      toast.success('DMs refreshed to active nodes');
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      toast.error('Refresh failed. Try reloading the page.');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -138,7 +219,7 @@ export function DirectMessageList({
 
   const selectContributor = (address: string) => {
     try {
-      setNewDmAddress(getAddress(address)); // ✅ Checksum it
+      setNewDmAddress(getAddress(address));
       setSearchQuery('');
     } catch (error) {
       console.error('Invalid address:', address);
@@ -172,15 +253,25 @@ export function DirectMessageList({
 
   return (
     <div>
-      <div className="p-3 border-b border-gray-200">
+      {/* ✅ Updated header with refresh button */}
+      <div className="p-3 border-b border-gray-200 flex gap-2">
         <button
           onClick={() => setShowNewDmModal(true)}
-          className="w-full py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro text-sm font-medium"
+          className="flex-1 py-2 px-4 bg-black text-white rounded-full hover:bg-gray-800 transition-colors font-georgia-pro text-sm font-medium"
         >
           + New Message
         </button>
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          title="Refresh DM list"
+          className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
+      {/* ✅ Step 3: DM list with error handling */}
       <div className="space-y-1">
         {streamIds?.map((streamId) => (
           <DmListItem
@@ -301,13 +392,12 @@ export function DirectMessageList({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
 
-// ✅ Always calls hooks unconditionally
+// ✅ DmListItem with error handling for unreachable streams
 function DmListItem({ 
   streamId,
   currentUserId,
@@ -320,7 +410,18 @@ function DmListItem({
   isSelected: boolean;
 }) {
   const { userId: myUserId } = useMyMember(streamId);
-  const { data: members } = useMemberList(streamId);
+  const { data: members, isError } = useMemberList(streamId);
+  
+  // ✅ Skip rendering if stream is unreachable (on dead node)
+  if (isError) {
+    console.warn(`⚠️ Skipping unreachable DM stream: ${streamId}`);
+    return null;
+  }
+  
+  // Only proceed if we have data
+  if (!myUserId || !members) {
+    return null;
+  }
   
   const otherUserId = members?.userIds?.find((userId) => userId !== myUserId) || myUserId;
   const isSelfDm = otherUserId?.toLowerCase() === myUserId?.toLowerCase();
