@@ -7,13 +7,13 @@
  * 1. Fetch all contributor NFT holders (Token IDs 1, 2, 3)
  * 2. Get current pool balance from Engine wallet
  * 3. Calculate weighted distribution
- * 4. Send $TOWNS to each contributor
+ * 4. Send USDC to each contributor
  * 5. Log detailed summary
  * 
- * Weights:
- * - Appointed (Token ID 1): 1x
- * - Invited (Token ID 2): 2x
- * - Earned (Token ID 3): 3x
+ * Weights (same for all):
+ * - Appointed (Token ID 1): 1x weight
+ * - Invited (Token ID 2): 2x weight
+ * - Earned (Token ID 3): 3x weight
  */
 
 import { createThirdwebClient, getContract, prepareContractCall, Engine } from 'thirdweb';
@@ -63,10 +63,10 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
   // Step 2: Get pool balance
   console.log('💰 Fetching pool balance...');
   const poolBalance = await getContributorPoolBalance();
-  console.log(`✅ Pool balance: ${poolBalance.toFixed(4)} $TOWNS\n`);
+  console.log(`✅ Pool balance: $${poolBalance.toFixed(2)}\n`);
 
   if (poolBalance < 0.001) {
-    console.log('⚠️ Pool balance too low. Minimum 0.001 $TOWNS required. Skipping distribution.');
+    console.log('⚠️ Pool balance too low. Minimum $0.001 required. Skipping distribution.');
     return {
       totalDistributed: 0,
       contributorCount: holders.length,
@@ -89,7 +89,7 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
   const amountPerWeight = poolBalance / totalWeight;
   
   console.log(`Total weight: ${totalWeight}`);
-  console.log(`Amount per weight unit: ${amountPerWeight.toFixed(6)} $TOWNS\n`);
+  console.log(`Amount per weight unit: $${amountPerWeight.toFixed(2)}\n`);
 
   // Step 5: Distribute to each contributor
   console.log('💸 Distributing to contributors...\n');
@@ -102,7 +102,7 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
       holder.contributorType === 1 ? 'Appointed' :
       holder.contributorType === 2 ? 'Invited' : 'Earned';
 
-    console.log(`📤 ${holder.address.substring(0, 10)}... (${contributorTypeName} - ${holder.weight}x): ${amount.toFixed(4)} $TOWNS`);
+    console.log(`📤 ${holder.address.substring(0, 10)}... (${contributorTypeName} - ${holder.weight}x): $${amount.toFixed(2)}`);
 
     try {
       const txHash = await sendTownsTokens(holder.address, amount);
@@ -137,8 +137,8 @@ export async function distributeContributorPool(): Promise<DistributionResult> {
   console.log('📊 DISTRIBUTION SUMMARY');
   console.log('='.repeat(60));
   console.log(`Total contributors: ${holders.length}`);
-  console.log(`Pool balance: ${poolBalance.toFixed(4)} $TOWNS`);
-  console.log(`Total distributed: ${totalDistributed.toFixed(4)} $TOWNS`);
+  console.log(`Pool balance: $${poolBalance.toFixed(2)}`);
+  console.log(`Total distributed: $${totalDistributed.toFixed(2)}`);
   console.log(`Successful: ${distributions.filter(d => d.transactionHash).length}`);
   console.log(`Failed: ${distributions.filter(d => d.error).length}`);
   console.log('='.repeat(60) + '\n');
@@ -161,7 +161,7 @@ async function claimEngineEarnings(): Promise<void> {
 }
 
 /**
- * Send $TOWNS tokens from Engine wallet to recipient
+ * Send tokens from Engine wallet to recipient
  */
 async function sendTownsTokens(recipientAddress: string, amount: number): Promise<string> {
   const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
