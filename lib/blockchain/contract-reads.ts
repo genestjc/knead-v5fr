@@ -54,12 +54,12 @@ export async function getParticipantStats(participantAddress: string): Promise<{
     });
 
     return {
-      totalEarned: Number(stats[0]) / 1e18,
-      claimed: Number(stats[1]) / 1e18,
+      totalEarned: Number(stats[0]) / 1e6,
+      claimed: Number(stats[1]) / 1e6,
       tier: Number(stats[2]),
       cohort: Number(stats[3]),
       graduated: Boolean(stats[4]),
-      claimable: Number(stats[5]) / 1e18,
+      claimable: Number(stats[5]) / 1e6,
     };
   } catch (error) {
     console.error('Error fetching participant stats:', error);
@@ -92,11 +92,11 @@ export async function getContributorStats(contributorAddress: string): Promise<{
 
     return {
       cType: Number(stats[0]),
-      weeklyBudget: Number(stats[1]) / 1e18,
-      lockedAllowance: Number(stats[2]) / 1e18,
-      cashbackEarnings: Number(stats[3]) / 1e18,
-      cashbackClaimed: Number(stats[4]) / 1e18,
-      totalTipped: Number(stats[5]) / 1e18,
+      weeklyBudget: Number(stats[1]) / 1e6,
+      lockedAllowance: Number(stats[2]) / 1e6,
+      cashbackEarnings: Number(stats[3]) / 1e6,
+      cashbackClaimed: Number(stats[4]) / 1e6,
+      totalTipped: Number(stats[5]) / 1e6,
       daysUntilReset: Number(stats[6]),
     };
   } catch (error) {
@@ -124,7 +124,7 @@ export async function getContractConstants(): Promise<{
     });
 
     return {
-      graduationThreshold: Number(graduationThreshold) / 1e18,
+      graduationThreshold: Number(graduationThreshold) / 1e6,
       weeklyAllowance: 25, // Hardcoded since not in contract
     };
   } catch (error) {
@@ -136,7 +136,7 @@ export async function getContractConstants(): Promise<{
 }
 
 /**
- * Get total $TOWNS earned for a specific message (on-chain)
+ * Get total USDC earned for a specific message (on-chain)
  *
  * The write side (award-rewards-engine.ts) stores the messageId as
  * keccak256(toUtf8Bytes(messageId)), so the read side MUST apply the
@@ -147,7 +147,7 @@ export async function getContractConstants(): Promise<{
  *
  * @param messageId          - Towns Protocol message ID (any string / hex)
  * @param participantAddress - Wallet address of the message sender (participant)
- * @returns Total earnings in $TOWNS tokens
+ * @returns Total earnings in USDC
  */
 export async function getMessageEarnings(
   messageId: string,
@@ -166,7 +166,7 @@ export async function getMessageEarnings(
     });
 
     // earnings[0] is totalEarned
-    return Number(earnings[0]) / 1e18;
+    return Number(earnings[0]) / 1e6;
   } catch (error) {
     console.error('Error fetching message earnings:', error);
     return 0;
