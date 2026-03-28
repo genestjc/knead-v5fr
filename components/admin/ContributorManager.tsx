@@ -107,7 +107,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       const addResult = await sendTransaction(addTx);
 
       setTxHashes({ mint: mintResult.transactionHash, rewards: addResult.transactionHash });
-      setMessage(`✅ Contributor added! NFT minted (Token ID ${tokenIdMap[role]}) with ${weeklyBudget} TOWNS/week budget.`);
+      setMessage(`✅ Contributor added! NFT minted (Token ID ${tokenIdMap[role]}) with $${weeklyBudget}/week budget.`);
       setRecipient('');
       setWeeklyBudget('100'); // Reset to default
       onMintSuccess();
@@ -162,21 +162,24 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
             
             <div>
                 <label htmlFor="weeklyBudget" className="block text-sm font-medium text-gray-700">
-                  Weekly Budget (TOWNS)
+                  Weekly Budget (USDC)
                 </label>
-                <input 
-                  type="number" 
-                  id="weeklyBudget" 
-                  value={weeklyBudget} 
-                  onChange={(e) => setWeeklyBudget(e.target.value)} 
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black" 
-                  placeholder="100" 
-                  min="1"
-                  step="1"
-                  required 
-                />
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                  <input 
+                    type="number" 
+                    id="weeklyBudget" 
+                    value={weeklyBudget} 
+                    onChange={(e) => setWeeklyBudget(e.target.value)} 
+                    className="block w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black" 
+                    placeholder="100" 
+                    min="1"
+                    step="1"
+                    required 
+                  />
+                </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  How many TOWNS they can award per week (recommended: 50-500)
+                  How much USDC they can award per week (recommended: $50–$500)
                 </p>
             </div>
             
@@ -185,9 +188,9 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
                   💡 <strong>Budget Recommendations:</strong>
                 </p>
                 <ul className="text-xs text-gray-600 mt-1 ml-4 list-disc">
-                  <li>Conservative: 50 TOWNS/week</li>
-                  <li>Standard: 100 TOWNS/week</li>
-                  <li>Generous: 500 TOWNS/week</li>
+                  <li>Conservative: $50/week</li>
+                  <li>Standard: $100/week</li>
+                  <li>Generous: $500/week</li>
                 </ul>
               </div>
             
@@ -409,12 +412,12 @@ function ContributorStatsTable({ stats, onBudgetUpdated }: {
                       min="1"
                     />
                   ) : (
-                    `${s.weeklyBudget.toFixed(0)} TOWNS`
+                    `$${s.weeklyBudget.toFixed(0)}`
                   )}
                 </td>
-                <td className="px-3 py-2 text-right">{s.lockedAllowance.toFixed(2)} TOWNS</td>
-                <td className="px-3 py-2 text-right">{(s.cashbackEarnings - s.cashbackClaimed).toFixed(2)} TOWNS</td>
-                <td className="px-3 py-2 text-right">{s.totalTipped.toFixed(2)} TOWNS</td>
+                <td className="px-3 py-2 text-right">${s.lockedAllowance.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right">${(s.cashbackEarnings - s.cashbackClaimed).toFixed(2)}</td>
+                <td className="px-3 py-2 text-right">${s.totalTipped.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right">{s.daysUntilReset}d</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1 flex-wrap">
