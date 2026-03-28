@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       participantReceived: amountNum * 0.8, // 80% to participant
       messageId: messageId || null,
       wasAutoRegistered: !isRegistered,
-      message: 'Tokens awarded successfully! Contributor receives 20% cashback.',
+      message: 'USDC awarded successfully! Contributor receives 20% cashback.',
     });
 
   } catch (error: any) {
