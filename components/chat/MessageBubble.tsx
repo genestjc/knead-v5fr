@@ -121,7 +121,7 @@ function BreadTipButton({
         <path d="M546.79,153.24c-49.5,15.516-70.922,28.828-195.42,81.562c-86.719,36.75-157.36,67.219-203.29,87.094c-0.42188,0.14062-0.5625,0.28125-0.5625,0.28125c-13.031,7.2188-32.578,20.156-50.062,41.906c-39.703,49.359-38.484,106.59-36.844,127.08c4.7344,58.172,36.047,98.25,54.75,117.47c7.7344,7.9688,12,18.609,12,29.719v258.14c0,42.328,30.047,78.469,71.531,86.109l430.26,79.969c5.2969,0.9375,10.734,1.5,16.031,1.5h0.14062c14.672,0,28.828-3.6562,41.344-10.453l9.0938-5.7188l329.34-204.84l17.812-11.156l2.25-1.6406c17.766-15.422,27.797-36.469,27.797-59.016v-235.08c0-3.75,1.6875-7.3125,4.4531-9.7969c52.922-47.812,62.531-86.531,62.484-111.89c-0.46875-152.86-354.24-336.1-593.21-261.19zm131.68,836.16c0,20.812-18.891,36.469-39.328,32.625l-430.26-79.828c-15.656-3-27.094-16.594-27.094-32.625v-276.56c0-16.734-6.7969-33.188-19.453-44.062c-30.047-25.688-47.484-56.203-47.484-88.969c0-91.547,48.422-148.97,216.28-142.97c30.188,1.0781,58.219,3.1406,84.328,5.8594c274.13,29.109,329.86,145.69,329.86,229.36c0,32.766-17.391,63.234-47.484,88.969c-12.797,10.875-19.453,27.328-19.453,44.062v264.19z" fill={iconColor} />
       </svg>
       <span className={`text-xs font-medium ${textColor} font-georgia-pro whitespace-nowrap`}>
-        {isReacting ? '⏳' : `${earnings.toFixed(0)} $TOWNS`}
+        {isReacting ? '⏳' : `$${earnings.toFixed(2)}`}
       </span>
     </div>
   );
@@ -192,7 +192,7 @@ function MessageBubbleComponent({
     } catch (error: any) {
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('bad_prev_miniblock_hash') || errorMsg.includes('miniblock')) {
-        toast.error('���️ Channel is syncing. Wait a moment and try again.');
+        toast.error('🔄 Channel is syncing. Wait a moment and try again.');
       } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
         toast.error('❌ Permission denied');
       } else {
@@ -395,7 +395,7 @@ function MessageBubbleComponent({
               <span className="font-georgia-pro">{!isOwn && `${message.sender.name} • `}{formatTime(message.timestamp)}</span>
             </div>
 
-            {/* Reaction counts and Bread tipping in same row */}
+            {/* Reaction counts and tip button in same row */}
             {!isOwn && !message.isContributor && (
               <div className="flex items-center gap-2 mt-1.5 px-2 flex-wrap">
                 {/* Bread tipping button */}
