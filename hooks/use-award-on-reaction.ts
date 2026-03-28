@@ -1,7 +1,7 @@
 /**
  * Award on Reaction Hook
  * 
- * Combines Towns Protocol reactions with $TOWNS token awards.
+ * Combines Towns Protocol reactions with USDC rewards.
  * CRITICAL: Blockchain transaction is primary, River reaction is secondary.
  */
 
@@ -82,9 +82,9 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
 
     try {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // STEP 1 (CRITICAL): Award $TOWNS tokens via blockchain
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━
-      console.log('💰 [BLOCKCHAIN] Awarding $TOWNS tokens via Engine...');
+      // STEP 1 (CRITICAL): Award USDC via blockchain
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      console.log('💰 [BLOCKCHAIN] Awarding USDC via Engine...');
       console.log('   From (contributor):', activeAccount.address);
       console.log('   To (participant):', recipientAddress);
       console.log('   Amount:', amount);
@@ -116,9 +116,9 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         throw new Error(data.error || 'Failed to award tokens');
       }
 
-      console.log('✅ [BLOCKCHAIN] Tokens awarded successfully:', data.transactionHash);
+      console.log('✅ [BLOCKCHAIN] USDC awarded successfully:', data.transactionHash);
 
-      // ━━━━━━━━━━━━━━━━━━��━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // STEP 2 (OPTIONAL): Send reaction to River Protocol
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // This is NOT critical - if it fails, the blockchain transaction
@@ -129,7 +129,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
         console.log('✅ [RIVER] Reaction sent successfully');
       } catch (riverError: any) {
         // River failed, but blockchain succeeded - that's OK!
-        console.warn('⚠️ [RIVER] Failed to send reaction (but tokens were awarded):', riverError);
+        console.warn('⚠️ [RIVER] Failed to send reaction (but USDC was awarded):', riverError);
         console.warn('   Error type:', riverError.name);
         console.warn('   Error message:', riverError.message);
         
@@ -145,7 +145,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // SHOW SUCCESS (based on blockchain, not River)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      toast.success(`Tipped ${amount} $TOWNS! ${reaction} (You get 20% cashback)`);
+      toast.success(`Tipped $${amount.toFixed(2)} ${reaction} (You get 20% cashback)`);
 
       // Notify earnings counters to refresh for this message
       window.dispatchEvent(new CustomEvent('message-tipped', {
@@ -154,21 +154,21 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
 
     } catch (error: any) {
       // This only catches BLOCKCHAIN errors now
-      console.error('❌ [BLOCKCHAIN] Error awarding tokens:', error);
+      console.error('❌ [BLOCKCHAIN] Error awarding USDC:', error);
       
       // Provide specific error messages
       if (error.message?.includes('contributors with NFT')) {
-        toast.error('Only contributors can award tokens');
+        toast.error('Only contributors can award USDC');
       } else if (error.message?.includes('yourself')) {
-        toast.error('Cannot award tokens to yourself');
+        toast.error('Cannot award USDC to yourself');
       } else if (error.message?.includes('Exceeds weekly budget')) {
-        toast.error('You have exceeded your weekly token budget');
+        toast.error('You have exceeded your weekly budget');
       } else if (error.message?.includes('Cooldown')) {
         toast.error('Please wait before tipping this user again (cooldown active)');
       } else if (error.message?.includes('Participant not registered')) {
         toast.error('Recipient not registered (auto-registration failed)');
       } else {
-        toast.error(`Failed to award tokens: ${error.message || 'Unknown error'}`);
+        toast.error(`Failed to award USDC: ${error.message || 'Unknown error'}`);
       }
     } finally {
       setIsReacting(false);
