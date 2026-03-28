@@ -187,7 +187,7 @@ export function WalletSummary({
         
         setTownsBalance(displayBalance);
       } catch (error) {
-        console.error("Failed to fetch TOWNS balance:", error);
+        console.error("Failed to fetch balance:", error);
         setTownsBalance("0");
       } finally {
         setIsLoadingBalance(false);
@@ -283,7 +283,7 @@ export function WalletSummary({
           maximumFractionDigits: 2,
         });
         setClaimableBalance(displayClaimable);
-        console.log(`✅ Claimable balance: ${displayClaimable} TOWNS`);
+        console.log(`✅ Claimable balance: $${displayClaimable}`);
       } catch (error) {
         console.error('❌ Failed to fetch claimable balance:', error);
         setClaimableBalance('0');
@@ -324,7 +324,7 @@ export function WalletSummary({
     if (claimableNum <= 0) {
       toast({
         title: "Nothing to claim",
-        description: "You don't have any TOWNS to claim yet",
+        description: "You don't have any USDC to claim yet",
         variant: "destructive",
       });
       return;
@@ -355,8 +355,8 @@ export function WalletSummary({
       });
       
       toast({
-        title: "TOWNS claimed!",
-        description: `Successfully claimed ${claimableBalance} TOWNS`,
+        title: "USDC claimed!",
+        description: `Successfully claimed $${claimableBalance}`,
       });
       
       console.log(`✅ Claim TX: https://basescan.org/tx/${result.transactionHash}`);
@@ -369,7 +369,7 @@ export function WalletSummary({
       console.error('Claim error:', error);
       toast({
         title: "Claim failed",
-        description: error.message || 'Failed to claim TOWNS',
+        description: error.message || 'Failed to claim USDC',
         variant: "destructive",
       });
     } finally {
@@ -422,7 +422,7 @@ export function WalletSummary({
     try {
       const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
       if (!townsContractAddress) {
-        throw new Error('TOWNS contract address not configured');
+        throw new Error('Contract address not configured');
       }
 
       const contract = getContract({
@@ -433,7 +433,7 @@ export function WalletSummary({
 
       const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
       if (balanceNum < amount) {
-        setWithdrawError(`Insufficient balance. You have ${townsBalance} $TOWNS but are trying to send ${amountString} $TOWNS.`);
+        setWithdrawError(`Insufficient balance. You have $${townsBalance} but are trying to send $${amountString}.`);
         setIsWithdrawing(false);
         return;
       }
@@ -451,7 +451,7 @@ export function WalletSummary({
       
       toast({
         title: "Transfer successful!",
-        description: `${amount} $TOWNS sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
+        description: `$${amount} sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
       });
 
       console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
@@ -632,10 +632,10 @@ export function WalletSummary({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm font-adonis text-gray-700">
                         <Wallet className="w-4 h-4 mr-2" />
-                        $TOWNS Balance
+                        Balance
                       </div>
                       <span className="text-sm font-adonis font-semibold text-gray-900">
-                        {isLoadingBalance ? "..." : townsBalance}
+                        {isLoadingBalance ? "..." : `$${townsBalance}`}
                       </span>
                     </div>
                   </div>
@@ -649,7 +649,7 @@ export function WalletSummary({
                             Weekly Allowance
                           </div>
                           <span className="text-sm font-adonis font-semibold text-blue-600">
-                            {isLoadingAllowance ? "..." : `${weeklyAllowance} / ${weeklyAllowanceCap}`}
+                            {isLoadingAllowance ? "..." : `$${weeklyAllowance} / $${weeklyAllowanceCap}`}
                           </span>
                         </div>
                       </div>
@@ -663,13 +663,13 @@ export function WalletSummary({
                               <HelpCircle className="w-3 h-3 ml-1 text-gray-400 cursor-help" />
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                                 <p className="font-semibold mb-1">Contributor Earnings</p>
-                                <p>When you tip messages, you receive 20% $TOWNS back. Your $TOWNS accumulates here and can be claimed to your wallet balance.</p>
+                                <p>When you tip messages, you receive 20% back in USDC. Your balance accumulates here and can be claimed to your wallet.</p>
                                 <p className="mt-1 text-gray-300">Weekly allowance resets Sunday.</p>
                               </div>
                             </div>
                           </div>
                           <span className="text-sm font-adonis font-semibold text-green-600">
-                            {isLoadingClaimable ? "..." : claimableBalance}
+                            {isLoadingClaimable ? "..." : `$${claimableBalance}`}
                           </span>
                         </div>
                       </div>
@@ -680,7 +680,7 @@ export function WalletSummary({
                         className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Download className="w-4 h-4 mr-2" />
-                        {isClaiming ? 'Claiming...' : 'Claim TOWNS'}
+                        {isClaiming ? 'Claiming...' : 'Claim USDC'}
                       </button>
                     </>
                   )}
@@ -694,7 +694,7 @@ export function WalletSummary({
                             Total Earned
                           </div>
                           <span className="text-sm font-adonis font-semibold text-gray-900">
-                            {isLoadingEarnings ? "..." : totalEarned}
+                            {isLoadingEarnings ? "..." : `$${totalEarned}`}
                           </span>
                         </div>
                       </div>
@@ -707,7 +707,7 @@ export function WalletSummary({
                               Progress
                             </div>
                             <span className="text-sm font-adonis font-semibold text-purple-600">
-                              {isLoadingEarnings ? "..." : `${totalEarned} / ${graduationThreshold}`}
+                              {isLoadingEarnings ? "..." : `$${totalEarned} / $${graduationThreshold}`}
                             </span>
                           </div>
                         </div>
@@ -728,7 +728,7 @@ export function WalletSummary({
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     <ArrowUpFromLine className="w-4 h-4 mr-2" />
-                    Send $TOWNS
+                    Send USDC
                   </button>
 
                   <div className="border-t border-gray-100 my-1"></div>
@@ -784,14 +784,14 @@ export function WalletSummary({
             >
               <div className="text-center mb-6">
                 <h1 className="font-adonis text-4xl mb-2">Knead</h1>
-                <p className="font-georgia-pro text-sm text-gray-600">Send Your $TOWNS</p>
+                <p className="font-georgia-pro text-sm text-gray-600">Send Your USDC</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
                   <span className="font-adonis text-sm text-gray-700">Available Balance:</span>
                   <span className="font-adonis text-xl font-semibold text-gray-900">
-                    {townsBalance} $TOWNS
+                    ${townsBalance}
                   </span>
                 </div>
               </div>
@@ -814,19 +814,19 @@ export function WalletSummary({
                     Amount to Send
                   </label>
                   <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-adonis text-sm text-gray-500">
+                      $
+                    </span>
                     <input
                       type="number"
                       step="0.01"
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       placeholder="0.00"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                      className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
                       disabled={isWithdrawing}
                       required
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-adonis text-sm text-gray-500">
-                      $TOWNS
-                    </span>
                   </div>
                 </div>
 
