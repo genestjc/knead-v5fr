@@ -203,7 +203,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 <Landmark className="w-5 h-5 text-gray-700" />
                 <div className="flex-1 text-left">
                   <span className="font-georgia-pro text-sm text-gray-700">
-                    Treasury: <span className="font-medium">{treasuryBalance} $TOWNS</span>
+                    Treasury: <span className="font-medium">${treasuryBalance}</span>
                   </span>
                 </div>
               </a>
