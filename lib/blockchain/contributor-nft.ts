@@ -153,15 +153,15 @@ export function getContributorMultiplier(tokenId: number | null): number {
  * Get contributor's weekly token budget based on their NFT type
  * 
  * @param contributorType - Type of contributor
- * @returns Weekly budget in $TOWNS tokens
+ * @returns Weekly budget in USDC
  */
 export function getWeeklyBudget(contributorType: ContributorType): number {
   if (!contributorType) return 0;
   
   const budgets = {
-    appointed: 12,    // 12 $TOWNS per week
-    invited: 10,      // 10 $TOWNS per week
-    earned: 15,       // 15 $TOWNS per week
+    appointed: 12,    // 12 USDC per week
+    invited: 10,      // 10 USDC per week
+    earned: 15,       // 15 USDC per week
   };
   
   return budgets[contributorType] || 0;
