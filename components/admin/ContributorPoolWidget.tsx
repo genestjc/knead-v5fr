@@ -1,7 +1,5 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-
 /**
  * Contributor Pool Widget
  * 
@@ -12,12 +10,10 @@ export function ContributorPoolWidget() {
   const [poolBalance, setPoolBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const fetchPoolBalance = async () => {
     try {
       const response = await fetch('/api/contributor/pool-balance');
       const data = await response.json();
-
       if (data.success) {
         setPoolBalance(data.balance);
         setError(null);
@@ -30,16 +26,12 @@ export function ContributorPoolWidget() {
       setIsLoading(false);
     }
   };
-
   useEffect(() => {
     fetchPoolBalance();
-
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchPoolBalance, 30000);
-
     return () => clearInterval(interval);
   }, []);
-
   // Calculate next distribution date (Sunday midnight UTC)
   const getNextDistribution = () => {
     const now = new Date();
@@ -54,7 +46,6 @@ export function ContributorPoolWidget() {
       day: 'numeric',
     });
   };
-
   return (
     <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-6">
       <div className="flex items-start justify-between mb-4">
@@ -74,7 +65,6 @@ export function ContributorPoolWidget() {
           {isLoading ? '⟳' : '↻'} Refresh
         </button>
       </div>
-
       {error ? (
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
           <p className="text-sm text-red-700">❌ {error}</p>
@@ -87,13 +77,10 @@ export function ContributorPoolWidget() {
               {isLoading ? (
                 <span className="animate-pulse">...</span>
               ) : (
-                <>
-                  {poolBalance?.toFixed(2)} <span className="text-xl text-gray-500">$TOWNS</span>
-                </>
+                `$${poolBalance?.toFixed(2)}`
               )}
             </div>
           </div>
-
           <div className="flex items-center justify-between text-sm">
             <div className="text-gray-600">
               <span className="font-medium">Next Distribution:</span>{' '}
@@ -103,7 +90,6 @@ export function ContributorPoolWidget() {
               ⏰ Sunday, 12:00 AM UTC
             </div>
           </div>
-
           <div className="bg-purple-50 border border-purple-100 rounded-md p-3">
             <p className="text-xs text-gray-600 leading-relaxed">
               💡 <strong>Weighted Distribution:</strong> Earned (3x) {'>'} Invited (2x) {'>'} Appointed (1x)
