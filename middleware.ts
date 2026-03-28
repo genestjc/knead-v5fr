@@ -54,7 +54,8 @@ export function middleware(request: NextRequest) {
       https://js.stripe.com 
       https://checkout.stripe.com
       https://www.youtube.com
-      https://www.youtube-nocookie.com;
+      https://www.youtube-nocookie.com
+      https://*.daily.co;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
@@ -130,8 +131,8 @@ export function middleware(request: NextRequest) {
       https://vercel.com
       https://va.vercel-scripts.com;
   `
-    .replace(/\n/g, '')        // ✅ CRITICAL FIX: Remove newlines first
-    .replace(/\s{2,}/g, ' ')   // Then collapse multiple spaces
+    .replace(/\n/g, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 
   const requestHeaders = new Headers(request.headers);
