@@ -3,11 +3,9 @@ import {
   awardAdminBonus,
   isParticipant,
 } from '@/lib/blockchain/award-rewards-engine';
-
 export async function POST(req: NextRequest) {
   try {
     const { participantAddress, bonusAmount, bonusType } = await req.json();
-
     // Validate required fields
     if (!participantAddress || !bonusAmount || !bonusType) {
       return NextResponse.json(
@@ -18,14 +16,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-
     if (bonusAmount <= 0) {
       return NextResponse.json(
         { error: 'Bonus amount must be positive' },
         { status: 400 },
       );
     }
-
     // Check if participant is registered
     const registered = await isParticipant(participantAddress);
     if (!registered) {
@@ -37,20 +33,18 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-
     // Award admin bonus (100% to participant, bypasses allowances)
     const result = await awardAdminBonus(
       participantAddress,
       bonusAmount,
       bonusType
     );
-
     return NextResponse.json({
       success: true,
       transactionHash: result.transactionHash,
       amount: bonusAmount,
       bonusType,
-      message: `Admin awarded ${bonusAmount} TOWNS to ${participantAddress} (100% payout)`,
+      message: `Admin awarded $${bonusAmount.toFixed(2)} to ${participantAddress} (100% payout)`,
     });
   } catch (error: any) {
     console.error('Award bonus failed:', error.message);
