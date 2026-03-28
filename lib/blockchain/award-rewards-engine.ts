@@ -1,7 +1,7 @@
 /**
  * Award Rewards Engine
  * 
- * Engine wallet functions for awarding tokens without user signatures.
+ * Engine wallet functions for awarding USDC tokens without user signatures.
  * Uses ThirdWeb Engine to execute transactions on behalf of users.
  * 
  * ⚠️ SERVER-ONLY: This file uses secret keys and must never be imported in client components!
@@ -36,7 +36,7 @@ function getRewardsContract() {
 }
 
 /**
- * Award $TOWNS tokens via contributor tipping (80/20 split)
+ * Award USDC tokens via contributor tipping (80/20 split)
  * 
  * This function uses the Engine wallet to execute contributor tips.
  * The contributor receives 20% cashback, participant receives 80%.
@@ -44,7 +44,7 @@ function getRewardsContract() {
  * 
  * @param contributorAddress - Contributor's wallet address
  * @param participantAddress - Recipient's wallet address
- * @param amount - Amount in $TOWNS tokens (not wei)
+ * @param amount - Amount in USDC (not wei)
  * @param messageId - Towns Protocol message ID (eventId)
  * @param actionType - Type of action (e.g., "message_like")
  * @returns Transaction hash
@@ -59,8 +59,8 @@ export async function awardTownsViaEngine(
   try {
     const rewardsContract = getRewardsContract();
     
-    // Convert amount to wei (18 decimals)
-    const amountInWei = BigInt(Math.floor(amount * 1e18));
+    // Convert amount to smallest unit (6 decimals)
+    const amountInWei = BigInt(Math.floor(amount * 1e6));
     
     // ✅ FIXED: Convert Towns Protocol messageId to bytes32 using keccak256
     // Towns eventIds can be long strings, so we hash them instead of truncating
@@ -82,7 +82,7 @@ export async function awardTownsViaEngine(
       transactionId,
     });
     
-    console.log('✅ Tip awarded via Engine:', {
+    console.log('✅ USDC tip awarded via Engine:', {
       contributor: contributorAddress,
       recipient: participantAddress,
       amount,
@@ -104,14 +104,14 @@ export async function awardTownsViaEngine(
 }
 
 /**
- * Award admin bonus (100% to participant, bypasses allowances)
+ * Award admin bonus (100% to participant via USDC, bypasses allowances)
  * 
  * This function uses the Engine wallet to award admin bonuses.
  * The participant receives 100% of the amount.
  * The Engine wallet must have ADMIN_ROLE on the rewards contract.
  * 
  * @param participantAddress - Recipient's wallet address
- * @param amount - Amount in $TOWNS tokens (not wei)
+ * @param amount - Amount in USDC (not wei)
  * @param bonusType - Type of bonus (e.g., "outstanding_contribution")
  * @returns Transaction hash
  */
@@ -123,8 +123,8 @@ export async function awardAdminBonus(
   try {
     const rewardsContract = getRewardsContract();
     
-    // Convert amount to wei (18 decimals)
-    const amountInWei = BigInt(Math.floor(amount * 1e18));
+    // Convert amount to smallest unit (6 decimals)
+    const amountInWei = BigInt(Math.floor(amount * 1e6));
     
     // Use adminAwardBonus for special admin rewards (100% payout)
     const transaction = prepareContractCall({
@@ -142,7 +142,7 @@ export async function awardAdminBonus(
       transactionId,
     });
     
-    console.log('✅ Admin bonus awarded via Engine:', {
+    console.log('✅ Admin USDC bonus awarded via Engine:', {
       recipient: participantAddress,
       amount,
       bonusType,
@@ -180,7 +180,7 @@ export async function getContributorPoolBalance(): Promise<number> {
       params: [engineWalletAddress],
     });
     
-    return Number(stats[5]) / 1e18; // stats[5] is claimable
+    return Number(stats[5]) / 1e6; // stats[5] is claimable
   } catch (error) {
     console.error('Error fetching contributor pool balance:', error);
     throw new Error(
@@ -190,35 +190,35 @@ export async function getContributorPoolBalance(): Promise<number> {
 }
 
 /**
- * Get the contract's $TOWNS balance
+ * Get the contract's USDC balance
  * 
- * Queries the $TOWNS token contract to get the actual ERC20 balance
+ * Queries the USDC token contract to get the actual ERC20 balance
  * held by the rewards contract address.
  * 
- * @returns Contract balance in $TOWNS tokens
+ * @returns Contract balance in USDC
  */
 export async function getContractBalance(): Promise<number> {
   try {
     const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
+    const usdcContractAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS;
     
-    if (!rewardsContractAddress || !townsContractAddress) {
+    if (!rewardsContractAddress || !usdcContractAddress) {
       throw new Error('Contract addresses not configured');
     }
 
-    const townsContract = getContract({
+    const usdcContract = getContract({
       client,
-      address: townsContractAddress,
+      address: usdcContractAddress,
       chain: base,
     });
 
     const balance = await readContract({
-      contract: townsContract,
+      contract: usdcContract,
       method: 'function balanceOf(address account) view returns (uint256)',
       params: [rewardsContractAddress],
     });
     
-    return Number(balance) / 1e18;
+    return Number(balance) / 1e6;
   } catch (error) {
     console.error('Error fetching contract balance:', error);
     throw new Error(
