@@ -25,7 +25,7 @@ function getRewardsContract() {
  * 
  * @param contributorAddress - Wallet address of the contributor
  * @param contributorType - 0=Appointed, 1=Invited, 2=Earned
- * @param weeklyBudget - Weekly budget in TOWNS (e.g., 100 for 100 TOWNS)
+ * @param weeklyBudget - Weekly budget in USDC (e.g., 100 for 100 USDC)
  */
 export async function addContributorToRewards(
   contributorAddress: string,
@@ -35,8 +35,8 @@ export async function addContributorToRewards(
   try {
     const contract = getRewardsContract();
     
-    // Convert TOWNS to wei (18 decimals)
-    const weeklyBudgetWei = BigInt(Math.floor(weeklyBudget * 1e18));
+    // Convert USDC to smallest unit (6 decimals)
+    const weeklyBudgetWei = BigInt(Math.floor(weeklyBudget * 1e6));
     
     const transaction = prepareContractCall({
       contract,
