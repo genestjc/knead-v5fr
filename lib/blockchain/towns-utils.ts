@@ -1,5 +1,5 @@
 /**
- * $TOWNS Blockchain Utility Functions
+ * USDC Blockchain Utility Functions
  * 
  * Direct blockchain integration for querying balances and transferring tokens.
  * Replaces Supabase points system with on-chain source of truth.
@@ -12,22 +12,22 @@ import type { Account } from "thirdweb/wallets";
 import { logTransactionAnalytics } from "@/lib/analytics/transaction-logger";
 
 /**
- * Query user's $TOWNS balance directly from blockchain
+ * Query user's USDC balance directly from blockchain
  * 
  * @param walletAddress - User's wallet address
- * @returns Balance in $TOWNS tokens (as number with decimals)
+ * @returns Balance in USDC (as number with 6 decimal places)
  */
 export async function getUserTownsBalance(walletAddress: string): Promise<number> {
   try {
-    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-    if (!townsContractAddress) {
-      throw new Error("NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS is not set");
+    const usdcContractAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS;
+    if (!usdcContractAddress) {
+      throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set");
     }
 
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress,
+      address: usdcContractAddress,
     });
 
     const balance = await readContract({
@@ -36,22 +36,22 @@ export async function getUserTownsBalance(walletAddress: string): Promise<number
       params: [walletAddress],
     });
 
-    // Convert from wei (18 decimals) to $TOWNS tokens
-    return Number(balance) / 1e18;
+    // Convert from smallest unit (6 decimals) to USDC
+    return Number(balance) / 1e6;
   } catch (error) {
-    console.error("Error fetching $TOWNS balance:", error);
+    console.error("Error fetching USDC balance:", error);
     throw new Error(
-      `Failed to fetch $TOWNS balance: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to fetch USDC balance: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
 /**
- * Award $TOWNS tokens directly from contributor wallet to participant
+ * Award USDC tokens directly from contributor wallet to participant
  * 
  * @param contributorAccount - Contributor's account instance (must be connected)
  * @param participantAddress - Participant's wallet address
- * @param amount - Amount of $TOWNS tokens to award (as number)
+ * @param amount - Amount of USDC tokens to award (as number)
  * @param eventId - Optional event ID for analytics
  * @returns Transaction hash
  */
@@ -62,18 +62,18 @@ export async function awardTownsTokens(
   eventId?: string
 ): Promise<{ transactionHash: string }> {
   try {
-    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-    if (!townsContractAddress) {
-      throw new Error("NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS is not set");
+    const usdcContractAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS;
+    if (!usdcContractAddress) {
+      throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set");
     }
 
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress,
+      address: usdcContractAddress,
     });
 
-    // Convert amount to wei (18 decimals)
+    // Convert amount to smallest unit (6 decimals)
     const amountInWei = toWei(amount.toString());
 
     // Prepare the transfer transaction
@@ -103,29 +103,29 @@ export async function awardTownsTokens(
       transactionHash: receipt.transactionHash,
     };
   } catch (error) {
-    console.error("Error awarding $TOWNS tokens:", error);
+    console.error("Error awarding USDC tokens:", error);
     throw new Error(
-      `Failed to award $TOWNS tokens: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to award USDC tokens: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
 /**
- * Get total supply of $TOWNS tokens
+ * Get total supply of USDC tokens
  * 
- * @returns Total supply in $TOWNS tokens
+ * @returns Total supply in USDC
  */
 export async function getTownsTotalSupply(): Promise<number> {
   try {
-    const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-    if (!townsContractAddress) {
-      throw new Error("NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS is not set");
+    const usdcContractAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS;
+    if (!usdcContractAddress) {
+      throw new Error("NEXT_PUBLIC_USDC_ADDRESS is not set");
     }
 
     const contract = getContract({
       client: thirdwebClient,
       chain: base,
-      address: townsContractAddress,
+      address: usdcContractAddress,
     });
 
     const totalSupply = await readContract({
@@ -134,10 +134,10 @@ export async function getTownsTotalSupply(): Promise<number> {
       params: [],
     });
 
-    // Convert from wei to $TOWNS
-    return Number(totalSupply) / 1e18;
+    // Convert from smallest unit to USDC
+    return Number(totalSupply) / 1e6;
   } catch (error) {
-    console.error("Error fetching $TOWNS total supply:", error);
+    console.error("Error fetching USDC total supply:", error);
     throw new Error(
       `Failed to fetch total supply: ${error instanceof Error ? error.message : String(error)}`
     );
