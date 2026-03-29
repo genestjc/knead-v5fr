@@ -241,10 +241,10 @@ export function ContributorWelcomeModal({
                 <div className="space-y-4 font-georgia-pro text-lg text-gray-800 leading-relaxed">
                   <p>
                     Contributors are granted full access to the chat, including messaging during non-events,
-                    as well as being able to DM other Contributors in the rolodex.
+                    as well as being able to Direct Message + Video Chat with other Contributors in the rolodex.
                   </p>
                   <p>
-                    Contributors are allocated a weekly budget of $TOWNS from the Treasury to spend on Knead
+                    Contributors are allocated a weekly budget of USDC from the Treasury to spend on Knead
                     Monthly members, earning 20% back for each 'like' they allocate.
                   </p>
                   <p>
@@ -255,7 +255,7 @@ export function ContributorWelcomeModal({
                     Monthly member, your weekly allowance will be higher than appointed guests.
                   </p>
                   <p>
-                    Finally, Contributors are also able to set a profile picture + display name in the chat.
+                    Finally, Contributors are also able to set a profile picture, bio, and display name in the chat.
                     Upload a photo below + assign your persona below:
                   </p>
                 </div>
