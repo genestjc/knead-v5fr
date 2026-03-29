@@ -63,22 +63,22 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                   <li className="flex gap-3">
                     <span className="mt-1 shrink-0">•</span>
                     <span>
-                      <strong>Free members</strong> can watch events in the chat for one hour per month.
+                      <strong>Free</strong> members can watch events in the chat for one hour per month.
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="mt-1 shrink-0">•</span>
                     <span>
-                      <strong>Knead Monthly members</strong> can watch unlimitedly + participate during events,
-                      earning $TOWNS for making good discussion points on their way to Contributor status.
+                      <strong>Knead Monthly</strong> members can watch unlimitedly + participate during events,
+                      earning USDC for making good discussion points on their way to Contributor status.
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="mt-1 shrink-0">•</span>
                     <span>
                       <strong>Contributors</strong> are special guests or earned members. They have full chat
-                      privileges, including DMs, and are allocated a weekly allowance to spend from the Treasury
-                      on Knead Monthly member comments. Contributors earn 20% back on the $TOWNS they spend from
+                      privileges, including DMs, and are allocated a weekly allowance of USDC to spend from the Treasury
+                      on Knead Monthly member comments. Contributors earn 20% back on what they spend from
                       their budget, which is on a 'use it or lose it' basis.
                     </span>
                   </li>
