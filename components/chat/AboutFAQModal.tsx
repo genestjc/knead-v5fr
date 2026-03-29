@@ -62,7 +62,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   </p>
                   <p>
                     The chat is designed to encourage thoughtful conversations using a gamified
-                    system powered by the Towns Protocol, using USDC for rewards. As
+                    system with USDC for rewards. As
                     members elevate their status, they'll unlock more permissions in the chat.
                     Here's how it works:
                   </p>
@@ -97,8 +97,8 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Contributors</h4>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs with other Contributors,
-                      custom profiles with avatars/aliases, and the ability to spend USDC from
+                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs + Video Chat with other Contributors,
+                      custom profiles/avatars/bios, and the ability to spend USDC from
                       the Treasury (earning 20% back on every transaction).
                     </p>
                     <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
@@ -126,22 +126,17 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                   />
 
                   <FAQDropdown
-                    question="What is the chat built on?"
-                    answer="Knead's chat is built on the Towns Protocol for messaging. We use USDC for rewards to support the protocol's initiative and development. Towns is a venture-backed startup from the same team that created Houseparty."
-                  />
-
-                  <FAQDropdown
                     question="What's the Treasury Contract?"
                     answer="The Treasury Contract is where the chat's reward system and rules are written. Knead never actually touches the USDC that ends up in your wallet, instead it's automatically distributed via the Treasury Contract's rules. If you'd like to donate, the Treasury address is: 0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
                   />
 
                   <FAQDropdown
                     question="How do you establish the amount of USDC distributed for 'likes' and Contributor balances?"
-                    answer="We cycle through the amount of events we're forecasting against the total amount of USDC in our treasury. As Knead doesn't control the funds, the more USDC in the treasury means more rewards for users."
+                    answer="We cycle through the amount of events we're forecasting against the total amount of USDC in our treasury."
                   />
 
                   <FAQDropdown
-                    question="What do you mean that 'Knead doesn't control the funds'?"
+                    question="Does Knead actually handle the Knead Monthly distributions?"
                     answer="Knead is a decentralized platform, which means that no USDC actually passes through us. Instead, the funds are kept in the Treasury contract, which automatically distributes. Knead members own their account, which is why they have the ability to export their private keys."
                   />
 
@@ -152,17 +147,17 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
                   <FAQDropdown
                     question="What should I do with the USDC I earn? Where should I send it?"
-                    answer="USDC is a stablecoin available on popular exchanges like Coinbase or Binance. We highly recommend creating an account with a company like Coinbase or Binance to send your USDC from Knead's chat to, enabling you to exchange it for other cryptocurrencies or local currency. These services are helpful in connecting your bank to Web3."
+                    answer="USDC is a stablecoin available on Coinbase, Binance, PayPal, CashApp, Venmo, and other popular platforms. We highly encourage creating an account with a company that accepts USDC to transfer your Knead chat earnings to."
                   />
 
                   <FAQDropdown
                     question="How do I become a Contributor? Do I get more USDC if I 'graduate' to one?"
-                    answer="The graduation threshold for Contributor status is determined by the Treasury balance, however, is usually established to identify people who've been active in the chat for a couple of months. The ideal path is someone attends 1-2 events every week and at least makes a comment or two. Those that graduated to become Contributors are allocated a larger weekly allowance than those who are appointed by Knead."
+                    answer="The graduation threshold for Contributor status is determined by the Treasury balance. While it varies case-by-case, we generally define Contributors as individuals who've been active in the chat for a couple of months and participating in events. Those that graduated to become Contributors are allocated a larger weekly allowance than those who are appointed by Knead."
                   />
 
                   <FAQDropdown
                     question="Why's it saying I can't participate or DM?"
-                    answer="Knead Monthly members are only able to participate in the chat during events (live interviews, AMAs, portfolio reviews, open periods, etc). DMs are only open to those who've earned Contributor status."
+                    answer="Knead Monthly members are only able to participate in the chat during events (live interviews, portfolio reviews, open chat, etc). DMs are only open to those who've earned Contributor status."
                   />
 
                   <FAQDropdown
