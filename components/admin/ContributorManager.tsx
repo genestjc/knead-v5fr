@@ -44,10 +44,22 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
   const { mutateAsync: sendTransaction } = useSendTransaction();
   const [recipient, setRecipient] = useState('');
   const [role, setRole] = useState<'appointed' | 'invited' | 'earned'>('invited');
-  const [weeklyBudget, setWeeklyBudget] = useState('100');
+  const [weeklyBudget, setWeeklyBudget] = useState('1');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [txHashes, setTxHashes] = useState<{ mint?: string; rewards?: string } | null>(null);
+  const [contractAddresses, setContractAddresses] = useState<{
+    contributorNftAddress?: string;
+    rewardsAddress?: string;
+  } | null>(null);
+
+  // Fetch contract addresses from server at runtime (not build time)
+  useEffect(() => {
+    fetch('/api/config/contracts')
+      .then(res => res.json())
+      .then(data => setContractAddresses(data))
+      .catch(err => console.error('Failed to fetch contract addresses:', err));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,10 +74,11 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       return;
     }
 
-    const contributorNftAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-    const rewardsAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+    // Use runtime-fetched addresses instead of build-time env vars
+    const contributorNftAddress = contractAddresses?.contributorNftAddress;
+    const rewardsAddress = contractAddresses?.rewardsAddress;
     if (!contributorNftAddress || !rewardsAddress) {
-      setMessage('Error: Contract addresses are not configured.');
+      setMessage('Error: Contract addresses not loaded. Please refresh the page.');
       return;
     }
 
@@ -109,7 +122,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       setTxHashes({ mint: mintResult.transactionHash, rewards: addResult.transactionHash });
       setMessage(`✅ Contributor added! NFT minted (Token ID ${tokenIdMap[role]}) with $${weeklyBudget}/week budget.`);
       setRecipient('');
-      setWeeklyBudget('100'); // Reset to default
+      setWeeklyBudget('1'); // Reset to default
       onMintSuccess();
     } catch (error) {
       console.error(error);
