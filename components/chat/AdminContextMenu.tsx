@@ -143,7 +143,7 @@ export function AdminContextMenu({
       console.log('📬 API Response:', data);
 
       if (data.success) {
-        toast.success(`Awarded ${amount} TOWNS bonus!`, {
+        toast.success(`Awarded $${amount} USDC bonus!`, {
           description: `TX: ${data.transactionHash?.slice(0, 10)}...`,
         });
         
@@ -361,10 +361,10 @@ export function AdminContextMenu({
             Award Bonus
           </p>
           {[
-            { amount: 5, label: 'Good (5 TOWNS)', type: 'good_contribution' },
-            { amount: 10, label: 'Great (10 TOWNS)', type: 'great_contribution' },
-            { amount: 15, label: 'Excellent (15 TOWNS)', type: 'excellent_contribution' },
-            { amount: 20, label: 'Outstanding (20 TOWNS)', type: 'outstanding_contribution' },
+            { amount: 0.25, label: 'Good ($0.25 USDC)', type: 'good_contribution' },
+            { amount: 0.50, label: 'Great ($0.50 USDC)', type: 'great_contribution' },
+            { amount: 0.75, label: 'Excellent ($0.75 USDC)', type: 'excellent_contribution' },
+            { amount: 1.00, label: 'Outstanding ($1.00 USDC)', type: 'outstanding_contribution' },
           ].map((option) => (
             <button
               key={option.amount}
