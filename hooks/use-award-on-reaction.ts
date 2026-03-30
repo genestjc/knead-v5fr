@@ -36,7 +36,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
   async function awardTokensOnLike(
     messageId: string,
     recipientAddress: string,
-    amount: number = 10,
+    amount: number = 0.10,
     reaction: string = '❤️'
   ): Promise<void> {
     // ✅ VALIDATION: Check all required parameters

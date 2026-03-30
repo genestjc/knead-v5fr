@@ -127,7 +127,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
                   <FAQDropdown
                     question="What's the Treasury Contract?"
-                    answer="The Treasury Contract is where the chat's reward system and rules are written. Knead never actually touches the USDC that ends up in your wallet, instead it's automatically distributed via the Treasury Contract's rules. If you'd like to donate, the Treasury address is: 0xf5279a6eef5b053ba20a5c1493aed12ed3428d88"
+                    answer="The Treasury Contract is where the chat's reward system and rules are written. Knead never actually touches the USDC that ends up in your wallet, instead it's automatically distributed via the Treasury Contract's rules. If you'd like to donate, the Treasury address is: 0xf94ee5efd046486ad3c2554bad48c82dfb17ca12"
                   />
 
                   <FAQDropdown

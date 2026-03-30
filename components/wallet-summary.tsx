@@ -44,7 +44,7 @@ export function WalletSummary({
   const [isClaiming, setIsClaiming] = useState(false);
   
   const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
-  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("100");
+  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("1");
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
   
   const [totalEarned, setTotalEarned] = useState<string>("0");

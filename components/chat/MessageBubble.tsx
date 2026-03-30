@@ -170,14 +170,14 @@ function MessageBubbleComponent({
       return;
     }
     try {
-      await awardTokensOnLike(message.id, message.sender.walletAddress, 10, '❤️', eventId);
+      await awardTokensOnLike(message.id, message.sender.walletAddress, 0.10, '❤️', eventId);
       
       // Dispatch event for optimistic UI update
       window.dispatchEvent(new CustomEvent('message-tipped', { 
         detail: { 
           messageId: message.id,
           participantAddress: message.sender.walletAddress,
-          bonusAmount: 10,
+          bonusAmount: 0.10,
         } 
       }));
     } catch (error: any) {
