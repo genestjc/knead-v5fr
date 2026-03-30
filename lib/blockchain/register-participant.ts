@@ -9,6 +9,8 @@ const client = createThirdwebClient({
 function getRewardsContract() {
   const address = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
   
+  console.log('[v0] register-participant using REWARDS_CONTRACT:', address);
+  
   if (!address) {
     throw new Error('NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS not set');
   }
@@ -53,6 +55,9 @@ export async function registerParticipant(address: string): Promise<{ transactio
   try {
     const contract = getRewardsContract();
     
+    console.log('[v0] Attempting to register participant:', address);
+    console.log('[v0] Contract address:', contract.address);
+    
     // ✅ UPDATED: KneadRewardsV5 takes address and cohort parameters
     const transaction = prepareContractCall({
       contract,
@@ -60,9 +65,13 @@ export async function registerParticipant(address: string): Promise<{ transactio
       params: [address, BigInt(1)],
     });
     
+    console.log('[v0] Transaction prepared, enqueueing...');
+    
     const { transactionId } = await serverWallet.enqueueTransaction({
       transaction,
     });
+    
+    console.log('[v0] Transaction enqueued, transactionId:', transactionId);
 
     const { transactionHash } = await Engine.waitForTransactionHash({
       client,
