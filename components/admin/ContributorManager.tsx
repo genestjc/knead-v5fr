@@ -98,11 +98,11 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       });
       const mintResult = await sendTransaction(mintTx);
 
-      // Step 2: Add to rewards contract
+      // Step 2: Add to rewards contract (USDC uses 6 decimals)
       const addTx = prepareContractCall({
         contract: rewardsContract,
         method: "function addContributor(address _contributor, uint8 _type, uint256 _weeklyBudgetTowns)",
-        params: [recipient as `0x${string}`, contributorTypeMap[role], BigInt(Math.round(budgetNum)) * 10n ** 18n],
+        params: [recipient as `0x${string}`, contributorTypeMap[role], BigInt(Math.round(budgetNum * 1e6))],
       });
       const addResult = await sendTransaction(addTx);
 
