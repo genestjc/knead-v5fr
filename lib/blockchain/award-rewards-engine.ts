@@ -22,8 +22,6 @@ const client = createThirdwebClient({
 function getRewardsContract() {
   const address = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
   
-  console.log('[v0] award-rewards-engine using REWARDS_CONTRACT:', address);
-  
   if (!address) {
     throw new Error(
       'NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS not set. This contract address is required for automated rewards.'
