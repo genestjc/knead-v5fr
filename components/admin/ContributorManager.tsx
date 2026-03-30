@@ -64,6 +64,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
 
     const contributorNftAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     const rewardsAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
+    console.log("[v0] ContributorManager using addresses:", { contributorNftAddress, rewardsAddress });
     if (!contributorNftAddress || !rewardsAddress) {
       setMessage('Error: Contract addresses are not configured.');
       return;
