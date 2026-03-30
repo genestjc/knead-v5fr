@@ -53,7 +53,7 @@ export async function registerParticipant(address: string): Promise<{ transactio
   try {
     const contract = getRewardsContract();
     
-    // ✅ UPDATED: KneadRewardsV5 takes address and cohort parameters
+    // KneadRewardsV5 takes address and cohort parameters
     const transaction = prepareContractCall({
       contract,
       method: 'function registerParticipant(address _participant, uint256 _cohort)',
