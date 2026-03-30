@@ -125,7 +125,7 @@ export async function getContractConstants(): Promise<{
 
     return {
       graduationThreshold: Number(graduationThreshold) / 1e6,
-      weeklyAllowance: 25, // Hardcoded since not in contract
+      weeklyAllowance: 1, // $1 weekly budget for testing
     };
   } catch (error) {
     console.error('Error fetching contract constants:', error);

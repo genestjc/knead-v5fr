@@ -94,7 +94,7 @@ export async function updateContributorBudget(
 ): Promise<{ transactionHash: string }> {
   const contract = getRewardsContract();
 
-  const newBudgetWei = BigInt(Math.floor(newBudget * 1e18));
+  const newBudgetWei = BigInt(Math.floor(newBudget * 1e6)); // USDC uses 6 decimals
 
   const transaction = prepareContractCall({
     contract,

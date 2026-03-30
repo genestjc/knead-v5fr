@@ -44,7 +44,7 @@ export function WalletSummary({
   const [isClaiming, setIsClaiming] = useState(false);
   
   const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
-  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("100");
+  const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("1");
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
   
   const [totalEarned, setTotalEarned] = useState<string>("0");
@@ -54,6 +54,10 @@ export function WalletSummary({
   
   const [showContributorSettings, setShowContributorSettings] = useState(false);
   const [userData, setUserData] = useState<any>(null);
+  const [contractAddresses, setContractAddresses] = useState<{
+    rewardsAddress?: string;
+    usdcAddress?: string;
+  } | null>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -66,6 +70,14 @@ export function WalletSummary({
     console.log('🔍 Context:', context);
     console.log('🔍 isChatContext:', isChatContext);
     console.log('🔍 Account:', account?.address);
+  }, []);
+
+  // Fetch contract addresses from server at runtime (not build time)
+  useEffect(() => {
+    fetch('/api/config/contracts')
+      .then(res => res.json())
+      .then(data => setContractAddresses(data))
+      .catch(err => console.error('Failed to fetch contract addresses:', err));
   }, []);
 
   useEffect(() => {
@@ -334,8 +346,9 @@ export function WalletSummary({
     setIsDropdownOpen(false);
     
     try {
-      const rewardsContractAddress = process.env.NEXT_PUBLIC_REWARDS_CONTRACT_ADDRESS;
-      if (!rewardsContractAddress) throw new Error('Rewards contract not configured');
+      // Use runtime-fetched address instead of build-time env var
+      const rewardsContractAddress = contractAddresses?.rewardsAddress;
+      if (!rewardsContractAddress) throw new Error('Rewards contract not loaded. Please refresh.');
       
       const rewardsContract = getContract({
         client,
