@@ -97,13 +97,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
         address: contributorNftAddress,
       });
 
-      const rewardsContract = getContract({
-        client,
-        chain: base,
-        address: rewardsAddress,
-      });
-
-      // Step 1: Mint contributor NFT
+      // Step 1: Mint contributor NFT (from user's wallet)
       const mintTx = prepareContractCall({
         contract: contributorNftContract,
         method: "function adminMintContributor(address to, uint256 tokenId)",
@@ -111,15 +105,26 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
       });
       const mintResult = await sendTransaction(mintTx);
 
-      // Step 2: Add to rewards contract (USDC uses 6 decimals)
-      const addTx = prepareContractCall({
-        contract: rewardsContract,
-        method: "function addContributor(address _contributor, uint8 _type, uint256 _weeklyBudgetTowns)",
-        params: [recipient as `0x${string}`, contributorTypeMap[role], BigInt(Math.round(budgetNum * 1e6))],
+      // Step 2: Add to rewards contract via API (uses Engine server wallet with ADMIN_ROLE)
+      // This automatically sets weeklyBudget AND lockedAllowance so contributor can tip immediately
+      const addResponse = await fetch('/api/admin/add-contributor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contributorAddress: recipient,
+          contributorType: contributorTypeMap[role],
+          weeklyBudget: budgetNum,
+        }),
       });
-      const addResult = await sendTransaction(addTx);
+      
+      if (!addResponse.ok) {
+        const errorData = await addResponse.json();
+        throw new Error(errorData.error || 'Failed to add contributor to rewards contract');
+      }
+      
+      const addResult = await addResponse.json();
 
-      setTxHashes({ mint: mintResult.transactionHash, rewards: addResult.transactionHash });
+      setTxHashes({ mint: mintResult.transactionHash, rewards: addResult.transactionId });
       setMessage(`✅ Contributor added! NFT minted (Token ID ${tokenIdMap[role]}) with $${weeklyBudget}/week budget.`);
       setRecipient('');
       setWeeklyBudget('1'); // Reset to default
