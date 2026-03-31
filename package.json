@@ -1,5 +1,5 @@
 {
-  "name": "knead-magazine-v4",
+  "name": "knead-magazine-v5fr",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@connectrpc/connect": "^2.1.0",
-    "@connectrpc/connect-web": "^2.1.0",
-    "@bufbuild/protobuf": "^2.9.0",
     "@daily-co/daily-js": "^0.87.0",
     "@daily-co/daily-react": "^0.24.0",
     "jotai": "^2.10.1",
@@ -104,6 +101,12 @@
     "viem": "^2.21.54",
     "wagmi": "^2.13.7",
     "zod": "^3.23.6"
+  },
+  "overrides": {
+    "@connectrpc/connect": "1.6.1",
+    "@connectrpc/connect-web": "1.6.1",
+    "@connectrpc/connect-node": "1.6.1",
+    "@bufbuild/protobuf": "1.10.0"
   },
   "devDependencies": {
     "@types/shopify-buy": "^2.10.11",
