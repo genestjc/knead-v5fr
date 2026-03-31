@@ -9,9 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@connectrpc/connect-web": "^2.0.0",
-    "@connectrpc/connect-node": "^2.0.0",
-    "@bufbuild/protobuf": "^2.5.0",
+    "@connectrpc/connect": "^2.1.0",
+    "@connectrpc/connect-web": "^2.1.0",
+    "@bufbuild/protobuf": "^2.9.0",
     "@daily-co/daily-js": "^0.87.0",
     "@daily-co/daily-react": "^0.24.0",
     "jotai": "^2.10.1",
