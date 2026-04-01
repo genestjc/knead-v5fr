@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { getContract, prepareContractCall, sendTransaction } from 'thirdweb';
@@ -67,6 +67,158 @@ function CopyAllButton({ addresses }: { addresses: string[] }) {
   );
 }
 
+function EventPassPanel({
+  eventId,
+  mode,
+  account,
+  onClose,
+}: {
+  eventId: string;
+  mode: 'mint' | 'burn';
+  account: ReturnType<typeof useActiveAccount>;
+  onClose: () => void;
+}) {
+  const [addressInput, setAddressInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [txError, setTxError] = useState<string | null>(null);
+
+  const parsedAddresses = useMemo(
+    () =>
+      addressInput
+        .split(/[\n,\s]+/)
+        .map((a) => a.trim().toLowerCase())
+        .filter((a) => a.startsWith('0x') && a.length === 42),
+    [addressInput]
+  );
+
+  const handleSubmit = async () => {
+    if (!account) {
+      setTxError('Connect your admin wallet first.');
+      return;
+    }
+    if (parsedAddresses.length === 0) {
+      setTxError('Enter at least one valid 0x address.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setTxError(null);
+
+    try {
+      const eventPassContract = getContract({
+        client: thirdwebClient,
+        chain: base,
+        address: process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT!,
+      });
+
+      let txResult;
+      if (mode === 'mint') {
+        const transaction = prepareContractCall({
+          contract: eventPassContract,
+          method: 'function batchMintPasses(address[] memory recipients, string memory eventId)',
+          params: [parsedAddresses, eventId],
+        });
+        txResult = await sendTransaction({ transaction, account });
+      } else {
+        const transaction = prepareContractCall({
+          contract: eventPassContract,
+          method: 'function batchBurnPasses(address[] memory holders)',
+          params: [parsedAddresses],
+        });
+        txResult = await sendTransaction({ transaction, account });
+      }
+
+      setTxHash(txResult.transactionHash);
+    } catch (err: any) {
+      setTxError(err.message || 'Transaction failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-georgia-pro text-sm font-semibold text-amber-900">
+          {mode === 'mint' ? '🎫 Mint Event Passes' : '🔥 Burn Event Passes'}
+        </h4>
+        <button
+          onClick={onClose}
+          className="text-amber-700 hover:text-amber-900 font-georgia-pro text-xs"
+        >
+          ✕ Close
+        </button>
+      </div>
+
+      <label className="block font-georgia-pro text-xs text-amber-800 mb-1">
+        {mode === 'mint'
+          ? 'Paste participant wallet addresses (comma or newline separated):'
+          : 'Paste the addresses to burn passes from:'}
+      </label>
+
+      <textarea
+        value={addressInput}
+        onChange={(e) => setAddressInput(e.target.value)}
+        className="w-full px-3 py-2 border border-amber-300 rounded font-mono text-xs bg-white focus:outline-none focus:border-amber-500"
+        placeholder={'0xAbc123...\n0xDef456...\nor comma-separated: 0xAbc123..., 0xDef456...'}
+        rows={5}
+      />
+
+      {parsedAddresses.length > 0 && (
+        <div className="mt-2 p-2 bg-white border border-amber-200 rounded">
+          <p className="font-georgia-pro text-xs font-medium text-gray-700 mb-1">
+            {parsedAddresses.length} valid address{parsedAddresses.length !== 1 ? 'es' : ''} detected:
+          </p>
+          <div className="max-h-28 overflow-y-auto space-y-0.5">
+            {parsedAddresses.map((addr, i) => (
+              <p key={i} className="font-mono text-xs text-gray-500">{addr}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {txError && (
+        <p className="mt-2 font-georgia-pro text-xs text-red-700 bg-red-50 px-2 py-1 rounded">
+          ❌ {txError}
+        </p>
+      )}
+
+      {txHash && (
+        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+          <p className="font-georgia-pro text-xs text-green-800 font-medium">
+            ✅ {mode === 'mint' ? `${parsedAddresses.length} passes minted!` : `${parsedAddresses.length} passes burned!`}
+          </p>
+          <p className="font-mono text-xs text-green-700 mt-0.5 break-all">Tx: {txHash}</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          onClick={handleSubmit}
+          disabled={isProcessing || parsedAddresses.length === 0}
+          className={`px-4 py-1.5 text-white rounded font-georgia-pro text-xs transition disabled:opacity-50 ${
+            mode === 'mint' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-800'
+          }`}
+        >
+          {isProcessing
+            ? '⏳ Signing...'
+            : mode === 'mint'
+            ? `Mint ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`
+            : `Burn ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`}
+        </button>
+        <button
+          onClick={onClose}
+          disabled={isProcessing}
+          className="px-4 py-1.5 bg-gray-200 text-gray-700 rounded font-georgia-pro text-xs hover:bg-gray-300 transition disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function EventsManager({ adminAddress }: EventsManagerProps) {
   const account = useActiveAccount();
   
@@ -75,7 +227,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
-  const [isProcessingNFTs, setIsProcessingNFTs] = useState(false);
+  const [nftPanel, setNftPanel] = useState<{ eventId: string; mode: 'mint' | 'burn' } | null>(null);
 
   const [guestAddressesInput, setGuestAddressesInput] = useState('');
 
@@ -265,20 +417,13 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       const response = await fetch(`/api/admin/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminAddress,
-          status: newStatus,
-        }),
+        body: JSON.stringify({ adminAddress, status: newStatus }),
       });
 
       const data = await response.json();
 
       if (data.success) {
         console.log(`✅ Event status updated to: ${newStatus}`);
-        
-        if (newStatus === 'live' || newStatus === 'ended') {
-          await handleEventPassNFTs(eventId, newStatus);
-        }
       } else {
         setError(data.error || 'Failed to update event');
       }
@@ -288,113 +433,22 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     }
   };
 
-  const handleEventPassNFTs = async (eventId: string, status: string) => {
-    if (isProcessingNFTs) {
-      alert('Already processing NFTs. Please wait...');
-      return;
-    }
-
+  const handleToggleEventPassOnly = async (eventId: string, value: boolean) => {
     try {
-      setIsProcessingNFTs(true);
-      
-      console.log('🎫 Managing Event Pass NFTs for status:', status);
-      
-      if (!account) {
-        alert('❌ Please connect your admin wallet first!');
-        return;
-      }
-      
-      const instruction = status === 'live' 
-        ? '🎓 Enter STUDENT wallet addresses (text chat participants):\n\nComma-separated:\n0x123...,0x456...'
-        : '🔥 Enter the SAME student addresses to BURN their passes:';
-      
-      const participantAddressesInput = prompt(instruction);
-      
-      if (!participantAddressesInput) {
-        alert('❌ No addresses entered.');
-        setIsProcessingNFTs(false);
-        return;
-      }
-      
-      const participantAddresses = participantAddressesInput
-        .split(',')
-        .map(addr => addr.trim())
-        .filter(addr => addr.startsWith('0x'));
-      
-      if (participantAddresses.length === 0) {
-        alert('❌ No valid addresses found.');
-        setIsProcessingNFTs(false);
-        return;
-      }
-
-      const eventPassContract = getContract({
-        client: thirdwebClient,
-        chain: base,
-        address: process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT!,
+      const response = await fetch(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminAddress, eventPassOnly: value }),
       });
 
-      if (status === 'live') {
-        const transaction = prepareContractCall({
-          contract: eventPassContract,
-          method: "function batchMintPasses(address[] memory recipients, string memory eventId)",
-          params: [participantAddresses, eventId],
-        });
+      const data = await response.json();
 
-        const confirmation = confirm(
-          `Ready to mint ${participantAddresses.length} Event Passes?\n\n` +
-          `Students will be able to send messages in chat.\n` +
-          `Click OK to sign.`
-        );
-        
-        if (!confirmation) {
-          setIsProcessingNFTs(false);
-          return;
-        }
-        
-        const txResult = await sendTransaction({
-          transaction,
-          account,
-        });
-        
-        alert(
-          `✅ Event Started!\n\n` +
-          `🎫 ${participantAddresses.length} Event Passes minted!\n\n` +
-          `Tx: ${txResult.transactionHash.slice(0, 10)}...`
-        );
-        
-      } else if (status === 'ended') {
-        const transaction = prepareContractCall({
-          contract: eventPassContract,
-          method: "function batchBurnPasses(address[] memory holders)",
-          params: [participantAddresses],
-        });
-
-        const confirmation = confirm(
-          `Ready to burn ${participantAddresses.length} Event Passes?`
-        );
-        
-        if (!confirmation) {
-          setIsProcessingNFTs(false);
-          return;
-        }
-        
-        const txResult = await sendTransaction({
-          transaction,
-          account,
-        });
-        
-        alert(
-          `✅ Event Ended!\n\n` +
-          `🔥 ${participantAddresses.length} Event Passes burned!\n\n` +
-          `Tx: ${txResult.transactionHash.slice(0, 10)}...`
-        );
+      if (!data.success) {
+        setError(data.error || 'Failed to update event');
       }
-      
-    } catch (err: any) {
-      console.error('❌ Error managing Event Pass NFTs:', err);
-      alert(`❌ Failed: ${err.message || 'Unknown error'}`);
-    } finally {
-      setIsProcessingNFTs(false);
+    } catch (err) {
+      setError('Error updating event');
+      console.error(err);
     }
   };
 
@@ -505,6 +559,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                         🎵 MUSIC MODE
                       </span>
                     )}
+                    {event.eventPassOnly && (
+                      <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-semibold">
+                        🔒 PASS-ONLY CHAT
+                      </span>
+                    )}
                   </div>
                   <p className="font-georgia-pro text-sm text-gray-600">{event.description}</p>
                 </div>
@@ -574,32 +633,99 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                {event.status === 'scheduled' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {event.status === 'scheduled' && (
+                    <button
+                      onClick={() => handleUpdateEventStatus(event.id, 'live')}
+                      className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition"
+                    >
+                      🔴 Start Event
+                    </button>
+                  )}
+                  {event.status === 'live' && (
+                    <button
+                      onClick={() => handleUpdateEventStatus(event.id, 'ended')}
+                      className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition"
+                    >
+                      ⏹️ End Event
+                    </button>
+                  )}
+
+                  {/* Mint passes — available for scheduled or live events */}
+                  {(event.status === 'scheduled' || event.status === 'live') && (
+                    <button
+                      onClick={() =>
+                        setNftPanel(
+                          nftPanel?.eventId === event.id && nftPanel.mode === 'mint'
+                            ? null
+                            : { eventId: event.id, mode: 'mint' }
+                        )
+                      }
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
+                        nftPanel?.eventId === event.id && nftPanel.mode === 'mint'
+                          ? 'bg-amber-700 text-white'
+                          : 'bg-amber-500 text-white hover:bg-amber-600'
+                      }`}
+                    >
+                      🎫 Mint Passes
+                    </button>
+                  )}
+
+                  {/* Burn passes — available for live or ended events */}
+                  {(event.status === 'live' || event.status === 'ended') && (
+                    <button
+                      onClick={() =>
+                        setNftPanel(
+                          nftPanel?.eventId === event.id && nftPanel.mode === 'burn'
+                            ? null
+                            : { eventId: event.id, mode: 'burn' }
+                        )
+                      }
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
+                        nftPanel?.eventId === event.id && nftPanel.mode === 'burn'
+                          ? 'bg-orange-800 text-white'
+                          : 'bg-orange-600 text-white hover:bg-orange-700'
+                      }`}
+                    >
+                      🔥 Burn Passes
+                    </button>
+                  )}
+
+                  {/* Event Pass Only chat toggle */}
                   <button
-                    onClick={() => handleUpdateEventStatus(event.id, 'live')}
-                    disabled={isProcessingNFTs}
-                    className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition disabled:opacity-50"
+                    onClick={() => handleToggleEventPassOnly(event.id, !event.eventPassOnly)}
+                    className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
+                      event.eventPassOnly
+                        ? 'bg-amber-600 text-white hover:bg-amber-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                    }`}
+                    title={
+                      event.eventPassOnly
+                        ? 'Only Event Pass holders can chat. Click to open to all members.'
+                        : 'Chat open to Contributors + Members + Pass holders. Click to restrict to Pass holders only.'
+                    }
                   >
-                    {isProcessingNFTs ? '⏳ Processing...' : '🔴 Start Event & Mint Passes'}
+                    {event.eventPassOnly ? '🔒 Pass-Only Chat' : '🌐 Open Chat'}
                   </button>
-                )}
-                {event.status === 'live' && (
+
                   <button
-                    onClick={() => handleUpdateEventStatus(event.id, 'ended')}
-                    disabled={isProcessingNFTs}
-                    className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition disabled:opacity-50"
+                    onClick={() => handleDeleteEvent(event.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition"
                   >
-                    {isProcessingNFTs ? '⏳ Processing...' : '⏹️ End Event & Burn Passes'}
+                    Delete
                   </button>
+                </div>
+
+                {/* Inline Event Pass Panel */}
+                {nftPanel?.eventId === event.id && (
+                  <EventPassPanel
+                    eventId={event.id}
+                    mode={nftPanel.mode}
+                    account={account}
+                    onClose={() => setNftPanel(null)}
+                  />
                 )}
-                <button
-                  onClick={() => handleDeleteEvent(event.id)}
-                  disabled={isProcessingNFTs}
-                  className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition disabled:opacity-50"
-                >
-                  Delete
-                </button>
               </div>
             </div>
           ))

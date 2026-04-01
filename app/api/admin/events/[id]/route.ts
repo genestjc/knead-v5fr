@@ -24,11 +24,11 @@ export async function PATCH(
     }
     
     const body = await req.json();
-    const { adminAddress, status } = body;
+    const { adminAddress, status, eventPassOnly } = body;
 
-    console.log('[PATCH /api/admin/events] Updating event:', eventId, 'to status:', status);
+    console.log('[PATCH /api/admin/events] Updating event:', eventId, { status, eventPassOnly });
 
-    if (!adminAddress || !status) {
+    if (!adminAddress || (status === undefined && eventPassOnly === undefined)) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -56,12 +56,13 @@ export async function PATCH(
       }
     );
 
+    const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (status !== undefined) updatePayload.status = status;
+    if (eventPassOnly !== undefined) updatePayload.event_pass_only = eventPassOnly;
+
     const { error } = await supabase
       .from('chat_events')
-      .update({ 
-        status, 
-        updated_at: new Date().toISOString() 
-      })
+      .update(updatePayload)
       .eq('id', eventId);
 
     if (error) {
@@ -74,7 +75,7 @@ export async function PATCH(
 
     console.log('[PATCH /api/admin/events] Event updated successfully');
 
-    // ✅ NEW: Return permission update instructions for client
+    // Return permission update instructions for client (only relevant for status changes)
     const needsPermissionUpdate = status === 'live' || status === 'ended';
 
     // Validate required environment variables
