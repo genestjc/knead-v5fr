@@ -458,7 +458,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       localStorage.setItem(`welcome_seen_${activeAccount.address}`, 'true');
     }
     setShowWelcomeModal(false);
-    window.location.reload();
   };
 
   const handleContributorClose = () => {
