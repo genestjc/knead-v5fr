@@ -29,13 +29,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 1: Get user role from blockchain NFTs
-    const { role } = await getUserRole(userAddress);
+    const roleInfo = await getUserRole(userAddress);
+    const { role } = roleInfo;
 
     // Step 2: Check for active event in Supabase
     const supabase = createSupabaseClient();
     const { data: activeEvents, error: eventError } = await supabase
       .from('chat_events')
-      .select('id, title')
+      .select('id, title, event_pass_only')
       .eq('status', 'live')
       .limit(1);
 
@@ -45,12 +46,19 @@ export async function GET(request: NextRequest) {
 
     const isEventActive = !!(activeEvents && activeEvents.length > 0);
     const activeEventId = activeEvents?.[0]?.id || null;
+    const eventPassOnly = activeEvents?.[0]?.event_pass_only === true;
 
     // Step 3: Enforce business rules
     let canPost = false;
     let reason = '';
 
-    if (role === 'contributor') {
+    if (eventPassOnly && isEventActive) {
+      // Restricted mode: only Event Pass holders can chat
+      canPost = roleInfo.hasEventPass;
+      reason = canPost
+        ? 'Event Pass holder — access granted for this event.'
+        : 'This event is restricted to Event Pass holders only.';
+    } else if (role === 'contributor') {
       canPost = true;
       reason = 'Contributor - full access';
     } else if (role === 'participant') {
@@ -75,6 +83,7 @@ export async function GET(request: NextRequest) {
         reason,
         isEventActive,
         activeEventId,
+        eventPassOnly,
       },
     });
   } catch (error: any) {
