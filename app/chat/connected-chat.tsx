@@ -483,7 +483,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   }, []);
 
   // Ensure channel is joined and keys synced
-useEffect(() => {
+
+  useEffect(() => {
   if (!syncAgent || !channelId || !spaceId) return;
   
   const joinChannel = async () => {
@@ -492,15 +493,6 @@ useEffect(() => {
       console.log('📺 Joining channel stream...');
       await channel.join();
       console.log('✅ Channel stream joined');
-      
-      // ✅ NEW: Force initial key sync
-      console.log('🔑 Initiating key sync...');
-      try {
-        await channel.waitForKeysToSync({ timeout: 30000 });
-        console.log('✅ Keys synced');
-      } catch (syncErr) {
-        console.warn('⚠️ Key sync timeout (normal for new users):', syncErr);
-      }
     } catch (err) {
       console.warn('Channel join failed (may already be joined):', err);
     }
