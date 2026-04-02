@@ -12,6 +12,11 @@ export const revalidate = 0;
  * - Freemium: Watch only (never post)
  * - Participant: Post during events only
  * - Contributor: Always post + DM + tip
+ * - Event Pass holder: Always post during their specific event
+ *
+ * event_pass_only toggle:
+ *   false → pass holders + contributors + participants can all chat normally
+ *   true  → ONLY pass holders can chat (contributors and members are locked out too)
  *
  * Note: Towns Protocol permissions (on-chain) are separate.
  * Everyone has Read+Write on-chain. This API enforces YOUR rules.
@@ -48,9 +53,10 @@ export async function GET(request: NextRequest) {
     const activeEventId = activeEvents?.[0]?.id || null;
     const eventPassOnly = activeEvents?.[0]?.event_pass_only === true;
 
-    // Step 3: If event is pass-only, check Supabase event_passes table
+    // Step 3: Always check event_passes for the active event
+    // Pass holders can chat during their event regardless of the pass-only toggle
     let hasEventPass = false;
-    if (eventPassOnly && isEventActive && activeEventId) {
+    if (isEventActive && activeEventId) {
       const { data: passRow } = await supabase
         .from('event_passes')
         .select('id')
@@ -66,7 +72,7 @@ export async function GET(request: NextRequest) {
     let reason = '';
 
     if (eventPassOnly && isEventActive) {
-      // Restricted mode: only Event Pass holders can chat
+      // Restricted mode: ONLY pass holders can chat — contributors and members locked out too
       canPost = hasEventPass;
       reason = canPost
         ? 'Event Pass holder — access granted for this event.'
@@ -74,15 +80,17 @@ export async function GET(request: NextRequest) {
     } else if (role === 'contributor') {
       canPost = true;
       reason = 'Contributor - full access';
-    } else if (role === 'participant') {
+    } else if (role === 'participant' || hasEventPass) {
+      // Pass holders always get to chat during their event, even in open-chat mode
       canPost = isEventActive;
       reason = isEventActive
-        ? 'Participant - event active, you can chat!'
+        ? hasEventPass
+          ? 'Event Pass holder — access granted.'
+          : 'Participant - event active, you can chat!'
         : 'Participants can only chat during live events';
     } else {
       canPost = false;
-      reason =
-        'Freemium users can only watch. Upgrade to Knead Monthly to chat during events!';
+      reason = 'Freemium users can only watch. Upgrade to Knead Monthly to chat during events!';
     }
 
     return NextResponse.json({
@@ -97,6 +105,7 @@ export async function GET(request: NextRequest) {
         isEventActive,
         activeEventId,
         eventPassOnly,
+        hasEventPass,
       },
     });
   } catch (error: any) {
