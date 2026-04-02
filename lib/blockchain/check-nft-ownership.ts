@@ -13,6 +13,11 @@ import { getContract, readContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client as thirdwebClient } from "@/thirdweb-client";
 
+// Server-side in-memory cache — avoids redundant RPC calls on every permission check.
+// TTL is intentionally short enough to catch NFT purchases but long enough to cut RPS 10-20x.
+const NFT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const nftRoleCache = new Map<string, { result: UserRoleInfo; expiresAt: number }>();
+
 export type UserRole = 'freemium' | 'participant' | 'contributor';
 
 export interface UserRoleInfo {
@@ -170,11 +175,20 @@ export async function hasEventPass(address: string): Promise<{
 }
 
 /**
- * Get user's role based on NFT ownership
- * 
+ * Get user's role based on NFT ownership, with server-side cache to reduce RPC load.
+ * Pass force=true to bypass cache (e.g. after minting an NFT).
+ *
  * Priority: Contributor > Participant (Monthly OR Event Pass) > Freemium
  */
-export async function getUserRole(address: string): Promise<UserRoleInfo> {
+export async function getUserRole(address: string, force = false): Promise<UserRoleInfo> {
+  const cacheKey = address.toLowerCase();
+  if (!force) {
+    const cached = nftRoleCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.result;
+    }
+  }
+
   try {
     // Check all NFT types in parallel
     const [hasMonthly, contributorCheck, eventPassCheck] = await Promise.all([
@@ -193,7 +207,7 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
       role = 'participant';
     }
 
-    return {
+    const result: UserRoleInfo = {
       role,
       hasKneadMonthly: hasMonthly,
       hasContributor: contributorCheck.isContributor,
@@ -201,9 +215,12 @@ export async function getUserRole(address: string): Promise<UserRoleInfo> {
       eventId: eventPassCheck.eventId,
       contributorTokenId: contributorCheck.tokenId,
     };
+
+    nftRoleCache.set(cacheKey, { result, expiresAt: Date.now() + NFT_CACHE_TTL_MS });
+    return result;
   } catch (error) {
     console.error("Error getting user role:", error);
-    
+
     return {
       role: 'freemium',
       hasKneadMonthly: false,

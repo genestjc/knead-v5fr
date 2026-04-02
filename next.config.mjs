@@ -13,7 +13,8 @@ const nextConfig = {
     '@towns-protocol/react-sdk',
     '@towns-protocol/sdk',
     '@towns-protocol/web3',
-    '@towns-protocol/generated'
+    '@towns-protocol/generated',
+    '@mux/mux-player-react',
   ],
 
   // ✅ ADD THIS (uses public Base RPC):

@@ -107,6 +107,12 @@ export async function GET(req: NextRequest) {
           videoEnabled: event.video_enabled,
           dailyRoomUrl: event.daily_room_url,
           dailyRoomName: event.daily_room_name,
+          guestAddresses: event.guest_addresses || [],
+          guestOnlyEvent: event.guest_only_event || false,
+          musicMode: event.music_mode || false,
+          eventPassOnly: event.event_pass_only || false,
+          muxPlaybackId: event.mux_playback_id || null,
+          muxAssetId: event.mux_asset_id || null,
           host: host
             ? {
                 id: host.id,

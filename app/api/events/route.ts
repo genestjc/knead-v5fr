@@ -81,6 +81,9 @@ export async function GET(req: NextRequest) {
           dailyRoomName: event.daily_room_name,
           guestOnlyEvent: event.guest_only_event || false,
           musicMode: event.music_mode || false,
+          eventPassOnly: event.event_pass_only || false,
+          muxPlaybackId: event.mux_playback_id || null,
+          muxAssetId: event.mux_asset_id || null,
           host: host
             ? {
                 id: host.id,
@@ -125,6 +128,8 @@ export async function POST(req: NextRequest) {
       guestAddresses = [],
       guestOnlyEvent = false,
       musicMode = false,
+      muxPlaybackId = null,
+      muxAssetId = null,
     } = body;
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -169,7 +174,8 @@ export async function POST(req: NextRequest) {
     let dailyRoomUrl = null;
     let dailyRoomName = null;
 
-    if (videoEnabled && process.env.DAILY_API_KEY) {
+    // Recorded events use Mux — no Daily room needed
+    if (videoEnabled && process.env.DAILY_API_KEY && eventType !== 'recorded') {
       try {
         // ✅ Simple room properties - music mode handled client-side
         const roomProperties: any = {
@@ -248,6 +254,8 @@ export async function POST(req: NextRequest) {
         daily_room_name: dailyRoomName,
         guest_only_event: guestOnlyEvent,
         music_mode: musicMode,
+        mux_playback_id: muxPlaybackId,
+        mux_asset_id: muxAssetId,
       })
       .select()
       .single();

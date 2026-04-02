@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
+import MuxPlayer from '@mux/mux-player-react';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { getContract, prepareContractCall, sendTransaction } from 'thirdweb';
+import { getAddress } from 'viem';
 import { base } from 'thirdweb/chains';
 import { useActiveAccount } from 'thirdweb/react';
 import { client as thirdwebClient } from '@/thirdweb-client';
@@ -67,6 +69,131 @@ function CopyAllButton({ addresses }: { addresses: string[] }) {
   );
 }
 
+function VideoUploadPanel({
+  onComplete,
+  onClose,
+}: {
+  onComplete: (playbackId: string, assetId: string) => void;
+  onClose?: () => void;
+}) {
+  const [state, setState] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [playbackId, setPlaybackId] = useState<string | null>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setState('uploading');
+    setError(null);
+    setPlaybackId(null);
+
+    try {
+      const uploadRes = await fetch('/api/admin/mux/upload', { method: 'POST' });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success) throw new Error(uploadData.error);
+
+      const { uploadId, uploadUrl } = uploadData.data;
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'video/*' },
+      });
+      if (!putRes.ok) throw new Error('Upload to Mux failed');
+
+      setState('processing');
+
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const pollRes = await fetch(`/api/admin/mux/asset?uploadId=${uploadId}`);
+        const pollData = await pollRes.json();
+        if (!pollData.success) throw new Error(pollData.error);
+        if (pollData.data.ready) {
+          setPlaybackId(pollData.data.playbackId);
+          setState('ready');
+          onComplete(pollData.data.playbackId, pollData.data.assetId);
+          return;
+        }
+      }
+      throw new Error('Processing timed out. Upload succeeded — try refreshing.');
+    } catch (err: any) {
+      setError(err.message || 'Upload failed');
+      setState('error');
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-georgia-pro text-sm font-semibold text-blue-900">🎬 Upload Video (Mux)</h4>
+        {onClose && (
+          <button onClick={onClose} className="text-blue-700 hover:text-blue-900 font-georgia-pro text-xs">
+            ✕ Close
+          </button>
+        )}
+      </div>
+
+      {state === 'idle' && (
+        <div>
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleFile}
+            className="w-full text-sm file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-georgia-pro file:bg-blue-600 file:text-white file:cursor-pointer hover:file:bg-blue-700"
+          />
+          <p className="mt-1.5 font-georgia-pro text-xs text-blue-700">
+            MP4, MOV, WebM — uploaded directly to Mux CDN. No file size limit.
+          </p>
+        </div>
+      )}
+
+      {(state === 'uploading' || state === 'processing') && (
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 flex-shrink-0" />
+          <p className="font-georgia-pro text-sm text-blue-800">
+            {state === 'uploading' ? 'Uploading to Mux...' : 'Processing video — this may take a minute...'}
+          </p>
+        </div>
+      )}
+
+      {state === 'ready' && playbackId && (
+        <div>
+          <p className="font-georgia-pro text-sm text-green-800 font-medium mb-1">✅ Video ready!</p>
+          <p className="font-mono text-xs text-gray-500 mb-3">Playback ID: {playbackId}</p>
+          <div className="aspect-video rounded overflow-hidden bg-black">
+            <MuxPlayer
+              playbackId={playbackId}
+              streamType="on-demand"
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="mt-3 px-4 py-1.5 bg-blue-600 text-white rounded font-georgia-pro text-xs hover:bg-blue-700 transition"
+            >
+              Done
+            </button>
+          )}
+        </div>
+      )}
+
+      {state === 'error' && (
+        <div>
+          <p className="font-georgia-pro text-xs text-red-700 bg-red-50 px-2 py-1 rounded mb-2">❌ {error}</p>
+          <button
+            onClick={() => { setState('idle'); setError(null); }}
+            className="px-3 py-1 text-xs font-georgia-pro bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EventPassPanel({
   eventId,
   mode,
@@ -106,6 +233,9 @@ function EventPassPanel({
     setTxError(null);
 
     try {
+      // Checksum addresses — Solidity address params require EIP-55 format
+      const checksummedAddresses = parsedAddresses.map((a) => getAddress(a));
+
       const eventPassContract = getContract({
         client: thirdwebClient,
         chain: base,
@@ -117,14 +247,14 @@ function EventPassPanel({
         const transaction = prepareContractCall({
           contract: eventPassContract,
           method: 'function batchMintPasses(address[] memory recipients, string memory eventId)',
-          params: [parsedAddresses, eventId],
+          params: [checksummedAddresses, eventId],
         });
         txResult = await sendTransaction({ transaction, account });
       } else {
         const transaction = prepareContractCall({
           contract: eventPassContract,
           method: 'function batchBurnPasses(address[] memory holders)',
-          params: [parsedAddresses],
+          params: [checksummedAddresses],
         });
         txResult = await sendTransaction({ transaction, account });
       }
@@ -228,6 +358,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [adminUserId, setAdminUserId] = useState<string>('');
   const [nftPanel, setNftPanel] = useState<{ eventId: string; mode: 'mint' | 'burn' } | null>(null);
+  const [videoPanel, setVideoPanel] = useState<string | null>(null);
 
   const [guestAddressesInput, setGuestAddressesInput] = useState('');
 
@@ -235,13 +366,15 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     title: '',
     description: '',
     channelId: 'live-interviews',
-    eventType: 'interview' as 'interview' | 'discussion' | 'ama' | 'announcement',
+    eventType: 'interview' as 'interview' | 'discussion' | 'ama' | 'announcement' | 'recorded',
     scheduledStart: '',
     scheduledEnd: '',
     videoEnabled: true,
     audioOnly: false,
     guestOnlyEvent: false,
-    musicMode: false, // ✅ ADDED
+    musicMode: false,
+    muxPlaybackId: '',
+    muxAssetId: '',
   });
 
   useEffect(() => {
@@ -367,7 +500,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         hostId: adminUserId,
         guestAddresses: rawAddresses,
         guestOnlyEvent: formData.guestOnlyEvent,
-        musicMode: formData.musicMode, // ✅ ADDED
+        musicMode: formData.musicMode,
+        muxPlaybackId: formData.muxPlaybackId || null,
+        muxAssetId: formData.muxAssetId || null,
       };
       
       console.log('📨 Sending to API:', requestBody);
@@ -407,7 +542,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       videoEnabled: true,
       audioOnly: false,
       guestOnlyEvent: false,
-      musicMode: false, // ✅ ADDED
+      musicMode: false,
+      muxPlaybackId: '',
+      muxAssetId: '',
     });
     setGuestAddressesInput('');
   };
@@ -429,6 +566,21 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       }
     } catch (err) {
       setError('Error updating event');
+      console.error(err);
+    }
+  };
+
+  const handleUpdateMuxVideo = async (eventId: string, muxPlaybackId: string, muxAssetId: string) => {
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminAddress, muxPlaybackId, muxAssetId }),
+      });
+      const data = await response.json();
+      if (!data.success) setError(data.error || 'Failed to save video');
+    } catch (err) {
+      setError('Error saving video');
       console.error(err);
     }
   };
@@ -564,6 +716,11 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                         🔒 PASS-ONLY CHAT
                       </span>
                     )}
+                    {event.eventType === 'recorded' && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                        🎬 RECORDED
+                      </span>
+                    )}
                   </div>
                   <p className="font-georgia-pro text-sm text-gray-600">{event.description}</p>
                 </div>
@@ -616,6 +773,26 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Mux pre-recorded video */}
+              {event.eventType === 'recorded' && (
+                <div className="mb-4">
+                  {event.muxPlaybackId ? (
+                    <div>
+                      <p className="font-georgia-pro text-xs text-gray-500 mb-2">🎬 Pre-recorded video:</p>
+                      <div className="aspect-video rounded overflow-hidden bg-black">
+                        <MuxPlayer
+                          playbackId={event.muxPlaybackId}
+                          streamType="on-demand"
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="font-georgia-pro text-xs text-orange-600">⚠️ No video uploaded yet — use the Upload Video button below.</p>
+                  )}
                 </div>
               )}
 
@@ -689,6 +866,20 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                       }`}
                     >
                       🔥 Burn Passes
+                    </button>
+                  )}
+
+                  {/* Upload/replace video for recorded events */}
+                  {event.eventType === 'recorded' && (
+                    <button
+                      onClick={() => setVideoPanel(videoPanel === event.id ? null : event.id)}
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
+                        videoPanel === event.id
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      🎬 {event.muxPlaybackId ? 'Replace Video' : 'Upload Video'}
                     </button>
                   )}
 
@@ -773,6 +964,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                     <option value="discussion">💬 Discussion</option>
                     <option value="ama">❓ AMA</option>
                     <option value="announcement">📢 Announcement</option>
+                    <option value="recorded">🎬 Pre-recorded Video</option>
                   </select>
                 </div>
 
@@ -830,6 +1022,32 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   💡 Paste Ethereum addresses (comma or newline separated). We'll look them up or create entries automatically.
                 </p>
               </div>
+
+              {/* Video upload for recorded events */}
+              {formData.eventType === 'recorded' && (
+                <div>
+                  <label className="block font-georgia-pro text-sm font-medium mb-2">Pre-recorded Video</label>
+                  {formData.muxPlaybackId ? (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded">
+                      <p className="font-georgia-pro text-xs text-green-800 font-medium mb-1">✅ Video ready</p>
+                      <p className="font-mono text-xs text-green-700">Playback ID: {formData.muxPlaybackId}</p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, muxPlaybackId: '', muxAssetId: '' })}
+                        className="mt-2 text-xs text-red-600 hover:underline font-georgia-pro"
+                      >
+                        Remove & re-upload
+                      </button>
+                    </div>
+                  ) : (
+                    <VideoUploadPanel
+                      onComplete={(playbackId, assetId) =>
+                        setFormData({ ...formData, muxPlaybackId: playbackId, muxAssetId: assetId })
+                      }
+                    />
+                  )}
+                </div>
+              )}
 
               <div className="border-t pt-4">
                 <label className="block font-georgia-pro text-sm font-medium mb-3">Media Settings</label>

@@ -14,7 +14,7 @@ export type ActionType =
   | 'helpful_clarification' 
   | 'thoughtful_followup';
 
-export type EventType = 'live' | 'discussion' | 'essay';
+export type EventType = 'live' | 'discussion' | 'essay' | 'recorded';
 
 export type AutomaticBonusType = 
   | 'guest_response' 
@@ -110,6 +110,11 @@ export interface ChatEvent {
   videoEnabled: boolean;
   dailyRoomUrl?: string;
   dailyRoomName?: string;
+  muxPlaybackId?: string;
+  muxAssetId?: string;
+  guestOnlyEvent?: boolean;
+  musicMode?: boolean;
+  eventPassOnly?: boolean;
   createdAt: Date;
   host?: ChatUser;
 }
