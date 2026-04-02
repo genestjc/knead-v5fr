@@ -694,13 +694,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }));
   }, [messages, contributorAddresses]);
 
+  // Sync userRole from the server-side permissions API (avoids CORS from direct client-side RPC calls)
+  useEffect(() => {
+    if (permissions?.role) {
+      setUserRole(permissions.role);
+    }
+  }, [permissions?.role]);
+
   useEffect(() => {
     if (!activeAccount?.address) return;
 
-    async function detectRole() {
-      const roleInfo = await getUserRole(activeAccount!.address);
-      setUserRole(roleInfo.role);
-
+    async function fetchAdminStatus() {
       try {
         const response = await fetch(`/api/chat/user?address=${activeAccount!.address}`);
         const data = await response.json();
@@ -712,7 +716,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     }
 
-    detectRole();
+    fetchAdminStatus();
   }, [activeAccount?.address]);
 
   useEffect(() => {
