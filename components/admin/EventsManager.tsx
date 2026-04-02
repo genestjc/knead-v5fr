@@ -244,7 +244,7 @@ function EventPassPanel({
     <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
       <div className="flex items-center justify-between mb-3">
         <h4 className="font-georgia-pro text-sm font-semibold text-amber-900">
-          {mode === 'mint' ? '🎫 Mint Event Passes' : '🔥 Burn Event Passes'}
+          {mode === 'mint' ? '🎫 Grant Event Passes' : '🔥 Revoke Event Passes'}
         </h4>
         <button
           onClick={onClose}
@@ -256,8 +256,8 @@ function EventPassPanel({
 
       <label className="block font-georgia-pro text-xs text-amber-800 mb-1">
         {mode === 'mint'
-          ? 'Paste participant wallet addresses (comma or newline separated):'
-          : 'Paste the addresses to burn passes from:'}
+          ? 'Paste wallet addresses to grant passes (comma or newline separated):'
+          : 'Paste the addresses to revoke passes from:'}
       </label>
 
       <textarea
@@ -351,48 +351,29 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     fetchAdminUser();
     fetchEvents();
 
-    const supabase = createSupabaseClient();    
-    console.log('🔄 [EventsManager] Setting up real-time subscription...');
-    
+    const supabase = createSupabaseClient();
     const channel = supabase
       .channel('admin_events_changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_events',
-        },
+        { event: '*', schema: 'public', table: 'chat_events' },
         (payload) => {
-          console.log('🔄 [EventsManager] Real-time event change:', payload.eventType, payload);
-          
-          if (payload.eventType === 'INSERT') {
-            console.log('➕ New event inserted, refetching...');
-            fetchEvents();
-          } else if (payload.eventType === 'UPDATE') {
-            console.log('🔄 Event updated, refetching...');
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             fetchEvents();
           } else if (payload.eventType === 'DELETE') {
-            console.log('🗑️ Event deleted:', payload.old.id);
             setEvents((prev) => prev.filter((event) => event.id !== payload.old.id));
           }
         }
       )
-      .subscribe((status) => {
-        console.log('📡 [EventsManager] Subscription status:', status);
-      });
+      .subscribe();
 
-    return () => {
-      console.log('🧹 [EventsManager] Cleaning up real-time subscription');
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [adminAddress]);
 
   const fetchAdminUser = async () => {
     try {
       const response = await fetch(`/api/users/by-address?address=${adminAddress}`);
       const data = await response.json();
-      
       if (data.success && data.user) {
         setAdminUserId(data.user.id);
       } else {
@@ -408,23 +389,13 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     try {
       setLoading(true);
       setError(null);
-      
       const timestamp = Date.now();
       const response = await fetch(
         `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
-        {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-          },
-        }
+        { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } }
       );
-      
       const data = await response.json();
-
       if (data.success) {
-        console.log('✅ [EventsManager] Fetched events:', data.data.length);
         setEvents(data.data);
       } else {
         setError(data.error || 'Failed to fetch events');
@@ -439,24 +410,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!adminUserId) {
-      setError('Admin user ID not loaded');
-      return;
-    }
+    if (!adminUserId) { setError('Admin user ID not loaded'); return; }
 
     const rawAddresses = guestAddressesInput
       .split(/[\n,]+/)
       .map(addr => addr.trim().toLowerCase())
       .filter(addr => addr.startsWith('0x') && addr.length === 42);
-
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📋 CREATING EVENT');
-    console.log('   Title:', formData.title);
-    console.log('   Guest-only:', formData.guestOnlyEvent);
-    console.log('   Music mode:', formData.musicMode);
-    console.log('   Parsed guest addresses:', rawAddresses);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
       const requestBody = {
@@ -474,8 +433,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         muxPlaybackId: formData.muxPlaybackId || null,
         muxAssetId: formData.muxAssetId || null,
       };
-      
-      console.log('📨 Sending to API:', requestBody);
 
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -484,13 +441,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       });
 
       const data = await response.json();
-      
-      console.log('✅ Response:', data);
 
       if (data.success) {
         setShowCreateModal(false);
         resetForm();
-        alert('✅ Event created successfully! Guests have been added.');
         fetchEvents();
       } else {
         setError(data.error || 'Failed to create event');
@@ -526,14 +480,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminAddress, status: newStatus }),
       });
-
       const data = await response.json();
-
-      if (data.success) {
-        console.log(`✅ Event status updated to: ${newStatus}`);
-      } else {
-        setError(data.error || 'Failed to update event');
-      }
+      if (!data.success) setError(data.error || 'Failed to update event');
     } catch (err) {
       setError('Error updating event');
       console.error(err);
@@ -562,12 +510,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminAddress, eventPassOnly: value }),
       });
-
       const data = await response.json();
-
-      if (!data.success) {
-        setError(data.error || 'Failed to update event');
-      }
+      if (!data.success) setError(data.error || 'Failed to update event');
     } catch (err) {
       setError('Error updating event');
       console.error(err);
@@ -576,19 +520,10 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   const handleDeleteEvent = async (eventId: string) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
-
     try {
-      const response = await fetch(`/api/admin/events/${eventId}?adminAddress=${adminAddress}`, {
-        method: 'DELETE',
-      });
-
+      const response = await fetch(`/api/admin/events/${eventId}?adminAddress=${adminAddress}`, { method: 'DELETE' });
       const data = await response.json();
-
-      if (data.success) {
-        console.log('✅ Event deleted');
-      } else {
-        setError(data.error || 'Failed to delete event');
-      }
+      if (!data.success) setError(data.error || 'Failed to delete event');
     } catch (err) {
       setError('Error deleting event');
       console.error(err);
@@ -602,7 +537,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       ended: 'bg-gray-100 text-gray-800',
       cancelled: 'bg-red-100 text-red-800',
     };
-
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badges[status] || 'bg-gray-100 text-gray-800'}`}>
         {status.toUpperCase()}
@@ -626,7 +560,6 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           <p className="font-georgia-pro text-sm text-gray-600">
             Manage live events and video streaming • <span className="text-green-600">● Real-time updates enabled</span>
           </p>
-
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -639,12 +572,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="font-georgia-pro text-sm text-red-800">{error}</p>
-          <button 
-            onClick={() => setError(null)} 
-            className="text-red-600 text-xs mt-2 hover:underline"
-          >
-            Dismiss
-          </button>
+          <button onClick={() => setError(null)} className="text-red-600 text-xs mt-2 hover:underline">Dismiss</button>
         </div>
       )}
 
@@ -658,34 +586,23 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
             <div key={event.id} className="bg-white border border-gray-200 rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
                     <h3 className="font-adonis text-xl">{event.title}</h3>
                     {getStatusBadge(event.status)}
                     {event.videoEnabled && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
-                        📹 VIDEO
-                      </span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">📹 VIDEO</span>
                     )}
                     {event.guestOnlyEvent && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
-                        🎙️ GUEST-ONLY
-                      </span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">🎙️ GUEST-ONLY</span>
                     )}
-                    {/* ✅ MUSIC MODE BADGE */}
                     {event.musicMode && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
-                        🎵 MUSIC MODE
-                      </span>
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">🎵 MUSIC MODE</span>
                     )}
                     {event.eventPassOnly && (
-                      <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-semibold">
-                        🔒 PASS-ONLY CHAT
-                      </span>
+                      <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-semibold">🔒 PASS-ONLY CHAT</span>
                     )}
                     {event.eventType === 'recorded' && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
-                        🎬 RECORDED
-                      </span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">🎬 RECORDED</span>
                     )}
                   </div>
                   <p className="font-georgia-pro text-sm text-gray-600">{event.description}</p>
@@ -703,24 +620,18 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
                 <div>
                   <span className="font-georgia-pro text-gray-500">Start:</span>
-                  <span className="font-georgia-pro ml-2">
-                    {format(new Date(event.scheduledStart), 'MMM d, yyyy h:mm a')}
-                  </span>
+                  <span className="font-georgia-pro ml-2">{format(new Date(event.scheduledStart), 'MMM d, yyyy h:mm a')}</span>
                 </div>
                 <div>
                   <span className="font-georgia-pro text-gray-500">End:</span>
-                  <span className="font-georgia-pro ml-2">
-                    {format(new Date(event.scheduledEnd), 'MMM d, yyyy h:mm a')}
-                  </span>
+                  <span className="font-georgia-pro ml-2">{format(new Date(event.scheduledEnd), 'MMM d, yyyy h:mm a')}</span>
                 </div>
               </div>
 
               {event.guestAddresses && event.guestAddresses.length > 0 && (
                 <div className="mb-4">
                   <CopyAllButton addresses={event.guestAddresses} />
-                  <span className="font-georgia-pro text-sm text-gray-500 mb-2 block">
-                    Video Guest Addresses:
-                  </span>
+                  <span className="font-georgia-pro text-sm text-gray-500 mb-2 block">Video Guest Addresses:</span>
                   <div className="space-y-2">
                     {event.guestAddresses.map((address: string, index: number) => (
                       <GuestAddressCopyField key={index} address={address} />
@@ -729,31 +640,14 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               )}
 
-              {event.guests && event.guests.length > 0 && (
-                <div className="mb-4">
-                  <span className="font-georgia-pro text-sm text-gray-500">Video Guests:</span>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {event.guests.map((guest: any) => (
-                      <span key={guest.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-georgia-pro">
-                        📹 {guest.alias || guest.displayName || guest.address.slice(0, 8)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Mux pre-recorded video */}
+              {/* Mux pre-recorded video preview */}
               {event.eventType === 'recorded' && (
                 <div className="mb-4">
                   {event.muxPlaybackId ? (
                     <div>
                       <p className="font-georgia-pro text-xs text-gray-500 mb-2">🎬 Pre-recorded video:</p>
                       <div className="aspect-video rounded overflow-hidden bg-black">
-                        <MuxPlayer
-                          playbackId={event.muxPlaybackId}
-                          streamType="on-demand"
-                          style={{ width: '100%', height: '100%' }}
-                        />
+                        <MuxPlayer playbackId={event.muxPlaybackId} streamType="on-demand" style={{ width: '100%', height: '100%' }} />
                       </div>
                     </div>
                   ) : (
@@ -762,15 +656,21 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </div>
               )}
 
+              {/* Video upload panel for recorded events */}
+              {videoPanel === event.id && (
+                <VideoUploadPanel
+                  onClose={() => setVideoPanel(null)}
+                  onComplete={(playbackId, assetId) => {
+                    handleUpdateMuxVideo(event.id, playbackId, assetId);
+                    setVideoPanel(null);
+                  }}
+                />
+              )}
+
               {event.dailyRoomUrl && (
                 <div className="mb-4 p-3 bg-purple-50 rounded">
                   <p className="font-georgia-pro text-xs text-gray-600 mb-1">📹 Video Room (Host + Guests only):</p>
-                  <a
-                    href={event.dailyRoomUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-georgia-pro text-sm text-purple-700 hover:underline break-all"
-                  >
+                  <a href={event.dailyRoomUrl} target="_blank" rel="noopener noreferrer" className="font-georgia-pro text-sm text-purple-700 hover:underline break-all">
                     {event.dailyRoomUrl}
                   </a>
                 </div>
@@ -779,102 +679,56 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   {event.status === 'scheduled' && (
-                    <button
-                      onClick={() => handleUpdateEventStatus(event.id, 'live')}
-                      className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition"
-                    >
+                    <button onClick={() => handleUpdateEventStatus(event.id, 'live')} className="px-4 py-2 bg-green-600 text-white rounded font-georgia-pro text-sm hover:bg-green-700 transition">
                       🔴 Start Event
                     </button>
                   )}
                   {event.status === 'live' && (
-                    <button
-                      onClick={() => handleUpdateEventStatus(event.id, 'ended')}
-                      className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition"
-                    >
+                    <button onClick={() => handleUpdateEventStatus(event.id, 'ended')} className="px-4 py-2 bg-gray-600 text-white rounded font-georgia-pro text-sm hover:bg-gray-700 transition">
                       ⏹️ End Event
                     </button>
                   )}
 
-                  {/* Mint passes — available for scheduled or live events */}
                   {(event.status === 'scheduled' || event.status === 'live') && (
                     <button
-                      onClick={() =>
-                        setNftPanel(
-                          nftPanel?.eventId === event.id && nftPanel.mode === 'mint'
-                            ? null
-                            : { eventId: event.id, mode: 'mint' }
-                        )
-                      }
-                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
-                        nftPanel?.eventId === event.id && nftPanel.mode === 'mint'
-                          ? 'bg-amber-700 text-white'
-                          : 'bg-amber-500 text-white hover:bg-amber-600'
-                      }`}
+                      onClick={() => setNftPanel(nftPanel?.eventId === event.id && nftPanel.mode === 'mint' ? null : { eventId: event.id, mode: 'mint' })}
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${nftPanel?.eventId === event.id && nftPanel.mode === 'mint' ? 'bg-amber-700 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}
                     >
-                      🎫 Mint Passes
+                      🎫 Grant Passes
                     </button>
                   )}
 
-                  {/* Burn passes — available for live or ended events */}
                   {(event.status === 'live' || event.status === 'ended') && (
                     <button
-                      onClick={() =>
-                        setNftPanel(
-                          nftPanel?.eventId === event.id && nftPanel.mode === 'burn'
-                            ? null
-                            : { eventId: event.id, mode: 'burn' }
-                        )
-                      }
-                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
-                        nftPanel?.eventId === event.id && nftPanel.mode === 'burn'
-                          ? 'bg-orange-800 text-white'
-                          : 'bg-orange-600 text-white hover:bg-orange-700'
-                      }`}
+                      onClick={() => setNftPanel(nftPanel?.eventId === event.id && nftPanel.mode === 'burn' ? null : { eventId: event.id, mode: 'burn' })}
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${nftPanel?.eventId === event.id && nftPanel.mode === 'burn' ? 'bg-orange-800 text-white' : 'bg-orange-600 text-white hover:bg-orange-700'}`}
                     >
-                      🔥 Burn Passes
+                      🔥 Revoke Passes
                     </button>
                   )}
 
-                  {/* Upload/replace video for recorded events */}
                   {event.eventType === 'recorded' && (
                     <button
                       onClick={() => setVideoPanel(videoPanel === event.id ? null : event.id)}
-                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
-                        videoPanel === event.id
-                          ? 'bg-blue-700 text-white'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
+                      className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${videoPanel === event.id ? 'bg-blue-700 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                     >
                       🎬 {event.muxPlaybackId ? 'Replace Video' : 'Upload Video'}
                     </button>
                   )}
 
-                  {/* Event Pass Only chat toggle */}
                   <button
                     onClick={() => handleToggleEventPassOnly(event.id, !event.eventPassOnly)}
-                    className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${
-                      event.eventPassOnly
-                        ? 'bg-amber-600 text-white hover:bg-amber-700'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
-                    }`}
-                    title={
-                      event.eventPassOnly
-                        ? 'Only Event Pass holders can chat. Click to open to all members.'
-                        : 'Chat open to Contributors + Members + Pass holders. Click to restrict to Pass holders only.'
-                    }
+                    className={`px-4 py-2 rounded font-georgia-pro text-sm transition ${event.eventPassOnly ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'}`}
+                    title={event.eventPassOnly ? 'Only pass holders can chat. Click to open to everyone.' : 'Chat is open to all members. Click to restrict to pass holders only.'}
                   >
                     {event.eventPassOnly ? '🔒 Pass-Only Chat' : '🌐 Open Chat'}
                   </button>
 
-                  <button
-                    onClick={() => handleDeleteEvent(event.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition"
-                  >
+                  <button onClick={() => handleDeleteEvent(event.id)} className="px-4 py-2 bg-red-600 text-white rounded font-georgia-pro text-sm hover:bg-red-700 transition">
                     Delete
                   </button>
                 </div>
 
-                {/* Inline Event Pass Panel */}
                 {nftPanel?.eventId === event.id && (
                   <EventPassPanel
                     eventId={event.id}
@@ -893,7 +747,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
             <h3 className="font-adonis text-2xl mb-6">Create New Event</h3>
-            
+
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
                 <label className="block font-georgia-pro text-sm mb-2">Event Title</label>
@@ -975,15 +829,13 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   Video Guests (Optional)
                   <span className="text-xs text-gray-500 ml-2">- Paste wallet addresses</span>
                 </label>
-                
                 <textarea
                   value={guestAddressesInput}
                   onChange={(e) => setGuestAddressesInput(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded font-georgia-pro font-mono text-sm"
-                  placeholder="0x506B26c791D0d9A6aa159C3F0dfa686Dc16Af382, 0x123...&#10;or one per line:&#10;0x506B26c791D0d9A6aa159C3F0dfa686Dc16Af382&#10;0x123..."
+                  placeholder="0x506B26c791D0d9A6aa159C3F0dfa686Dc16Af382&#10;0x123..."
                   rows={4}
                 />
-                
                 <p className="text-xs text-gray-500 mt-2">
                   💡 Paste Ethereum addresses (comma or newline separated). We'll look them up or create entries automatically.
                 </p>
@@ -1017,29 +869,16 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
               <div className="border-t pt-4">
                 <label className="block font-georgia-pro text-sm font-medium mb-3">Media Settings</label>
-                
                 <div className="space-y-2">
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.videoEnabled}
-                      onChange={(e) => setFormData({ ...formData, videoEnabled: e.target.checked, audioOnly: false })}
-                      className="rounded"
-                    />
+                    <input type="checkbox" checked={formData.videoEnabled} onChange={(e) => setFormData({ ...formData, videoEnabled: e.target.checked, audioOnly: false })} className="rounded" />
                     <span className="font-georgia-pro text-sm">📹 Enable video streaming (Daily.co)</span>
                   </label>
-                  
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.audioOnly}
-                      onChange={(e) => setFormData({ ...formData, audioOnly: e.target.checked, videoEnabled: !e.target.checked })}
-                      className="rounded"
-                    />
+                    <input type="checkbox" checked={formData.audioOnly} onChange={(e) => setFormData({ ...formData, audioOnly: e.target.checked, videoEnabled: !e.target.checked })} className="rounded" />
                     <span className="font-georgia-pro text-sm">🎙️ Audio only (no video)</span>
                   </label>
                 </div>
-                
                 {formData.videoEnabled && (
                   <div className="mt-3 p-3 bg-purple-50 rounded-lg">
                     <p className="font-georgia-pro text-xs text-purple-800">
@@ -1051,44 +890,24 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
               <div className="border-t pt-4">
                 <label className="block font-georgia-pro text-sm font-medium mb-3">Event Settings</label>
-                
                 <div className="space-y-2">
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.guestOnlyEvent}
-                      onChange={(e) => setFormData({ ...formData, guestOnlyEvent: e.target.checked })}
-                      className="rounded"
-                    />
+                    <input type="checkbox" checked={formData.guestOnlyEvent} onChange={(e) => setFormData({ ...formData, guestOnlyEvent: e.target.checked })} className="rounded" />
                     <span className="font-georgia-pro text-sm">🎙️ Guest-only event (no host required)</span>
                   </label>
-                  
-                  {/* ✅ MUSIC MODE CHECKBOX */}
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.musicMode}
-                      onChange={(e) => setFormData({ ...formData, musicMode: e.target.checked })}
-                      className="rounded"
-                    />
+                    <input type="checkbox" checked={formData.musicMode} onChange={(e) => setFormData({ ...formData, musicMode: e.target.checked })} className="rounded" />
                     <span className="font-georgia-pro text-sm">🎵 Music Mode (high-quality audio for musicians)</span>
                   </label>
                 </div>
-                
                 {formData.guestOnlyEvent && (
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <p className="font-georgia-pro text-xs text-blue-800">
-                      💡 Guests can start streaming immediately without waiting for you to join.
-                    </p>
+                    <p className="font-georgia-pro text-xs text-blue-800">💡 Guests can start streaming immediately without waiting for you to join.</p>
                   </div>
                 )}
-                
-                {/* ✅ MUSIC MODE INFO */}
                 {formData.musicMode && (
                   <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                    <p className="font-georgia-pro text-xs text-green-800">
-                      💡 Optimizes audio for music with higher bitrate and less compression. Perfect for live performances!
-                    </p>
+                    <p className="font-georgia-pro text-xs text-green-800">💡 Optimizes audio for music with higher bitrate and less compression. Perfect for live performances!</p>
                   </div>
                 )}
               </div>
@@ -1103,10 +922,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    resetForm();
-                  }}
+                  onClick={() => { setShowCreateModal(false); resetForm(); }}
                   className="px-6 py-2 bg-gray-200 text-black rounded-full font-georgia-pro hover:bg-gray-300 transition"
                 >
                   Cancel

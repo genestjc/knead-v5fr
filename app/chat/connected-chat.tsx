@@ -468,7 +468,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       localStorage.setItem(`welcome_seen_${activeAccount.address}`, 'true');
     }
     setShowWelcomeModal(false);
-    window.location.reload();
   };
 
   const handleContributorClose = () => {
@@ -495,20 +494,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   // Channel join is handled by TownsChatJoinFlow (joinSpace covers channels).
   // Calling channel.join() a second time here resets the stream sync position
   // and causes "Miniblock number out of order" errors for new accounts.
-
-  // DIAGNOSTIC: Log raw event shape
-  useEffect(() => {
-    if (events && events.length > 0) {
-      console.log('🔍 Raw timeline event sample:', events[0]);
-    }
-  }, [events]);
-
-  // DIAGNOSTIC: Log reactions data
-  useEffect(() => {
-    if (reactionsData) {
-      console.log('🔍 Reactions data sample:', reactionsData);
-    }
-  }, [reactionsData]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
@@ -981,11 +966,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (messagesWithContributorStatus.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
-          <div className="text-center text-gray-500 py-8">
-            <p className="font-georgia-pro text-lg">Messages need to sync.</p>
-            <p className="font-georgia-pro text-sm mt-2">
-              Syncing encryption keys. If nothing appears in 5–10 seconds, try refreshing.
-            </p>
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+            <p className="font-georgia-pro text-sm text-gray-400">Loading messages...</p>
           </div>
         </div>
       );
