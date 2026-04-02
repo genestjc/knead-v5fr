@@ -305,9 +305,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   
   const channelId = defaultChannelId;
 
-  const { data: events } = useTimeline(channelId);
+  const { data: events, isLoading: isTimelineLoading, isError: isTimelineError } = useTimeline(channelId);
   const { sendMessage, isPending: isSending } = useSendMessage(channelId);
-  const { scrollback, isPending: isScrollbackPending } = useScrollback(channelId);
+  const {
+    scrollback,
+    isPending: isScrollbackPending,
+  } = useScrollback(channelId, {
+    onError: (err: Error) => {
+      console.error('[scrollback] failed:', err.message);
+      setScrollbackFailed(true);
+    },
+  });
   const { data: reactionsData } = useReactions(channelId);
 
   const canReact = useMemo(() => {
@@ -532,10 +540,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const oldScrollTop = scrollContainer?.scrollTop ?? 0;
 
     setIsLoadingMore(true);
+    setScrollbackFailed(false);
 
     try {
+      // scrollback() fetches older miniblocks from the river node.
+      // The onError config above sets scrollbackFailed if the node rejects the request.
       const result = await scrollback();
-      setScrollbackFailed(false);
 
       if (result?.terminus) {
         setHasReachedStart(true);
@@ -548,9 +558,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           scrollContainer.scrollTop = oldScrollTop + heightDiff;
         });
       }
-    } catch (error) {
-      console.error('Load more failed:', error);
-      setScrollbackFailed(true);
     } finally {
       setIsLoadingMore(false);
     }
@@ -573,19 +580,18 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
 
-  // When the timeline loads with very few events (e.g. after resource_exhausted cleared the
-  // local cache), automatically kick off a scrollback so historical messages are fetched
-  // without requiring the user to scroll up to the sentinel.
+  // When the timeline finishes loading with very few events (e.g. after a river node
+  // resource_exhausted cleared the local cache), automatically kick off a scrollback so
+  // historical messages are fetched without requiring the user to scroll to the sentinel.
+  // Gate on !isTimelineLoading so we don't race with the SDK's own sync.
   useEffect(() => {
-    if (!events || hasReachedStart || isLoadingMore || isScrollbackPending) return;
-    // Only auto-trigger when there are suspiciously few events — a full history would have
-    // filled the scrollback pages already.
+    if (isTimelineLoading || hasReachedStart || isLoadingMore || isScrollbackPending) return;
     if (events.length < 5) {
       loadMoreMessages();
     }
-  // Run once each time `events` reference changes to a small set.
+  // Only re-run when the timeline finishes loading or event count crosses the threshold.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events]);
+  }, [isTimelineLoading, events.length]);
 
   useEffect(() => {
     if (!events || events.length === 0) return;
@@ -939,12 +945,34 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   };
 
   const renderMessages = () => {
-    if (!events) {
+    // useTimeline never returns undefined — data is always [].
+    // Use isLoading (SDK is syncing the stream) rather than !events.
+    if (isTimelineLoading) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
             <p className="font-georgia-pro text-gray-500">Loading messages...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Surface SDK-level timeline errors (e.g. stream not found, auth failure)
+    if (isTimelineError) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-gray-500 py-8">
+            <p className="font-georgia-pro text-lg">Could not load messages.</p>
+            <p className="font-georgia-pro text-sm mt-2">
+              There was a problem connecting to the chat stream.{' '}
+              <button
+                onClick={() => window.location.reload()}
+                className="text-[#007AFF] underline hover:text-[#0051D5]"
+              >
+                Reload
+              </button>
+            </p>
           </div>
         </div>
       );
@@ -956,7 +984,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <div className="text-center text-gray-500 py-8">
             <p className="font-georgia-pro text-lg">Messages need to sync.</p>
             <p className="font-georgia-pro text-sm mt-2">
-              Syncing key encryption. If no messages show up in 5-10 seconds, try refreshing the page.
+              Syncing encryption keys. If nothing appears in 5–10 seconds, try refreshing.
             </p>
           </div>
         </div>
