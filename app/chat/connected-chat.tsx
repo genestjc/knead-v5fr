@@ -17,6 +17,7 @@ import { BanScreen } from '@/components/chat/BanScreen';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
 import { EventVideoStage } from '@/components/chat/EventVideoStage';
+import MuxPlayer from '@mux/mux-player-react';
 import { WelcomeModal } from '@/components/chat/WelcomeModal';
 import { ContributorWelcomeModal } from '@/components/chat/ContributorWelcomeModal';
 import type { ChatUser, ChatEvent } from '@/types/chat';
@@ -1132,7 +1133,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     );
   };
 
-  const hasVideo = activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl;
+  const hasVideo = activeEvent && activeEvent.videoEnabled && dailyToken && activeEvent.dailyRoomUrl && activeEvent.eventType !== 'recorded';
+  const hasRecordedVideo = activeEvent && activeEvent.eventType === 'recorded' && activeEvent.muxPlaybackId;
 
   const stripeOptions = clientSecret
     ? {
@@ -1209,7 +1211,17 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               </div>
             )}
 
-            {activeEvent && !hasVideo && (
+            {hasRecordedVideo && (
+              <div className="flex-shrink-0 bg-black">
+                <MuxPlayer
+                  playbackId={activeEvent!.muxPlaybackId!}
+                  streamType="on-demand"
+                  style={{ width: '100%', maxHeight: '50vh' }}
+                />
+              </div>
+            )}
+
+            {activeEvent && !hasVideo && !hasRecordedVideo && (
               <div className="flex-shrink-0">
                 <EventBanner eventTitle={activeEvent.title} timeRemaining={undefined} isLive={true} />
               </div>

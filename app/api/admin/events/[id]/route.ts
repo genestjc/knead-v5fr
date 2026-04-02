@@ -24,11 +24,11 @@ export async function PATCH(
     }
     
     const body = await req.json();
-    const { adminAddress, status, eventPassOnly } = body;
+    const { adminAddress, status, eventPassOnly, muxPlaybackId, muxAssetId } = body;
 
-    console.log('[PATCH /api/admin/events] Updating event:', eventId, { status, eventPassOnly });
+    console.log('[PATCH /api/admin/events] Updating event:', eventId, { status, eventPassOnly, muxPlaybackId });
 
-    if (!adminAddress || (status === undefined && eventPassOnly === undefined)) {
+    if (!adminAddress || (status === undefined && eventPassOnly === undefined && muxPlaybackId === undefined)) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -59,6 +59,8 @@ export async function PATCH(
     const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
     if (status !== undefined) updatePayload.status = status;
     if (eventPassOnly !== undefined) updatePayload.event_pass_only = eventPassOnly;
+    if (muxPlaybackId !== undefined) updatePayload.mux_playback_id = muxPlaybackId;
+    if (muxAssetId !== undefined) updatePayload.mux_asset_id = muxAssetId;
 
     const { error } = await supabase
       .from('chat_events')
