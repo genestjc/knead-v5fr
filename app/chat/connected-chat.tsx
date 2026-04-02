@@ -979,6 +979,16 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const renderDisabledMessageBanner = () => {
     if (permissions?.canPost || paymentVerified) return null;
 
+    if ((permissions as any)?.eventPassOnly && !(permissions as any)?.hasEventPass) {
+      return (
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+          <p className="font-georgia-pro text-sm text-gray-600 text-center">
+            Participating in this event is exclusive to a community-oriented group, like students or a non-profit.
+          </p>
+        </div>
+      );
+    }
+
     if (userRole === 'freemium') {
       return (
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
