@@ -267,6 +267,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
+  const [scrollbackFailed, setScrollbackFailed] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<{ content: string; sender: string } | null>(null);
   
@@ -534,7 +535,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
     try {
       const result = await scrollback();
-      
+      setScrollbackFailed(false);
+
       if (result?.terminus) {
         setHasReachedStart(true);
       }
@@ -548,6 +550,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       }
     } catch (error) {
       console.error('Load more failed:', error);
+      setScrollbackFailed(true);
     } finally {
       setIsLoadingMore(false);
     }
@@ -569,6 +572,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMoreMessages, hasReachedStart, isLoadingMore]);
+
+  // When the timeline loads with very few events (e.g. after resource_exhausted cleared the
+  // local cache), automatically kick off a scrollback so historical messages are fetched
+  // without requiring the user to scroll up to the sentinel.
+  useEffect(() => {
+    if (!events || hasReachedStart || isLoadingMore || isScrollbackPending) return;
+    // Only auto-trigger when there are suspiciously few events — a full history would have
+    // filled the scrollback pages already.
+    if (events.length < 5) {
+      loadMoreMessages();
+    }
+  // Run once each time `events` reference changes to a small set.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events]);
 
   useEffect(() => {
     if (!events || events.length === 0) return;
@@ -949,6 +966,30 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return (
       <div className="py-4">
         <div ref={topSentinelRef} style={{ height: '1px', marginTop: '20px' }} />
+
+        {scrollbackFailed && !isLoadingMore && (
+          <div className="text-center py-3 px-4">
+            <p className="font-georgia-pro text-sm text-gray-500 mb-2">
+              Could not load older messages. The chat network may be temporarily busy.
+            </p>
+            <button
+              onClick={() => {
+                setScrollbackFailed(false);
+                loadMoreMessages();
+              }}
+              className="font-georgia-pro text-sm text-[#007AFF] underline hover:text-[#0051D5]"
+            >
+              Try again
+            </button>
+            <span className="font-georgia-pro text-sm text-gray-400 mx-2">or</span>
+            <button
+              onClick={() => window.location.reload()}
+              className="font-georgia-pro text-sm text-[#007AFF] underline hover:text-[#0051D5]"
+            >
+              Reload page
+            </button>
+          </div>
+        )}
 
         {isLoadingMore && (
           <div className="text-center py-2">
