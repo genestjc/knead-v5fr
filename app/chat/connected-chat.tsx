@@ -1000,7 +1000,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       return (
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
           <p className="font-georgia-pro text-sm text-gray-600 text-center">
-            Participating in this event is exclusive to a community-oriented group, like students or a non-profit. Thank you for understanding.
+            Participating in this event is exclusive to a community-oriented group, like students or a non-profit.
           </p>
         </div>
       );
