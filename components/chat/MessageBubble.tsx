@@ -8,6 +8,7 @@ import { useRedact, useSendReaction } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { MessageReactions } from './MessageReactions';
+import { UserProfilePopup } from './UserProfilePopup';
 import { toast } from 'sonner';
 import { isImageFile } from '@/lib/thirdweb/storage';
 
@@ -19,6 +20,7 @@ interface ChatMessage {
     walletAddress?: string;
     name: string;
     avatar?: string;
+    bio?: string | null;
   };
   timestamp: number | string;
   townsAwarded?: number;
@@ -151,6 +153,7 @@ function MessageBubbleComponent({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
 
   const { redact, isPending: isDeleting } = useRedact(channelId || '');
   const { sendReaction } = useSendReaction(channelId || '');
@@ -341,11 +344,21 @@ function MessageBubbleComponent({
           {!isOwn && (
             <div className="flex-shrink-0 w-5">
               {message.isContributor && message.sender.avatar ? (
-                <img src={convertIpfsToGatewayUrl(message.sender.avatar)} alt={message.sender.name} className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200" />
+                <button
+                  onClick={() => setShowProfilePopup(true)}
+                  className="block w-5 h-5 rounded-full focus:outline-none"
+                  aria-label={`View ${message.sender.name}'s profile`}
+                >
+                  <img src={convertIpfsToGatewayUrl(message.sender.avatar)} alt={message.sender.name} className="w-5 h-5 rounded-full object-cover border-[1.5px] border-gray-200" />
+                </button>
               ) : message.isContributor ? (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold">
+                <button
+                  onClick={() => setShowProfilePopup(true)}
+                  className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[9px] font-semibold focus:outline-none"
+                  aria-label={`View ${message.sender.name}'s profile`}
+                >
                   {message.sender.name.substring(0, 2).toUpperCase()}
-                </div>
+                </button>
               ) : (
                 <div className="w-5 h-5" />
               )}
@@ -446,6 +459,15 @@ function MessageBubbleComponent({
       {showContextMenu && isAdmin && channelId && spaceId && (
         <AdminContextMenu message={message} eventId={eventId} channelId={channelId} spaceId={spaceId} position={contextMenuPosition} onClose={() => setShowContextMenu(false)} />
       )}
+
+      <UserProfilePopup
+        isOpen={showProfilePopup}
+        onClose={() => setShowProfilePopup(false)}
+        name={message.sender.name}
+        avatar={message.sender.avatar}
+        bio={message.sender.bio ?? undefined}
+        address={message.sender.walletAddress}
+      />
     </>
   );
 }

@@ -161,8 +161,8 @@ export function WalletSummary({
         const response = await fetch(`/api/chat/user?address=${account.address}`);
         const data = await response.json();
         if (data.success) {
-          setUserData(data.data);
-          console.log('✅ User data loaded:', data.data);
+          setUserData(data.user);
+          console.log('✅ User data loaded:', data.user);
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
@@ -954,7 +954,11 @@ export function WalletSummary({
         userAddress={account.address}
         currentAlias={userData?.alias}
         currentAvatar={userData?.avatar}
+        currentBio={userData?.bio}
         userId={userData?.id}
+        onSaved={(alias, avatar, bio) => {
+          setUserData((prev: any) => ({ ...prev, alias, avatar, bio }));
+        }}
       />
     </>
   );
