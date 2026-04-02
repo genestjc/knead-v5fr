@@ -584,7 +584,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       profileFetchingRef.current.add(addr);
       getProfile(addr);
     });
-  }, [events, profileCache, getProfile]);
+  // profileCache intentionally omitted from deps — profileFetchingRef deduplicates fetches.
+  // Including profileCache caused re-runs every second (driven by the freemium countdown timer).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, getProfile]);
 
   const messages = useMemo(() => {
     if (!events) return [];
