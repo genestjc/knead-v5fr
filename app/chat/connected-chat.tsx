@@ -601,7 +601,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (!events) return [];
 
     return events
-      .filter((event: any) => event.content?.kind === RiverTimelineEvent.ChannelMessage)
+      .filter((event: any) =>
+        // Fully decrypted channel messages
+        event.content?.kind === RiverTimelineEvent.ChannelMessage ||
+        // Encrypted messages whose content hasn't arrived yet (null/undefined content).
+        // These show as decrypting placeholders via isDecrypting below.
+        // Without this, encrypted events are silently dropped and never appear once keys arrive.
+        (event.sender?.id && event.content == null)
+      )
       .map((event: any) => {
         const walletAddress = event.sender?.id || '';
         const profile = walletAddress ? profileCache[walletAddress] : null;
