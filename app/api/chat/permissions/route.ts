@@ -48,13 +48,26 @@ export async function GET(request: NextRequest) {
     const activeEventId = activeEvents?.[0]?.id || null;
     const eventPassOnly = activeEvents?.[0]?.event_pass_only === true;
 
-    // Step 3: Enforce business rules
+    // Step 3: If event is pass-only, check Supabase event_passes table
+    let hasEventPass = false;
+    if (eventPassOnly && isEventActive && activeEventId) {
+      const { data: passRow } = await supabase
+        .from('event_passes')
+        .select('id')
+        .eq('event_id', activeEventId)
+        .eq('wallet_address', userAddress.toLowerCase())
+        .eq('status', 'active')
+        .maybeSingle();
+      hasEventPass = !!passRow;
+    }
+
+    // Step 4: Enforce business rules
     let canPost = false;
     let reason = '';
 
     if (eventPassOnly && isEventActive) {
       // Restricted mode: only Event Pass holders can chat
-      canPost = roleInfo.hasEventPass;
+      canPost = hasEventPass;
       reason = canPost
         ? 'Event Pass holder — access granted for this event.'
         : 'This event is restricted to Event Pass holders only.';

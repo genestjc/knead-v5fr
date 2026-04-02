@@ -4,11 +4,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import MuxPlayer from '@mux/mux-player-react';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
-import { getContract, prepareContractCall, sendTransaction } from 'thirdweb';
-import { getAddress } from 'viem';
-import { base } from 'thirdweb/chains';
-import { useActiveAccount } from 'thirdweb/react';
-import { client as thirdwebClient } from '@/thirdweb-client';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -197,17 +192,17 @@ function VideoUploadPanel({
 function EventPassPanel({
   eventId,
   mode,
-  account,
+  adminAddress,
   onClose,
 }: {
   eventId: string;
   mode: 'mint' | 'burn';
-  account: ReturnType<typeof useActiveAccount>;
+  adminAddress: string;
   onClose: () => void;
 }) {
   const [addressInput, setAddressInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(null);
+  const [successCount, setSuccessCount] = useState<number | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
 
   const parsedAddresses = useMemo(
@@ -220,10 +215,6 @@ function EventPassPanel({
   );
 
   const handleSubmit = async () => {
-    if (!account) {
-      setTxError('Connect your admin wallet first.');
-      return;
-    }
     if (parsedAddresses.length === 0) {
       setTxError('Enter at least one valid 0x address.');
       return;
@@ -231,37 +222,19 @@ function EventPassPanel({
 
     setIsProcessing(true);
     setTxError(null);
+    setSuccessCount(null);
 
     try {
-      // Checksum addresses — Solidity address params require EIP-55 format
-      const checksummedAddresses = parsedAddresses.map((a) => getAddress(a));
-
-      const eventPassContract = getContract({
-        client: thirdwebClient,
-        chain: base,
-        address: process.env.NEXT_PUBLIC_EVENT_PASS_CONTRACT!,
+      const res = await fetch('/api/admin/event-passes', {
+        method: mode === 'mint' ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminAddress, eventId, addresses: parsedAddresses }),
       });
-
-      let txResult;
-      if (mode === 'mint') {
-        const transaction = prepareContractCall({
-          contract: eventPassContract,
-          method: 'function batchMintPasses(address[] memory recipients, string memory eventId)',
-          params: [checksummedAddresses, eventId],
-        });
-        txResult = await sendTransaction({ transaction, account });
-      } else {
-        const transaction = prepareContractCall({
-          contract: eventPassContract,
-          method: 'function batchBurnPasses(address[] memory holders)',
-          params: [checksummedAddresses],
-        });
-        txResult = await sendTransaction({ transaction, account });
-      }
-
-      setTxHash(txResult.transactionHash);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      setSuccessCount(parsedAddresses.length);
     } catch (err: any) {
-      setTxError(err.message || 'Transaction failed');
+      setTxError(err.message || 'Request failed');
     } finally {
       setIsProcessing(false);
     }
@@ -314,12 +287,11 @@ function EventPassPanel({
         </p>
       )}
 
-      {txHash && (
+      {successCount !== null && (
         <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
           <p className="font-georgia-pro text-xs text-green-800 font-medium">
-            ✅ {mode === 'mint' ? `${parsedAddresses.length} passes minted!` : `${parsedAddresses.length} passes burned!`}
+            ✅ {mode === 'mint' ? `${successCount} pass${successCount !== 1 ? 'es' : ''} granted!` : `${successCount} pass${successCount !== 1 ? 'es' : ''} revoked!`}
           </p>
-          <p className="font-mono text-xs text-green-700 mt-0.5 break-all">Tx: {txHash}</p>
         </div>
       )}
 
@@ -332,10 +304,10 @@ function EventPassPanel({
           }`}
         >
           {isProcessing
-            ? '⏳ Signing...'
+            ? '⏳ Saving...'
             : mode === 'mint'
-            ? `Mint ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`
-            : `Burn ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`}
+            ? `Grant ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`
+            : `Revoke ${parsedAddresses.length} Pass${parsedAddresses.length !== 1 ? 'es' : ''}`}
         </button>
         <button
           onClick={onClose}
@@ -350,8 +322,6 @@ function EventPassPanel({
 }
 
 export function EventsManager({ adminAddress }: EventsManagerProps) {
-  const account = useActiveAccount();
-  
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -656,11 +626,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
           <p className="font-georgia-pro text-sm text-gray-600">
             Manage live events and video streaming • <span className="text-green-600">● Real-time updates enabled</span>
           </p>
-          {!account && (
-            <p className="font-georgia-pro text-xs text-orange-600 mt-1">
-              ⚠️ Connect your wallet to mint/burn Event Pass NFTs
-            </p>
-          )}
+
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -913,7 +879,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   <EventPassPanel
                     eventId={event.id}
                     mode={nftPanel.mode}
-                    account={account}
+                    adminAddress={adminAddress}
                     onClose={() => setNftPanel(null)}
                   />
                 )}

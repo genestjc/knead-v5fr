@@ -190,20 +190,18 @@ export async function getUserRole(address: string, force = false): Promise<UserR
   }
 
   try {
-    // Check all NFT types in parallel
-    const [hasMonthly, contributorCheck, eventPassCheck] = await Promise.all([
+    // Check NFT ownership in parallel (Event Pass is now tracked in Supabase, not on-chain)
+    const [hasMonthly, contributorCheck] = await Promise.all([
       hasKneadMonthly(address),
       isContributor(address),
-      hasEventPass(address),
     ]);
 
     // Determine role based on priority
     let role: UserRole = 'freemium';
-    
+
     if (contributorCheck.isContributor) {
       role = 'contributor';
-    } else if (hasMonthly || eventPassCheck.hasPass) {
-      // ✅ Event Pass grants Participant role
+    } else if (hasMonthly) {
       role = 'participant';
     }
 
@@ -211,8 +209,7 @@ export async function getUserRole(address: string, force = false): Promise<UserR
       role,
       hasKneadMonthly: hasMonthly,
       hasContributor: contributorCheck.isContributor,
-      hasEventPass: eventPassCheck.hasPass,
-      eventId: eventPassCheck.eventId,
+      hasEventPass: false, // Event Pass is now checked directly in permissions API via Supabase
       contributorTokenId: contributorCheck.tokenId,
     };
 
