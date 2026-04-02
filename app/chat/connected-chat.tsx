@@ -1229,11 +1229,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             )}
 
             {hasRecordedVideo && (
-              <div className="flex-shrink-0 bg-black">
+              <div className="flex-shrink-0 h-[40vh] md:h-[45vh] lg:h-[50vh] bg-black">
                 <MuxPlayer
                   playbackId={activeEvent!.muxPlaybackId!}
                   streamType="on-demand"
-                  style={{ width: '100%', maxHeight: '50vh' }}
+                  style={{ width: '100%', height: '100%' }}
                 />
               </div>
             )}
