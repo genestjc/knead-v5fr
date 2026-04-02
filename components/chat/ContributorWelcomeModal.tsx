@@ -12,6 +12,8 @@ interface ContributorWelcomeModalProps {
   userId: string;
   currentAlias?: string;
   currentAvatar?: string;
+  currentBio?: string;
+  onSaved?: (alias: string | null, avatar: string | null, bio: string | null) => void;
 }
 
 export function ContributorWelcomeModal({
@@ -21,8 +23,11 @@ export function ContributorWelcomeModal({
   userId,
   currentAlias,
   currentAvatar,
+  currentBio,
+  onSaved,
 }: ContributorWelcomeModalProps) {
   const [alias, setAlias] = useState(currentAlias || '');
+  const [bio, setBio] = useState(currentBio || '');
   const [email, setEmail] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatar || '');
@@ -34,11 +39,12 @@ export function ContributorWelcomeModal({
   useEffect(() => {
     if (isOpen) {
       setAlias(currentAlias || '');
+      setBio(currentBio || '');
       setEmail('');
       setAvatarPreview(currentAvatar || '');
       setAvatarFile(null);
     }
-  }, [isOpen, currentAlias, currentAvatar]);
+  }, [isOpen, currentAlias, currentAvatar, currentBio]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -158,6 +164,10 @@ export function ContributorWelcomeModal({
       }
 
       console.log('💾 Updating contributor profile in database...', { userId, userAddress });
+      const finalAlias = alias.trim() || null;
+      const finalAvatar = avatarUrl || null;
+      const finalBio = bio.trim() || null;
+
       const response = await fetch('/api/contributor/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,8 +175,9 @@ export function ContributorWelcomeModal({
           // Only pass userId if it is a valid UUID (not a wallet address)
           userId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId ?? '') ? userId : undefined,
           userAddress,
-          alias: alias.trim() || null,
-          avatar: avatarUrl || null,
+          alias: finalAlias,
+          avatar: finalAvatar,
+          bio: finalBio,
         }),
       });
 
@@ -179,6 +190,7 @@ export function ContributorWelcomeModal({
       }
 
       console.log('✅ Contributor profile set up successfully');
+      onSaved?.(finalAlias, finalAvatar, finalBio);
       toast({
         title: 'Profile saved!',
         description: 'Your contributor profile has been set up.',
@@ -330,6 +342,26 @@ export function ContributorWelcomeModal({
                   />
                   <p className="text-xs text-gray-500 mt-1 italic">
                     If you'd prefer not to use a display name, leaving it blank will default to truncated wallet address
+                  </p>
+                </div>
+
+                {/* Short Bio */}
+                <div>
+                  <label className="block font-adonis text-sm text-gray-700 mb-2">
+                    Short Bio
+                  </label>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="Tell the community a little about yourself..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm resize-none"
+                    disabled={isSaving}
+                    maxLength={160}
+                    rows={3}
+                  />
+                  <p className="text-xs text-gray-500 mt-1 flex justify-between">
+                    <span>Optional • Visible to all users</span>
+                    <span>{bio.length}/160</span>
                   </p>
                 </div>
 

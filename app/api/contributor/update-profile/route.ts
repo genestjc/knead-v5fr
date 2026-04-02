@@ -4,9 +4,9 @@ import type { ApiResponse } from '@/types/chat';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, userAddress, alias, avatar } = await req.json();
+    const { userId, userAddress, alias, avatar, bio } = await req.json();
 
-    console.log('📥 Update profile request:', { userId, userAddress, hasAlias: !!alias, hasAvatar: !!avatar });
+    console.log('📥 Update profile request:', { userId, userAddress, hasAlias: !!alias, hasAvatar: !!avatar, hasBio: !!bio });
 
     // ✅ Require at least userAddress
     if (!userAddress) {
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
           address: userAddress.toLowerCase(),
           alias: alias || null,
           avatar: avatar || null,
+          bio: bio || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
 
     if (alias !== undefined) updateData.alias = alias || null;
     if (avatar !== undefined) updateData.avatar = avatar || null;
+    if (bio !== undefined) updateData.bio = bio || null;
 
     console.log('💾 Updating user with data:', updateData);
 
