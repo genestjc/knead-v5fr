@@ -328,7 +328,10 @@ function TownsChatJoinFlow({
   const { spaceIds, isLoaded } = useUserSpaces();
   const joinAttemptedRef = useRef(false);
   const retryCountRef = useRef(0);
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 5;
+  // Incrementing this triggers a fresh effect run after a timed delay,
+  // used to actively re-attempt joinSpace when the river node is slow to confirm.
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   // Step 2: Handle space joining
   useEffect(() => {
@@ -342,13 +345,12 @@ function TownsChatJoinFlow({
       console.log('📊 User currently in spaces:', spaceIds);
 
       const isAlreadyInSpace = spaceIds.includes(SAVED_SPACE_ID);
-      
+
       if (isAlreadyInSpace) {
-        // ✅ Existing user OR mint succeeded and spaceIds updated
         console.log('✅ User already in space, proceeding to ready');
         setPhase('ready');
-        retryCountRef.current = 0; // Reset for next time
-        
+        retryCountRef.current = 0;
+
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
           window.KEY_SHARER_SPACE_JOINED = true;
           window.KEY_SHARER_CONNECTED = true;
@@ -356,21 +358,7 @@ function TownsChatJoinFlow({
         return;
       }
 
-      // ✅ If we're retrying, just wait for spaceIds to update — DON'T mint again
-      if (retryCountRef.current > 0) {
-        if (retryCountRef.current >= MAX_RETRIES) {
-          console.error('❌ Max retries reached, membership sync timed out');
-          setPhase('error');
-          setErrorMsg('Membership sync timed out. Please refresh the page.');
-          retryCountRef.current = 0;
-          return;
-        }
-        console.log(`⏳ Retry ${retryCountRef.current}/${MAX_RETRIES}, waiting for spaceIds to update...`);
-        setLoadingStep(4); // Keep showing "Kneading the dough"
-        return; // Exit and let effect re-fire when spaceIds changes
-      }
-
-      // ✅ First attempt only — mint the NFT
+      // First attempt only — mint the NFT
       if (joinAttemptedRef.current) return;
       joinAttemptedRef.current = true;
 
@@ -379,7 +367,7 @@ function TownsChatJoinFlow({
 
       try {
         setShowProgressiveLoader(true);
-        
+
         for (let step = 0; step <= 3; step++) {
           setLoadingStep(step);
           await new Promise((r) => setTimeout(r, 300));
@@ -387,41 +375,61 @@ function TownsChatJoinFlow({
 
         console.log('🔄 Minting membership NFT...');
 
-        // ✅ Mint the NFT (only happens once)
         await joinSpace(SAVED_SPACE_ID, signerRef.current);
-        
+
         console.log('✅ Mint succeeded!');
 
         setLoadingStep(4);
         await new Promise((r) => setTimeout(r, 400));
-        
+
         setPhase('ready');
 
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
           window.KEY_SHARER_SPACE_JOINED = true;
           window.KEY_SHARER_CONNECTED = true;
         }
-          
+
       } catch (joinError: any) {
         console.error('❌ Join failed:', joinError);
-        
-        // ✅ Retry on River sync timeouts AND receipt-reading failures
-        if (joinError.message?.includes('waitFor timeout') || 
-            joinError.message?.includes('streamMembershipUpdated') ||
-            joinError.message?.includes('joinSpace timeout') ||
-            joinError.message?.includes('Transaction confirmed but failed')) {
+
+        // River node sync timeouts: the membership NFT mint succeeded on-chain but
+        // the stream node hasn't indexed it yet. Actively retry joinSpace after a delay —
+        // the SDK detects the existing NFT and skips re-minting on subsequent calls.
+        const isStreamSyncTimeout =
+          joinError.message?.includes('waitFor timeout') ||
+          joinError.message?.includes('streamMembershipUpdated') ||
+          joinError.message?.includes('joinSpace timeout') ||
+          joinError.message?.includes('Transaction confirmed but failed');
+
+        if (isStreamSyncTimeout) {
           retryCountRef.current++;
-          console.log(`⏳ Mint likely succeeded, waiting for sync... (retry ${retryCountRef.current}/${MAX_RETRIES})`);
-          
-          setLoadingStep(4); // Show "Kneading the dough"
-          
-          // ✅ DON'T reset joinAttemptedRef — prevents duplicate mint
-          // Effect will re-run when spaceIds updates
+
+          if (retryCountRef.current >= MAX_RETRIES) {
+            console.error('❌ Max retries reached, membership sync timed out');
+            setPhase('error');
+            setErrorMsg('Membership is taking longer than expected to sync. Please refresh and try again.');
+            retryCountRef.current = 0;
+            joinAttemptedRef.current = false;
+            return;
+          }
+
+          // Delay scales with retry count: 5s, 10s, 15s, 20s…
+          const delayMs = retryCountRef.current * 5000;
+          console.log(`⏳ Mint likely succeeded, retrying after ${delayMs / 1000}s... (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+          setLoadingStep(4);
+
+          // Reset joinAttemptedRef so the next effect run calls joinSpace again.
+          // The SDK is idempotent — it checks for an existing NFT and skips re-minting.
+          joinAttemptedRef.current = false;
+
+          setTimeout(() => {
+            setRetryTrigger((n) => n + 1);
+          }, delayMs);
           return;
         }
 
         // Real errors (user rejection, network failure, etc.)
-        joinAttemptedRef.current = false; // Allow retry button to work
+        joinAttemptedRef.current = false;
         retryCountRef.current = 0;
         setPhase('error');
         setErrorMsg(friendlyError(joinError));
@@ -434,7 +442,9 @@ function TownsChatJoinFlow({
     };
 
     handleJoinSpace();
-  }, [isLoaded, spaceIds, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
+  // retryTrigger is intentionally included — it forces a re-run after the delay
+  // when joinSpace times out waiting for the river node to confirm membership.
+  }, [isLoaded, spaceIds, retryTrigger, wallet, joinSpace, signerRef, setPhase, setErrorMsg, setShowProgressiveLoader, setLoadingStep]);
 
   if (phase !== 'ready') {
     if (showProgressiveLoader) {
