@@ -483,24 +483,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
 
-  // Ensure channel is joined and keys synced
-
-  useEffect(() => {
-  if (!syncAgent || !channelId || !spaceId) return;
-  
-  const joinChannel = async () => {
-    try {
-      const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
-      console.log('📺 Joining channel stream...');
-      await channel.join();
-      console.log('✅ Channel stream joined');
-    } catch (err) {
-      console.warn('Channel join failed (may already be joined):', err);
-    }
-  };
-  
-  joinChannel();
-}, [syncAgent, spaceId, channelId]);
+  // Channel join is handled by TownsChatJoinFlow (joinSpace covers channels).
+  // Calling channel.join() a second time here resets the stream sync position
+  // and causes "Miniblock number out of order" errors for new accounts.
 
   // DIAGNOSTIC: Log raw event shape
   useEffect(() => {
