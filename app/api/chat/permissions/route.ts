@@ -5,39 +5,18 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-/**
- * Permission Check API
- *
- * Enforces app-side business logic:
- * - Freemium: Watch only (never post)
- * - Participant: Post during events only
- * - Contributor: Always post + DM + tip
- * - Event Pass holder: Always post during their specific event
- *
- * event_pass_only toggle:
- *   false → pass holders + contributors + participants can all chat normally
- *   true  → ONLY pass holders can chat (contributors and members are locked out too)
- *
- * Note: Towns Protocol permissions (on-chain) are separate.
- * Everyone has Read+Write on-chain. This API enforces YOUR rules.
- */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userAddress = searchParams.get('userAddress');
 
     if (!userAddress) {
-      return NextResponse.json(
-        { success: false, error: 'User address is required' },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: 'User address is required' }, { status: 400 });
     }
 
-    // Step 1: Get user role from blockchain NFTs
     const roleInfo = await getUserRole(userAddress);
     const { role } = roleInfo;
 
-    // Step 2: Check for active event in Supabase
     const supabase = createSupabaseClient();
     const { data: activeEvents, error: eventError } = await supabase
       .from('chat_events')
@@ -45,16 +24,13 @@ export async function GET(request: NextRequest) {
       .eq('status', 'live')
       .limit(1);
 
-    if (eventError) {
-      console.error('Event check error:', eventError);
-    }
+    if (eventError) console.error('Event check error:', eventError);
 
     const isEventActive = !!(activeEvents && activeEvents.length > 0);
     const activeEventId = activeEvents?.[0]?.id || null;
     const eventPassOnly = activeEvents?.[0]?.event_pass_only === true;
 
-    // Step 3: Always check event_passes for the active event
-    // Pass holders can chat during their event regardless of the pass-only toggle
+    // Always check event_passes — pass holders can chat regardless of toggle
     let hasEventPass = false;
     if (isEventActive && activeEventId) {
       const { data: passRow } = await supabase
@@ -67,12 +43,11 @@ export async function GET(request: NextRequest) {
       hasEventPass = !!passRow;
     }
 
-    // Step 4: Enforce business rules
     let canPost = false;
     let reason = '';
 
     if (eventPassOnly && isEventActive) {
-      // Restricted mode: ONLY pass holders can chat — contributors and members locked out too
+      // Restricted: ONLY pass holders — contributors and members locked out too
       canPost = hasEventPass;
       reason = canPost
         ? 'Event Pass holder — access granted for this event.'
@@ -81,12 +56,10 @@ export async function GET(request: NextRequest) {
       canPost = true;
       reason = 'Contributor - full access';
     } else if (role === 'participant' || hasEventPass) {
-      // Pass holders always get to chat during their event, even in open-chat mode
+      // Pass holders always get to chat during their event
       canPost = isEventActive;
       reason = isEventActive
-        ? hasEventPass
-          ? 'Event Pass holder — access granted.'
-          : 'Participant - event active, you can chat!'
+        ? hasEventPass ? 'Event Pass holder — access granted.' : 'Participant - event active, you can chat!'
         : 'Participants can only chat during live events';
     } else {
       canPost = false;
@@ -95,24 +68,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        role,
-        canPost,
-        canView: true,
-        canTip: role === 'contributor',
-        canDM: role === 'contributor',
-        reason,
-        isEventActive,
-        activeEventId,
-        eventPassOnly,
-        hasEventPass,
-      },
+      data: { role, canPost, canView: true, canTip: role === 'contributor', canDM: role === 'contributor', reason, isEventActive, activeEventId, eventPassOnly, hasEventPass },
     });
   } catch (error: any) {
     console.error('Permission check failed:', error.message);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to check permissions' },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: error.message || 'Failed to check permissions' }, { status: 500 });
   }
 }
