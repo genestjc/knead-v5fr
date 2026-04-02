@@ -373,9 +373,12 @@ function TownsChatJoinFlow({
           await new Promise((r) => setTimeout(r, 300));
         }
 
-        console.log('🔄 Minting membership NFT...');
+        // On retries (retryCountRef > 0) the mint already succeeded on-chain —
+        // pass skipMintMembership so the SDK only waits for stream sync, not re-mint.
+        const isRetry = retryCountRef.current > 0;
+        console.log(isRetry ? '🔄 Re-syncing membership (skipping mint)...' : '🔄 Minting membership NFT...');
 
-        await joinSpace(SAVED_SPACE_ID, signerRef.current);
+        await joinSpace(SAVED_SPACE_ID, signerRef.current, isRetry ? { skipMintMembership: true } : undefined);
 
         console.log('✅ Mint succeeded!');
 
