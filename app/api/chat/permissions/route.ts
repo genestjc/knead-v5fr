@@ -5,27 +5,13 @@ import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-/**
- * Permission Check API
- *
- * Enforces app-side business logic:
- * - Freemium: Watch only (never post)
- * - Participant: Post during events only
- * - Contributor: Always post + DM + tip
- *
- * Note: Towns Protocol permissions (on-chain) are separate.
- * Everyone has Read+Write on-chain. This API enforces YOUR rules.
- */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userAddress = searchParams.get('userAddress');
 
     if (!userAddress) {
-      return NextResponse.json(
-        { success: false, error: 'User address is required' },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: 'User address is required' }, { status: 400 });
     }
 
     // Step 1: Get user role from blockchain NFTs
@@ -66,7 +52,7 @@ export async function GET(request: NextRequest) {
     let reason = '';
 
     if (eventPassOnly && isEventActive) {
-      // Restricted mode: only Event Pass holders can chat
+      // Restricted mode: ONLY pass holders can chat — no exceptions for contributors or members
       canPost = hasEventPass;
       reason = canPost
         ? 'Event Pass holder — access granted for this event.'
@@ -81,8 +67,7 @@ export async function GET(request: NextRequest) {
         : 'Participants can only chat during live events';
     } else {
       canPost = false;
-      reason =
-        'Freemium users can only watch. Upgrade to Knead Monthly to chat during events!';
+      reason = 'Freemium users can only watch. Upgrade to Knead Monthly to chat during events!';
     }
 
     return NextResponse.json({
@@ -103,7 +88,7 @@ export async function GET(request: NextRequest) {
     console.error('Permission check failed:', error.message);
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to check permissions' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
