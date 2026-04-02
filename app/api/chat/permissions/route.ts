@@ -14,11 +14,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'User address is required' }, { status: 400 });
     }
 
-    // Step 1: Get user role from blockchain NFTs
     const roleInfo = await getUserRole(userAddress);
     const { role } = roleInfo;
 
-    // Step 2: Check for active event in Supabase
     const supabase = createSupabaseClient();
     const { data: activeEvents, error: eventError } = await supabase
       .from('chat_events')
@@ -26,17 +24,15 @@ export async function GET(request: NextRequest) {
       .eq('status', 'live')
       .limit(1);
 
-    if (eventError) {
-      console.error('Event check error:', eventError);
-    }
+    if (eventError) console.error('Event check error:', eventError);
 
     const isEventActive = !!(activeEvents && activeEvents.length > 0);
     const activeEventId = activeEvents?.[0]?.id || null;
     const eventPassOnly = activeEvents?.[0]?.event_pass_only === true;
 
-    // Step 3: If event is pass-only, check Supabase event_passes table
+    // Always check event_passes — pass holders can chat regardless of toggle
     let hasEventPass = false;
-    if (eventPassOnly && isEventActive && activeEventId) {
+    if (isEventActive && activeEventId) {
       const { data: passRow } = await supabase
         .from('event_passes')
         .select('id')
@@ -47,12 +43,11 @@ export async function GET(request: NextRequest) {
       hasEventPass = !!passRow;
     }
 
-    // Step 4: Enforce business rules
     let canPost = false;
     let reason = '';
 
     if (eventPassOnly && isEventActive) {
-      // Restricted mode: ONLY pass holders can chat — no exceptions for contributors or members
+      // Restricted: ONLY pass holders — contributors and members locked out too
       canPost = hasEventPass;
       reason = canPost
         ? 'Event Pass holder — access granted for this event.'
@@ -60,10 +55,11 @@ export async function GET(request: NextRequest) {
     } else if (role === 'contributor') {
       canPost = true;
       reason = 'Contributor - full access';
-    } else if (role === 'participant') {
+    } else if (role === 'participant' || hasEventPass) {
+      // Pass holders always get to chat during their event
       canPost = isEventActive;
       reason = isEventActive
-        ? 'Participant - event active, you can chat!'
+        ? hasEventPass ? 'Event Pass holder — access granted.' : 'Participant - event active, you can chat!'
         : 'Participants can only chat during live events';
     } else {
       canPost = false;
@@ -72,23 +68,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        role,
-        canPost,
-        canView: true,
-        canTip: role === 'contributor',
-        canDM: role === 'contributor',
-        reason,
-        isEventActive,
-        activeEventId,
-        eventPassOnly,
-      },
+      data: { role, canPost, canView: true, canTip: role === 'contributor', canDM: role === 'contributor', reason, isEventActive, activeEventId, eventPassOnly, hasEventPass },
     });
   } catch (error: any) {
     console.error('Permission check failed:', error.message);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to check permissions' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message || 'Failed to check permissions' }, { status: 500 });
   }
 }
