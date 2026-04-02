@@ -43,7 +43,8 @@ export function middleware(request: NextRequest) {
       https://fonts.gstatic.com;
     media-src 'self' blob: data:
       https://*.daily.co
-      https://*.pluot.blue;
+      https://*.pluot.blue
+      https://*.mux.com;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
@@ -129,7 +130,8 @@ export function middleware(request: NextRequest) {
       wss://localhost:*
       https://vercel.live
       https://vercel.com
-      https://va.vercel-scripts.com;
+      https://va.vercel-scripts.com
+      https://*.mux.com;
   `
     .replace(/\n/g, '')
     .replace(/\s{2,}/g, ' ')
