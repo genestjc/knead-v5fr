@@ -2,13 +2,14 @@
 
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { 
-  useAgentConnection, 
-  useSendMessage, 
+import {
+  useAgentConnection,
+  useSendMessage,
   useScrollback,
   useTimeline,
   useSyncAgent,
-  useReactions
+  useReactions,
+  useChannel,
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
@@ -491,9 +492,31 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
 
-  // Channel join is handled by TownsChatJoinFlow (joinSpace covers channels).
-  // Calling channel.join() a second time here resets the stream sync position
-  // and causes "Miniblock number out of order" errors for new accounts.
+  // Use the SDK's useChannel to check isJoined before calling channel.join().
+  // joinSpace joins the space stream but the channel stream needs its own join.
+  // Guarding on isJoined prevents the double-join that caused miniblock errors.
+  const { data: channelData } = useChannel(spaceId, channelId);
+
+  useEffect(() => {
+    if (!syncAgent || !channelId || !spaceId) return;
+    // Only join if the SDK reports the channel is not yet joined.
+    if (channelData?.isJoined) return;
+
+    const joinChannel = async () => {
+      try {
+        const channel = syncAgent.spaces.getSpace(spaceId).getChannel(channelId);
+        await channel.join();
+        console.log('[chat] ✅ Channel joined');
+      } catch (err: any) {
+        // Suppress benign "already joined" races — only log real errors.
+        if (!err.message?.includes('already') && !err.message?.includes('Miniblock')) {
+          console.error('[chat] Channel join error:', err.message);
+        }
+      }
+    };
+
+    joinChannel();
+  }, [syncAgent, spaceId, channelId, channelData?.isJoined]);
 
   const getProfile = useCallback(async (walletAddress: string) => {
     try {
