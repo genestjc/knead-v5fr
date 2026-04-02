@@ -39,21 +39,11 @@ export async function GET(req: NextRequest) {
     console.log('[GET /api/events] Found events:', events?.length || 0);
 
     if (!events || events.length === 0) {
-      return NextResponse.json<ApiResponse<any>>({
-        success: true,
-        data: [],
-      });
+      return NextResponse.json<ApiResponse<any>>({ success: true, data: [] });
     }
 
     const eventsWithUsers = await Promise.all(
       events.map(async (event) => {
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[GET /api/events] Processing event:', event.title);
-        console.log('   Event ID:', event.id);
-        console.log('   guest_addresses from DB:', event.guest_addresses);
-        console.log('   guest_only_event:', event.guest_only_event);
-        console.log('   music_mode:', event.music_mode);
-        
         let host = null;
         if (event.host_id) {
           const { data: hostData } = await supabase
@@ -62,10 +52,7 @@ export async function GET(req: NextRequest) {
             .eq('id', event.host_id)
             .single();
           host = hostData;
-          console.log('   Host:', host?.address || 'not found');
         }
-
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         return {
           id: event.id,
@@ -100,10 +87,7 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: eventsWithUsers,
-    });
+    return NextResponse.json<ApiResponse<any>>({ success: true, data: eventsWithUsers });
   } catch (error) {
     console.error('[GET /api/events] Exception:', error);
     return NextResponse.json<ApiResponse<null>>(
@@ -132,20 +116,11 @@ export async function POST(req: NextRequest) {
       muxAssetId = null,
     } = body;
 
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📥 [POST /api/events] Creating event');
-    console.log('   Title:', title);
-    console.log('   Guest addresses received:', guestAddresses);
-    console.log('   Guest-only event:', guestOnlyEvent);
-    console.log('   Music mode:', musicMode);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📥 [POST /api/events] Creating event:', title, '| type:', eventType);
 
     if (!title || !channelId || !eventType || !hostId || !scheduledStart || !scheduledEnd) {
       return NextResponse.json<ApiResponse<null>>(
-        {
-          success: false,
-          error: `Missing required fields`,
-        },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
@@ -165,31 +140,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const normalizedGuestAddresses = guestAddresses.map((addr: string) => 
-      addr.toLowerCase()
-    );
-    
-    console.log('📝 Normalized guest addresses:', normalizedGuestAddresses);
+    const normalizedGuestAddresses = guestAddresses.map((addr: string) => addr.toLowerCase());
 
+    // Recorded events use Mux — no Daily room needed
     let dailyRoomUrl = null;
     let dailyRoomName = null;
 
-    // Recorded events use Mux — no Daily room needed
     if (videoEnabled && process.env.DAILY_API_KEY && eventType !== 'recorded') {
       try {
-        // ✅ Simple room properties - music mode handled client-side
-        const roomProperties: any = {
-          owner_only_broadcast: true,
-          enable_screenshare: true,
-          enable_chat: false,
-          enable_prejoin_ui: false,
-          start_video_off: false,
-          start_audio_off: false,
-          max_participants: 100,
-        };
-
-        console.log('🎬 Creating Daily room' + (musicMode ? ' (music mode will be enabled client-side)' : ''));
-
         const dailyResponse = await fetch('https://api.daily.co/v1/rooms', {
           method: 'POST',
           headers: {
@@ -198,7 +156,15 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({
             name: `knead-event-${Date.now()}`,
-            properties: roomProperties,
+            properties: {
+              owner_only_broadcast: true,
+              enable_screenshare: true,
+              enable_chat: false,
+              enable_prejoin_ui: false,
+              start_video_off: false,
+              start_audio_off: false,
+              max_participants: 100,
+            },
           }),
         });
 
@@ -220,23 +186,13 @@ export async function POST(req: NextRequest) {
         const startTimestamp = Math.floor(new Date(scheduledStart).getTime() / 1000);
         const endTimestamp = Math.floor(new Date(scheduledEnd).getTime() / 1000);
         const chainEventType = eventType === 'live' ? EventType.Live : EventType.Discussion;
-        
-        await createOnChainEvent(
-          title,
-          startTimestamp,
-          endTimestamp,
-          chainEventType,
-          DEFAULT_RSVP_CAP
-        );
-        
+        await createOnChainEvent(title, startTimestamp, endTimestamp, chainEventType, DEFAULT_RSVP_CAP);
         console.log('[POST /api/events] Created on-chain event for:', title);
       } catch (chainError) {
         console.error('[POST /api/events] Error creating on-chain event:', chainError);
       }
     }
 
-    console.log('💾 Inserting event with guest_addresses:', normalizedGuestAddresses);
-    
     const { data: event, error: insertError } = await supabase
       .from('chat_events')
       .insert({
@@ -259,15 +215,6 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
-
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('💾 INSERT RESULT');
-    console.log('   Success:', !insertError);
-    console.log('   Event created with guest_addresses:', event?.guest_addresses);
-    console.log('   Guest count:', event?.guest_addresses?.length || 0);
-    console.log('   Guest-only event:', event?.guest_only_event);
-    console.log('   Music mode:', event?.music_mode);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (insertError) {
       console.error('[POST /api/events] Error creating event:', insertError);
