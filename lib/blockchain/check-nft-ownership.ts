@@ -10,8 +10,7 @@
  */
 
 import { getContract, readContract } from "thirdweb";
-import { base } from "thirdweb/chains";
-import { client as thirdwebClient } from "@/thirdweb-client";
+import { client as thirdwebClient, activeChain } from "@/thirdweb-client";
 
 // Server-side in-memory cache — avoids redundant RPC calls on every permission check.
 // TTL is intentionally short enough to catch NFT purchases but long enough to cut RPS 10-20x.
@@ -51,7 +50,7 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
 
     const contract = getContract({
       client: thirdwebClient,
-      chain: base,
+      chain: activeChain,
       address: nftContractAddress,
     });
 
@@ -91,7 +90,7 @@ export async function isContributor(address: string): Promise<{
 
     const contract = getContract({
       client: thirdwebClient,
-      chain: base,
+      chain: activeChain,
       address: contributorContractAddress,
     });
 
@@ -134,7 +133,7 @@ export async function hasEventPass(address: string): Promise<{
 
     const contract = getContract({
       client: thirdwebClient,
-      chain: base,
+      chain: activeChain,
       address: eventPassContract,
     });
 

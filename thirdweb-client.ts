@@ -42,8 +42,8 @@ export const client = createThirdwebClient({
 
 // ✅ MULTI-RPC CONFIGURATION with automatic fallback
 const RPC_ENDPOINTS = [
-  alchemyRpcUrl,                                    // 1. Alchemy (your dedicated endpoint)
-  `https://${base.id}.rpc.thirdweb.com/${clientId}`, // 2. Thirdweb RPC (included with client)
+  `https://${base.id}.rpc.thirdweb.com/${clientId}`, // 1. ThirdWeb RPC (primary)
+  alchemyRpcUrl,                                    // 2. Alchemy (backup)
   'https://mainnet.base.org',                       // 3. Public Base RPC (last resort)
 ].filter(Boolean); // Remove any undefined values
 
@@ -58,7 +58,7 @@ let currentRpcIndex = 0;
  */
 function getNextRpcEndpoint(): string {
   if (typeof window === 'undefined') {
-    // Server-side: always use Alchemy (most reliable)
+    // Server-side: always use primary (ThirdWeb)
     return RPC_ENDPOINTS[0];
   }
   
@@ -84,7 +84,7 @@ export const activeChain = {
 // ✅ Export RPC configuration for Towns SDK
 export const TOWNS_RPC_CONFIG = {
   // Primary endpoint
-  rpc: RPC_ENDPOINTS[0], // Alchemy first
+  rpc: RPC_ENDPOINTS[0], // ThirdWeb first
   
   // Fallback endpoints
   fallbackRpcs: RPC_ENDPOINTS.slice(1), // Thirdweb + Public
