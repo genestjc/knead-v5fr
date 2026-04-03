@@ -248,10 +248,10 @@ export default function TownsPitchPage() {
       <Slide id={0} {...slideProps} className="bg-white">
         <div className="flex flex-col items-center justify-center text-center space-y-8">
           <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl lg:text-8xl font-adonis tracking-tight text-black">
-            Knead x Towns
+            Knead
           </motion.h1>
           <motion.p variants={fadeIn} className="text-xl md:text-2xl font-georgia-pro text-gray-600 max-w-xl">
-            Ushering in /chat as the future of media.
+            Ushering in the future of media.
           </motion.p>
           <motion.p variants={fadeIn} className="text-sm text-gray-400 font-georgia-pro mt-16">
             Scroll to explore ↓
@@ -262,11 +262,11 @@ export default function TownsPitchPage() {
       {/* ── Screen 2: Vision ───────────────────────────────────────────────── */}
       <Slide id={1} {...slideProps}>
         <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-12 text-center">
-          Every company will have a /chat
+          Every company is a media company
         </motion.h2>
         <motion.div variants={staggerContainer} className="max-w-3xl mx-auto space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
           {[
-            "The internet is moving in-house.",
+            "The internet is moving back in-house.",
             "By shifting from platforms to protocols, brands are able to build communities natively on their own website, customizing a framework exclusively for their fans.",
             "Whether that's a home for live video streaming, a gamified reward system, or a combination of everything in-between, the most engaging spaces will be shifting off social media and into digital experiences directly between companies and their most loyal supporters.",
             'When our current digital era started, the saying was: "Every company is a media company."',
