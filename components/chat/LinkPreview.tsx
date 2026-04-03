@@ -40,7 +40,7 @@ export function LinkPreview({ url, isOwn = false }: LinkPreviewProps) {
       const preview: LinkPreviewData = {
         title: null,
         description: null,
-        image: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
+        image: `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`,
         siteName: 'YouTube',
         url,
       };
@@ -91,12 +91,24 @@ export function LinkPreview({ url, isOwn = false }: LinkPreviewProps) {
       onClick={(e) => e.stopPropagation()}
     >
       {data.image && (
-        <img
-          src={data.image}
-          alt={data.title ?? ''}
-          className="w-full h-36 object-cover"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+        <div className="w-full aspect-video bg-gray-100 overflow-hidden">
+          <img
+            src={data.image}
+            alt={data.title ?? ''}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const img = e.target as HTMLImageElement;
+              // fallback: hqdefault → sddefault → hide
+              if (img.src.includes('maxresdefault')) {
+                img.src = img.src.replace('maxresdefault', 'hqdefault');
+              } else if (img.src.includes('hqdefault')) {
+                img.src = img.src.replace('hqdefault', 'sddefault');
+              } else {
+                img.style.display = 'none';
+              }
+            }}
+          />
+        </div>
       )}
       <div className="px-3 py-2">
         {data.siteName && (

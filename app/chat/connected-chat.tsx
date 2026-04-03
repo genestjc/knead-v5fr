@@ -1418,13 +1418,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           <div className="text-center max-w-md">
             <p className="font-adonis text-white text-2xl leading-relaxed">
               You've reached your free limit for the month.{' '}
-              <button
-                onClick={handleOpenPaymentModal}
-                disabled={isLoadingIntent}
-                className="underline hover:text-gray-300 transition-colors bg-transparent border-none cursor-pointer font-adonis text-2xl text-white disabled:opacity-50"
+              <a
+                href="/join"
+                className="underline hover:text-gray-300 transition-colors font-adonis text-2xl text-white"
               >
-                {isLoadingIntent ? 'Loading...' : 'Subscribe here'}
-              </button>
+                Subscribe here
+              </a>
               {' '}to continue enjoying.
             </p>
           </div>
