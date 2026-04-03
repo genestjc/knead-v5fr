@@ -178,9 +178,8 @@ export function WalletSummary({
     const fetchBalance = async () => {
       setIsLoadingBalance(true);
       try {
-        const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-        if (!townsContractAddress) {
-          console.warn("TOWNS contract address not configured");
+        const usdcAddress = contractAddresses?.usdcAddress;
+        if (!usdcAddress) {
           setTownsBalance("0");
           return;
         }
@@ -189,17 +188,17 @@ export function WalletSummary({
           address: account.address,
           client,
           chain: activeChain,
-          tokenAddress: townsContractAddress,
+          tokenAddress: usdcAddress,
         });
         
         const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
-          minimumFractionDigits: 0,
+          minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
         
         setTownsBalance(displayBalance);
       } catch (error) {
-        console.error("Failed to fetch balance:", error);
+        console.error("Failed to fetch USDC balance:", error);
         setTownsBalance("0");
       } finally {
         setIsLoadingBalance(false);
@@ -210,7 +209,7 @@ export function WalletSummary({
     
     const interval = setInterval(fetchBalance, 30000);
     return () => clearInterval(interval);
-  }, [account?.address, isChatContext]);
+  }, [account?.address, isChatContext, contractAddresses?.usdcAddress]);
 
   useEffect(() => {
     if (!isChatContext) return;
