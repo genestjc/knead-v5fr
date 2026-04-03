@@ -48,7 +48,7 @@ export function WalletSummary({
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
   
   const [totalEarned, setTotalEarned] = useState<string>("0");
-  const [graduationThreshold, setGraduationThreshold] = useState<string>("3334");
+  const [graduationThreshold, setGraduationThreshold] = useState<string>("100");
   const [hasGraduated, setHasGraduated] = useState(false);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
   
@@ -218,7 +218,6 @@ export function WalletSummary({
     const fetchConstants = async () => {
       try {
         const constants = await getContractConstants();
-        setGraduationThreshold(constants.graduationThreshold.toFixed(0));
         setWeeklyAllowanceCap(constants.weeklyAllowance.toFixed(0));
         console.log('✅ Contract constants loaded:', constants);
       } catch (error) {

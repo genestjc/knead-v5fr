@@ -399,7 +399,7 @@ export function DirectMessageInterface({
                         }}
                         className="w-full text-left px-4 py-3 text-sm font-georgia-pro hover:bg-gray-50 rounded-lg transition-colors"
                       >
-                        {videoCallsEnabled ? '🚫 Disable video calls' : '✅ Enable video calls'}
+                        {videoCallsEnabled ? 'Disable video calls' : 'Enable video calls'}
                       </button>
                     </div>
                   )}

@@ -7,6 +7,7 @@ import { useAwardOnReaction } from '@/hooks/use-award-on-reaction';
 import { useRedact, useSendReaction } from '@towns-protocol/react-sdk';
 import { AdminContextMenu } from './AdminContextMenu';
 import { FileMessageDisplay } from './FileMessageDisplay';
+import { LinkPreview, extractUrls } from './LinkPreview';
 import { MessageReactions } from './MessageReactions';
 import { UserProfilePopup } from './UserProfilePopup';
 import { toast } from 'sonner';
@@ -324,6 +325,8 @@ function MessageBubbleComponent({
   // Check if it's specifically an image file
   const isImageMessage = isFileMessage && fileName ? isImageFile(fileName) : false;
 
+  const previewUrls = isFileMessage ? [] : extractUrls(message.content);
+
   return (
     <>
       <motion.div
@@ -377,6 +380,10 @@ function MessageBubbleComponent({
               )}
             </div>
 
+
+            {previewUrls.length > 0 && previewUrls.slice(0, 1).map((url) => (
+              <LinkPreview key={url} url={url} isOwn={isOwn} />
+            ))}
             {/* Floating Reaction Picker - positioned at bottom for images, top for everything else */}
             {showReactionPicker && canReact && channelId && (
               <div className={`absolute ${isImageMessage ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 z-50`}>
@@ -499,37 +506,14 @@ export const MessageBubble = React.memo(MessageBubbleComponent, areMessagePropsE
 
 function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: { eventTitle: string; timeRemaining?: string; isLive?: boolean }) {
   return (
-    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 mx-4 rounded-r-lg">
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gray-100/70 border-l-4 border-gray-400 p-4 mb-4 mx-4 rounded-r-lg backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        {isLive && <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-2 h-2 bg-red-500 rounded-full" />}
-        <span className="font-adonis text-lg">{isLive ? '🔴 LIVE: ' : '📅 '}{eventTitle}</span>
+        <span className="font-adonis text-lg text-gray-800">{isLive ? 'LIVE: ' : '📅 '}{eventTitle}</span>
       </div>
-      {timeRemaining && <p className="font-georgia-pro text-sm text-gray-600 mt-1 ml-4">{timeRemaining}</p>}
+      {timeRemaining && <p className="font-georgia-pro text-sm text-gray-600 mt-1 ml-0">{timeRemaining}</p>}
     </motion.div>
   );
 }
 
 export const EventBanner = React.memo(EventBannerComponent);
 
-function TypingIndicatorComponent({ userName }: { userName?: string }) {
-  return (
-    <div className="flex justify-start mb-4 px-4">
-      <div className="flex flex-col items-start max-w-[70%]">
-        <div className="rounded-[18px] px-4 py-3 bg-[#E5E5EA]">
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div key={i} className="w-2 h-2 bg-gray-500 rounded-full" animate={{ y: [0, -8, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
-            ))}
-          </div>
-        </div>
-        {userName && (
-          <div className="text-xs text-gray-500 mt-1 px-2">
-            <span className="font-georgia-pro">{userName} is typing...</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export const TypingIndicator = React.memo(TypingIndicatorComponent);
