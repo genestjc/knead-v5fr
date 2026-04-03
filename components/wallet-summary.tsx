@@ -17,7 +17,7 @@ interface WalletSummaryProps {
   context?: "default" | "chat";
 }
 
-export function WalletSummary({ 
+export function WalletSummary({
   context = "default",
 }: WalletSummaryProps) {
   const account = useActiveAccount();
@@ -27,38 +27,38 @@ export function WalletSummary({
   const [copied, setCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [townsBalance, setTownsBalance] = useState<string>("0");
+  const [usdcBalance, setUsdcBalance] = useState<string>("0");
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-  
+
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [destinationAddress, setDestinationAddress] = useState("");
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
-  
+
   const [showExternalWalletMessage, setShowExternalWalletMessage] = useState(false);
-  
+
   const [isContributor, setIsContributor] = useState(false);
   const [claimableBalance, setClaimableBalance] = useState<string>("0");
   const [isLoadingClaimable, setIsLoadingClaimable] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
-  
+
   const [weeklyAllowance, setWeeklyAllowance] = useState<string>("0");
   const [weeklyAllowanceCap, setWeeklyAllowanceCap] = useState<string>("1");
   const [isLoadingAllowance, setIsLoadingAllowance] = useState(false);
-  
+
   const [totalEarned, setTotalEarned] = useState<string>("0");
   const [graduationThreshold, setGraduationThreshold] = useState<string>("100");
   const [hasGraduated, setHasGraduated] = useState(false);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
-  
+
   const [showContributorSettings, setShowContributorSettings] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [contractAddresses, setContractAddresses] = useState<{
     rewardsAddress?: string;
     usdcAddress?: string;
   } | null>(null);
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -66,109 +66,109 @@ export function WalletSummary({
   const isChatContext = context === "chat";
 
   useEffect(() => {
-    console.log('🔍 WalletSummary mounted');
-    console.log('🔍 Context:', context);
-    console.log('🔍 isChatContext:', isChatContext);
-    console.log('🔍 Account:', account?.address);
-  }, []);
+    console.log("🔍 WalletSummary mounted");
+    console.log("🔍 Context:", context);
+    console.log("🔍 isChatContext:", isChatContext);
+    console.log("🔍 Account:", account?.address);
+  }, [context, isChatContext, account?.address]);
 
   // Fetch contract addresses from server at runtime (not build time)
   useEffect(() => {
-    fetch('/api/config/contracts')
-      .then(res => res.json())
-      .then(data => setContractAddresses(data))
-      .catch(err => console.error('Failed to fetch contract addresses:', err));
+    fetch("/api/config/contracts")
+      .then((res) => res.json())
+      .then((data) => setContractAddresses(data))
+      .catch((err) => console.error("Failed to fetch contract addresses:", err));
   }, []);
 
   useEffect(() => {
-    console.log('🔍 Contributor check useEffect triggered');
-    console.log('🔍 Account address:', account?.address);
-    
+    console.log("🔍 Contributor check useEffect triggered");
+    console.log("🔍 Account address:", account?.address);
+
     if (!account?.address) {
-      console.log('❌ No account address, setting isContributor to false');
+      console.log("❌ No account address, setting isContributor to false");
       setIsContributor(false);
       return;
     }
-    
+
     const checkContributorStatus = async () => {
       try {
-        console.log('🔍 Starting contributor status check...');
-        
+        console.log("🔍 Starting contributor status check...");
+
         const nftContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-        
-        console.log('🔍 NFT Contract Address from env:', nftContractAddress);
-        
+
+        console.log("🔍 NFT Contract Address from env:", nftContractAddress);
+
         if (!nftContractAddress) {
-          console.warn('❌ Contributor NFT contract address not configured in .env.local');
-          console.warn('❌ Add: NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS=0xYourContractAddress');
+          console.warn("❌ Contributor NFT contract address not configured in .env.local");
+          console.warn("❌ Add: NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS=0xYourContractAddress");
           return;
         }
-        
-        console.log('✅ Creating NFT contract instance...');
-        
+
+        console.log("✅ Creating NFT contract instance...");
+
         const nftContract = getContract({
           client,
           chain: activeChain,
           address: nftContractAddress,
         });
-        
-        console.log('✅ NFT Contract created');
-        
+
+        console.log("✅ NFT Contract created");
+
         const contributorTokenIds = [1, 2, 3];
-        
-        console.log('🔍 Checking token IDs:', contributorTokenIds);
-        
+
+        console.log("🔍 Checking token IDs:", contributorTokenIds);
+
         for (const tokenId of contributorTokenIds) {
           console.log(`🔍 Checking token ID ${tokenId}...`);
-          
+
           const balance = await readContract({
             contract: nftContract,
-            method: 'function balanceOf(address owner, uint256 id) view returns (uint256)',
+            method: "function balanceOf(address owner, uint256 id) view returns (uint256)",
             params: [account.address, BigInt(tokenId)],
           });
-          
+
           console.log(`🔍 Token ${tokenId} balance:`, balance.toString());
-          
+
           if (balance > 0n) {
             console.log(`✅ User owns Contributor NFT #${tokenId}!`);
-            console.log('✅ Setting isContributor to TRUE');
+            console.log("✅ Setting isContributor to TRUE");
             setIsContributor(true);
             return;
           }
         }
-        
-        console.log('❌ User does not own any contributor NFTs');
+
+        console.log("❌ User does not own any contributor NFTs");
         setIsContributor(false);
       } catch (error) {
-        console.error('❌ Failed to check contributor status:', error);
-        console.error('❌ Error details:', error);
+        console.error("❌ Failed to check contributor status:", error);
+        console.error("❌ Error details:", error);
         setIsContributor(false);
       }
     };
-    
+
     checkContributorStatus();
   }, [account?.address]);
 
   useEffect(() => {
-    console.log('🔍 isContributor state changed to:', isContributor);
+    console.log("🔍 isContributor state changed to:", isContributor);
   }, [isContributor]);
 
   useEffect(() => {
     if (!account?.address || !isChatContext) return;
-    
+
     const fetchUserData = async () => {
       try {
         const response = await fetch(`/api/chat/user?address=${account.address}`);
         const data = await response.json();
         if (data.success) {
           setUserData(data.user);
-          console.log('✅ User data loaded:', data.user);
+          console.log("✅ User data loaded:", data.user);
         }
       } catch (error) {
-        console.error('Failed to fetch user data:', error);
+        console.error("Failed to fetch user data:", error);
       }
     };
-    
+
     fetchUserData();
   }, [account?.address, isChatContext]);
 
@@ -180,7 +180,7 @@ export function WalletSummary({
       try {
         const usdcAddress = contractAddresses?.usdcAddress;
         if (!usdcAddress) {
-          setTownsBalance("0");
+          setUsdcBalance("0");
           return;
         }
 
@@ -190,60 +190,60 @@ export function WalletSummary({
           chain: activeChain,
           tokenAddress: usdcAddress,
         });
-        
-        const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
+
+        const displayBalance = parseFloat(balance.displayValue).toLocaleString("en-US", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
-        
-        setTownsBalance(displayBalance);
+
+        setUsdcBalance(displayBalance);
       } catch (error) {
         console.error("Failed to fetch USDC balance:", error);
-        setTownsBalance("0");
+        setUsdcBalance("0");
       } finally {
         setIsLoadingBalance(false);
       }
     };
 
     fetchBalance();
-    
+
     const interval = setInterval(fetchBalance, 30000);
     return () => clearInterval(interval);
   }, [account?.address, isChatContext, contractAddresses?.usdcAddress]);
 
   useEffect(() => {
     if (!isChatContext) return;
-    
+
     const fetchConstants = async () => {
       try {
         const constants = await getContractConstants();
         setWeeklyAllowanceCap(constants.weeklyAllowance.toFixed(0));
-        console.log('✅ Contract constants loaded:', constants);
+        console.log("✅ Contract constants loaded:", constants);
       } catch (error) {
-        console.error('Failed to fetch contract constants:', error);
+        console.error("Failed to fetch contract constants:", error);
       }
     };
-    
+
     fetchConstants();
   }, [isChatContext]);
 
   useEffect(() => {
     if (!isContributor || !account?.address || !isChatContext) return;
-    
+
     const fetchContributorStats = async () => {
       setIsLoadingAllowance(true);
       try {
         const stats = await getContributorStats(account.address);
         setWeeklyAllowance(stats.lockedAllowance.toFixed(0));
-        console.log('✅ Contributor stats loaded:', stats);
+        console.log("✅ Contributor stats loaded:", stats);
       } catch (error) {
-        console.error('Failed to fetch contributor stats:', error);
-        setWeeklyAllowance('0');
+        console.error("Failed to fetch contributor stats:", error);
+        setWeeklyAllowance("0");
       } finally {
         setIsLoadingAllowance(false);
       }
     };
-    
+
     fetchContributorStats();
     const interval = setInterval(fetchContributorStats, 30000);
     return () => clearInterval(interval);
@@ -251,57 +251,57 @@ export function WalletSummary({
 
   useEffect(() => {
     if (!account?.address || !isChatContext) return;
-    
+
     const fetchParticipantStats = async () => {
       setIsLoadingEarnings(true);
       try {
         const stats = await getParticipantStats(account.address);
         setTotalEarned(stats.totalEarned.toFixed(2));
         setHasGraduated(stats.graduated);
-        console.log('✅ Participant stats loaded:', stats);
+        console.log("✅ Participant stats loaded:", stats);
       } catch (error) {
-        console.error('Failed to fetch participant stats:', error);
-        setTotalEarned('0');
+        console.error("Failed to fetch participant stats:", error);
+        setTotalEarned("0");
       } finally {
         setIsLoadingEarnings(false);
       }
     };
-    
+
     fetchParticipantStats();
     const interval = setInterval(fetchParticipantStats, 30000);
     return () => clearInterval(interval);
   }, [account?.address, isChatContext]);
 
   useEffect(() => {
-    console.log('🔍 Claimable balance useEffect triggered');
-    console.log('🔍 isContributor:', isContributor);
-    console.log('🔍 isChatContext:', isChatContext);
-    
+    console.log("🔍 Claimable balance useEffect triggered");
+    console.log("🔍 isContributor:", isContributor);
+    console.log("🔍 isChatContext:", isChatContext);
+
     if (!isContributor || !account?.address || !isChatContext) {
-      console.log('❌ Not fetching claimable balance - requirements not met');
+      console.log("❌ Not fetching claimable balance - requirements not met");
       return;
     }
-    
-    console.log('✅ Fetching claimable balance...');
-    
+
+    console.log("✅ Fetching claimable balance...");
+
     const fetchClaimableBalance = async () => {
       setIsLoadingClaimable(true);
       try {
         const stats = await getContributorStats(account.address);
-        const displayClaimable = stats.cashbackEarnings.toLocaleString('en-US', {
+        const displayClaimable = stats.cashbackEarnings.toLocaleString("en-US", {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,
         });
         setClaimableBalance(displayClaimable);
         console.log(`✅ Claimable balance: $${displayClaimable}`);
       } catch (error) {
-        console.error('❌ Failed to fetch claimable balance:', error);
-        setClaimableBalance('0');
+        console.error("❌ Failed to fetch claimable balance:", error);
+        setClaimableBalance("0");
       } finally {
         setIsLoadingClaimable(false);
       }
     };
-    
+
     fetchClaimableBalance();
     const interval = setInterval(fetchClaimableBalance, 30000);
     return () => clearInterval(interval);
@@ -327,10 +327,10 @@ export function WalletSummary({
     }
   };
 
-  const handleClaimTowns = async () => {
+  const handleClaimUSDC = async () => {
     if (!account) return;
-    
-    const claimableNum = parseFloat(claimableBalance.replace(/,/g, ''));
+
+    const claimableNum = parseFloat(claimableBalance.replace(/,/g, ""));
     if (claimableNum <= 0) {
       toast({
         title: "Nothing to claim",
@@ -339,48 +339,49 @@ export function WalletSummary({
       });
       return;
     }
-    
+
     setIsClaiming(true);
     setIsDropdownOpen(false);
-    
+
     try {
-      // Use runtime-fetched address instead of build-time env var
       const rewardsContractAddress = contractAddresses?.rewardsAddress;
-      if (!rewardsContractAddress) throw new Error('Rewards contract not loaded. Please refresh.');
-      
+      if (!rewardsContractAddress) {
+        throw new Error("Rewards contract not loaded. Please refresh.");
+      }
+
       const rewardsContract = getContract({
         client,
         chain: activeChain,
         address: rewardsContractAddress,
       });
-      
+
       const transaction = prepareContractCall({
         contract: rewardsContract,
-        method: 'function claimTowns()',
+        method: "function claimUSDC()",
         params: [],
       });
-      
+
       const result = await sendTransaction({
         account,
         transaction,
       });
-      
+
       toast({
         title: "USDC claimed!",
         description: `Successfully claimed $${claimableBalance}`,
       });
-      
+
       console.log(`✅ Claim TX: https://basescan.org/tx/${result.transactionHash}`);
-      
-      setClaimableBalance('0');
+
+      setClaimableBalance("0");
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } catch (error: any) {
-      console.error('Claim error:', error);
+      console.error("Claim error:", error);
       toast({
         title: "Claim failed",
-        description: error.message || 'Failed to claim USDC',
+        description: error.message || "Failed to claim USDC",
         variant: "destructive",
       });
     } finally {
@@ -415,8 +416,8 @@ export function WalletSummary({
     }
 
     const amountString = withdrawAmount.replace(/,/g, "").trim();
-    
     const amount = parseFloat(amountString);
+
     if (isNaN(amount) || amount <= 0) {
       setWithdrawError("Please enter a valid amount greater than 0");
       return;
@@ -431,20 +432,20 @@ export function WalletSummary({
     setIsWithdrawing(true);
 
     try {
-      const townsContractAddress = process.env.NEXT_PUBLIC_TOWNS_CONTRACT_ADDRESS;
-      if (!townsContractAddress) {
-        throw new Error('Contract address not configured');
+      const usdcAddress = contractAddresses?.usdcAddress;
+      if (!usdcAddress) {
+        throw new Error("USDC contract address not configured");
       }
 
       const contract = getContract({
         client,
         chain: activeChain,
-        address: townsContractAddress,
+        address: usdcAddress,
       });
 
-      const balanceNum = parseFloat(townsBalance.replace(/,/g, ""));
+      const balanceNum = parseFloat(usdcBalance.replace(/,/g, ""));
       if (balanceNum < amount) {
-        setWithdrawError(`Insufficient balance. You have $${townsBalance} but are trying to send $${amountString}.`);
+        setWithdrawError(`Insufficient balance. You have $${usdcBalance} but are trying to send $${amountString}.`);
         setIsWithdrawing(false);
         return;
       }
@@ -454,43 +455,43 @@ export function WalletSummary({
         to: destinationAddress,
         amount: amountString,
       });
-      
+
       const result = await sendTransaction({
         account,
         transaction,
       });
-      
+
       toast({
         title: "Transfer successful!",
         description: `$${amount} sent to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`,
       });
 
       console.log(`✅ Transaction: https://basescan.org/tx/${result.transactionHash}`);
-      
+
       setShowWithdrawalModal(false);
-      
+
       setTimeout(async () => {
         try {
           const balance = await getWalletBalance({
             address: account.address,
             client,
             chain: activeChain,
-            tokenAddress: townsContractAddress,
+            tokenAddress: usdcAddress,
           });
-          
-          const displayBalance = parseFloat(balance.displayValue).toLocaleString('en-US', {
-            minimumFractionDigits: 0,
+
+          const displayBalance = parseFloat(balance.displayValue).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           });
-          
-          setTownsBalance(displayBalance);
+
+          setUsdcBalance(displayBalance);
         } catch (error) {
           console.error("Failed to refresh balance:", error);
         }
       }, 2000);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Withdrawal error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Withdrawal error:", error);
       setWithdrawError(errorMessage);
     } finally {
       setIsWithdrawing(false);
@@ -504,92 +505,90 @@ export function WalletSummary({
 
   const handleExportKey = () => {
     setIsDropdownOpen(false);
-    
+
     if (!isInAppWallet) {
       setShowExternalWalletMessage(true);
       return;
     }
 
-    detailsModal.open({ 
+    detailsModal.open({
       client,
-      theme: "light"
+      theme: "light",
     });
   };
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
-    
+
     try {
       setIsSigningOut(true);
       setIsDropdownOpen(false);
-      
-      console.log('🧹 Clearing authentication...');
-      
-      // ✅ Clear Towns bearer token (authentication)
-      localStorage.removeItem('knead_towns_bearer_token');
-      localStorage.removeItem('knead_towns_token_expiry');
-      
-      // ✅ DON'T clear Towns device encryption keys - they should persist
-      console.log('🔐 Preserving Towns device encryption keys for DM continuity');
-      
+
+      console.log("🧹 Clearing authentication...");
+
+      localStorage.removeItem("knead_towns_bearer_token");
+      localStorage.removeItem("knead_towns_token_expiry");
+
+      console.log("🔐 Preserving Towns device encryption keys for DM continuity");
+
       try {
         await disconnect();
         console.log("ThirdWeb disconnect successful");
       } catch (disconnectError) {
         console.log("Ignoring known ThirdWeb disconnect error", disconnectError);
       }
-      
-      // ✅ Clear membership cache
+
       localStorage.removeItem("knead_membership_cache");
-      
-      // ✅ Clear ThirdWeb wallet keys (but NOT Towns device keys)
-      const thirdwebKeys = Object.keys(localStorage).filter(key => {
-        // Exclude Towns device/encryption keys - these must persist for DMs
-        if (key.includes('towns') || 
-            key.includes('@river-build') || 
-            key.includes('river_') ||
-            key.startsWith('device_') ||
-            key.includes('crypto_')) {
+
+      const thirdwebKeys = Object.keys(localStorage).filter((key) => {
+        if (
+          key.includes("towns") ||
+          key.includes("@river-build") ||
+          key.includes("river_") ||
+          key.startsWith("device_") ||
+          key.includes("crypto_")
+        ) {
           console.log(`🔐 Preserving: ${key}`);
           return false;
         }
-        
-        // Only clear ThirdWeb-related keys
-        return key.includes('thirdweb') || 
-               key.includes('walletconnect') || 
-               key.startsWith('email_') ||
-               key.startsWith('tw-');
+
+        return (
+          key.includes("thirdweb") ||
+          key.includes("walletconnect") ||
+          key.startsWith("email_") ||
+          key.startsWith("tw-")
+        );
       });
-      
-      thirdwebKeys.forEach(key => {
+
+      thirdwebKeys.forEach((key) => {
         console.log(`❌ Removing: ${key}`);
         localStorage.removeItem(key);
       });
-      
-      const sessionKeys = Object.keys(sessionStorage).filter(key => 
-        key.includes('thirdweb') || 
-        key.includes('walletconnect') || 
-        key.startsWith('tw-')
+
+      const sessionKeys = Object.keys(sessionStorage).filter(
+        (key) =>
+          key.includes("thirdweb") ||
+          key.includes("walletconnect") ||
+          key.startsWith("tw-")
       );
-      
-      sessionKeys.forEach(key => sessionStorage.removeItem(key));
-      
-      // ✅ Clear cookies
-      document.cookie.split(";").forEach(cookie => {
+
+      sessionKeys.forEach((key) => sessionStorage.removeItem(key));
+
+      document.cookie.split(";").forEach((cookie) => {
         const [name] = cookie.trim().split("=");
         if (name.includes("thirdweb")) {
           document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
         }
       });
-      
-      console.log('✅ Authentication cleared - redirecting...');
-      
+
+      console.log("✅ Authentication cleared - redirecting...");
+
       setTimeout(() => {
-        window.location.href = '/?nocache=' + new Date().getTime();
+        window.location.href = "/?nocache=" + new Date().getTime();
       }, 500);
     } catch (error) {
       console.error("Failed to sign out:", error);
-      window.location.href = '/?forcereload=' + new Date().getTime();
+      window.location.href = "/?forcereload=" + new Date().getTime();
     }
   };
 
@@ -598,10 +597,7 @@ export function WalletSummary({
   };
 
   const handleClickOutside = (event: MouseEvent) => {
-    if (
-      dropdownRef.current &&
-      !dropdownRef.current.contains(event.target as Node)
-    ) {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
       setIsDropdownOpen(false);
     }
   };
@@ -624,6 +620,7 @@ export function WalletSummary({
         >
           {shortenAddress(account.address)}
         </button>
+
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="py-1">
@@ -638,7 +635,7 @@ export function WalletSummary({
               {isChatContext && (
                 <>
                   <div className="border-t border-gray-100 my-1"></div>
-                  
+
                   <div className="px-4 py-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm font-adonis text-gray-700">
@@ -646,7 +643,7 @@ export function WalletSummary({
                         Balance
                       </div>
                       <span className="text-sm font-adonis font-semibold text-gray-900">
-                        {isLoadingBalance ? "..." : `$${townsBalance}`}
+                        {isLoadingBalance ? "..." : `$${usdcBalance}`}
                       </span>
                     </div>
                   </div>
@@ -684,14 +681,14 @@ export function WalletSummary({
                           </span>
                         </div>
                       </div>
-                      
+
                       <button
-                        onClick={handleClaimTowns}
-                        disabled={isClaiming || parseFloat(claimableBalance.replace(/,/g, '')) <= 0}
+                        onClick={handleClaimUSDC}
+                        disabled={isClaiming || parseFloat(claimableBalance.replace(/,/g, "")) <= 0}
                         className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Download className="w-4 h-4 mr-2" />
-                        {isClaiming ? 'Claiming...' : 'Claim USDC'}
+                        {isClaiming ? "Claiming..." : "Claim USDC"}
                       </button>
                     </>
                   )}
@@ -781,7 +778,7 @@ export function WalletSummary({
 
       <AnimatePresence>
         {showWithdrawalModal && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
             onClick={() => setShowWithdrawalModal(false)}
           >
@@ -802,7 +799,7 @@ export function WalletSummary({
                 <div className="flex items-center justify-between">
                   <span className="font-adonis text-sm text-gray-700">Available Balance:</span>
                   <span className="font-adonis text-xl font-semibold text-gray-900">
-                    ${townsBalance}
+                    ${usdcBalance}
                   </span>
                 </div>
               </div>
@@ -899,7 +896,7 @@ export function WalletSummary({
 
       <AnimatePresence>
         {showExternalWalletMessage && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
             onClick={() => setShowExternalWalletMessage(false)}
           >
