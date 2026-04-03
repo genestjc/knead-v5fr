@@ -191,6 +191,12 @@ export function ContributorWelcomeModal({
 
       console.log('✅ Contributor profile set up successfully');
       onSaved?.(finalAlias, finalAvatar, finalBio);
+
+      // Broadcast to all components (e.g. connected-chat profileCache, DMs, etc.)
+      window.dispatchEvent(new CustomEvent('knead:profile-updated', {
+        detail: { address: userAddress.toLowerCase(), alias: finalAlias, avatar: finalAvatar, bio: finalBio },
+      }));
+
       toast({
         title: 'Profile saved!',
         description: 'Your contributor profile has been set up.',

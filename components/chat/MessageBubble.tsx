@@ -478,6 +478,7 @@ const areMessagePropsEqual = (prevProps: MessageBubbleProps, nextProps: MessageB
   if (prevProps.isDecrypting !== nextProps.isDecrypting) return false;
   if (prevProps.message.sender.name !== nextProps.message.sender.name) return false;
   if (prevProps.message.sender.avatar !== nextProps.message.sender.avatar) return false;
+  if (prevProps.message.sender.bio !== nextProps.message.sender.bio) return false;
   if (prevProps.message.sender.walletAddress !== nextProps.message.sender.walletAddress) return false;
   if (prevProps.isOwn !== nextProps.isOwn) return false;
   if (prevProps.isAdmin !== nextProps.isAdmin) return false;
