@@ -133,6 +133,11 @@ export function ContributorSettingsModal({
 
       console.log('✅ Profile updated successfully');
 
+      // Broadcast to all components (e.g. connected-chat profileCache, DMs, etc.)
+      window.dispatchEvent(new CustomEvent('knead:profile-updated', {
+        detail: { address: userAddress.toLowerCase(), alias: finalAlias, avatar: finalAvatar, bio: finalBio },
+      }));
+
       toast({
         title: 'Profile updated!',
         description: 'Your contributor settings have been saved.',

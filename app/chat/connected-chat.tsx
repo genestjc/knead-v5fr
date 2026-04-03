@@ -492,6 +492,35 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     return () => window.removeEventListener('reply-to-message', handleReply);
   }, []);
 
+  // Listen for profile updates from ContributorSettingsModal / ContributorWelcomeModal
+  // and immediately patch the profileCache so messages + popups reflect changes in real-time.
+  useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const { address, alias, avatar, bio } = (event as CustomEvent).detail as {
+        address: string;
+        alias: string | null;
+        avatar: string | null;
+        bio: string | null;
+      };
+      const key = address.toLowerCase();
+      setProfileCache(prev => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          alias,
+          avatar,
+          bio,
+          displayName: alias || prev[key]?.displayName || '',
+          walletAddress: key,
+        },
+      }));
+      // Allow the address to be re-fetched in future so a hard refresh also picks up the change
+      profileFetchingRef.current.delete(key);
+    };
+    window.addEventListener('knead:profile-updated', handleProfileUpdated);
+    return () => window.removeEventListener('knead:profile-updated', handleProfileUpdated);
+  }, []);
+
   // Use the SDK's useChannel to check isJoined before calling channel.join().
   // joinSpace joins the space stream but the channel stream needs its own join.
   // Guarding on isJoined prevents the double-join that caused miniblock errors.

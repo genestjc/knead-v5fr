@@ -3,10 +3,21 @@ import { useEffect, useState } from 'react';
 interface CustomProfile {
   alias: string | null;
   avatar: string | null;
+  bio?: string | null;
 }
 
 const profileCache = new Map<string, CustomProfile>();
 const pendingFetches = new Map<string, Promise<CustomProfile | null>>();
+
+// Patch the module-level cache when a profile is saved anywhere in the app
+if (typeof window !== 'undefined') {
+  window.addEventListener('knead:profile-updated', (event: Event) => {
+    const { address, alias, avatar, bio } = (event as CustomEvent).detail;
+    const key = (address as string).toLowerCase();
+    const existing = profileCache.get(key);
+    profileCache.set(key, { ...existing, alias, avatar, bio });
+  });
+}
 
 export function useCustomProfile(address: string | undefined): CustomProfile | null {
   const [profile, setProfile] = useState<CustomProfile | null>(() => {
@@ -40,6 +51,7 @@ export function useCustomProfile(address: string | undefined): CustomProfile | n
           const customProfile: CustomProfile = {
             alias: d.user.alias,
             avatar: d.user.avatar,
+            bio: d.user.bio,
           };
           
           // ✅ Store under normalized address
