@@ -11,7 +11,9 @@ interface ContributorSettingsModalProps {
   userAddress: string;
   currentAlias?: string;
   currentAvatar?: string;
+  currentBio?: string;
   userId: string;
+  onSaved?: (alias: string | null, avatar: string | null, bio: string | null) => void;
 }
 
 export function ContributorSettingsModal({
@@ -20,9 +22,12 @@ export function ContributorSettingsModal({
   userAddress,
   currentAlias,
   currentAvatar,
+  currentBio,
   userId,
+  onSaved,
 }: ContributorSettingsModalProps) {
   const [alias, setAlias] = useState(currentAlias || '');
+  const [bio, setBio] = useState(currentBio || '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatar || '');
   const [isUploading, setIsUploading] = useState(false);
@@ -33,10 +38,11 @@ export function ContributorSettingsModal({
   useEffect(() => {
     if (isOpen) {
       setAlias(currentAlias || '');
+      setBio(currentBio || '');
       setAvatarPreview(currentAvatar || '');
       setAvatarFile(null);
     }
-  }, [isOpen, currentAlias, currentAvatar]);
+  }, [isOpen, currentAlias, currentAvatar, currentBio]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,14 +120,19 @@ export function ContributorSettingsModal({
       }
 
       console.log('💾 Updating profile in database...');
+      const finalAlias = alias.trim() || null;
+      const finalAvatar = avatarUrl || null;
+      const finalBio = bio.trim() || null;
+
       const response = await fetch('/api/contributor/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
           userAddress,
-          alias: alias.trim() || null,
-          avatar: avatarUrl || null,
+          alias: finalAlias,
+          avatar: finalAvatar,
+          bio: finalBio,
         }),
       });
 
@@ -132,6 +143,7 @@ export function ContributorSettingsModal({
       }
 
       console.log('✅ Profile updated successfully');
+      onSaved?.(finalAlias, finalAvatar, finalBio);
 
       // Broadcast to all components (e.g. connected-chat profileCache, DMs, etc.)
       window.dispatchEvent(new CustomEvent('knead:profile-updated', {
@@ -143,7 +155,6 @@ export function ContributorSettingsModal({
         description: 'Your contributor settings have been saved.',
       });
 
-      // Close modal after a short delay - parent component will handle state refresh
       setTimeout(() => {
         onClose();
       }, 1000);
@@ -259,6 +270,25 @@ export function ContributorSettingsModal({
               />
               <p className="text-xs text-gray-500 mt-1">
                 Optional • Shown instead of wallet address
+              </p>
+            </div>
+
+            <div className="mb-6 animate-fade-in-up-delay-2">
+              <label className="block font-adonis text-sm text-gray-700 mb-2">
+                Short Bio
+              </label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell the community a little about yourself..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm resize-none"
+                disabled={isSaving}
+                maxLength={160}
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1 flex justify-between">
+                <span>Optional • Visible to all users</span>
+                <span>{bio.length}/160</span>
               </p>
             </div>
 

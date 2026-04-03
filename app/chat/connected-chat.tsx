@@ -60,6 +60,7 @@ interface ConnectedChatProps {
 interface UserProfile {
   alias: string | null;
   avatar: string | null;
+  bio?: string | null;
   displayName: string;
   walletAddress: string | null;
   role?: string;
@@ -558,6 +559,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
           [walletAddress]: {
             alias: data.user.alias,
             avatar: data.user.avatar,
+            bio: data.user.bio,
             displayName: data.user.displayName,
             walletAddress,
             role: data.user.role,
@@ -688,6 +690,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             walletAddress,
             name: profile?.alias || profile?.displayName || event.creatorDisplayName || 'Anonymous',
             avatar: profile?.avatar,
+            bio: profile?.bio,
           },
           timestamp: event.createdAtEpochMs || event.timestamp || Date.now(),
           isOwn: walletAddress?.toLowerCase() === activeAccount?.address?.toLowerCase(),
@@ -1400,6 +1403,22 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         userId={currentUser.id}
         currentAlias={activeAccount?.address ? profileCache[activeAccount.address]?.alias : undefined}
         currentAvatar={activeAccount?.address ? profileCache[activeAccount.address]?.avatar : undefined}
+        currentBio={activeAccount?.address ? profileCache[activeAccount.address]?.bio ?? undefined : undefined}
+        onSaved={(alias, avatar, bio) => {
+          if (activeAccount?.address) {
+            setProfileCache(prev => ({
+              ...prev,
+              [activeAccount.address]: {
+                ...prev[activeAccount.address],
+                alias,
+                avatar,
+                bio,
+                displayName: alias || prev[activeAccount.address]?.displayName || '',
+                walletAddress: activeAccount.address,
+              },
+            }));
+          }
+        }}
       />
     </>
   );
