@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { OnboardingHandler } from "@/components/onboarding-handler"; // ✅ ADD THIS
+import { OnboardingHandler } from "@/components/onboarding-handler";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -33,14 +33,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link
-          rel="stylesheet"
-          href="https://use.typekit.net/gne1bgd.css"
-        />
+        <link rel="stylesheet" href="https://use.typekit.net/gne1bgd.css" />
+        <link rel="icon" href="/faviconk.jpg" type="image/jpeg" />
       </head>
       <body className={inter.className}>
         <Providers>
-          <OnboardingHandler /> {/* ✅ ADD THIS - Always mounted, handles auto-mint */}
+          <OnboardingHandler />
           {children}
         </Providers>
       </body>
