@@ -508,7 +508,7 @@ function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: { ev
   return (
     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gray-100/70 border-l-4 border-gray-400 p-4 mb-4 mx-4 rounded-r-lg backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <span className="font-adonis text-lg text-gray-800">{isLive ? 'LIVE: ' : '📅 '}{eventTitle}</span>
+        <span className="font-adonis text-lg text-gray-800">{eventTitle}</span>
       </div>
       {timeRemaining && <p className="font-georgia-pro text-sm text-gray-600 mt-1 ml-0">{timeRemaining}</p>}
     </motion.div>
@@ -516,4 +516,3 @@ function EventBannerComponent({ eventTitle, timeRemaining, isLive = true }: { ev
 }
 
 export const EventBanner = React.memo(EventBannerComponent);
-
