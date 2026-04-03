@@ -277,6 +277,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   // 🆕 Modal states
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  // null = still loading from DB; true/false = resolved
+  const [dbWelcomeSeen, setDbWelcomeSeen] = useState<boolean | null>(null);
+  const [dbContributorWelcomeSeen, setDbContributorWelcomeSeen] = useState<boolean | null>(null);
   const [showContributorModal, setShowContributorModal] = useState(false);
 
   // 💳 Stripe modal states
@@ -441,34 +444,89 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   };
 
+  // 🆕 Fetch "seen" flags from Supabase so modals don't re-appear after browser history clears.
+  // localStorage is used as a fast-path cache; Supabase is the source of truth.
+  useEffect(() => {
+    if (!activeAccount?.address) return;
+    const addr = activeAccount.address;
+
+    // Fast path: if localStorage already has both flags, skip the API call
+    const localWelcome = localStorage.getItem(`welcome_seen_${addr}`);
+    const localContributor = localStorage.getItem(`contributor_welcome_${addr}`);
+    if (localWelcome && localContributor) {
+      setDbWelcomeSeen(true);
+      setDbContributorWelcomeSeen(true);
+      return;
+    }
+
+    fetch(`/api/chat/user?address=${addr}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.user) {
+          const ws = data.user.welcomeSeen ?? false;
+          const cws = data.user.contributorWelcomeSeen ?? false;
+          setDbWelcomeSeen(ws);
+          setDbContributorWelcomeSeen(cws);
+          // Restore localStorage cache so next load is instant
+          if (ws) localStorage.setItem(`welcome_seen_${addr}`, 'true');
+          if (cws) localStorage.setItem(`contributor_welcome_${addr}`, 'true');
+        } else {
+          setDbWelcomeSeen(false);
+          setDbContributorWelcomeSeen(false);
+        }
+      })
+      .catch(() => {
+        // On network error fall back to not-seen so modal still shows
+        setDbWelcomeSeen(false);
+        setDbContributorWelcomeSeen(false);
+      });
+  }, [activeAccount?.address]);
+
   // 🆕 Welcome Modal - Show on first chat entry
   useEffect(() => {
-    if (!activeAccount?.address || !events) return;
-    
-    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${activeAccount.address}`);
+    // Wait until DB check has resolved before deciding whether to show
+    if (!activeAccount?.address || !events || dbWelcomeSeen === null) return;
+
+    const hasSeenWelcome =
+      dbWelcomeSeen || localStorage.getItem(`welcome_seen_${activeAccount.address}`);
     if (!hasSeenWelcome) {
       const timer = setTimeout(() => {
         setShowWelcomeModal(true);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [activeAccount?.address, events]);
+  }, [activeAccount?.address, events, dbWelcomeSeen]);
 
   // 🆕 Contributor Modal - Show when user becomes contributor
   useEffect(() => {
-    if (!activeAccount?.address || userRole !== 'contributor') return;
-    
-    const hasSeenContributor = localStorage.getItem(`contributor_welcome_${activeAccount.address}`);
+    if (!activeAccount?.address || userRole !== 'contributor' || dbContributorWelcomeSeen === null) return;
+
+    const hasSeenContributor =
+      dbContributorWelcomeSeen || localStorage.getItem(`contributor_welcome_${activeAccount.address}`);
     if (!hasSeenContributor) {
       setShowContributorModal(true);
     }
-  }, [userRole, activeAccount?.address]);
+  }, [userRole, activeAccount?.address, dbContributorWelcomeSeen]);
+
+  // Helper: mark a modal as seen in both localStorage and Supabase (fire-and-forget)
+  const markModalSeen = (type: 'welcome' | 'contributor_welcome') => {
+    if (!activeAccount?.address) return;
+    const addr = activeAccount.address;
+    localStorage.setItem(
+      type === 'welcome' ? `welcome_seen_${addr}` : `contributor_welcome_${addr}`,
+      'true',
+    );
+    fetch('/api/chat/mark-welcome-seen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: addr, type }),
+    }).catch(() => {}); // fire-and-forget — localStorage is the fast-path fallback
+  };
 
   // 🆕 Modal handlers
   const handleWelcomeClose = () => {
-    if (activeAccount?.address) {
-      localStorage.setItem(`welcome_seen_${activeAccount.address}`, 'true');
-    }
+    markModalSeen('welcome');
+    setDbWelcomeSeen(true);
     setShowWelcomeModal(false);
   };
 
@@ -476,6 +534,8 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     if (activeAccount?.address) {
       localStorage.setItem(`contributor_welcome_${activeAccount.address}`, 'true');
     }
+    markModalSeen('contributor_welcome');
+    setDbContributorWelcomeSeen(true);
     setShowContributorModal(false);
   };
 
