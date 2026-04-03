@@ -11,7 +11,7 @@ import { AboutFAQModal } from './AboutFAQModal';
 import { AnnouncementsModal } from './AnnouncementsModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
-import { Home, Calendar, BookOpen, Megaphone, Send, Landmark } from 'lucide-react';
+import { Home, Calendar, BookOpen, Megaphone, Send, Landmark, MoreVertical } from 'lucide-react';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -40,6 +40,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
   
   const [dmPanelEverOpened, setDmPanelEverOpened] = useState(false);
+  const [showDmOptionsMenu, setShowDmOptionsMenu] = useState(false);
+  const [dmRequestsEnabled, setDmRequestsEnabled] = useState(true);
+  const dmOptionsRef = React.useRef<HTMLDivElement>(null);
+  const dmRefreshFnRef = React.useRef<(() => void) | null>(null);
 
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
@@ -81,6 +85,18 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     const interval = setInterval(fetchTreasuryBalance, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dmOptionsRef.current && !dmOptionsRef.current.contains(e.target as Node)) {
+        setShowDmOptionsMenu(false);
+      }
+    };
+    if (showDmOptionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDmOptionsMenu]);
 
   const menuItems: MenuItem[] = [
     {
@@ -245,15 +261,39 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                   >
                     Direct Messages
                   </button>
-                  <button
-                    onClick={() => {
-                      setDmsOpen(false);
-                      setSelectedDm(null);
-                    }}
-                    className="text-gray-500 hover:text-gray-700 text-2xl"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <div className="relative" ref={dmOptionsRef}>
+                      <button
+                        onClick={() => setShowDmOptionsMenu(!showDmOptionsMenu)}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                        title="More options"
+                      >
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                      {showDmOptionsMenu && (
+                        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                          <button
+                            onClick={() => { dmRefreshFnRef.current?.(); setShowDmOptionsMenu(false); }}
+                            className="w-full text-left px-4 py-3 text-sm font-georgia-pro hover:bg-gray-50 rounded-t-lg transition-colors"
+                          >
+                            Refresh DMs
+                          </button>
+                          <button
+                            onClick={() => { setDmRequestsEnabled(!dmRequestsEnabled); setShowDmOptionsMenu(false); }}
+                            className="w-full text-left px-4 py-3 text-sm font-georgia-pro hover:bg-gray-50 rounded-b-lg transition-colors border-t border-gray-100"
+                          >
+                            {dmRequestsEnabled ? 'Turn off DM requests' : 'Turn on DM requests'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setDmsOpen(false); setSelectedDm(null); }}
+                      className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <span className="text-xl leading-none">✕</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -293,6 +333,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                         setSelectedDm({ dmId, townsDmId, otherUserName, otherUserAvatar })
                       }
                       selectedDmId={selectedDm?.dmId}
+                      onRefreshReady={(fn) => { dmRefreshFnRef.current = fn; }}
+                      dmRequestsEnabled={dmRequestsEnabled}
                     />
                   )
                 )}

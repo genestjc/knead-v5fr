@@ -13,7 +13,7 @@ import {
 } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
-import { MessageBubble, EventBanner, TypingIndicator } from '@/components/chat/MessageBubble';
+import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
 import { FreemiumBanner } from '@/components/chat/FreemiumBanner';
 import { DailyProvider } from '@/components/chat/DailyProvider';
@@ -26,7 +26,6 @@ import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
-import { useTypingIndicator } from '@/hooks/use-typing-indicator';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
@@ -270,7 +269,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedStart, setHasReachedStart] = useState(false);
   const [scrollbackFailed, setScrollbackFailed] = useState(false);
-  const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [quotedMessage, setQuotedMessage] = useState<{ content: string; sender: string } | null>(null);
   
   const [contributorAddresses, setContributorAddresses] = useState<Set<string>>(new Set());
@@ -300,13 +298,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
   const activeAccount = useActiveAccount();
   const { toast } = useToast();
-  const { remainingMinutes } = useFreemiumChatTimer(activeAccount?.address || null);
+  const { remainingMinutes, remainingSeconds, isFreemiumUser, isLoading: freemiumLoading } = useFreemiumChatTimer(activeAccount?.address || null);
   const { canAwardTokens } = useContributorPermissions(activeAccount?.address);
   const { permissions, isBanned } = useChatPermissions(activeAccount?.address || null);
-  
-  const { startTyping, stopTyping } = useTypingIndicator({
-    clearDelay: 3000,
-  });
   
   const channelId = defaultChannelId;
 
@@ -934,9 +928,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    stopTyping();
-    setShowTypingIndicator(false);
-
     if (isBanned) {
       alert('You are banned from Knead chat.');
       return;
@@ -1018,19 +1009,9 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const value = e.target.value;
     setMessageInput(value);
 
-    if (value.trim()) {
-      startTyping();
-      setShowTypingIndicator(true);
-    } else {
-      stopTyping();
-      setShowTypingIndicator(false);
-    }
   };
 
-  const handleInputBlur = () => {
-    stopTyping();
-    setShowTypingIndicator(false);
-  };
+  const handleInputBlur = () => {};
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1145,10 +1126,6 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             isDecrypting={message.isDecrypting}
           />
         ))}
-
-        {showTypingIndicator && permissions?.canPost && (
-          <TypingIndicator userName="You're" />
-        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -1435,6 +1412,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       </DailyProvider>
 
       <FreemiumBanner remainingMinutes={remainingMinutes} />
+
+      {isFreemiumUser && !freemiumLoading && remainingSeconds !== null && remainingSeconds <= 0 && (
+        <div className="fixed inset-0 bg-black z-[200] flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <p className="font-adonis text-white text-2xl leading-relaxed">
+              You've reached your free limit for the month.{' '}
+              <button
+                onClick={handleOpenPaymentModal}
+                disabled={isLoadingIntent}
+                className="underline hover:text-gray-300 transition-colors bg-transparent border-none cursor-pointer font-adonis text-2xl text-white disabled:opacity-50"
+              >
+                {isLoadingIntent ? 'Loading...' : 'Subscribe here'}
+              </button>
+              {' '}to continue enjoying.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Dialog open={isStripeModalOpen} onOpenChange={setIsStripeModalOpen}>
         <DialogContent>

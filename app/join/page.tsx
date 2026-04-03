@@ -339,7 +339,7 @@ export default function JoinPage() {
                 </div>
               ) : paymentVerified || hasAccess("premium") ? (
                 <div className="text-green-600 font-georgia-pro text-left">
-                  ✅ You're a premium member!
+                  You're a premium member!
                 </div>
               ) : account?.address ? (
                 <button
