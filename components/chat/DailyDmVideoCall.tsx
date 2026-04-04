@@ -98,9 +98,6 @@ export function DailyDmVideoCall({
           <span className="font-georgia-pro text-sm text-white font-medium drop-shadow-lg">
             Video call with {otherUserName}
           </span>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
           <button
             onClick={isFullscreen ? handleExitFullscreen : handleFullscreen}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm transition-colors"
@@ -112,15 +109,15 @@ export function DailyDmVideoCall({
               <Maximize2 className="w-4 h-4 text-white" />
             )}
           </button>
-
-          <button
-            onClick={onClose}
-            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 transition-colors"
-            title="End call"
-          >
-            <X className="w-4 h-4 text-white" />
-          </button>
         </div>
+
+        <button
+          onClick={onClose}
+          className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 transition-colors"
+          title="End call"
+        >
+          <X className="w-4 h-4 text-white" />
+        </button>
       </div>
 
       {/* Loading indicator */}
