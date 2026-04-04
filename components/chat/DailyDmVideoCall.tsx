@@ -115,7 +115,7 @@ export function DailyDmVideoCall({
 
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 transition-colors"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 transition-colors"
             title="End call"
           >
             <X className="w-4 h-4 text-white" />

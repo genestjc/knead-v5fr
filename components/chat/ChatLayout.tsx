@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSwipeable } from 'react-swipeable';
 import { WalletSummary } from '@/components/wallet-summary';
@@ -11,7 +11,78 @@ import { AboutFAQModal } from './AboutFAQModal';
 import { AnnouncementsModal } from './AnnouncementsModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { useCustomProfile } from '@/hooks/use-custom-profile';
+import { useUserDms, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { Home, Calendar, BookOpen, Megaphone, Send, Landmark, MoreVertical } from 'lucide-react';
+
+const VIDEO_CALL_INVITE_PREFIX = '📹 [VIDEO_CALL_INVITE]';
+
+function DmStreamWatcher({
+  streamId,
+  onIncomingCall,
+}: {
+  streamId: string;
+  onIncomingCall: (streamId: string, callerAddress: string) => void;
+}) {
+  const { data: events } = useTimeline(streamId);
+  const { userId: myUserId } = useMyMember(streamId);
+  const notifiedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!events || events.length === 0 || !myUserId) return;
+    const lastEvent = events[events.length - 1];
+    if (lastEvent?.content?.kind !== RiverTimelineEvent.ChannelMessage) return;
+    const senderId = lastEvent.sender?.id || '';
+    if (senderId === myUserId) return;
+    const body = lastEvent.content?.body || '';
+    if (!body.startsWith(VIDEO_CALL_INVITE_PREFIX)) return;
+    const eventId = (lastEvent as any).eventId || body;
+    if (notifiedRef.current === eventId) return;
+    notifiedRef.current = eventId;
+    onIncomingCall(streamId, senderId);
+  }, [events, myUserId, streamId, onIncomingCall]);
+
+  return null;
+}
+
+function GlobalDmCallWatcher({
+  onIncomingCall,
+}: {
+  onIncomingCall: (streamId: string, callerAddress: string) => void;
+}) {
+  const { streamIds } = useUserDms();
+  return (
+    <>
+      {streamIds?.map((streamId) => (
+        <DmStreamWatcher key={streamId} streamId={streamId} onIncomingCall={onIncomingCall} />
+      ))}
+    </>
+  );
+}
+
+function IncomingCallBanner({
+  callerAddress,
+  onOpen,
+  onDismiss,
+}: {
+  callerAddress: string;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const profile = useCustomProfile(callerAddress);
+  const displayName = profile?.alias || `${callerAddress.slice(0, 6)}...${callerAddress.slice(-4)}`;
+  return (
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[150] bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-4 flex items-center gap-3 w-[calc(100%-2rem)] max-w-sm">
+      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
+      <p className="font-georgia-pro text-sm flex-1 min-w-0 truncate">📹 {displayName} is calling</p>
+      <button onClick={onOpen} className="px-3 py-1.5 bg-green-600 text-white rounded-full text-sm font-georgia-pro hover:bg-green-700 transition-colors whitespace-nowrap flex-shrink-0">
+        Open DM
+      </button>
+      <button onClick={onDismiss} className="text-gray-400 hover:text-white flex-shrink-0 text-lg leading-none">✕</button>
+    </div>
+  );
+}
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -44,9 +115,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [dmRequestsEnabled, setDmRequestsEnabled] = useState(true);
   const dmOptionsRef = React.useRef<HTMLDivElement>(null);
   const dmRefreshFnRef = React.useRef<(() => void) | null>(null);
+  const [incomingDmCall, setIncomingDmCall] = useState<{ streamId: string; callerAddress: string } | null>(null);
 
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
+
+  const handleIncomingCall = useCallback((streamId: string, callerAddress: string) => {
+    setIncomingDmCall({ streamId, callerAddress });
+  }, []);
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
@@ -442,6 +518,27 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <EventsCalendarModal isOpen={showEventsModal} onClose={() => setShowEventsModal(false)} />
       <AboutFAQModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
       <AnnouncementsModal isOpen={showAnnouncementsModal} onClose={() => setShowAnnouncementsModal(false)} />
+
+      {isContributor && (
+        <GlobalDmCallWatcher onIncomingCall={handleIncomingCall} />
+      )}
+
+      {incomingDmCall && (
+        <IncomingCallBanner
+          callerAddress={incomingDmCall.callerAddress}
+          onOpen={() => {
+            setDmsOpen(true);
+            setDmPanelEverOpened(true);
+            setSelectedDm({
+              dmId: incomingDmCall.streamId,
+              townsDmId: incomingDmCall.streamId,
+              otherUserName: incomingDmCall.callerAddress.slice(0, 6) + '...' + incomingDmCall.callerAddress.slice(-4),
+            });
+            setIncomingDmCall(null);
+          }}
+          onDismiss={() => setIncomingDmCall(null)}
+        />
+      )}
     </div>
   );
 }
