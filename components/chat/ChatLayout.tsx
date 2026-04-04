@@ -287,7 +287,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               <div className="border-t-2 border-gray-200"></div>
               
               <a
-                href="https://basescan.org/address/0xf94ee5efd046486ad3c2554bad48c82dfb17ca12"
+                href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
