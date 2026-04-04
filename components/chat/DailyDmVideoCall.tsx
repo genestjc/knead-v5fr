@@ -100,7 +100,7 @@ export function DailyDmVideoCall({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
           <button
             onClick={isFullscreen ? handleExitFullscreen : handleFullscreen}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm transition-colors"
