@@ -3,24 +3,22 @@
 import React, { useState, useEffect, useRef, type TouchEvent } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import {
+  Copy, LogOut, ArrowUpFromLine, Key, Wallet,
+  DollarSign, Settings, Zap, Award, TrendingUp,
+  Download, Check,
+} from "lucide-react"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
 const fadeIn = {
   hidden: { opacity: 0, y: 12 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: "easeOut" },
-  },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
 }
 
 const staggerContainer = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.2 },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
 }
 
 // ─── Swipeable Carousel ───────────────────────────────────────────────────────
@@ -52,7 +50,6 @@ const SwipeableCarousel: React.FC<SwipeableCarouselProps> = ({
     e?.stopPropagation()
     setCurrentIndex((p) => (p + 1) % images.length)
   }
-
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     setTouchEnd(null)
     setTouchStart(e.targetTouches[0].clientX)
@@ -80,51 +77,21 @@ const SwipeableCarousel: React.FC<SwipeableCarouselProps> = ({
           <div
             key={i}
             className="absolute inset-0 w-full h-full transition-opacity duration-300"
-            style={{
-              opacity: currentIndex === i ? 1 : 0,
-              zIndex: currentIndex === i ? 1 : 0,
-              pointerEvents: currentIndex === i ? "auto" : "none",
-            }}
+            style={{ opacity: currentIndex === i ? 1 : 0, zIndex: currentIndex === i ? 1 : 0, pointerEvents: currentIndex === i ? "auto" : "none" }}
           >
-            <Image
-              src={img || "/placeholder.svg"}
-              alt={`Photo ${i + 1}`}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
+            <Image src={img || "/placeholder.svg"} alt={`Photo ${i + 1}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
           </div>
         ))}
       </div>
-      <button
-        onClick={prev}
-        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors z-10"
-        aria-label="Previous"
-        type="button"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors z-10" aria-label="Previous" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
-      <button
-        onClick={next}
-        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors z-10"
-        aria-label="Next"
-        type="button"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M9 18L15 12L9 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors z-10" aria-label="Next" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18L15 12L9 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-10">
         {images.map((_, i) => (
-          <button
-            key={i}
-            onClick={(e) => { e.stopPropagation(); setCurrentIndex(() => i) }}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-white" : "bg-white/40"}`}
-            aria-label={`Go to photo ${i + 1}`}
-            type="button"
-          />
+          <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(() => i) }} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-white" : "bg-white/40"}`} aria-label={`Go to photo ${i + 1}`} type="button" />
         ))}
       </div>
     </div>
@@ -134,12 +101,7 @@ const SwipeableCarousel: React.FC<SwipeableCarouselProps> = ({
 // ─── Slide Wrapper ────────────────────────────────────────────────────────────
 
 const Slide = ({
-  id,
-  children,
-  slideRefs,
-  setCurrentSlide,
-  className = "",
-  raw = false,
+  id, children, slideRefs, setCurrentSlide, className = "", raw = false,
 }: {
   id: number
   children: React.ReactNode
@@ -154,14 +116,7 @@ const Slide = ({
     const el = slideRefs.current[id]
     if (!el) return
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setCurrentSlide(id)
-            setIsVisible(true)
-          }
-        })
-      },
+      (entries) => { entries.forEach((e) => { if (e.isIntersecting) { setCurrentSlide(id); setIsVisible(true) } }) },
       { threshold: 0.3 },
     )
     observer.observe(el)
@@ -170,49 +125,300 @@ const Slide = ({
 
   if (raw) {
     return (
-      <div
-        ref={(el) => { slideRefs.current[id] = el }}
-        className={`min-h-screen relative overflow-hidden ${className}`}
-      >
+      <div ref={(el) => { slideRefs.current[id] = el }} className={`min-h-screen relative overflow-hidden ${className}`}>
         {children}
       </div>
     )
   }
 
   return (
-    <div
-      ref={(el) => { slideRefs.current[id] = el }}
-      className={`min-h-screen flex items-center justify-center py-20 px-6 md:px-16 ${className}`}
-    >
-      <motion.div
-        initial="hidden"
-        animate={isVisible ? "visible" : "hidden"}
-        variants={staggerContainer}
-        className="w-full max-w-5xl"
-      >
+    <div ref={(el) => { slideRefs.current[id] = el }} className={`min-h-screen flex items-center justify-center py-20 px-6 md:px-16 ${className}`}>
+      <motion.div initial="hidden" animate={isVisible ? "visible" : "hidden"} variants={staggerContainer} className="w-full max-w-5xl">
         {children}
       </motion.div>
     </div>
   )
 }
 
+// ─── WalletSummaryDemo ────────────────────────────────────────────────────────
+// Static pitch-deck version of the WalletSummary dropdown, showing each tier's state.
+
+function WalletSummaryDemo({ state }: { state: "freemium" | "monthly" | "contributor" }) {
+  const label = state === "contributor" ? "Contributor" : state === "monthly" ? "Knead Monthly" : "Freemium"
+
+  return (
+    <div className="inline-block text-left">
+      {/* Mock trigger row */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+          <Wallet className="w-3 h-3 text-gray-500" />
+        </div>
+        <span className="text-sm font-adonis text-black">0xa4f3...8c21</span>
+        <span className="text-xs font-georgia-pro px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{label}</span>
+      </div>
+
+      {/* Dropdown panel — always open for demo */}
+      <div className="w-60 bg-white border border-gray-200 rounded-lg shadow-xl">
+        <div className="py-1">
+          {/* Copy Address */}
+          <div className="flex items-center px-4 py-2.5 text-sm font-adonis text-gray-700 hover:bg-gray-50 cursor-default">
+            <Copy className="w-4 h-4 mr-2 text-gray-400" /> Copy Address
+          </div>
+
+          {/* Chat-context fields */}
+          {state !== "freemium" && (
+            <>
+              <div className="border-t border-gray-100 my-1" />
+
+              {/* Balance */}
+              <div className="px-4 py-2 flex items-center justify-between">
+                <div className="flex items-center text-sm font-adonis text-gray-700">
+                  <Wallet className="w-4 h-4 mr-2 text-gray-400" /> Balance
+                </div>
+                <span className="text-sm font-adonis font-semibold text-gray-900">
+                  {state === "contributor" ? "$24.80" : "$12.40"}
+                </span>
+              </div>
+
+              {/* Contributor-specific */}
+              {state === "contributor" && (
+                <>
+                  <div className="px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center text-sm font-adonis text-gray-700">
+                      <Zap className="w-4 h-4 mr-2 text-gray-400" /> Weekly Allowance
+                    </div>
+                    <span className="text-sm font-adonis font-semibold text-blue-600">$67.50 / $100</span>
+                  </div>
+
+                  <div className="px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center text-sm font-adonis text-gray-700">
+                      <DollarSign className="w-4 h-4 mr-2 text-gray-400" /> Claimable
+                    </div>
+                    <span className="text-sm font-adonis font-semibold text-green-600">$12.40</span>
+                  </div>
+
+                  <div className="flex items-center px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-green-50 cursor-default">
+                    <Download className="w-4 h-4 mr-2 text-gray-400" /> Claim USDC
+                  </div>
+                </>
+              )}
+
+              {/* Monthly-specific */}
+              {state === "monthly" && (
+                <>
+                  <div className="px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center text-sm font-adonis text-gray-700">
+                      <Award className="w-4 h-4 mr-2 text-gray-400" /> Total Earned
+                    </div>
+                    <span className="text-sm font-adonis font-semibold text-gray-900">$47.20</span>
+                  </div>
+
+                  <div className="px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center text-sm font-adonis text-gray-700">
+                      <TrendingUp className="w-4 h-4 mr-2 text-gray-400" /> Progress
+                    </div>
+                    <span className="text-sm font-adonis font-semibold text-purple-600">$47.20 / $100</span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="px-4 py-2">
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: "47.2%" }} />
+                    </div>
+                    <p className="text-xs font-georgia-pro text-gray-400 mt-1">$52.80 more to graduate to Contributor</p>
+                  </div>
+                </>
+              )}
+
+              {/* Send USDC */}
+              <div className="flex items-center px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-50 cursor-default">
+                <ArrowUpFromLine className="w-4 h-4 mr-2 text-gray-400" /> Send USDC
+              </div>
+
+              <div className="border-t border-gray-100 my-1" />
+
+              {state === "contributor" && (
+                <div className="flex items-center px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-50 cursor-default">
+                  <Settings className="w-4 h-4 mr-2 text-gray-400" /> Contributor Settings
+                </div>
+              )}
+
+              <div className="flex items-center px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-50 cursor-default">
+                <Key className="w-4 h-4 mr-2 text-gray-400" /> Export Private Key
+              </div>
+            </>
+          )}
+
+          <div className="border-t border-gray-100 my-1" />
+
+          <div className="flex items-center px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-50 cursor-default">
+            <LogOut className="w-4 h-4 mr-2 text-gray-400" /> Sign Out
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── PaywallDemo ──────────────────────────────────────────────────────────────
+
+function PaywallDemo() {
+  return (
+    <div className="max-w-md">
+      {/* Article preview with fade */}
+      <div className="relative overflow-hidden" style={{ maxHeight: "120px" }}>
+        <h3 className="font-adonis text-lg text-black mb-2">Constant Practice</h3>
+        <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed mb-2">
+          There&apos;s something almost meditative about returning to the same motion — the same act — over and over. The brush hits canvas at the same angle it always has, and yet something shifts with each pass.
+        </p>
+        <p className="font-georgia-pro text-sm text-gray-500 leading-relaxed">
+          She didn&apos;t set out to master anything. She simply showed up, and the rest happened incrementally, the way most worthwhile things do. &ldquo;I wasn&apos;t trying to get better,&rdquo; she told me. &ldquo;I was just trying to not stop.&rdquo;
+        </p>
+        <div className="absolute bottom-0 inset-x-0 h-14 bg-gradient-to-t from-white to-transparent" />
+      </div>
+
+      {/* Paywall UI */}
+      <div className="mt-3 bg-white p-5 rounded-lg border border-gray-200 shadow-sm text-center">
+        <h2 className="font-adonis text-base text-black mb-1">
+          You&apos;ve reached your story limit for the month.
+        </h2>
+        <p className="font-georgia-pro italic text-gray-600 text-xs mb-4">
+          Want unlimited access?
+        </p>
+        <button className="bg-black text-white px-5 py-2.5 rounded font-adonis text-sm hover:bg-gray-800 transition-colors">
+          Subscribe to Knead Monthly — $5/mo
+        </button>
+        <p className="font-georgia-pro text-xs text-gray-400 mt-3">
+          Pay via card, Google Pay, or Apple Pay
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── MockComment ─────────────────────────────────────────────────────────────
+
+function MockComment() {
+  return (
+    <div className="mt-5 max-w-sm">
+      <p className="font-georgia-pro text-xs text-gray-400 mb-2 italic">Live during &ldquo;Miles Davis × AI&rdquo; stream</p>
+      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 overflow-hidden">
+            <div className="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-adonis text-xs text-gray-800 mb-1">@creativelead</p>
+            <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed">
+              The way he described the collaboration between humans and algorithms is genuinely moving.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">💛</span>
+            <span className="font-adonis text-xs text-gray-500">12 tips</span>
+          </div>
+          <span className="font-adonis text-xs text-green-600 font-semibold">+$2.50 USDC earned</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── DonutChart ───────────────────────────────────────────────────────────────
+
+function DonutChart() {
+  const data = [
+    { label: "Team", value: 1895110, color: "#000000", note: "13 hires, incl. 27% overhead" },
+    { label: "Treasury", value: 1400000, color: "#374151", note: "On-chain reward pool" },
+    { label: "Operations", value: 299000, color: "#6b7280", note: "Incl. $35k equipment & software" },
+    { label: "Activations", value: 108000, color: "#9ca3af", note: "S-Tier, Print, Blvck Svm dinner" },
+  ]
+  const total = 3702110
+
+  const cx = 110, cy = 110, r = 90, ir = 52
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+
+  let cursor = 0
+  const segments = data.map((item) => {
+    const pct = item.value / total
+    const startDeg = cursor * 360
+    const endDeg = (cursor + pct) * 360
+    cursor += pct
+
+    const s = startDeg - 90
+    const e = endDeg - 90
+    const x1 = cx + r * Math.cos(toRad(s))
+    const y1 = cy + r * Math.sin(toRad(s))
+    const x2 = cx + r * Math.cos(toRad(e))
+    const y2 = cy + r * Math.sin(toRad(e))
+    const ix1 = cx + ir * Math.cos(toRad(s))
+    const iy1 = cy + ir * Math.sin(toRad(s))
+    const ix2 = cx + ir * Math.cos(toRad(e))
+    const iy2 = cy + ir * Math.sin(toRad(e))
+    const large = endDeg - startDeg > 180 ? 1 : 0
+
+    return {
+      ...item,
+      pct: Math.round(pct * 1000) / 10,
+      path: `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`,
+    }
+  })
+
+  return (
+    <div className="flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-12">
+      {/* SVG donut */}
+      <div className="flex-shrink-0">
+        <svg width="220" height="220" viewBox="0 0 220 220" className="overflow-visible">
+          {segments.map((seg, i) => (
+            <path key={i} d={seg.path} fill={seg.color} stroke="white" strokeWidth="2" />
+          ))}
+          <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: '"adonis-web", serif', fontSize: 13, fill: "#111" }}>
+            Total Ask
+          </text>
+          <text x={cx} y={cx + 10} textAnchor="middle" style={{ fontFamily: '"Georgia Pro", Georgia, serif', fontSize: 12, fill: "#555" }}>
+            $3,702,110
+          </text>
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div className="space-y-4 w-full md:w-auto">
+        {segments.map((seg, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: seg.color }} />
+            <div>
+              <div className="flex items-baseline gap-2">
+                <p className="font-adonis text-sm text-black">{seg.label}</p>
+                <p className="font-georgia-pro text-xs text-gray-500">{seg.pct}%</p>
+              </div>
+              <p className="font-adonis text-base text-black">${seg.value.toLocaleString()}</p>
+              <p className="font-georgia-pro text-xs text-gray-500 mt-0.5">{seg.note}</p>
+            </div>
+          </div>
+        ))}
+        <div className="pt-3 border-t border-gray-200">
+          <p className="font-georgia-pro text-xs text-gray-400 italic">Recommended raise: $3.5M–$4M</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const TOTAL_SLIDES = 10
+const TOTAL_SLIDES = 16
 
-export default function TownsPitchPage() {
+export default function Knead20PitchPage() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const slideRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Screen 8 – dinner carousel
   const dinnerPartyPhotos = [
-    '/dinner-party-1.jpg',
-    '/dinner-party-2.jpg',
-    '/dinner-party-3.jpg',
-    '/dinner-party-4.jpg',
-    '/dinner-party-5.jpg',
-    '/dinner-party-6.jpg',
-    '/dinner-party-7.jpg',
+    "/dinner-party-1.jpg", "/dinner-party-2.jpg", "/dinner-party-3.jpg",
+    "/dinner-party-4.jpg", "/dinner-party-5.jpg", "/dinner-party-6.jpg",
+    "/dinner-party-7.jpg",
   ]
   const [currentDinnerPhoto, setCurrentDinnerPhoto] = useState(0)
 
@@ -227,7 +433,8 @@ export default function TownsPitchPage() {
 
   return (
     <div className="bg-white text-black overflow-x-hidden">
-      {/* Navigation dots */}
+
+      {/* ── Navigation Dots (right sidebar) ─────────────────────────────────── */}
       <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50 hidden md:block">
         <div className="flex flex-col gap-3">
           {Array.from({ length: TOTAL_SLIDES }).map((_, i) => (
@@ -244,417 +451,665 @@ export default function TownsPitchPage() {
         </div>
       </div>
 
-      {/* ── Screen 1: Hero ─────────────────────────────────────────────────── */}
+      {/* ── Slide 0: Opening Vision ──────────────────────────────────────────── */}
       <Slide id={0} {...slideProps} className="bg-white">
-        <div className="flex flex-col items-center justify-center text-center space-y-8">
-          <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl lg:text-8xl font-adonis tracking-tight text-black">
-            Knead
+        <div className="max-w-4xl">
+          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-10 leading-tight">
+            The internet is moving back in-house.
           </motion.h1>
-          <motion.p variants={fadeIn} className="text-xl md:text-2xl font-georgia-pro text-gray-600 max-w-xl">
-            Ushering in the future of media.
-          </motion.p>
-          <motion.p variants={fadeIn} className="text-sm text-gray-400 font-georgia-pro mt-16">
-            Scroll to explore ↓
-          </motion.p>
+          <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
+            {[
+              "While we often think of the trend as moving from Myspace to Facebook to Instagram to TikTok… what if there was a larger trend at play: going back to websites.",
+              "We're entering an era where we can build communities natively, customizing a framework exclusively for our most loyal supporters — without breaking the bank.",
+              "Whether that's a home for writing, live video-streaming, a gamified reward system, or a combination of everything in-between, the most engaging spaces will be built by those who want quality interactions over a big quantity of users.",
+              "As a magazine on the forefront of digital culture, Knead isn't just changing how we engage with our community, but providing the infrastructure for brands and creators to design a custom media experience for themselves.",
+            ].map((line, i) => (
+              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
+            ))}
+          </motion.div>
+          <motion.p variants={fadeIn} className="font-georgia-pro text-sm text-gray-400 mt-16">Scroll to explore ↓</motion.p>
         </div>
       </Slide>
 
-      {/* ── Screen 2: Vision ───────────────────────────────────────────────── */}
-      <Slide id={1} {...slideProps}>
-        <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-12 text-center">
-          Every company is a media company
-        </motion.h2>
-        <motion.div variants={staggerContainer} className="max-w-3xl mx-auto space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
-          {[
-            "The internet is moving back in-house.",
-            "By shifting from platforms to protocols, brands are able to build communities natively on their own website, customizing a framework exclusively for their fans.",
-            "Whether that's a home for live video streaming, a gamified reward system, or a combination of everything in-between, the most engaging spaces will be shifting off social media and into digital experiences directly between companies and their most loyal supporters.",
-            'When our current digital era started, the saying was: "Every company is a media company."',
-            "However, we lost sight of what it meant to own how that media's distributed.",
-            "As a magazine on the forefront of digital culture, Knead's /chat isn't just changing how we engage with our community, but providing the infrastructure for brands to design a custom media experience themselves.",
-          ].map((line, i) => (
-            <motion.p key={i} variants={fadeIn}>
-              {line}
-            </motion.p>
-          ))}
-        </motion.div>
+      {/* ── Slide 1: The Problem We Noticed ─────────────────────────────────── */}
+      <Slide id={1} {...slideProps} className="bg-gray-50">
+        <div className="max-w-4xl">
+          <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-12">
+            The Problem We Noticed
+          </motion.h2>
+          <motion.p variants={fadeIn} className="font-adonis text-2xl md:text-3xl text-black mb-10 italic">
+            We&apos;ve lost the art of being premium online.
+          </motion.p>
+          <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
+            {[
+              "Stadium-status musicians are using Linktree as their main website.",
+              "Best-selling authors are promoting the same blandly-designed Substack for their prose.",
+              "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
+              "None of this was a part of our childhood dreams.",
+              "It's time we take ownership and make the internet fun again.",
+              "That's why we're excited to show you what we've built…",
+            ].map((line, i) => (
+              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
+            ))}
+          </motion.div>
+        </div>
       </Slide>
 
-      {/* ── Screen 3: Problem ──────────────────────────────────────────────── */}
-      <Slide id={2} {...slideProps}>
-        <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis mb-12">
-          The problem we noticed.
-        </motion.h2>
-        <motion.div variants={staggerContainer} className="max-w-3xl space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700">
-          <motion.p variants={fadeIn}>
-            Working as Community Manager at Highsnobiety, I identified a gap in trying to reach our audience of 10 million+ people:
-          </motion.p>
-          <motion.ul variants={fadeIn} className="list-disc pl-6 space-y-4">
-            <li>For our followers, it was &quot;I don&apos;t want to download another app&quot;. For our interview subjects, the same hesitation existed, wondering if it was worth the effort and time.</li>
-            <li>Not only did this require people to sign up for separate platforms but ones that would host different technical purposes: one for audio streaming, another for conversation, etc.</li>
-            <li>Building community becomes a fragmented practice of guess-work rather than concentrating on identifying and rewarding the most loyal fans.</li>
-          </motion.ul>
-          <motion.p variants={fadeIn}>
-            Instead, what if we could build everyone a custom home for community, conversation, and media?
-          </motion.p>
-          <motion.p variants={fadeIn}>
-            Well, that&apos;s exactly what we did.
-          </motion.p>
-        </motion.div>
-      </Slide>
-
-      {/* ── Screen 4: Framework ────────────────────────────────────────────── */}
-      <Slide id={3} {...slideProps} raw className="bg-white">
+      {/* ── Slide 2: Knead 2.0 Intro — chatlayout.png background ────────────── */}
+      <Slide id={2} {...slideProps} raw className="bg-white">
         <div className="absolute inset-0">
           <Image
             src="/chatlayout.png"
-            alt="Chat interface"
+            alt="Knead chat interface"
             fill
             className="object-cover opacity-20"
           />
         </div>
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-6 md:px-16">
           <div className="text-center max-w-3xl">
-            <h2 className="font-adonis text-4xl md:text-6xl mb-8 text-black">
-              The Framework
+            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-8">
+              Knead 2.0
             </h2>
-            <p className="font-georgia-pro text-lg md:text-xl text-black">
-              Our chat is built entirely on-chain, using Towns Protocol for messaging as well as $TOWNS for rewards.
+            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-6">
+              Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
+            </p>
+            <p className="font-georgia-pro text-base text-gray-600 max-w-xl mx-auto mb-6">
+              It&apos;s primarily built on Web3 — however, a lot of our first users barely noticed. ✨
+            </p>
+            <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto">
+              After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch. Here&apos;s how it works:
             </p>
           </div>
         </div>
       </Slide>
 
-      {/* ── Screen 5: Knead Monthly ────────────────────────────────────────── */}
-      <Slide id={4} {...slideProps} className="bg-white">
-        <div className="max-w-6xl grid md:grid-cols-2 gap-12 items-center">
+      {/* ── Slide 3: The Journey ─────────────────────────────────────────────── */}
+      <Slide id={3} {...slideProps} className="bg-white">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
           <div>
-            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl mb-6 text-black">
-              The Knead Monthly Experience
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+              The Journey
             </motion.h2>
-            <motion.p variants={fadeIn} className="font-georgia-pro text-lg md:text-xl text-black">
-              When a Knead Monthly subscriber joins, they'll be able to comment during events (interviews, AMAs, office hours, etc), which enables them to earn $TOWNS, eventually graduating to Contributor.
-            </motion.p>
-          </div>
-          <motion.div variants={fadeIn} className="flex justify-center">
-            <Image
-              src="/Knead Monthly Settings.png"
-              alt="Participant menu"
-              width={350}
-              height={500}
-              className="rounded-xl shadow-2xl"
-            />
-          </motion.div>
-        </div>
-      </Slide>
+            <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
+              <motion.p variants={fadeIn}>
+                A user can sign into Knead via social or wallet. Upon their first visit, we issue them a free membership to read three free stories + watch streams/events in our chat for one hour per month.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                To upgrade, we offer a <strong className="text-black">Knead Monthly</strong> membership at <strong className="text-black">$5/month</strong> — payable via credit card or Google/Apple Pay — which enables unlimited reads + the ability to earn USDC from Contributors in the chat.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                Both memberships are soulbound NFTs minted on Base, handling payment + subscription hooks via Stripe.
+              </motion.p>
+            </motion.div>
 
-      {/* ── Screen 6: Contributor ───────────────────────────────────────────── */}
-      <Slide id={5} {...slideProps} className="bg-white">
-        <div className="max-w-6xl grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl mb-6 text-black">
-              Upgrading to Contributor
-            </motion.h2>
-            <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg md:text-xl text-black">
-              <motion.p variants={fadeIn}>Contributors are given full access to the chat, including messaging all the time, a persona/profile picture, and DMs. These are VIPs + earned members.</motion.p>
-              <motion.p variants={fadeIn}>Contributors are given a weekly allowance from the Treasury to spend on others, earning 20% $TOWNS back for each 'like' they give. Allowances don't roll over and are on a 'use-it-or-lose it' basis. This enables VIPs + earned members to make passive income while retaining the highest status.</motion.p>
+            {/* Freemium WalletSummary demo */}
+            <motion.div variants={fadeIn} className="mt-8">
+              <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Freemium Member View</p>
+              <WalletSummaryDemo state="freemium" />
             </motion.div>
           </div>
-          <motion.div variants={fadeIn} className="flex justify-center">
-            <Image
-              src="/Contributor Settings.png"
-              alt="Contributor menu"
-              width={350}
-              height={500}
-              className="rounded-xl shadow-2xl"
-            />
+
+          {/* Paywall demo */}
+          <motion.div variants={fadeIn} className="mt-0">
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">When the limit is reached</p>
+            <PaywallDemo />
           </motion.div>
         </div>
       </Slide>
 
-      {/* ── Screen 7: Compliance ────────────────────────────────────��───────── */}
-      <Slide id={6} {...slideProps}>
-        <div className="grid md:grid-cols-2 gap-12 items-start">
-          <div className="space-y-6">
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-adonis">
-              Community-Driven, Scalable Compliance
+      {/* ── Slide 4: Our Stories ─────────────────────────────────────────────── */}
+      <Slide id={4} {...slideProps} className="bg-gray-50">
+        <div className="max-w-4xl">
+          <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-10">
+            Our Stories
+          </motion.h2>
+          <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
+            {[
+              "Knead's writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.",
+              "We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.",
+              "Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start 'kneading' for themselves too.",
+            ].map((line, i) => (
+              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
+            ))}
+          </motion.div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 5: The Chat ────────────────────────────────────────────────── */}
+      <Slide id={5} {...slideProps} className="bg-white">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
+          <div>
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+              The Chat
             </motion.h2>
-            <motion.div variants={staggerContainer} className="font-georgia-pro text-lg text-gray-700 space-y-4">
+            <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
               <motion.p variants={fadeIn}>
-                Knead&apos;s chat is designed to be a hub for thoughtful engagement.
+                Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. It&apos;s capable of hosting a wide range of events, using tools like:
               </motion.p>
-              <motion.p variants={fadeIn}>
-                With capabilities for live video/audio streaming, gamified experiences, file uploads, + more, our framework can be the example for hosting enriching experiences for brands and creators alike. Onboarding is as simple as copy/pasting a wallet address.
-              </motion.p>
-              <motion.p variants={fadeIn} className="font-bold text-black">
-                These enticing features are paired with a fast, scalable tech stack that&apos;s regulatory compliant.
-              </motion.p>
-              <motion.ul variants={fadeIn} className="list-disc pl-6 space-y-2">
-                <li>We use ThirdWeb non-custodial wallets, which means users own their wallets + can export their private keys.</li>
-                <li>By designing our reward systems through a custom smart contract on Base, all transactions occur on-chain, meaning Knead never touches the funds.</li>
-                <li>This model can be applied to any company who wants a reward system with real-world value without being considered a money transmitter.</li>
+              <motion.ul variants={fadeIn} className="space-y-3 pl-4">
+                <li className="flex items-start gap-2">
+                  <span className="text-black font-adonis mt-0.5">—</span>
+                  <span><strong className="text-black font-adonis">Live Streaming</strong> includes a guest takeover for hosting and music mode for high-quality audio output. Perfect for interviews, DJ sets, and more.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-black font-adonis mt-0.5">—</span>
+                  <span>Uploading movies, music videos, interviews, and other content to premiere in the chat.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-black font-adonis mt-0.5">—</span>
+                  <span>Gating the chat exclusively for niche community events, like students or a nonprofit.</span>
+                </li>
               </motion.ul>
               <motion.p variants={fadeIn}>
-                This is a compliance stack with Towns Protocol as the backbone that&apos;s easily adoptable, with Knead as the proof of concept.
+                It&apos;s intentionally designed to be a space we want to spend every day in — hosting an array of events we&apos;d be excited to attend ourselves, while being an enriching experience for our members.
               </motion.p>
             </motion.div>
           </div>
-          <motion.div variants={fadeIn} className="space-y-6">
-            <Image
-              src="/VideoScreenExample.png"
-              alt="Live video event"
-              width={500}
-              height={350}
-              className="rounded-xl shadow-lg w-full"
-            />
-            <Image
-              src="/Engagement Example.png"
-              alt="32 $TOWNS tip example"
-              width={500}
-              height={250}
-              className="rounded-xl shadow-lg w-full"
-            />
+
+          <motion.div variants={fadeIn} className="flex flex-col gap-6">
+            <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "280px" }}>
+              <Image
+                src="/chatlayout.png"
+                alt="Events in the Knead chat"
+                fill
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-black/30 flex items-end p-4">
+                <p className="font-adonis text-white text-sm">Live event in the chat</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+              <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Recent events</p>
+              {[
+                "🎵 DJ Sprinkles takeover",
+                "📹 Interview premiere: Tremaine Emory",
+                "🎓 FIT student open hours",
+                "🏆 Contributor voting night",
+              ].map((ev, i) => (
+                <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0">
+                  <p className="font-georgia-pro text-sm text-gray-700">{ev}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
         </div>
       </Slide>
 
-      {/* ── Screen 8: Our Ask + Timeline ───────────────────────────────────── */}
-      <Slide id={7} {...slideProps} raw className="bg-white">
-        <div className="min-h-screen py-20 px-6 md:px-16">
-          <div className="max-w-6xl mx-auto space-y-20">
+      {/* ── Slide 6: The Knead Monthly Member ───────────────────────────────── */}
+      <Slide id={6} {...slideProps} className="bg-gray-50">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
+          <div>
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+              The Knead Monthly Member
+            </motion.h2>
+            <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
+              <motion.p variants={fadeIn}>
+                When a Knead Monthly member joins the chat, they&apos;ll be able to leave comments during events like livestreams, premieres, open hours, etc.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                Knead Monthly members can earn USDC for comments from Contributors, which is kept track of in Knead&apos;s Treasury. With enough earnings, members can graduate to become a Contributor — which enables full functionality of the chat.
+              </motion.p>
+            </motion.div>
+          </div>
 
-            {/* Header */}
-            <motion.h2 
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7 }}
-              className="font-adonis text-5xl md:text-6xl text-black"
+          <motion.div variants={fadeIn} className="flex flex-col">
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Knead Monthly Member View</p>
+            <WalletSummaryDemo state="monthly" />
+            <MockComment />
+          </motion.div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 7: Contributors ────────────────────────────────────────────── */}
+      <Slide id={7} {...slideProps} className="bg-white">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
+          <div>
+            <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+              Contributors
+            </motion.h2>
+            <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
+              <motion.p variants={fadeIn}>
+                Contributors are VIPs we invite (magazine subjects, influencers, etc.) or Knead Monthly members who have graduated.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                Each week, Contributors are allocated an allowance of USDC to spend on Knead Monthly members, earning <strong className="text-black">20% back</strong> of what they spend. The allowance is on a &lsquo;use it or lose it&rsquo; basis.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                In addition to posting freely, Contributors are granted access to DMs — including video chat. Contributors can search the DM rolodex for others they want to connect with, or turn off being contacted altogether.
+              </motion.p>
+              <motion.p variants={fadeIn}>
+                Being a Contributor is a title you have to earn your way into IRL or in the chat — it&apos;s not something that can be bought into.
+              </motion.p>
+              <motion.p variants={fadeIn} className="font-adonis text-black text-base italic">
+                Think of what type of rolodex would exist if Rolling Stone, Vogue, or Highsnobiety had a private chat that&apos;s publicly known about. That could be one powerful network.
+              </motion.p>
+            </motion.div>
+          </div>
+
+          <motion.div variants={fadeIn}>
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Contributor View</p>
+            <WalletSummaryDemo state="contributor" />
+          </motion.div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 8: How Does This Help Others ──────────────────────────────── */}
+      <Slide id={8} {...slideProps} raw className="bg-gray-50">
+        <div className="min-h-screen py-20 px-6 md:px-16">
+          <div className="max-w-5xl mx-auto space-y-16">
+            <motion.h2
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-5xl text-black"
             >
-              Our Ask + Timeline
+              How does this framework help other businesses?
             </motion.h2>
 
-            {/* Goals */}
+            {/* Knead as Publisher */}
             <div>
-              <p className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
-                Knead would like Towns to engage on a 5-month long sprint, funding our /chat activation + relaunch with $TOWNS as a living case study to activate our fashion, art, culture, music, and other audiences. Here's our top-line goals:
-              </p>
-              <ul className="font-georgia-pro text-lg space-y-4 list-disc pl-6 text-black">
-                <li>A selective group of VIPs/influencers from our time at Highsnobiety + Knead in the chat. These include Knead supporters across major fashion brands, music labels, galleries, and tech companies.</li>
-                <li>Turn 1-2 of these leads into sales prospects for Knead to build them a custom chat platform, working with Towns on strategy to build a stronger portfolio of brands for both companies.</li>
-                <li>Create an observable sales audience for Towns to build its media verticals.</li>
-              </ul>
-            </div>
-
-            {/* If Successful */}
-            <div>
-              <p className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
-                If successful, the outcomes would include:
-              </p>
-              <ul className="font-georgia-pro text-lg space-y-4 list-disc pl-6 text-black">
-                <li>Knead has built enough of a foundation that a larger $TOWNS grant could be used to only bolster our platform as the future of media: creating a studio and merchandise arm.</li>
-                <li>Knead acquires its own tech clients with our stack, creating an entirely new division of our company as a development agency.</li>
-              </ul>
-            </div>
-
-            {/* Budget */}
-            <div>
-              <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Our Ask</h3>
-              <p className="font-georgia-pro text-lg md:text-xl mb-6 text-black">
-                $10,000/month retainer paid in $TOWNS to Knead + $2,000/month in $TOWNS sent directly to Knead Treasury. Here's how it'll be spent on a month-to-month basis:
+              <h3 className="font-adonis text-2xl md:text-3xl text-black mb-6">Knead As A Publisher &amp; Community</h3>
+              <p className="font-georgia-pro text-lg text-gray-700 mb-8">
+                Our framework enables us to create curated digital events with real-world value for our partners. Some examples:
               </p>
               <div className="space-y-6">
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <p className="font-georgia-pro text-black"><strong>Budget for magazine operations + editorial.</strong> Original photography/videography/design for 10 stories for relaunch (slated: May 26). Editorial. Website Hosting. Legal Expenses. Coworking. Estimated: $4-6k/month</p>
-                </div>
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <p className="font-georgia-pro text-black"><strong>Treasury Budget.</strong> The $2,000/month in $TOWNS for the chat helps strengthen recruitment for VIP/influencers. Not only do they know there's a real amount they'll be able to start pulling 'cashback' from, but create intrigue/interest in what Towns Protocol is.</p>
-                </div>
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <p className="font-georgia-pro text-black"><strong>Travel/Lodging.</strong> As part of building anticipation for our relaunch, we'll document what it's like to create the stories we'll be releasing in May, giving the chat teaser content + exclusive looks. Estimated: $2-4k/month for Editor + 1 photographer/videographer</p>
-                </div>
+                {[
+                  {
+                    title: "Recruiting",
+                    body: "A well-known fashion designer based out of Milan is looking for new hires and wants to get in front of American students from FIT and Parsons. Knead sets up a time for those students to exclusively ask the designer questions in the chat — creating opportunities for upcoming graduates to gain visibility with Contributors and other viewers.",
+                  },
+                  {
+                    title: "Product Seeding & Feedback",
+                    body: "With a strong rolodex of Contributors, Knead enables companies to gain early feedback and interest on products. This can include direct metrics on who redeemed what items and why — valuable in early seeding and messaging.",
+                  },
+                  {
+                    title: "Sponsorship",
+                    body: "By enabling video upload and streaming, we've expanded our ability to accept ongoing or temporal sponsorship without compromising print editorial standards. We've created significant new pathways to deliver bespoke opportunities for sponsors to engage with our brand.",
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                    <h4 className="font-adonis text-lg text-black mb-2">{item.title}</h4>
+                    <p className="font-georgia-pro text-base text-gray-700">{item.body}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Bonuses */}
+            {/* Knead as Solution */}
             <div>
-              <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Bonuses</h3>
-              <p className="font-georgia-pro text-lg mb-8 text-black">
-                Upon reaching benchmark of 150 Contributors (Month 3 quota) approvals for $TOWNS to fund:
+              <h3 className="font-adonis text-2xl md:text-3xl text-black mb-6">Knead As A Solution</h3>
+              <p className="font-georgia-pro text-lg text-gray-700 mb-6">
+                We believe everything we offer with Knead can be used by other creators and brands alike. By offering bespoke solutions as a development agency, we can apply our framework to an array of prospective customers. A few examples:
               </p>
-
-              {/* S-Tier Line */}
-              <div className="grid md:grid-cols-2 gap-12 mb-12 items-start">
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">The S-Tier Line</h4>
-                  <div className="font-georgia-pro text-base space-y-4 text-black">
-                    <p>NFC-enabled clothing. Gifted to our Contributors as VIP-seeding before Fall line launch, the S-Tier will enable users to tap the S-Tier (S) tag and give a Contributor membership to a friend (includes an annual Knead membership from the point of redemption too). This drives another batch of influencers to Knead + Towns, creating more sales leads from a group we've already been successful with giving a top level experience.</p>
-                    <p>The S-Tier line will be how we distribute our semi-annual and annual memberships, as well as via our print magazine.</p>
-                    <p>IYK for NFC-chips.</p>
-                    <p>Estimated cost: $35-40k for 200-250 people</p>
+              <div className="grid md:grid-cols-2 gap-4">
+                {[
+                  "A musician who wants to set up a temporary space for an album release stream, enabling the artist to tip the best comments.",
+                  "A consulting group that wants a password-protected encrypted chat to securely stream and chat with clients.",
+                  "Agencies that represent independent content creators.",
+                  "Brands that want to self-host their own media platforms for campaigns.",
+                  "Independent writers, podcasts, and other media who want their own platform.",
+                ].map((item, i) => (
+                  <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-start gap-3">
+                    <span className="text-black font-adonis mt-0.5 flex-shrink-0">—</span>
+                    <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
                   </div>
-                </div>
-                <div>
-                  <Image
-                    src="/mock-up.png"
-                    alt="S-Tier hoodie with K logo and S badge"
-                    width={500}
-                    height={600}
-                    className="rounded-xl w-full"
-                  />
+                ))}
+              </div>
+              <p className="font-georgia-pro text-lg text-gray-700 mt-8 font-italic">
+                If every company is a media company, there&apos;s no end of prospective clients we can design solutions for.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 9: What We Want To Raise + Budget ──────────────────────────── */}
+      <Slide id={9} {...slideProps} raw className="bg-white">
+        <div className="min-h-screen py-20 px-6 md:px-16">
+          <div className="max-w-5xl mx-auto space-y-16">
+
+            <motion.h2
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-5xl text-black"
+            >
+              What We Want To Raise
+            </motion.h2>
+
+            <div className="max-w-3xl space-y-5 font-georgia-pro text-lg text-gray-700">
+              <p>Knead is seeking <strong className="text-black font-adonis">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.</p>
+              <p>Why dedicate so much of the budget to the Treasury?</p>
+              <ul className="list-disc pl-6 space-y-3">
+                <li>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</li>
+                <li>
+                  With a working framework in place, showing real-world value quickly creates strong word-of-mouth:
+                  <ul className="mt-2 ml-4 space-y-1 list-none">
+                    <li className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo;</li>
+                    <li className="italic text-black">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</li>
+                  </ul>
+                </li>
+                <li>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</li>
+                <li>Traditional giveaways have a conservative conversion rate of 18–25%. With Knead&apos;s chat, every member has the opportunity to earn right away.</li>
+                <li>At a rate of 18% conversion + resupplying the Treasury with 20% of Knead Monthly&apos;s $5/month revenue, our chat would be self-sustaining of its $1.04M pool at a goal of 25,000 paid members.</li>
+                <li>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</li>
+              </ul>
+            </div>
+
+            {/* Pie chart */}
+            <div>
+              <h3 className="font-adonis text-3xl text-black mb-8">Prospective Annual Budget</h3>
+              <DonutChart />
+            </div>
+
+            {/* Budget table */}
+            <div>
+              <h3 className="font-adonis text-2xl text-black mb-6">Budget Breakdown</h3>
+
+              {/* Team */}
+              <div className="mb-8">
+                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Team Salaries (27% overhead applied)</h4>
+                <div className="space-y-1.5">
+                  {[
+                    ["EIC / Founder", "$130,000", "$165,100"],
+                    ["CTO", "$165,000", "$209,550"],
+                    ["COO / VP Production", "$165,000", "$209,550"],
+                    ["Creative Director", "$125,000", "$158,750"],
+                    ["Head of Community", "$102,000", "$129,540"],
+                    ["Senior Producer", "$93,000", "$118,110"],
+                    ["Full Stack Developer ×2", "$280,000", "$355,600"],
+                    ["Art Director", "$103,000", "$130,810"],
+                    ["Copy Editor", "$92,000", "$116,840"],
+                    ["Creatives ×2", "$166,000", "$210,820"],
+                    ["Events Coordinator", "$72,000", "$91,440"],
+                  ].map(([role, base, total], i) => (
+                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="font-georgia-pro text-sm text-gray-700">{role}</span>
+                      <div className="flex gap-6 text-right">
+                        <span className="font-georgia-pro text-sm text-gray-500 w-24">{base}</span>
+                        <span className="font-adonis text-sm text-black w-24">{total}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
+                    <span className="font-adonis text-sm text-black">Subtotal — 13 People</span>
+                    <div className="flex gap-6 text-right">
+                      <span className="font-georgia-pro text-sm text-gray-500 w-24">$1,493,000</span>
+                      <span className="font-adonis text-sm text-black w-24">$1,895,110</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Knead Print Magazine */}
-              <div className="grid md:grid-cols-2 gap-12 mb-12 items-start">
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Knead Print Magazine</h4>
-                  <div className="font-georgia-pro text-base space-y-4 text-black">
-                    <p>NFC-enabled magazine. Gifted alongside our S-Tier line and unveiled at our Blvck Svm dinner below, the print magazine will have an NFC chip to enable our semi-annual membership. As an additional gift to contributors, enables another access point to onboard into the chat.</p>
-                    <p>Estimated cost: $18,000 for 300 copies, including copy editor + photography + design.</p>
+              {/* Operations */}
+              <div className="mb-8">
+                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Operational Budget</h4>
+                <div className="space-y-1.5">
+                  {[
+                    ["Freelance — editorial + photography (~25 stories)", "$65,000"],
+                    ["Legal / accounting (Web3 counsel + CPA)", "$50,000"],
+                    ["Office / coworking — Richmond, VA (remote-first)", "$24,000"],
+                    ["Travel + activations (editorial + IRL events)", "$100,000"],
+                    ["Infrastructure — full stack at growth stage", "$25,000"],
+                    ["Equipment — laptops, software, office items", "$35,000"],
+                  ].map(([label, val], i) => (
+                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="font-georgia-pro text-sm text-gray-700">{label}</span>
+                      <span className="font-adonis text-sm text-black">{val}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
+                    <span className="font-adonis text-sm text-black">Subtotal — Operations</span>
+                    <span className="font-adonis text-sm text-black">$299,000</span>
                   </div>
-                </div>
-                <div>
-                  <Image
-                    src="/print-magazine-mockup.png"
-                    alt="Knead Print Magazine mockup"
-                    width={500}
-                    height={600}
-                    className="rounded-xl w-full"
-                  />
                 </div>
               </div>
 
-              {/* Blvck Svm Dinner */}
-              <div className="grid md:grid-cols-2 gap-12 items-start">
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">5 Spots for our Blvck Svm Dinner in Richmond, VA</h4>
-                  <div className="font-georgia-pro text-base space-y-4 text-black">
-                    <p>Knead will be inviting the rapper Blvck Svm to the Branch Museum in Richmond for an exclusive michelinman dinner pairing.</p>
-                    <p>Partnering with Michelin-star chefs around the country, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album michelinman, with the chef defining a dish to accompany.</p>
-                    <p>We'd like to fly five Contributors from the chat in for an all expenses paid experience, highlighting an exclusive experience only for superfans/VIPs. Other Contributors will be able to nominate and vote on who should be treated to the experience.</p>
-                    <p>Estimated costs: $15-20k for 5 people</p>
+              {/* Treasury */}
+              <div className="mb-8">
+                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Knead Treasury — On-Chain Reward Pool</h4>
+                <div className="space-y-1.5">
+                  {[
+                    ["Contributor weekly allowance (200 × $100/wk × 52)", "$1,040,000"],
+                    ["20% cashback float + reserve + Member pool", "$360,000"],
+                  ].map(([label, val], i) => (
+                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="font-georgia-pro text-sm text-gray-700">{label}</span>
+                      <span className="font-adonis text-sm text-black">{val}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
+                    <span className="font-adonis text-sm text-black">Total Treasury Ask</span>
+                    <span className="font-adonis text-sm text-black">$1,400,000</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Grand total */}
+              <div className="flex justify-between items-center py-3 bg-black text-white rounded-lg px-4">
+                <span className="font-adonis text-base">Total Raise — Year 1</span>
+                <span className="font-adonis text-base">$3,702,110</span>
+              </div>
+              <p className="font-georgia-pro text-xs text-gray-400 mt-3 italic">
+                27% overhead applied to all salaries: FICA (7.65%), FUTA/SUTA (~1%), employer health (~12%), misc (~6%). Treasury funds flow on-chain via smart contract — Knead never holds them. Infrastructure reflects growth-stage usage across Vercel, Supabase, Mux, Sanity, Daily, Resend, ThirdWeb, and Alchemy.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 10: The S-Tier Line ────────────────────────────────────────── */}
+      <Slide id={10} {...slideProps} className="bg-white">
+        <div className="max-w-5xl">
+          <motion.p variants={fadeIn} className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 01</motion.p>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+                The S-Tier Line
+              </motion.h2>
+              <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
+                <motion.p variants={fadeIn}>
+                  The S-Tier line will be NFC-enabled clothing that will be how we distribute semi-annual and annual memberships.
+                </motion.p>
+                <motion.p variants={fadeIn}>
+                  The lineup will consist of high-quality embroidered items priced to match our membership — a $25 hat unlocks a 6-month membership, while a $40 sweatshirt unlocks 12 months.
+                </motion.p>
+                <motion.p variants={fadeIn}>
+                  The goal is for the clothing&apos;s (S) tag to be a talking point IRL: <em>&ldquo;What&apos;s that S? You don&apos;t wear a small.&rdquo;</em>
+                </motion.p>
+                <motion.p variants={fadeIn}>
+                  With initial seeding to Contributors, those individuals will be able to tap and redeem Knead memberships to gift — driving word-of-mouth to their influential networks.
+                </motion.p>
+                <motion.p variants={fadeIn} className="text-black">
+                  IYK for NFC chips.<br />
+                  <strong>Estimated cost: $50–60k</strong>
+                </motion.p>
+              </motion.div>
+            </div>
+            <motion.div variants={fadeIn} className="flex justify-center">
+              <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ height: "480px" }}>
+                <Image
+                  src="/mock-up.png"
+                  alt="S-Tier line with NFC-enabled clothing"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 11: Knead Print Magazine ──────────────────────────────────── */}
+      <Slide id={11} {...slideProps} className="bg-gray-50">
+        <div className="max-w-5xl">
+          <motion.p variants={fadeIn} className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 02</motion.p>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+                Knead Print Magazine
+              </motion.h2>
+              <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
+                <motion.p variants={fadeIn}>
+                  Knead&apos;s print issue will also be NFC-enabled as a membership option. TBD printing schedule, the magazine will be a heavy-matte, coffee table style publication with rich interviews of the world&apos;s leading creative minds.
+                </motion.p>
+                <motion.p variants={fadeIn}>
+                  Each issue will feature an NFC chip enabling a semi-annual Knead membership upon tap — another access point to onboard into the chat.
+                </motion.p>
+                <motion.p variants={fadeIn} className="text-black">
+                  <strong>Estimated cost: $18,000 for 300+ copies</strong>
+                </motion.p>
+              </motion.div>
+            </div>
+            <motion.div variants={fadeIn} className="flex justify-center">
+              <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ height: "460px" }}>
+                <Image
+                  src="/print-magazine-mockup.png"
+                  alt="Knead Print Magazine"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 12: Blvck Svm Dinner ──────────────────────────────────────── */}
+      <Slide id={12} {...slideProps} raw className="bg-white">
+        <div className="min-h-screen py-20 px-6 md:px-16">
+          <div className="max-w-5xl mx-auto">
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 03</p>
+            <div className="grid md:grid-cols-2 gap-12 items-start">
+              <div>
+                <h2 className="font-adonis text-4xl md:text-5xl text-black mb-8">
+                  Blvck Svm Dinner in Richmond, VA
+                </h2>
+                <div className="space-y-4 font-georgia-pro text-lg text-gray-700">
+                  <p>
+                    Knead will be inviting the rapper Blvck Svm to the Branch Museum in Richmond for an exclusive <em>michelinman</em> dinner pairing.
+                  </p>
+                  <p>
+                    Partnering with Michelin-star chefs around the world, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album <em>michelinman</em> — with the chef defining a dish to accompany.
+                  </p>
+                  <p>
+                    For one of our giveaways, we&apos;d like to fly five Contributors from the chat in for an all expenses paid experience — highlighting an exclusive event only for superfans/VIPs. Other Contributors will be able to nominate and vote on who should be treated to the experience.
+                  </p>
+                  <p className="text-black">
+                    <strong>Estimated cost: $40,000, including giveaway</strong>
+                  </p>
+                </div>
+              </div>
+              <div>
                 <SwipeableCarousel
                   images={dinnerPartyPhotos}
                   currentIndex={currentDinnerPhoto}
                   setCurrentIndex={setCurrentDinnerPhoto}
-                  height="400px"
+                  height="460px"
                 />
               </div>
             </div>
-
-            {/* Timeline */}
-            <div>
-              <h3 className="font-adonis text-3xl md:text-4xl mb-8 text-black">Timeline</h3>
-              <div className="space-y-8">
-
-                {/* Month 1 */}
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Month 1 (Tentatively, March 2026 - Private Beta)</h4>
-                  <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
-                    <li>Finish testing with friends/family, begin onboarding influencers/noteworthy guests as Contributors</li>
-                    <li>Schedule 1-2 exclusive events for Contributors (can be open hours with video feed, watching a Knead interview live).</li>
-                    <li>Do 1 reward from PR network (free products)</li>
-                    <li>Invite PR companies, especially top-tier who specialize in high-end products/product samples (explain benefit of Contributor group as powerful marketing segment of influencers).</li>
-                  </ul>
-                </div>
-
-                {/* Month 2 */}
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Month 2</h4>
-                  <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
-                    <li>Event schedule ramps up as we onboard more Contributors (by week two, minimum: 1 event per week- can be open hours, interview/AMA, giveaway, portfolio review…anything to get the flow of events up).</li>
-                    <li>With permission, make Contributors a point of conversation: "Tell us about leading marketing initiatives at Pepsi" (the conversation is content).</li>
-                    <li>Starting teasing content for upcoming Knead relaunch- drop exclusive photos from interviews.</li>
-                    <li>Engage nearly daily with Contributors, asking questions and posting photos, encouraging regular contributions.</li>
-                    <li>Meetings with PR agencies/brands for upcoming rollouts of products/services that can be exclusively given away to Contributors in chat.</li>
-                    <li>Begin outreach for b2b sales of selling /chat as a product.</li>
-                    <li>Minimum 100 Contributors in chat</li>
-                  </ul>
-                </div>
-
-                {/* Month 3 */}
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Month 3 (Tentative Public Release: May 26)</h4>
-                  <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
-                    <li>Tease upcoming content for tentative late May relaunch</li>
-                    <li>Announce chat + make it public. Announce total Treasury of $TOWNS/partnership.</li>
-                    <li>Have 3-months of events booked (June-Aug) to continue partnership (minimum: 3 per month)</li>
-                    <li>3-5 intro calls established for sales calls.</li>
-                    <li>If budget, samples developed + teaser photos sent to chat of Knead's first line of NFC-enabled clothing (S-Tier- fall drop).</li>
-                    <li>Announce first IRL event: Blvck Svm michelinman dinner. Depending on budget, RSVP spot to 5 chat members (VIP treatment: flown-in, attend dinner/show after, hotel accommodations).</li>
-                    <li>Minimum 150 Contributors in chat</li>
-                  </ul>
-                </div>
-
-                {/* Month 4 */}
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Month 4</h4>
-                  <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
-                    <li>Ongoing events + activations in chat now full-effect</li>
-                    <li>Outreach for guest streams/takeovers (Boiler Rooms, etc)</li>
-                    <li>1-2 sales calls at meeting 2-3 in the pipeline for Towns Protocol development</li>
-                    <li>Contributor get S-Tier reservations (exclusive merch drop)</li>
-                    <li>Photography + teasers created for S-Tier drop to general public</li>
-                    <li>Minimum 175 Contributors in chat + 250 Knead Members</li>
-                  </ul>
-                </div>
-
-                {/* Month 5 */}
-                <div>
-                  <h4 className="font-adonis text-2xl mb-4 text-black">Month 5</h4>
-                  <ul className="font-georgia-pro text-base space-y-2 list-disc pl-6 text-black">
-                    <li>Continuing weekly events + activations</li>
-                    <li>First IRL event complete (Blvck Svm michelinman dinner)</li>
-                    <li>1 quality sales lead for Towns Protocol development</li>
-                    <li>S-Tier line of merch mailed to Contributors + redemption portal established</li>
-                    <li>Larger $TOWNS grant unlocked to ramp up all activations (Merch, Digital/IRL events, etc)</li>
-                  </ul>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Final Benchmarks */}
-            <div>
-              <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Final Benchmarks:</h3>
-              <ul className="font-georgia-pro text-xl space-y-2 list-disc pl-6 text-black">
-                <li>175+ Contributors</li>
-                <li>250+ Members</li>
-                <li>1 qualified enterprise sales lead</li>
-                <li>3-5 more sales leads in the pipeline</li>
-              </ul>
-            </div>
-
-            {/* Other Role Considerations */}
-            <div>
-              <h3 className="font-adonis text-3xl md:text-4xl mb-6 text-black">Other Role Considerations:</h3>
-              <p className="font-georgia-pro text-lg mb-6 text-black">
-                These are roles that are reasonable expectations to help push Towns + Knead. Not an immediate need, but good to forecast:
-              </p>
-              <ul className="font-georgia-pro text-lg space-y-2 list-disc pl-6 text-black">
-                <li>Part-time blockchain engineer: $5,000/month</li>
-                <li>Visual team (photography/illustration/digital design): $12,000/month</li>
-                <li>Part-time producer: $3,500/month</li>
-              </ul>
-            </div>
-
           </div>
         </div>
       </Slide>
 
-      {/* ── Screen 9: The Big Deal ──────────────────────────────────────────── */}
-      <Slide id={8} {...slideProps}>
+      {/* ── Slide 13: Timeline ───────────────────────────────────────────────── */}
+      <Slide id={13} {...slideProps} raw className="bg-gray-50">
+        <div className="min-h-screen py-20 px-6 md:px-16">
+          <div className="max-w-4xl mx-auto">
+            <motion.h2
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-5xl text-black mb-12"
+            >
+              Timeline
+            </motion.h2>
+
+            <div className="space-y-10">
+
+              {/* Phase 1 */}
+              <div>
+                <h3 className="font-adonis text-xl text-black mb-5 flex items-center gap-2">
+                  Phase 1: Hardening
+                  <span className="text-sm font-georgia-pro text-gray-400">(Months 1–2)</span>
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    { text: "V1 of chat finished", done: true },
+                    { text: "Early Beta testing and feedback", done: true },
+                    { text: "V1.2 of chat finished", done: true },
+                    { text: "Begin inviting influencer network of Contributors", done: false },
+                    { text: "Grant applications", done: false },
+                    { text: "Smart contract audit / load testing / security review", done: false },
+                    { text: "Private beta stays small", done: false },
+                  ].map((item, i) => (
+                    <div key={i} className={`flex items-start gap-3 py-2 px-4 rounded-lg ${item.done ? "bg-black/5" : "bg-white border border-gray-100"}`}>
+                      <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${item.done ? "bg-black" : "border-2 border-gray-300"}`}>
+                        {item.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </div>
+                      <p className={`font-georgia-pro text-sm ${item.done ? "text-gray-500 line-through" : "text-gray-700"}`}>
+                        {item.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phase 2 */}
+              <div>
+                <h3 className="font-adonis text-xl text-black mb-5 flex items-center gap-2">
+                  Phase 2: Early Growth
+                  <span className="text-sm font-georgia-pro text-gray-400">(Months 3–6)</span>
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    "Public launch",
+                    "Agency pipeline established",
+                    "Chat events weekly",
+                    "Print issue in line",
+                    "Merch announced and ready",
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-start gap-3 py-2 px-4 rounded-lg bg-white border border-gray-100">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-gray-300 mt-0.5" />
+                      <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phase 3 */}
+              <div>
+                <h3 className="font-adonis text-xl text-black mb-5 flex items-center gap-2">
+                  Phase 3: Scale
+                  <span className="text-sm font-georgia-pro text-gray-400">(Months 6–12)</span>
+                </h3>
+                <div className="space-y-2.5">
+                  {[
+                    "First agency clients acquired",
+                    "200–300 Contributors established",
+                    "25,000 Knead Monthly members",
+                    "Self-sustaining model for both Knead as a publisher and agency",
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-start gap-3 py-2 px-4 rounded-lg bg-white border border-gray-100">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-gray-300 mt-0.5" />
+                      <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 14: The Big Deal ───────────────────────────────────────────── */}
+      <Slide id={14} {...slideProps} className="bg-white">
         <div className="max-w-4xl space-y-8">
-          <motion.h2 variants={fadeIn} className="text-5xl md:text-7xl font-adonis mb-12 text-black">
+          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black">
             The Big Deal
           </motion.h2>
           {[
-            "Knead + Towns can show the creative industry that the future of media is a /chat.",
-            "Especially with the rise of AI, more brands will be taking a serious look at owning the means of distribution for their media.",
-            "We're returning to an era where a brand can own the full experience on their website. You know, a time where the internet can be fun again.",
-            "That's why, together, we can build a place for those memories to exist, starting with /chat.",
+            "Knead's foundation could be the bridge between bringing the majority — and late-majority — into Web3.",
+            "It's not enough to explain to them what the future of media looks like. We have to start showing people.",
+            "That conversation begins with ownership, showcasing that we no longer have to be reliant on apps and platforms. Instead, we can build things specifically for what our audiences want.",
+            "The future of the internet is going to be fun again — which is exactly what we want to lead the charge in showing.",
           ].map((para, i) => (
             <motion.p key={i} variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black leading-relaxed">
               {para}
@@ -663,24 +1118,37 @@ export default function TownsPitchPage() {
         </div>
       </Slide>
 
-      {/* ── Screen 10: Closing ─────────────────────────────────────────────── */}
-      <Slide id={9} {...slideProps}>
+      {/* ── Slide 15: See For Yourself ───────────────────────────────────────── */}
+      <Slide id={15} {...slideProps} className="bg-black text-white">
         <div className="text-center">
-          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-black mb-8">
-            Thanks for reading.
+          <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-white mb-8">
+            Want to see for yourself?
           </motion.h2>
-          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black italic">
-            <a 
-              href="https://kneadmag.com/chat" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hover:underline"
-            >
-              Check out our chat at kneadmag.com/chat
-            </a>
-          </motion.p>
+          <motion.div variants={staggerContainer} className="space-y-3">
+            <motion.p variants={fadeIn}>
+              <a
+                href="https://www.kneadmag.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-georgia-pro text-lg md:text-xl text-gray-300 hover:text-white transition-colors underline underline-offset-4"
+              >
+                kneadmag.com
+              </a>
+            </motion.p>
+            <motion.p variants={fadeIn}>
+              <a
+                href="https://www.kneadmag.com/chat"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-georgia-pro text-lg md:text-xl text-gray-300 hover:text-white transition-colors underline underline-offset-4"
+              >
+                kneadmag.com/chat
+              </a>
+            </motion.p>
+          </motion.div>
         </div>
       </Slide>
+
     </div>
   )
 }
