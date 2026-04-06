@@ -22,7 +22,7 @@ const nextConfig = {
     BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
   },
   
-  // ✅ WEBPACK CONFIG FOR .mjs FILES
+  // ✅ WEBPACK CONFIG FOR .mjs FILES + node: protocol polyfills
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -30,6 +30,19 @@ const nextConfig = {
         crypto: false,
         stream: false,
         buffer: false,
+        'node:diagnostics_channel': false,
+        'node:async_hooks': false,
+        'node:events': false,
+        'node:http': false,
+        'node:https': false,
+        'node:net': false,
+        'node:path': false,
+        'node:tls': false,
+        'node:url': false,
+        'node:zlib': false,
+        'node:fs': false,
+        'node:os': false,
+        'node:util': false,
       };
     }
     return config;
