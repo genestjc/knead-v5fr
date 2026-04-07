@@ -8,11 +8,19 @@ import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from 'sonner'; // ✅ Add Sonner for toast notifications
-import { TownsSyncProvider } from "@towns-protocol/react-sdk";
+import dynamic from 'next/dynamic';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/config/wagmi';
 import { useState } from 'react';
+
+// Loaded dynamically (client-only) so that lru-cache v11's top-level await in its
+// ESM bundle does NOT cascade through the Towns SDK import chain and turn
+// TownsSyncProvider into a Promise → React error #306.
+const TownsSyncProvider = dynamic(
+  () => import('@towns-protocol/react-sdk').then((m) => m.TownsSyncProvider),
+  { ssr: false, loading: ({ children }: any) => <>{children}</> }
+);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
