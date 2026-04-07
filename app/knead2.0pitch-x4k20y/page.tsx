@@ -630,7 +630,7 @@ export default function Knead20PitchPage() {
           <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-10 leading-tight">
             We&apos;ve lost the art of being premium online.
           </motion.h1>
-          <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
+          <motion.div variants={staggerContainer} className="space-y-8 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
             {[
               "Stadium-status musicians are using Linktree as their main website.",
               "Best-selling authors are promoting the same blandly-designed Substack for their prose.",
