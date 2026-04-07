@@ -664,7 +664,7 @@ export default function Knead20PitchPage() {
             </p>
           </div>
           <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto text-center pb-4">
-            After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch. Here&apos;s how it works:
+            After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch.
           </p>
         </div>
       </Slide>
@@ -732,7 +732,7 @@ export default function Knead20PitchPage() {
             </motion.h2>
             <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
               <motion.p variants={fadeIn}>
-                Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. It&apos;s capable of hosting a wide range of events, using tools like:
+                Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. Built on Towns Protocol, it&apos;s capable of hosting a wide range of events, using tools like:
               </motion.p>
               <motion.ul variants={fadeIn} className="space-y-3 pl-2">
                 <li className="flex items-start gap-3">
@@ -905,7 +905,7 @@ export default function Knead20PitchPage() {
             {/* Opening statement — full width, large, room to breathe */}
             <div className="text-center py-4">
               <p className="font-georgia-pro text-2xl md:text-3xl text-black max-w-5xl mx-auto leading-relaxed">
-                Knead is seeking <strong className="font-adonis text-3xl md:text-4xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.
+                Knead is seeking <strong className="font-adonis text-3xl md:text-4xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition.
               </p>
             </div>
 
@@ -936,15 +936,15 @@ export default function Knead20PitchPage() {
 
                 {/* Quotes */}
                 <div className="border-l-2 border-gray-200 pl-4 space-y-3">
-                  <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo;</p>
+                  <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. &rdquo;</p>
                   <p className="text-gray-500 not-italic">— Knead Monthly Member</p>
                   <p className="italic text-black pt-1">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</p>
                   <p className="text-gray-500 not-italic">— Contributor</p>
                 </div>
 
                 <div className="space-y-3">
-                  <p>Traditional giveaways have a conservative conversion rate of 18–25%. With Knead&apos;s chat, every member has the opportunity to earn right away.</p>
-                  <p>At a rate of 18% conversion + resupplying the Treasury with 20% of Knead Monthly&apos;s $5/month revenue, our chat would be self-sustaining of its $1.04M pool at a goal of 25,000 paid members.</p>
+                  <p>With Knead&apos;s chat, every member has the opportunity to earn right away.</p>
+                  <p>Every 10,000 Knead Monthly members adds $120,000/year back into the Treasury — compounding toward independence with every new subscriber.</p>
                   <p>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</p>
                 </div>
 
@@ -995,7 +995,7 @@ export default function Knead20PitchPage() {
                 <motion.p variants={fadeIn}>
                   With initial seeding to Contributors, those individuals will be able to tap and redeem Knead memberships to gift — driving word-of-mouth to their influential networks.
                 </motion.p>
-                <motion.p variants={fadeIn} className="text-black">
+                <motion.p variants={fadeIn}>
                   IYK for NFC chips.
                 </motion.p>
               </motion.div>
@@ -1058,7 +1058,7 @@ export default function Knead20PitchPage() {
                 </h2>
                 <div className="space-y-4 font-georgia-pro text-lg text-gray-700">
                   <p>
-                    Knead will be inviting the rapper Blvck Svm to the Branch Museum in Richmond for an exclusive <em>michelinman</em> dinner pairing.
+                    Knead will be inviting the musician Blvck Svm to Richmond for an exclusive <em>michelinman</em> dinner pairing.
                   </p>
                   <p>
                     Partnering with Michelin-star chefs around the world, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album <em>michelinman</em> — with the chef defining a dish to accompany.
