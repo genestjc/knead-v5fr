@@ -367,7 +367,7 @@ function ConstantPracticeDemo() {
         )}
       </div>
 
-      <p className="px-5 pb-4 font-georgia-pro text-xs text-gray-400 italic text-center">
+      <p className="px-5 pb-4 font-georgia-pro text-xs text-gray-600 italic text-center font-semibold">
         Disclaimer: This is a live paywall and will charge your card if you click &ldquo;Join Today&rdquo;
       </p>
 
@@ -817,7 +817,7 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn} className="flex flex-col items-center pl-4 md:pl-8">
+          <motion.div variants={fadeIn} className="flex flex-col items-center pl-4 md:pl-8 pt-20 md:pt-32">
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Contributor View</p>
             <WalletSummaryDemo state="contributor" />
           </motion.div>
@@ -877,12 +877,12 @@ export default function Knead20PitchPage() {
                   "Independent writers, podcasts, and other media who want their own platform.",
                 ].map((item, i) => (
                   <div key={i} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start gap-3">
-                    <span className="text-black font-adonis mt-0.5 flex-shrink-0">—</span>
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
                     <p className="font-georgia-pro text-base text-gray-700">{item}</p>
                   </div>
                 ))}
               </div>
-              <p className="font-georgia-pro text-lg text-black mt-8 font-semibold">
+              <p className="font-georgia-pro text-lg text-black mt-8 font-semibold text-center">
                 Every company is a media company, which means there&apos;s no end of prospective clients we can work with.
               </p>
             </div>
@@ -902,37 +902,53 @@ export default function Knead20PitchPage() {
               What We Want To Raise
             </motion.h2>
 
-            <div className="grid md:grid-cols-2 gap-12 items-start">
-              <div className="space-y-5 font-georgia-pro text-lg text-gray-700">
-                <p className="text-center text-black text-xl">Knead is seeking <strong className="font-adonis text-2xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.</p>
-                <p className="text-center text-gray-600">Out of our total raise, we&apos;ll be dedicating $1.4 million to our Treasury.</p>
-                <p className="italic text-black">Why dedicate so much of the budget to the Treasury?</p>
-                <ul className="space-y-3 pl-2">
-                  <li className="flex items-start gap-3">
+            {/* Opening statement — full width, centered */}
+            <div className="text-center max-w-2xl mx-auto space-y-3">
+              <p className="font-georgia-pro text-xl text-black">
+                Knead is seeking <strong className="font-adonis text-2xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.
+              </p>
+              <p className="font-georgia-pro text-base text-gray-500">
+                Out of our total raise, we&apos;ll be dedicating $1.4 million to our Treasury.
+              </p>
+            </div>
+
+            {/* Two-column: copy left, chart right */}
+            <div className="grid md:grid-cols-2 gap-16 items-start">
+
+              {/* Left: Treasury rationale */}
+              <div className="space-y-6 font-georgia-pro text-base text-gray-700">
+                <p className="italic text-black text-lg">Why dedicate so much of the budget to the Treasury?</p>
+
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <span>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</span>
-                  </li>
-                  <li className="flex items-start gap-3">
+                    <p>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</p>
+                  </div>
+                  <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <span>With a working framework in place, showing real-world value quickly creates strong word-of-mouth:</span>
-                  </li>
-                </ul>
-                <div className="pl-6 space-y-2">
-                  <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo; <span className="not-italic text-gray-500 text-sm">— Knead Monthly Member</span></p>
-                  <p className="italic text-black">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo; <span className="not-italic text-gray-500 text-sm">— Contributor</span></p>
+                    <p>With a working framework in place, showing real-world value quickly creates strong word-of-mouth:</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                    <p>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</p>
+                  </div>
                 </div>
-                <ul className="space-y-3 pl-2">
-                  <li className="flex items-start gap-3">
-                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <span>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</span>
-                  </li>
-                </ul>
-                <div className="space-y-3 text-gray-700">
+
+                {/* Quotes */}
+                <div className="border-l-2 border-gray-200 pl-4 space-y-3">
+                  <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo;</p>
+                  <p className="text-sm text-gray-500 not-italic">— Knead Monthly Member</p>
+                  <p className="italic text-black pt-1">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</p>
+                  <p className="text-sm text-gray-500 not-italic">— Contributor</p>
+                </div>
+
+                <div className="space-y-3">
                   <p>Traditional giveaways have a conservative conversion rate of 18–25%. With Knead&apos;s chat, every member has the opportunity to earn right away.</p>
                   <p>At a rate of 18% conversion + resupplying the Treasury with 20% of Knead Monthly&apos;s $5/month revenue, our chat would be self-sustaining of its $1.04M pool at a goal of 25,000 paid members.</p>
                   <p>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</p>
                 </div>
-                <p className="text-sm text-gray-500">
+
+                <p className="text-sm text-gray-400">
                   Our current Treasury is verifiable on Basescan{" "}
                   <a
                     href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa"
@@ -944,10 +960,13 @@ export default function Knead20PitchPage() {
                   </a>.
                 </p>
               </div>
-              <div className="flex flex-col items-center">
-                <h3 className="font-adonis text-2xl text-black mb-6 self-start">Prospective Annual Budget</h3>
+
+              {/* Right: Chart */}
+              <div>
+                <h3 className="font-adonis text-xl text-black mb-6 text-center">Prospective Annual Budget</h3>
                 <DonutChart />
               </div>
+
             </div>
 
           </div>
