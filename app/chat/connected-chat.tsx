@@ -11,7 +11,7 @@ import {
   useReactions,
   useChannel,
 } from '@towns-protocol/react-sdk';
-import type { RiverTimelineEvent } from '@towns-protocol/sdk';
+import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { ChatLayout } from '@/components/chat/ChatLayout';
 import { MessageBubble, EventBanner } from '@/components/chat/MessageBubble';
 import { BanScreen } from '@/components/chat/BanScreen';
