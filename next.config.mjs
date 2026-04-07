@@ -1,3 +1,5 @@
+import NodePolyfillPlugin from 'node-polyfill-webpack-plugin';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -21,15 +23,29 @@ const nextConfig = {
     BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
   },
 
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
+    // Stub React Native module that MetaMask SDK pulls in — applies to both server and client
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@react-native-async-storage/async-storage': false,
+    };
+
     if (!isServer) {
-      const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+      // Strip node: prefix so NodePolyfillPlugin can handle the bare module names
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        })
+      );
+
+      // Polyfill all Node.js built-ins for browser (webpack equiv of vite-plugin-node-polyfills)
       config.plugins.push(new NodePolyfillPlugin({ excludeAliases: ['console'] }));
 
-      // MetaMask SDK pulls in React Native storage — stub it for browser
+      // diagnostics_channel is too new for NodePolyfillPlugin to know about
       config.resolve.alias = {
         ...config.resolve.alias,
         '@react-native-async-storage/async-storage': false,
+        'diagnostics_channel': false,
       };
     }
     return config;
