@@ -11,7 +11,9 @@ import {
 } from "lucide-react"
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
 import { WalletSummary } from "@/components/wallet-summary"
-import Paywall from "@/components/paywall"
+import { loadStripe } from "@stripe/stripe-js"
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
@@ -256,36 +258,227 @@ function WalletSummaryDemo({ state }: { state: "freemium" | "monthly" | "contrib
 
 // ─── ConstantPracticeDemo ─────────────────────────────────────────────────────
 
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+
+function DemoPaymentForm({ onSuccess }: { onSuccess: (id: string) => void }) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setIsProcessing(true)
+    setErrorMessage(null)
+    const { error, paymentIntent } = await stripe.confirmPayment({ elements, redirect: "if_required" })
+    if (error) { setErrorMessage(error.message || "An error occurred."); setIsProcessing(false); return }
+    if (paymentIntent?.id) onSuccess(paymentIntent.id)
+    else { setErrorMessage("Payment completed but no intent returned."); setIsProcessing(false) }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement options={{ layout: "tabs" }} />
+      {errorMessage && <p className="text-red-600 text-sm font-georgia-pro">{errorMessage}</p>}
+      <button
+        type="submit"
+        disabled={!stripe || isProcessing}
+        className="w-full bg-black text-white px-6 py-3 rounded font-adonis text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isProcessing ? "Processing..." : "Join Today"}
+      </button>
+    </form>
+  )
+}
+
 function ConstantPracticeDemo() {
+  const account = useActiveAccount()
+  const [isLoadingIntent, setIsLoadingIntent] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [paymentDone, setPaymentDone] = useState(false)
+
+  const handleSubscribe = async () => {
+    if (!account?.address) return
+    setIsLoadingIntent(true)
+    try {
+      const res = await fetch("/api/create-payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: account.address, amount: 500 }),
+      })
+      const data = await res.json()
+      if (data.clientSecret) { setClientSecret(data.clientSecret); setIsModalOpen(true) }
+    } finally {
+      setIsLoadingIntent(false)
+    }
+  }
+
+  const stripeOptions = clientSecret ? {
+    clientSecret,
+    appearance: {
+      theme: "stripe" as const,
+      variables: { colorPrimary: "#000000", colorBackground: "#ffffff", fontFamily: '"Georgia Pro", Georgia, serif' },
+    },
+  } : null
+
   return (
     <div className="max-w-md border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
       <div className="relative w-full" style={{ height: "200px" }}>
-        <Image
-          src="/constant-practice-photo.jpg"
-          alt="Constant Practice"
-          fill
-          className="object-cover"
-        />
+        <Image src="/constant-practice-photo.jpg" alt="Constant Practice" fill className="object-cover" />
       </div>
       <div className="px-5 pt-4 pb-2">
         <h3 className="font-adonis text-lg text-black mb-1">Constant Practice</h3>
         <p className="font-georgia-pro text-xs text-gray-500 italic mb-3">
           With vintage luxury more sought-after than ever, how does one of the most popular curators separate itself from the pack?
         </p>
-        <div className="relative overflow-hidden" style={{ maxHeight: "120px" }}>
+        <div className="relative overflow-hidden" style={{ maxHeight: "100px" }}>
           <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed mb-2">
             &ldquo;It&apos;s like looking at art - everyone will have their own opinion and be drawn to something different, so we don&apos;t hope to convey anything in particular, we just like sharing it,&rdquo; — Jonah Franke-Fuller says of Constant Practice.
           </p>
-          <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed">
-            Constant Practice is a team that specializes in vintage menswear. Led primarily by Zeke and Jonah Franke-Fuller, the duo&apos;s compiled a luxury collection highlighting utility, material, and function, while also showcasing trendy relics that often make for fun show pieces. Its rotation features designers ranging from Issey Miyake, Burberry Prorsum, and Comme des Garçons to Salomon and Samsonite.
-          </p>
-          <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white to-transparent" />
+          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-white to-transparent" />
         </div>
       </div>
-      <div className="px-5 pb-5">
-        <Paywall />
+
+      <div className="px-5 pb-3 pt-2">
+        {paymentDone ? (
+          <p className="font-adonis text-sm text-green-600 text-center py-3">Payment verified — welcome to Knead Monthly!</p>
+        ) : !account?.address ? (
+          <div className="bg-white border border-gray-200 rounded-lg p-5 text-center shadow-sm">
+            <h2 className="font-adonis text-base text-black mb-1">You&apos;ve reached your story limit for the month.</h2>
+            <p className="font-georgia-pro italic text-gray-600 text-xs mb-4">Want unlimited access?</p>
+            <div className="flex justify-center">
+              <ThirdWebConnectButton />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg p-5 text-center shadow-sm">
+            <h2 className="font-adonis text-base text-black mb-1">You&apos;ve reached your story limit for the month.</h2>
+            <p className="font-georgia-pro italic text-gray-600 text-xs mb-4">Want unlimited access?</p>
+            <button
+              onClick={handleSubscribe}
+              disabled={isLoadingIntent}
+              className="bg-black text-white px-5 py-2.5 rounded font-adonis text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 w-full"
+            >
+              {isLoadingIntent ? "Loading..." : "Subscribe to Knead Monthly — $5/mo"}
+            </button>
+          </div>
+        )}
       </div>
+
+      <p className="px-5 pb-4 font-georgia-pro text-xs text-gray-400 italic text-center">
+        Disclaimer: This is a live paywall and will charge your card if you click &ldquo;Join Today&rdquo;
+      </p>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-adonis text-xl text-center">Subscribe to Knead Monthly</DialogTitle>
+            <DialogDescription className="font-georgia-pro text-sm text-center text-gray-600">
+              Complete your payment to get unlimited access to all Knead stories
+            </DialogDescription>
+          </DialogHeader>
+          {clientSecret && stripeOptions && (
+            <Elements stripe={stripePromise} options={stripeOptions}>
+              <DemoPaymentForm onSuccess={(id) => { setPaymentDone(true); setIsModalOpen(false) }} />
+            </Elements>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+// ─── CameraDemoStage ──────────────────────────────────────────────────────────
+
+function CameraDemoStage() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [permissionDenied, setPermissionDenied] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  const startDemo = async () => {
+    setPermissionDenied(false)
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      setStream(mediaStream)
+      setIsOpen(true)
+    } catch {
+      setPermissionDenied(true)
+    }
+  }
+
+  const stopDemo = () => {
+    if (stream) stream.getTracks().forEach((t) => t.stop())
+    setStream(null)
+    setIsOpen(false)
+  }
+
+  useEffect(() => {
+    if (isOpen && videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [isOpen, stream])
+
+  useEffect(() => {
+    return () => { if (stream) stream.getTracks().forEach((t) => t.stop()) }
+  }, [stream])
+
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "300px" }}>
+          <Image src="/VideoScreenExample.png" alt="Live streaming in the Knead chat" fill className="object-cover" />
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <button
+              onClick={startDemo}
+              className="bg-white text-black px-6 py-3 rounded font-adonis text-sm hover:bg-gray-100 transition-colors shadow-lg"
+              type="button"
+            >
+              Click to Demo
+            </button>
+          </div>
+        </div>
+        {permissionDenied && (
+          <p className="font-georgia-pro text-xs text-red-500 text-center">Camera access is required for the demo.</p>
+        )}
+        <p className="font-georgia-pro text-sm text-gray-500 text-center italic">
+          Want to see what it&apos;s like to be the star of the show?
+        </p>
+      </div>
+
+      {isOpen && (
+        <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+          <div className="relative flex-1 overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+              style={{ transform: "scaleX(-1)" }}
+            />
+            <div className="absolute top-5 left-5 flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="font-adonis text-white text-xs tracking-widest uppercase">Live</span>
+            </div>
+            <div className="absolute top-5 right-5">
+              <p className="font-adonis text-white/70 text-xs">1 viewer</p>
+            </div>
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
+              <button
+                onClick={stopDemo}
+                className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full font-adonis text-sm transition-colors shadow-xl"
+                type="button"
+              >
+                Leave Stage
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -466,10 +659,10 @@ export default function Knead20PitchPage() {
         </div>
         <div className="relative z-10 min-h-screen flex items-center justify-center px-6 md:px-16">
           <div className="text-center max-w-3xl">
-            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-8">
+            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-12">
               Knead 2.0
             </h2>
-            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-6">
+            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-10">
               Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
             </p>
             <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto">
@@ -564,26 +757,8 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn} className="flex flex-col gap-3">
-            <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "300px" }}>
-              <Image
-                src="/VideoScreenExample.png"
-                alt="Live streaming in the Knead chat"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <a
-                  href="/chat"
-                  className="bg-white text-black px-6 py-3 rounded font-adonis text-sm hover:bg-gray-100 transition-colors shadow-lg"
-                >
-                  Click to Demo
-                </a>
-              </div>
-            </div>
-            <p className="font-georgia-pro text-sm text-gray-500 text-center italic">
-              Want to see what it&apos;s like to be the star of the show?
-            </p>
+          <motion.div variants={fadeIn}>
+            <CameraDemoStage />
           </motion.div>
         </div>
       </Slide>
@@ -889,34 +1064,36 @@ export default function Knead20PitchPage() {
       </Slide>
 
       {/* ── Slide 11: Knead Print Magazine ──────────────────────────────────── */}
-      <Slide id={11} {...slideProps} raw className="bg-gray-50">
-        <div className="min-h-screen py-20 px-6 md:px-16">
-          <div className="max-w-5xl mx-auto">
-            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 02</p>
-            <div className="mb-10">
-              <h2 className="font-adonis text-4xl md:text-5xl text-black mb-8">
+      <Slide id={11} {...slideProps} className="bg-gray-50">
+        <div className="max-w-5xl">
+          <motion.p variants={fadeIn} className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 02</motion.p>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
                 Knead Print Magazine
-              </h2>
-              <div className="space-y-4 font-georgia-pro text-lg text-gray-700 max-w-2xl">
-                <p>
+              </motion.h2>
+              <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
+                <motion.p variants={fadeIn}>
                   Knead&apos;s print issue will also be NFC-enabled as a membership option. TBD printing schedule, the magazine will be a heavy-matte, coffee table style publication with rich interviews of the world&apos;s leading creative minds.
-                </p>
-                <p>
+                </motion.p>
+                <motion.p variants={fadeIn}>
                   Each issue will feature an NFC chip enabling a semi-annual Knead membership upon tap — another access point to onboard into the chat.
-                </p>
-                <p className="text-black">
+                </motion.p>
+                <motion.p variants={fadeIn} className="text-black">
                   <strong>Estimated cost: $18,000 for 300+ copies</strong>
-                </p>
+                </motion.p>
+              </motion.div>
+            </div>
+            <motion.div variants={fadeIn} className="flex justify-center">
+              <div className="relative w-full overflow-hidden" style={{ height: "520px" }}>
+                <Image
+                  src="/print-magazine-mockup.png"
+                  alt="Knead Print Magazine"
+                  fill
+                  className="object-cover object-top"
+                />
               </div>
-            </div>
-            <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-white" style={{ height: "70vh" }}>
-              <Image
-                src="/print-magazine-mockup.png"
-                alt="Knead Print Magazine"
-                fill
-                className="object-contain"
-              />
-            </div>
+            </motion.div>
           </div>
         </div>
       </Slide>
