@@ -486,10 +486,10 @@ function CameraDemoStage() {
 
 function DonutChart() {
   const data = [
-    { label: "Team", value: 1895110, color: "#000000", note: "13 hires, incl. 27% overhead" },
-    { label: "Treasury", value: 1400000, color: "#374151", note: "On-chain reward pool" },
-    { label: "Operations", value: 299000, color: "#6b7280", note: "Incl. $35k equipment & software" },
-    { label: "Activations", value: 108000, color: "#9ca3af", note: "S-Tier, Print, Blvck Svm dinner" },
+    { label: "Team", value: 1895110, color: "#000000", },
+    { label: "Treasury", value: 1400000, color: "#374151", },
+    { label: "Operations", value: 299000, color: "#6b7280", },
+    { label: "Activations", value: 108000, color: "#9ca3af", },
   ]
   const total = 3702110
 
@@ -665,7 +665,7 @@ export default function Knead20PitchPage() {
             </p>
           </div>
           <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto text-center pb-4">
-            After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch.
+            After attracting over 35,000 readers and 500+ paid subscribers, we decided to build a new home for an even more impactful community.
           </p>
         </div>
       </Slide>
@@ -685,10 +685,10 @@ export default function Knead20PitchPage() {
                 {account ? <WalletSummary /> : <ThirdWebConnectButton />}
               </motion.div>
               <motion.p variants={fadeIn}>
-                To upgrade, we offer <strong className="text-black">Knead Monthly</strong> at <strong className="text-black">$5/month</strong>, which enables unlimited reads/views + the ability to earn USDC from Contributors in the chat.
+                To upgrade, we offer <strong className="text-black">Knead Monthly at $5/month</strong>, which enables unlimited reads/views + the ability to earn USDC from Contributors in the chat.
               </motion.p>
               <motion.p variants={fadeIn}>
-                Both memberships are soulbound NFTs minted on Base, handling payment + subscription hooks via Stripe.
+                Both memberships are soulbound NFTs minted on Base, handling payments via Stripe.
               </motion.p>
             </motion.div>
           </div>
@@ -738,17 +738,17 @@ export default function Knead20PitchPage() {
               <motion.ul variants={fadeIn} className="space-y-3 pl-2">
                 <li className="flex items-start gap-3">
                   <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                  <span><strong className="text-black font-adonis">Live Streaming</strong> includes a guest takeover for hosting and music mode for high-quality audio output. Perfect for interviews, DJ sets, and more.</span>
+                  <span><strong className="text-black font-adonis">Livestreams:</strong> Includes guest takeovers + music mode (for high-quality audio). Perfect for interviews, DJ sets, and more.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                  <span>Uploading movies, music videos, interviews, and other content to premiere in the chat.</span>
+                 <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                 <span><strong className="text-black font-adonis">Hosting:</strong> Movies, music videos, interviews, and other content to premiere.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                  <span>Gating the chat exclusively for niche community events, like students or a nonprofit.</span>
+                 <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                 <span><strong className="text-black font-adonis">Private Events:</strong> Gate the chat exclusively for niche community events, like students or nonprofits.</span>
                 </li>
-              </motion.ul>
+               </motion.ul>
               <motion.p variants={fadeIn}>
                 It&apos;s intentionally designed to be a space we want to spend every day in — hosting an array of events we&apos;d be excited to attend ourselves, while being an enriching experience for our members.
               </motion.p>
@@ -813,7 +813,7 @@ export default function Knead20PitchPage() {
                 In addition to posting freely, Contributors are granted access to DMs — including video chat. Contributors can search the DM rolodex for others they want to connect with, or turn off being contacted altogether.
               </motion.p>
               <motion.p variants={fadeIn}>
-                Being a Contributor is a title you have to earn your way into IRL or in the chat — it&apos;s not something that can be bought into.
+                Being a Contributor is a title you have to earn your way into IRL or in the chat — <strong>it&apos;s not something that can be bought into.</strong>
               </motion.p>
             </motion.div>
           </div>
@@ -923,15 +923,11 @@ export default function Knead20PitchPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</p>
+                    <p>Provides a powerful marketing tool to onboard Contributors from our previous employer Highsnobiety, as well as communities across fashion,media, and art — graduating from our immediate network to A-list celebrities.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p>With a working framework in place, showing real-world value quickly creates strong word-of-mouth:</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</p>
+                    <p>With a working framework in place, showing real-world value creates strong word-of-mouth quickly:</p>
                   </div>
                 </div>
 
@@ -942,6 +938,10 @@ export default function Knead20PitchPage() {
                   <p className="italic text-black pt-1">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</p>
                   <p className="text-gray-500 not-italic">— Contributor</p>
                 </div>
+                <div className="flex items-start gap-3">
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                    <p>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</p>
+                  </div>
 
                 <div className="space-y-3">
                   <p>With Knead&apos;s chat, every member has the opportunity to earn right away.</p>
@@ -1059,7 +1059,7 @@ export default function Knead20PitchPage() {
                 </h2>
                 <div className="space-y-4 font-georgia-pro text-lg text-gray-700">
                   <p>
-                    Knead will be inviting the musician Blvck Svm to Richmond for an exclusive <em>michelinman</em> dinner pairing.
+                    Knead will be inviting the musician Blvck Svm to Knead's home of Richmond, Virginia for an exclusive <em>michelinman</em> dinner pairing.
                   </p>
                   <p>
                     Partnering with Michelin-star chefs around the world, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album <em>michelinman</em> — with the chef defining a dish to accompany.
