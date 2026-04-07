@@ -1,3 +1,8 @@
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -22,10 +27,12 @@ const nextConfig = {
   },
 
   webpack: (config, { isServer, webpack }) => {
-    // Stub React Native module that MetaMask SDK pulls in — needed on both server and client
+    // Route React Native async-storage to a localStorage stub on both server and client.
+    // MetaMask SDK pulls this in via @wagmi/connectors — it actively calls getItem/setItem
+    // so aliasing to false (empty module) crashes the app at runtime.
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@react-native-async-storage/async-storage': false,
+      '@react-native-async-storage/async-storage': resolve(__dirname, './stubs/async-storage.js'),
     };
 
     if (!isServer) {
@@ -36,10 +43,11 @@ const nextConfig = {
         })
       );
 
-      // diagnostics_channel is used by lru-cache for optional tracing — safe to stub
+      // diagnostics_channel is used by lru-cache for optional tracing only.
+      // lru-cache wraps the import in .catch() so a stub is safe.
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@react-native-async-storage/async-storage': false,
+        '@react-native-async-storage/async-storage': resolve(__dirname, './stubs/async-storage.js'),
         'diagnostics_channel': false,
       };
     }
