@@ -56,44 +56,12 @@ const nextConfig = {
 
       // Use alias to stub node: prefixed built-ins that resolve.fallback misses
       // (diagnostics_channel is too new for webpack's built-in core module list)
+      // Only stub diagnostics_channel — async_hooks is used at runtime by Towns SDK
       config.resolve.alias = {
         ...config.resolve.alias,
         'node:diagnostics_channel': false,
-        'node:async_hooks': false,
         'diagnostics_channel': false,
-        'async_hooks': false,
       };
     }
     return config;
   },
-  
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'cdn.sanity.io',
-      },
-      {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
-      },
-    ],
-  },
-
-  // ✅ FIX THIRDWEB AUTHENTICATION POPUPS (COOP)
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin-allow-popups',
-          },
-        ],
-      },
-    ];
-  },
-}
-
-export default nextConfig;
