@@ -3,11 +3,15 @@
 import React, { useState, useEffect, useRef, type TouchEvent } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import { useActiveAccount } from "thirdweb/react"
 import {
   Copy, LogOut, ArrowUpFromLine, Key, Wallet,
   DollarSign, Settings, Zap, Award, TrendingUp,
   Download, Check,
 } from "lucide-react"
+import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button"
+import { WalletSummary } from "@/components/wallet-summary"
+import Paywall from "@/components/paywall"
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
@@ -250,65 +254,36 @@ function WalletSummaryDemo({ state }: { state: "freemium" | "monthly" | "contrib
   )
 }
 
-// ─── PaywallDemo ──────────────────────────────────────────────────────────────
+// ─── ConstantPracticeDemo ─────────────────────────────────────────────────────
 
-function PaywallDemo() {
+function ConstantPracticeDemo() {
   return (
-    <div className="max-w-md">
-      <div className="relative overflow-hidden" style={{ maxHeight: "120px" }}>
-        <h3 className="font-adonis text-lg text-black mb-2">Constant Practice</h3>
-        <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed mb-2">
-          There&apos;s something almost meditative about returning to the same motion — the same act — over and over. The brush hits canvas at the same angle it always has, and yet something shifts with each pass.
-        </p>
-        <p className="font-georgia-pro text-sm text-gray-500 leading-relaxed">
-          She didn&apos;t set out to master anything. She simply showed up, and the rest happened incrementally, the way most worthwhile things do. &ldquo;I wasn&apos;t trying to get better,&rdquo; she told me. &ldquo;I was just trying to not stop.&rdquo;
-        </p>
-        <div className="absolute bottom-0 inset-x-0 h-14 bg-gradient-to-t from-white to-transparent" />
+    <div className="max-w-md border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
+      <div className="relative w-full" style={{ height: "200px" }}>
+        <Image
+          src="/constant-practice-photo.jpg"
+          alt="Constant Practice"
+          fill
+          className="object-cover"
+        />
       </div>
-
-      <div className="mt-3 bg-white p-5 rounded-lg border border-gray-200 shadow-sm text-center">
-        <h2 className="font-adonis text-base text-black mb-1">
-          You&apos;ve reached your story limit for the month.
-        </h2>
-        <p className="font-georgia-pro italic text-gray-600 text-xs mb-4">
-          Want unlimited access?
+      <div className="px-5 pt-4 pb-2">
+        <h3 className="font-adonis text-lg text-black mb-1">Constant Practice</h3>
+        <p className="font-georgia-pro text-xs text-gray-500 italic mb-3">
+          With vintage luxury more sought-after than ever, how does one of the most popular curators separate itself from the pack?
         </p>
-        <button className="bg-black text-white px-5 py-2.5 rounded font-adonis text-sm hover:bg-gray-800 transition-colors">
-          Subscribe to Knead Monthly — $5/mo
-        </button>
-        <p className="font-georgia-pro text-xs text-gray-400 mt-3">
-          Pay via card, Google Pay, or Apple Pay
-        </p>
+        <div className="relative overflow-hidden" style={{ maxHeight: "120px" }}>
+          <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed mb-2">
+            &ldquo;It&apos;s like looking at art - everyone will have their own opinion and be drawn to something different, so we don&apos;t hope to convey anything in particular, we just like sharing it,&rdquo; — Jonah Franke-Fuller says of Constant Practice.
+          </p>
+          <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed">
+            Constant Practice is a team that specializes in vintage menswear. Led primarily by Zeke and Jonah Franke-Fuller, the duo&apos;s compiled a luxury collection highlighting utility, material, and function, while also showcasing trendy relics that often make for fun show pieces. Its rotation features designers ranging from Issey Miyake, Burberry Prorsum, and Comme des Garçons to Salomon and Samsonite.
+          </p>
+          <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white to-transparent" />
+        </div>
       </div>
-    </div>
-  )
-}
-
-// ─── MockComment ─────────────────────────────────────────────────────────────
-
-function MockComment() {
-  return (
-    <div className="mt-5 max-w-sm">
-      <p className="font-georgia-pro text-xs text-gray-400 mb-2 italic">Live during &ldquo;Miles Davis × AI&rdquo; stream</p>
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 overflow-hidden">
-            <div className="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-adonis text-xs text-gray-800 mb-1">@creativelead</p>
-            <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed">
-              The way he described the collaboration between humans and algorithms is genuinely moving.
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="text-base">💛</span>
-            <span className="font-adonis text-xs text-gray-500">12 tips</span>
-          </div>
-          <span className="font-adonis text-xs text-green-600 font-semibold">+$2.50 USDC earned</span>
-        </div>
+      <div className="px-5 pb-5">
+        <Paywall />
       </div>
     </div>
   )
@@ -397,6 +372,7 @@ function DonutChart() {
 const TOTAL_SLIDES = 16
 
 export default function Knead20PitchPage() {
+  const account = useActiveAccount()
   const [currentSlide, setCurrentSlide] = useState(0)
   const slideRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -436,32 +412,31 @@ export default function Knead20PitchPage() {
         </div>
       </div>
 
-      {/* ── Slide 0: Opening Vision ──────────────────────────────────────────── */}
+      {/* ── Slide 0: Title ───────────────────────────────────────────────────── */}
       <Slide id={0} {...slideProps} className="bg-white">
-        <div className="max-w-4xl">
-          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-10 leading-tight">
-            The internet is moving back in-house.
+        <div className="text-center max-w-4xl mx-auto">
+          <motion.h1
+            variants={fadeIn}
+            className="font-adonis text-[7rem] md:text-[10rem] lg:text-[13rem] text-black leading-none"
+          >
+            Knead
           </motion.h1>
-          <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
-            {[
-              "While we often think of the trend as moving from Myspace to Facebook to Instagram to TikTok… what if there was a larger trend at play: going back to websites.",
-              "We're entering an era where we can build communities natively, customizing a framework exclusively for our most loyal supporters — without breaking the bank.",
-              "Whether that's a home for writing, live video-streaming, a gamified reward system, or a combination of everything in-between, the most engaging spaces will be built by those who want quality interactions over a big quantity of users.",
-              "As a magazine on the forefront of digital culture, Knead isn't just changing how we engage with our community, but providing the infrastructure for brands and creators to design a custom media experience for themselves.",
-            ].map((line, i) => (
-              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
-            ))}
-          </motion.div>
+          <motion.p
+            variants={fadeIn}
+            className="font-georgia-pro text-xl md:text-2xl text-gray-500 italic mt-6"
+          >
+            Ushering in the future of publishing
+          </motion.p>
           <motion.p variants={fadeIn} className="font-georgia-pro text-sm text-gray-400 mt-16">Scroll to explore ↓</motion.p>
         </div>
       </Slide>
 
-      {/* ── Slide 1: The Problem We Noticed ─────────────────────────────────── */}
+      {/* ── Slide 1: The Internet + Problem (combined) ───────────────────────── */}
       <Slide id={1} {...slideProps} className="bg-gray-50">
         <div className="max-w-4xl">
-          <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-12">
-            The Problem We Noticed
-          </motion.h2>
+          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-6 leading-tight">
+            The internet is moving back in-house.
+          </motion.h1>
           <motion.p variants={fadeIn} className="font-adonis text-2xl md:text-3xl text-black mb-10 italic">
             We&apos;ve lost the art of being premium online.
           </motion.p>
@@ -470,8 +445,7 @@ export default function Knead20PitchPage() {
               "Stadium-status musicians are using Linktree as their main website.",
               "Best-selling authors are promoting the same blandly-designed Substack for their prose.",
               "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
-              "None of this was a part of our childhood dreams.",
-              "It's time we take ownership and make the internet fun again.",
+              "None of this was a part of our childhood dreams. It's time we take ownership and make the internet fun again.",
               "That's why we're excited to show you what we've built…",
             ].map((line, i) => (
               <motion.p key={i} variants={fadeIn}>{line}</motion.p>
@@ -498,9 +472,6 @@ export default function Knead20PitchPage() {
             <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-6">
               Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
             </p>
-            <p className="font-georgia-pro text-base text-gray-600 max-w-xl mx-auto mb-6">
-              It&apos;s primarily built on Web3 — however, a lot of our first users barely noticed. ✨
-            </p>
             <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto">
               After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch. Here&apos;s how it works:
             </p>
@@ -517,8 +488,11 @@ export default function Knead20PitchPage() {
             </motion.h2>
             <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
               <motion.p variants={fadeIn}>
-                A user can sign into Knead via social or wallet. Upon their first visit, we issue them a free membership to read three free stories + watch streams/events in our chat for one hour per month.
+                Users can sign in with socials or their wallet
               </motion.p>
+              <motion.div variants={fadeIn} className="my-2">
+                {account ? <WalletSummary /> : <ThirdWebConnectButton />}
+              </motion.div>
               <motion.p variants={fadeIn}>
                 To upgrade, we offer a <strong className="text-black">Knead Monthly</strong> membership at <strong className="text-black">$5/month</strong> — payable via credit card or Google/Apple Pay — which enables unlimited reads + the ability to earn USDC from Contributors in the chat.
               </motion.p>
@@ -526,35 +500,36 @@ export default function Knead20PitchPage() {
                 Both memberships are soulbound NFTs minted on Base, handling payment + subscription hooks via Stripe.
               </motion.p>
             </motion.div>
-
-            <motion.div variants={fadeIn} className="mt-8">
-              <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Freemium Member View</p>
-              <WalletSummaryDemo state="freemium" />
-            </motion.div>
           </div>
 
           <motion.div variants={fadeIn} className="mt-0">
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">When the limit is reached</p>
-            <PaywallDemo />
+            <ConstantPracticeDemo />
           </motion.div>
         </div>
       </Slide>
 
       {/* ── Slide 4: Our Stories ─────────────────────────────────────────────── */}
-      <Slide id={4} {...slideProps} className="bg-gray-50">
-        <div className="max-w-4xl">
-          <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-10">
-            Our Stories
-          </motion.h2>
-          <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
-            {[
-              "Knead's writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.",
-              "We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.",
-              "Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start 'kneading' for themselves too.",
-            ].map((line, i) => (
-              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
-            ))}
-          </motion.div>
+      <Slide id={4} {...slideProps} raw className="bg-gray-900">
+        <div className="absolute inset-0">
+          <Image
+            src="/nisei-kitchen-blvck-svm.jpg"
+            alt="Our Stories"
+            fill
+            className="object-cover opacity-60"
+          />
+        </div>
+        <div className="relative z-10 min-h-screen flex items-center justify-center py-20 px-6 md:px-16">
+          <div className="w-full max-w-4xl">
+            <h2 className="font-adonis text-4xl md:text-5xl text-white mb-10">
+              Our Stories
+            </h2>
+            <div className="space-y-5 font-georgia-pro text-lg md:text-xl text-white max-w-3xl">
+              <p>Knead&apos;s writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.</p>
+              <p>We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.</p>
+              <p>Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start &lsquo;kneading&rsquo; for themselves too.</p>
+            </div>
+          </div>
         </div>
       </Slide>
 
@@ -569,17 +544,17 @@ export default function Knead20PitchPage() {
               <motion.p variants={fadeIn}>
                 Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. It&apos;s capable of hosting a wide range of events, using tools like:
               </motion.p>
-              <motion.ul variants={fadeIn} className="space-y-3 pl-4">
-                <li className="flex items-start gap-2">
-                  <span className="text-black font-adonis mt-0.5">—</span>
+              <motion.ul variants={fadeIn} className="space-y-3 pl-2">
+                <li className="flex items-start gap-3">
+                  <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
                   <span><strong className="text-black font-adonis">Live Streaming</strong> includes a guest takeover for hosting and music mode for high-quality audio output. Perfect for interviews, DJ sets, and more.</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-black font-adonis mt-0.5">—</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
                   <span>Uploading movies, music videos, interviews, and other content to premiere in the chat.</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-black font-adonis mt-0.5">—</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
                   <span>Gating the chat exclusively for niche community events, like students or a nonprofit.</span>
                 </li>
               </motion.ul>
@@ -589,31 +564,26 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn} className="flex flex-col gap-6">
-            <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "280px" }}>
+          <motion.div variants={fadeIn} className="flex flex-col gap-3">
+            <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "300px" }}>
               <Image
-                src="/chatlayout.png"
-                alt="Events in the Knead chat"
+                src="/VideoScreenExample.png"
+                alt="Live streaming in the Knead chat"
                 fill
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-black/30 flex items-end p-4">
-                <p className="font-adonis text-white text-sm">Live event in the chat</p>
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <a
+                  href="/chat"
+                  className="bg-white text-black px-6 py-3 rounded font-adonis text-sm hover:bg-gray-100 transition-colors shadow-lg"
+                >
+                  Click to Demo
+                </a>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Recent events</p>
-              {[
-                "🎵 DJ Sprinkles takeover",
-                "📹 Interview premiere: Tremaine Emory",
-                "🎓 FIT student open hours",
-                "🏆 Contributor voting night",
-              ].map((ev, i) => (
-                <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0">
-                  <p className="font-georgia-pro text-sm text-gray-700">{ev}</p>
-                </div>
-              ))}
-            </div>
+            <p className="font-georgia-pro text-sm text-gray-500 text-center italic">
+              Want to see what it&apos;s like to be the star of the show?
+            </p>
           </motion.div>
         </div>
       </Slide>
@@ -638,7 +608,16 @@ export default function Knead20PitchPage() {
           <motion.div variants={fadeIn} className="flex flex-col">
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Knead Monthly Member View</p>
             <WalletSummaryDemo state="monthly" />
-            <MockComment />
+            <div className="mt-5 max-w-sm">
+              <div className="relative w-full rounded-xl overflow-hidden border border-gray-100 shadow-sm bg-white" style={{ height: "220px" }}>
+                <Image
+                  src="/Engagement Example.png"
+                  alt="Chat engagement example"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
           </motion.div>
         </div>
       </Slide>
@@ -662,9 +641,6 @@ export default function Knead20PitchPage() {
               </motion.p>
               <motion.p variants={fadeIn}>
                 Being a Contributor is a title you have to earn your way into IRL or in the chat — it&apos;s not something that can be bought into.
-              </motion.p>
-              <motion.p variants={fadeIn} className="font-adonis text-black text-base italic">
-                Think of what type of rolodex would exist if Rolling Stone, Vogue, or Highsnobiety had a private chat that&apos;s publicly known about. That could be one powerful network.
               </motion.p>
             </motion.div>
           </div>
@@ -913,36 +889,34 @@ export default function Knead20PitchPage() {
       </Slide>
 
       {/* ── Slide 11: Knead Print Magazine ──────────────────────────────────── */}
-      <Slide id={11} {...slideProps} className="bg-gray-50">
-        <div className="max-w-5xl">
-          <motion.p variants={fadeIn} className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 02</motion.p>
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
+      <Slide id={11} {...slideProps} raw className="bg-gray-50">
+        <div className="min-h-screen py-20 px-6 md:px-16">
+          <div className="max-w-5xl mx-auto">
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 02</p>
+            <div className="mb-10">
+              <h2 className="font-adonis text-4xl md:text-5xl text-black mb-8">
                 Knead Print Magazine
-              </motion.h2>
-              <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
-                <motion.p variants={fadeIn}>
+              </h2>
+              <div className="space-y-4 font-georgia-pro text-lg text-gray-700 max-w-2xl">
+                <p>
                   Knead&apos;s print issue will also be NFC-enabled as a membership option. TBD printing schedule, the magazine will be a heavy-matte, coffee table style publication with rich interviews of the world&apos;s leading creative minds.
-                </motion.p>
-                <motion.p variants={fadeIn}>
+                </p>
+                <p>
                   Each issue will feature an NFC chip enabling a semi-annual Knead membership upon tap — another access point to onboard into the chat.
-                </motion.p>
-                <motion.p variants={fadeIn} className="text-black">
+                </p>
+                <p className="text-black">
                   <strong>Estimated cost: $18,000 for 300+ copies</strong>
-                </motion.p>
-              </motion.div>
-            </div>
-            <motion.div variants={fadeIn} className="flex justify-center">
-              <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ height: "460px" }}>
-                <Image
-                  src="/print-magazine-mockup.png"
-                  alt="Knead Print Magazine"
-                  fill
-                  className="object-cover"
-                />
+                </p>
               </div>
-            </motion.div>
+            </div>
+            <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-white" style={{ height: "70vh" }}>
+              <Image
+                src="/print-magazine-mockup.png"
+                alt="Knead Print Magazine"
+                fill
+                className="object-contain"
+              />
+            </div>
           </div>
         </div>
       </Slide>
