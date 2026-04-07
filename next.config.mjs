@@ -17,18 +17,24 @@ const nextConfig = {
     '@mux/mux-player-react',
   ],
 
+  // ✅ ADD THIS (uses public Base RPC):
   env: {
     BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
   },
-
+  
+  // ✅ WEBPACK CONFIG FOR .mjs FILES
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-      config.plugins.push(new NodePolyfillPlugin({ excludeAliases: ['console'] }));
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        stream: false,
+        buffer: false,
+      };
     }
     return config;
   },
-
+  
   images: {
     remotePatterns: [
       {
@@ -42,6 +48,7 @@ const nextConfig = {
     ],
   },
 
+  // ✅ FIX THIRDWEB AUTHENTICATION POPUPS (COOP)
   async headers() {
     return [
       {
