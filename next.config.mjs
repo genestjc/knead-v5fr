@@ -21,16 +21,20 @@ const nextConfig = {
   env: {
     BASE_MAINNET_RPC_URL: process.env.NEXT_PUBLIC_BASE_RPC_URL,
   },
-
-  // ✅ WEBPACK CONFIG — node polyfills for Towns Protocol SDK (designed for Vite)
+  
+  // ✅ WEBPACK CONFIG FOR .mjs FILES
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-      config.plugins.push(new NodePolyfillPlugin({ excludeAliases: ['console'] }));
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        stream: false,
+        buffer: false,
+      };
     }
     return config;
   },
-
+  
   images: {
     remotePatterns: [
       {
