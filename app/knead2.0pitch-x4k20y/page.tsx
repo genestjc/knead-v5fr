@@ -635,8 +635,9 @@ export default function Knead20PitchPage() {
               "Stadium-status musicians are using Linktree as their main website.",
               "Best-selling authors are promoting the same blandly-designed Substack for their prose.",
               "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
-              "None of this was a part of our childhood dreams. It's time we take ownership and make the internet fun again.",
-              "That's why we're excited to show you what we've built…",
+              "None of this was a part of our childhood dreams.", 
+              "It's time we take ownership of making the internet fun again.",
+              "That's why we're excited to get started with…",
             ].map((line, i) => (
               <motion.p key={i} variants={fadeIn}>{line}</motion.p>
             ))}
