@@ -627,12 +627,9 @@ export default function Knead20PitchPage() {
       {/* ── Slide 1: The Internet + Problem (combined) ───────────────────────── */}
       <Slide id={1} {...slideProps} className="bg-gray-50">
         <div className="max-w-4xl">
-          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-6 leading-tight">
-            The internet is moving back in-house.
-          </motion.h1>
-          <motion.p variants={fadeIn} className="font-adonis text-2xl md:text-3xl text-black mb-10 italic">
+          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-10 leading-tight">
             We&apos;ve lost the art of being premium online.
-          </motion.p>
+          </motion.h1>
           <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
             {[
               "Stadium-status musicians are using Linktree as their main website.",
@@ -662,7 +659,7 @@ export default function Knead20PitchPage() {
             <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-12">
               Knead 2.0
             </h2>
-            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-10">
+            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-16">
               Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
             </p>
             <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto">
@@ -674,7 +671,7 @@ export default function Knead20PitchPage() {
 
       {/* ── Slide 3: The Journey ─────────────────────────────────────────────── */}
       <Slide id={3} {...slideProps} className="bg-white">
-        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-center">
           <div>
             <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
               The Journey
@@ -687,7 +684,7 @@ export default function Knead20PitchPage() {
                 {account ? <WalletSummary /> : <ThirdWebConnectButton />}
               </motion.div>
               <motion.p variants={fadeIn}>
-                To upgrade, we offer a <strong className="text-black">Knead Monthly</strong> membership at <strong className="text-black">$5/month</strong> — payable via credit card or Google/Apple Pay — which enables unlimited reads + the ability to earn USDC from Contributors in the chat.
+                To upgrade, we offer <strong className="text-black">Knead Monthly</strong> at <strong className="text-black">$5/month</strong>, which enables unlimited reads/views + the ability to earn USDC from Contributors in the chat.
               </motion.p>
               <motion.p variants={fadeIn}>
                 Both memberships are soulbound NFTs minted on Base, handling payment + subscription hooks via Stripe.
@@ -728,7 +725,7 @@ export default function Knead20PitchPage() {
 
       {/* ── Slide 5: The Chat ────────────────────────────────────────────────── */}
       <Slide id={5} {...slideProps} className="bg-white">
-        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
+        <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-center">
           <div>
             <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
               The Chat
@@ -757,7 +754,7 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn}>
+          <motion.div variants={fadeIn} className="pl-4 md:pl-8">
             <CameraDemoStage />
           </motion.div>
         </div>
@@ -766,7 +763,7 @@ export default function Knead20PitchPage() {
       {/* ── Slide 6: The Knead Monthly Member ───────────────────────────────── */}
       <Slide id={6} {...slideProps} className="bg-gray-50">
         <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
-          <div>
+          <div className="pt-8 md:pt-16">
             <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
               The Knead Monthly Member
             </motion.h2>
@@ -780,7 +777,7 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn} className="flex flex-col">
+          <motion.div variants={fadeIn} className="flex flex-col items-center pl-4 md:pl-8">
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Knead Monthly Member View</p>
             <WalletSummaryDemo state="monthly" />
             <div className="mt-5 max-w-sm">
@@ -800,7 +797,7 @@ export default function Knead20PitchPage() {
       {/* ── Slide 7: Contributors ────────────────────────────────────────────── */}
       <Slide id={7} {...slideProps} className="bg-white">
         <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-start">
-          <div>
+          <div className="pt-8 md:pt-16">
             <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
               Contributors
             </motion.h2>
@@ -820,7 +817,7 @@ export default function Knead20PitchPage() {
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn}>
+          <motion.div variants={fadeIn} className="flex flex-col items-center pl-4 md:pl-8">
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">Contributor View</p>
             <WalletSummaryDemo state="contributor" />
           </motion.div>
@@ -879,14 +876,14 @@ export default function Knead20PitchPage() {
                   "Brands that want to self-host their own media platforms for campaigns.",
                   "Independent writers, podcasts, and other media who want their own platform.",
                 ].map((item, i) => (
-                  <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-start gap-3">
+                  <div key={i} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start gap-3">
                     <span className="text-black font-adonis mt-0.5 flex-shrink-0">—</span>
-                    <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
+                    <p className="font-georgia-pro text-base text-gray-700">{item}</p>
                   </div>
                 ))}
               </div>
-              <p className="font-georgia-pro text-lg text-gray-700 mt-8 font-italic">
-                If every company is a media company, there&apos;s no end of prospective clients we can design solutions for.
+              <p className="font-georgia-pro text-lg text-black mt-8 font-semibold">
+                Every company is a media company, which means there&apos;s no end of prospective clients we can work with.
               </p>
             </div>
           </div>
@@ -905,116 +902,52 @@ export default function Knead20PitchPage() {
               What We Want To Raise
             </motion.h2>
 
-            <div className="max-w-3xl space-y-5 font-georgia-pro text-lg text-gray-700">
-              <p>Knead is seeking <strong className="text-black font-adonis">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.</p>
-              <p>Why dedicate so much of the budget to the Treasury?</p>
-              <ul className="list-disc pl-6 space-y-3">
-                <li>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</li>
-                <li>
-                  With a working framework in place, showing real-world value quickly creates strong word-of-mouth:
-                  <ul className="mt-2 ml-4 space-y-1 list-none">
-                    <li className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo;</li>
-                    <li className="italic text-black">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</li>
-                  </ul>
-                </li>
-                <li>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</li>
-                <li>Traditional giveaways have a conservative conversion rate of 18–25%. With Knead&apos;s chat, every member has the opportunity to earn right away.</li>
-                <li>At a rate of 18% conversion + resupplying the Treasury with 20% of Knead Monthly&apos;s $5/month revenue, our chat would be self-sustaining of its $1.04M pool at a goal of 25,000 paid members.</li>
-                <li>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="font-adonis text-3xl text-black mb-8">Prospective Annual Budget</h3>
-              <DonutChart />
-            </div>
-
-            <div>
-              <h3 className="font-adonis text-2xl text-black mb-6">Budget Breakdown</h3>
-
-              <div className="mb-8">
-                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Team Salaries (27% overhead applied)</h4>
-                <div className="space-y-1.5">
-                  {[
-                    ["EIC / Founder", "$130,000", "$165,100"],
-                    ["CTO", "$165,000", "$209,550"],
-                    ["COO / VP Production", "$165,000", "$209,550"],
-                    ["Creative Director", "$125,000", "$158,750"],
-                    ["Head of Community", "$102,000", "$129,540"],
-                    ["Senior Producer", "$93,000", "$118,110"],
-                    ["Full Stack Developer ×2", "$280,000", "$355,600"],
-                    ["Art Director", "$103,000", "$130,810"],
-                    ["Copy Editor", "$92,000", "$116,840"],
-                    ["Creatives ×2", "$166,000", "$210,820"],
-                    ["Events Coordinator", "$72,000", "$91,440"],
-                  ].map(([role, base, total], i) => (
-                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                      <span className="font-georgia-pro text-sm text-gray-700">{role}</span>
-                      <div className="flex gap-6 text-right">
-                        <span className="font-georgia-pro text-sm text-gray-500 w-24">{base}</span>
-                        <span className="font-adonis text-sm text-black w-24">{total}</span>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
-                    <span className="font-adonis text-sm text-black">Subtotal — 13 People</span>
-                    <div className="flex gap-6 text-right">
-                      <span className="font-georgia-pro text-sm text-gray-500 w-24">$1,493,000</span>
-                      <span className="font-adonis text-sm text-black w-24">$1,895,110</span>
-                    </div>
-                  </div>
+            <div className="grid md:grid-cols-2 gap-12 items-start">
+              <div className="space-y-5 font-georgia-pro text-lg text-gray-700">
+                <p className="text-center text-black text-xl">Knead is seeking <strong className="font-adonis text-2xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.</p>
+                <p className="text-center text-gray-600">Out of our total raise, we&apos;ll be dedicating $1.4 million to our Treasury.</p>
+                <p className="italic text-black">Why dedicate so much of the budget to the Treasury?</p>
+                <ul className="space-y-3 pl-2">
+                  <li className="flex items-start gap-3">
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                    <span>Provides a powerful marketing tool to onboard Contributors from our Highsnobiety/fashion/media/art communities — graduating from our immediate network to A-list celebrities.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                    <span>With a working framework in place, showing real-world value quickly creates strong word-of-mouth:</span>
+                  </li>
+                </ul>
+                <div className="pl-6 space-y-2">
+                  <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo; <span className="not-italic text-gray-500 text-sm">— Knead Monthly Member</span></p>
+                  <p className="italic text-black">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo; <span className="not-italic text-gray-500 text-sm">— Contributor</span></p>
                 </div>
-              </div>
-
-              <div className="mb-8">
-                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Operational Budget</h4>
-                <div className="space-y-1.5">
-                  {[
-                    ["Freelance — editorial + photography (~25 stories)", "$65,000"],
-                    ["Legal / accounting (Web3 counsel + CPA)", "$50,000"],
-                    ["Office / coworking — Richmond, VA (remote-first)", "$24,000"],
-                    ["Travel + activations (editorial + IRL events)", "$100,000"],
-                    ["Infrastructure — full stack at growth stage", "$25,000"],
-                    ["Equipment — laptops, software, office items", "$35,000"],
-                  ].map(([label, val], i) => (
-                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                      <span className="font-georgia-pro text-sm text-gray-700">{label}</span>
-                      <span className="font-adonis text-sm text-black">{val}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
-                    <span className="font-adonis text-sm text-black">Subtotal — Operations</span>
-                    <span className="font-adonis text-sm text-black">$299,000</span>
-                  </div>
+                <ul className="space-y-3 pl-2">
+                  <li className="flex items-start gap-3">
+                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                    <span>The chat&apos;s cashback mechanism encourages stable activity rather than the speculative behavior that&apos;s plagued DAOs — no dumping after airdrops.</span>
+                  </li>
+                </ul>
+                <div className="space-y-3 text-gray-700">
+                  <p>Traditional giveaways have a conservative conversion rate of 18–25%. With Knead&apos;s chat, every member has the opportunity to earn right away.</p>
+                  <p>At a rate of 18% conversion + resupplying the Treasury with 20% of Knead Monthly&apos;s $5/month revenue, our chat would be self-sustaining of its $1.04M pool at a goal of 25,000 paid members.</p>
+                  <p>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</p>
                 </div>
+                <p className="text-sm text-gray-500">
+                  Our current Treasury is verifiable on Basescan{" "}
+                  <a
+                    href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:text-black transition-colors"
+                  >
+                    here
+                  </a>.
+                </p>
               </div>
-
-              <div className="mb-8">
-                <h4 className="font-adonis text-lg text-black mb-3 border-b border-gray-200 pb-2">Knead Treasury — On-Chain Reward Pool</h4>
-                <div className="space-y-1.5">
-                  {[
-                    ["Contributor weekly allowance (200 × $100/wk × 52)", "$1,040,000"],
-                    ["20% cashback float + reserve + Member pool", "$360,000"],
-                  ].map(([label, val], i) => (
-                    <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                      <span className="font-georgia-pro text-sm text-gray-700">{label}</span>
-                      <span className="font-adonis text-sm text-black">{val}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center py-2 mt-1 border-t border-gray-300">
-                    <span className="font-adonis text-sm text-black">Total Treasury Ask</span>
-                    <span className="font-adonis text-sm text-black">$1,400,000</span>
-                  </div>
-                </div>
+              <div className="flex flex-col items-center">
+                <h3 className="font-adonis text-2xl text-black mb-6 self-start">Prospective Annual Budget</h3>
+                <DonutChart />
               </div>
-
-              <div className="flex justify-between items-center py-3 bg-black text-white rounded-lg px-4">
-                <span className="font-adonis text-base">Total Raise — Year 1</span>
-                <span className="font-adonis text-base">$3,702,110</span>
-              </div>
-              <p className="font-georgia-pro text-xs text-gray-400 mt-3 italic">
-                27% overhead applied to all salaries: FICA (7.65%), FUTA/SUTA (~1%), employer health (~12%), misc (~6%). Treasury funds flow on-chain via smart contract — Knead never holds them. Infrastructure reflects growth-stage usage across Vercel, Supabase, Mux, Sanity, Daily, Resend, ThirdWeb, and Alchemy.
-              </p>
             </div>
 
           </div>
@@ -1044,8 +977,7 @@ export default function Knead20PitchPage() {
                   With initial seeding to Contributors, those individuals will be able to tap and redeem Knead memberships to gift — driving word-of-mouth to their influential networks.
                 </motion.p>
                 <motion.p variants={fadeIn} className="text-black">
-                  IYK for NFC chips.<br />
-                  <strong>Estimated cost: $50–60k</strong>
+                  IYK for NFC chips.
                 </motion.p>
               </motion.div>
             </div>
@@ -1078,9 +1010,6 @@ export default function Knead20PitchPage() {
                 </motion.p>
                 <motion.p variants={fadeIn}>
                   Each issue will feature an NFC chip enabling a semi-annual Knead membership upon tap — another access point to onboard into the chat.
-                </motion.p>
-                <motion.p variants={fadeIn} className="text-black">
-                  <strong>Estimated cost: $18,000 for 300+ copies</strong>
                 </motion.p>
               </motion.div>
             </div>
@@ -1117,9 +1046,6 @@ export default function Knead20PitchPage() {
                   </p>
                   <p>
                     For one of our giveaways, we&apos;d like to fly five Contributors from the chat in for an all expenses paid experience — highlighting an exclusive event only for superfans/VIPs. Other Contributors will be able to nominate and vote on who should be treated to the experience.
-                  </p>
-                  <p className="text-black">
-                    <strong>Estimated cost: $40,000, including giveaway</strong>
                   </p>
                 </div>
               </div>
@@ -1230,12 +1156,14 @@ export default function Knead20PitchPage() {
             "Knead's foundation could be the bridge between bringing the majority — and late-majority — into Web3.",
             "It's not enough to explain to them what the future of media looks like. We have to start showing people.",
             "That conversation begins with ownership, showcasing that we no longer have to be reliant on apps and platforms. Instead, we can build things specifically for what our audiences want.",
-            "The future of the internet is going to be fun again — which is exactly what we want to lead the charge in showing.",
           ].map((para, i) => (
             <motion.p key={i} variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black leading-relaxed">
               {para}
             </motion.p>
           ))}
+          <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-black leading-relaxed font-semibold">
+            The future of the internet is moving in-house — which is exactly what we want to lead the charge in building.
+          </motion.p>
         </div>
       </Slide>
 
