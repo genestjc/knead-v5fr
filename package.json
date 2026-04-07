@@ -79,7 +79,7 @@
     "next": "14.2.15",
     "next-sanity": "^9.8.14",
     "next-themes": "^0.3.0",
-    "node-polyfill-webpack-plugin": "^2.0.1",
+    "node-polyfill-webpack-plugin": "^4.1.0",
     "openai": "^4.68.0",
     "pino-pretty": "^11.0.0",
     "react": "^18.3.1",
