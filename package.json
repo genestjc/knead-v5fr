@@ -106,6 +106,9 @@
     "wagmi": "^2.13.7",
     "zod": "^3.23.6"
   },
+  "overrides": {
+    "lru-cache": "^10.4.3"
+  },
   "devDependencies": {
     "@types/shopify-buy": "^2.10.11",
     "@types/styled-components": "^5.1.34",
