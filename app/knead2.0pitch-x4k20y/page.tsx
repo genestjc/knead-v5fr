@@ -654,18 +654,18 @@ export default function Knead20PitchPage() {
             className="object-cover opacity-20"
           />
         </div>
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-6 md:px-16">
-          <div className="text-center max-w-3xl">
-            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-12">
+        <div className="relative z-10 min-h-screen flex flex-col justify-between px-6 md:px-16 py-20">
+          <div className="text-center max-w-3xl mx-auto flex-1 flex flex-col items-center justify-center">
+            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-16">
               Knead 2.0
             </h2>
-            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto mb-16">
+            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto">
               Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
             </p>
-            <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto">
-              After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch. Here&apos;s how it works:
-            </p>
           </div>
+          <p className="font-georgia-pro text-base text-gray-600 max-w-2xl mx-auto text-center pb-4">
+            After attracting over 35,000 readers and 500+ paid subscribers on our last website, we decided to build a home for an even more impactful community from scratch. Here&apos;s how it works:
+          </p>
         </div>
       </Slide>
 
@@ -902,13 +902,10 @@ export default function Knead20PitchPage() {
               What We Want To Raise
             </motion.h2>
 
-            {/* Opening statement — full width, centered */}
-            <div className="text-center max-w-2xl mx-auto space-y-3">
-              <p className="font-georgia-pro text-xl text-black">
-                Knead is seeking <strong className="font-adonis text-2xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.
-              </p>
-              <p className="font-georgia-pro text-base text-gray-500">
-                Out of our total raise, we&apos;ll be dedicating $1.4 million to our Treasury.
+            {/* Opening statement — full width, large, room to breathe */}
+            <div className="text-center py-4">
+              <p className="font-georgia-pro text-2xl md:text-3xl text-black max-w-5xl mx-auto leading-relaxed">
+                Knead is seeking <strong className="font-adonis text-3xl md:text-4xl">$3.7 million</strong> through grants, partnerships, sponsorship, and customer acquisition — for one year of runway.
               </p>
             </div>
 
@@ -917,7 +914,10 @@ export default function Knead20PitchPage() {
 
               {/* Left: Treasury rationale */}
               <div className="space-y-6 font-georgia-pro text-base text-gray-700">
-                <p className="italic text-black text-lg">Why dedicate so much of the budget to the Treasury?</p>
+                <div>
+                  <p className="font-adonis text-xl text-black mb-1">Out of our total raise, we&apos;ll be dedicating $1.4 million to our Treasury.</p>
+                  <p className="italic text-gray-600 text-base">Why dedicate so much of the budget to the Treasury?</p>
+                </div>
 
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
@@ -937,9 +937,9 @@ export default function Knead20PitchPage() {
                 {/* Quotes */}
                 <div className="border-l-2 border-gray-200 pl-4 space-y-3">
                   <p className="italic text-black">&ldquo;I earned over $100 this month in the Knead chat. It paid for my phone bill.&rdquo;</p>
-                  <p className="text-sm text-gray-500 not-italic">— Knead Monthly Member</p>
+                  <p className="text-gray-500 not-italic">— Knead Monthly Member</p>
                   <p className="italic text-black pt-1">&ldquo;I make passive income in this group chat that&apos;s around $20/week.&rdquo;</p>
-                  <p className="text-sm text-gray-500 not-italic">— Contributor</p>
+                  <p className="text-gray-500 not-italic">— Contributor</p>
                 </div>
 
                 <div className="space-y-3">
@@ -948,7 +948,7 @@ export default function Knead20PitchPage() {
                   <p>The Treasury is protected by a multi-sig wallet, one of which is a cold storage physical wallet for signature.</p>
                 </div>
 
-                <p className="text-sm text-gray-400">
+                <p className="text-base text-gray-700">
                   Our current Treasury is verifiable on Basescan{" "}
                   <a
                     href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa"
@@ -961,8 +961,8 @@ export default function Knead20PitchPage() {
                 </p>
               </div>
 
-              {/* Right: Chart */}
-              <div>
+              {/* Right: Chart — pushed down to align with content below the titles */}
+              <div className="pt-16">
                 <h3 className="font-adonis text-xl text-black mb-6 text-center">Prospective Annual Budget</h3>
                 <DonutChart />
               </div>
