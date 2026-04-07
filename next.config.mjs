@@ -25,6 +25,12 @@ const nextConfig = {
     if (!isServer) {
       const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
       config.plugins.push(new NodePolyfillPlugin({ excludeAliases: ['console'] }));
+
+      // MetaMask SDK pulls in React Native storage — stub it for browser
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@react-native-async-storage/async-storage': false,
+      };
     }
     return config;
   },
