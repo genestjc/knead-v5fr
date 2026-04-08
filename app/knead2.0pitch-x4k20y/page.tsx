@@ -923,7 +923,7 @@ export default function Knead20PitchPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p>Provides a powerful marketing tool to onboard Contributors from our previous employer Highsnobiety, as well as communities across fashion,media, and art — graduating from our immediate network to notable celebrities.</p>
+                    <p>Provides a powerful marketing tool to onboard Contributors from beyond Knead's network, strategically inviting a thoughtful community across fashion, media, and art — graduating into a mix of thought leaders and celebrities.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
