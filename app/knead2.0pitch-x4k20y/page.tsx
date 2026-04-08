@@ -853,7 +853,7 @@ export default function Knead20PitchPage() {
                   },
                   {
                     title: "Sponsorship",
-                    body: "By enabling video upload and streaming, we've expanded our ability to accept ongoing or temporal sponsorship without compromising print editorial standards. We've created significant new pathways to deliver bespoke opportunities for sponsors to engage with our brand.",
+                    body: "By enabling video upload and streaming, we've expanded our ability to accept sponsorship opportunities without sacrificing editorial space. We've created significant new pathways to deliver bespoke opportunities for sponsors to engage with our brand.",
                   },
                 ].map((item, i) => (
                   <div key={i} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
