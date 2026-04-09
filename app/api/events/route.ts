@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
           eventPassOnly: event.event_pass_only || false,
           muxPlaybackId: event.mux_playback_id || null,
           muxAssetId: event.mux_asset_id || null,
+          coverImageUrl: event.cover_image_url || null,
           host: host
             ? {
                 id: host.id,
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
       musicMode = false,
       muxPlaybackId = null,
       muxAssetId = null,
+      coverImageUrl = null,
     } = body;
 
     console.log('📥 [POST /api/events] Creating event:', title, '| type:', eventType);
@@ -212,6 +214,7 @@ export async function POST(req: NextRequest) {
         music_mode: musicMode,
         mux_playback_id: muxPlaybackId,
         mux_asset_id: muxAssetId,
+        cover_image_url: coverImageUrl,
       })
       .select()
       .single();
