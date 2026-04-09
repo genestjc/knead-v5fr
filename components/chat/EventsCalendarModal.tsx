@@ -16,6 +16,7 @@ interface Event {
   eventType: string;
   videoEnabled: boolean;
   dailyRoomUrl?: string;
+  coverImageUrl?: string | null;
   host?: {
     displayName: string;
     alias: string | null;
@@ -160,61 +161,96 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="border border-gray-200 rounded-2xl p-5 hover:border-gray-300 transition-colors"
+                      className="border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 transition-colors"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-xl font-adonis text-gray-900 mb-1">
-                            {event.title}
-                          </h3>
-                          {getStatusBadge(event.status)}
+                      {/* Magazine title card */}
+                      {event.coverImageUrl ? (
+                        <div className="relative w-full h-48 sm:h-56">
+                          <img
+                            src={event.coverImageUrl}
+                            alt={event.title}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Dark gradient overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+                          {/* Title + meta overlaid */}
+                          <div className="absolute bottom-0 left-0 right-0 p-5">
+                            <div className="flex items-end justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-adonis text-2xl text-white leading-tight drop-shadow mb-1.5">
+                                  {event.title}
+                                </h3>
+                                <p className="font-georgia-pro text-sm text-white/80">
+                                  {format(new Date(event.scheduledStart), 'MMMM d, yyyy')}
+                                  {event.host && (
+                                    <> &mdash; {event.host.alias || event.host.displayName}</>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0">{getStatusBadge(event.status)}</div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
 
-                      {event.description && (
-                        <p className="font-georgia-pro text-gray-700 mb-4 leading-relaxed">
-                          {event.description}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap gap-4 text-sm font-georgia-pro text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          <span>
-                            {format(new Date(event.scheduledStart), 'MMM d, yyyy')} at{' '}
-                            {format(new Date(event.scheduledStart), 'h:mm a')}
-                          </span>
-                        </div>
-                        
-                        {event.videoEnabled && event.dailyRoomUrl && (
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
-                            <span>Video event</span>
+                      {/* Card body */}
+                      <div className="p-5">
+                        {!event.coverImageUrl && (
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-xl font-adonis text-gray-900 mb-1">
+                                {event.title}
+                              </h3>
+                              {getStatusBadge(event.status)}
+                            </div>
                           </div>
                         )}
 
-                        {event.host && (
+                        {event.description && (
+                          <p className="font-georgia-pro text-gray-700 mb-4 leading-relaxed">
+                            {event.description}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap gap-4 text-sm font-georgia-pro text-gray-600">
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-500">Hosted by</span>
-                            <span className="font-semibold">
-                              {event.host.alias || event.host.displayName}
+                            <Clock className="w-4 h-4" />
+                            <span>
+                              {format(new Date(event.scheduledStart), 'MMM d, yyyy')} at{' '}
+                              {format(new Date(event.scheduledStart), 'h:mm a')}
                             </span>
                           </div>
+
+                          {event.videoEnabled && event.dailyRoomUrl && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
+                              <span>Video event</span>
+                            </div>
+                          )}
+
+                          {!event.coverImageUrl && event.host && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">Hosted by</span>
+                              <span className="font-semibold">
+                                {event.host.alias || event.host.displayName}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {event.status === 'live' && event.dailyRoomUrl && (
+                          <div className="mt-4">
+                            <a
+                              href={event.dailyRoomUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors font-georgia-pro text-sm"
+                            >
+                              🔴 Join Live Event
+                            </a>
+                          </div>
                         )}
                       </div>
-
-                      {event.status === 'live' && event.dailyRoomUrl && (
-                        <div className="mt-4">
-                          <a
-                            href={event.dailyRoomUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors font-georgia-pro text-sm"
-                          >
-                            🔴 Join Live Event
-                          </a>
-                        </div>
-                      )}
                     </motion.div>
                   ))}
                 </div>
