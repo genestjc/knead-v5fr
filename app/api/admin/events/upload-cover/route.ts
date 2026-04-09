@@ -1,68 +1,293 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import type { ApiResponse } from '@/types/chat';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 
-export async function POST(req: NextRequest) {
-  try {
-    const formData = await req.formData();
-    const adminAddress = formData.get('adminAddress') as string;
-    const file = formData.get('file') as File;
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled';
+  eventType: string;
+  videoEnabled: boolean;
+  dailyRoomUrl?: string;
+  coverImageUrl?: string | null;
+  host?: {
+    displayName: string;
+    alias: string | null;
+  };
+  guestAddresses?: string[];
+}
 
-    if (!adminAddress || !file) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress or file' },
-        { status: 400 }
-      );
+interface EventsCalendarModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProps) {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchEvents();
+    }
+  }, [isOpen]);
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/events');
+      const data = await response.json();
+      
+      if (data.success) {
+        setEvents(data.data || []);
+      } else {
+        toast.error('Failed to load events');
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      toast.error('Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email) {
+      toast.error('Please enter your email address');
+      return;
     }
 
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false, autoRefreshToken: false } }
-    );
-
-    const ext = file.name.split('.').pop() || 'jpg';
-    const filename = `event-covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const arrayBuffer = await file.arrayBuffer();
-
-    const { error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(filename, arrayBuffer, {
-        contentType: file.type || 'image/jpeg',
-        upsert: false,
+    setIsSubscribing(true);
+    try {
+      const response = await fetch('/api/mailing/subscribe-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
 
-    if (uploadError) {
-      console.error('[upload-cover] Storage upload error:', uploadError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: uploadError.message },
-        { status: 500 }
-      );
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Successfully subscribed to event updates!');
+        setEmail('');
+      } else {
+        toast.error(data.error || 'Failed to subscribe');
+      }
+    } catch (error) {
+      console.error('Subscribe error:', error);
+      toast.error('Failed to subscribe. Please try again.');
+    } finally {
+      setIsSubscribing(false);
     }
+  };
 
-    const { data: publicUrlData } = supabase.storage
-      .from('media')
-      .getPublicUrl(filename);
-
-    return NextResponse.json<ApiResponse<{ url: string }>>({
-      success: true,
-      data: { url: publicUrlData.publicUrl },
-    });
-  } catch (error) {
-    console.error('[upload-cover] Exception:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
+  const getStatusBadge = (status: string) => {
+    const colors = {
+      scheduled: 'bg-blue-100 text-blue-800',
+      live: 'bg-green-100 text-green-800',
+      completed: 'bg-gray-100 text-gray-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
     );
-  }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <CalendarIcon className="w-6 h-6 text-gray-700" />
+                <h2 className="text-2xl font-adonis">Events Calendar</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                </div>
+              ) : events.length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="font-georgia-pro text-gray-500">No events scheduled at the moment</p>
+                  <p className="font-georgia-pro text-sm text-gray-400 mt-2">Check back soon.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {events.map((event) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 transition-colors"
+                    >
+                      {/* Magazine title card */}
+                      {event.coverImageUrl ? (
+                        <div className="relative w-full h-48 sm:h-56">
+                          <img
+                            src={event.coverImageUrl}
+                            alt={event.title}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Dark gradient overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+                          {/* Title + meta overlaid */}
+                          <div className="absolute bottom-0 left-0 right-0 p-5">
+                            <div className="flex items-end justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-adonis text-2xl text-white leading-tight drop-shadow mb-1.5">
+                                  {event.title}
+                                </h3>
+                                <p className="font-georgia-pro text-sm text-white/80">
+                                  {format(new Date(event.scheduledStart), 'MMMM d, yyyy')}
+                                  {event.host && (
+                                    <> &mdash; {event.host.alias || event.host.displayName}</>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0">{getStatusBadge(event.status)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Card body */}
+                      <div className="p-5">
+                        {!event.coverImageUrl && (
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-xl font-adonis text-gray-900 mb-1">
+                                {event.title}
+                              </h3>
+                              {getStatusBadge(event.status)}
+                            </div>
+                          </div>
+                        )}
+
+                        {event.description && (
+                          <p className="font-georgia-pro text-gray-700 mb-4 leading-relaxed">
+                            {event.description}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap gap-4 text-sm font-georgia-pro text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            <span>
+                              {format(new Date(event.scheduledStart), 'MMM d, yyyy')} at{' '}
+                              {format(new Date(event.scheduledStart), 'h:mm a')}
+                            </span>
+                          </div>
+
+                          {event.videoEnabled && event.dailyRoomUrl && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
+                              <span>Video event</span>
+                            </div>
+                          )}
+
+                          {!event.coverImageUrl && event.host && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">Hosted by</span>
+                              <span className="font-semibold">
+                                {event.host.alias || event.host.displayName}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {event.status === 'live' && event.dailyRoomUrl && (
+                          <div className="mt-4">
+                            <a
+                              href={event.dailyRoomUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors font-georgia-pro text-sm"
+                            >
+                              🔴 Join Live Event
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              {/* Subscribe Section */}
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <div className="text-center mb-4">
+                  <p className="font-georgia-pro text-gray-700">
+                    Want to stay current on all of our events? Subscribe below:
+                  </p>
+                </div>
+                
+                <form onSubmit={handleSubscribe} className="max-w-md mx-auto">
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black font-georgia-pro text-sm"
+                      disabled={isSubscribing}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubscribing}
+                      className="px-6 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubscribing ? 'Subscribing...' : 'Subscribe'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
