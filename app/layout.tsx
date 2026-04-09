@@ -35,6 +35,7 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="https://use.typekit.net/gne1bgd.css" />
         <link rel="icon" href="/faviconk.jpg" type="image/jpeg" />
+        <meta name="base:app_id" content="69d7d561ec96f8d98e3ef36b" />
       </head>
       <body className={inter.className}>
         <Providers>
