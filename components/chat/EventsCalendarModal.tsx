@@ -187,7 +187,6 @@ export function EventsCalendarModal({ isOpen, onClose }: EventsCalendarModalProp
                                   )}
                                 </p>
                               </div>
-                              <div className="flex-shrink-0">{getStatusBadge(event.status)}</div>
                             </div>
                           </div>
                         </div>
