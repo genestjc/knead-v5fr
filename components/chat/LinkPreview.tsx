@@ -82,6 +82,33 @@ export function LinkPreview({ url, isOwn = false }: LinkPreviewProps) {
     domain = new URL(url).hostname.replace('www.', '');
   } catch {}
 
+  const ytId = extractYouTubeId(url);
+
+  if (ytId) {
+    return (
+      <div
+        className={`mt-2 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-[360px] ${isOwn ? 'self-end' : 'self-start'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-full aspect-video">
+          <iframe
+            src={`https://www.youtube.com/embed/${ytId}?rel=0`}
+            title={data.title ?? 'YouTube video'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full"
+          />
+        </div>
+        {data.title && (
+          <div className="px-3 py-2 bg-white">
+            <p className="font-georgia-pro text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">YouTube</p>
+            <p className="font-adonis text-sm text-gray-900 leading-snug line-clamp-1">{data.title}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <a
       href={url}
@@ -98,7 +125,6 @@ export function LinkPreview({ url, isOwn = false }: LinkPreviewProps) {
             className="w-full h-full object-cover"
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              // fallback: hqdefault → sddefault → hide
               if (img.src.includes('maxresdefault')) {
                 img.src = img.src.replace('maxresdefault', 'hqdefault');
               } else if (img.src.includes('hqdefault')) {
