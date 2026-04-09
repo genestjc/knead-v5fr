@@ -64,6 +64,83 @@ function CopyAllButton({ addresses }: { addresses: string[] }) {
   );
 }
 
+function CoverImageUploadPanel({
+  adminAddress,
+  onComplete,
+}: {
+  adminAddress: string;
+  onComplete: (url: string) => void;
+}) {
+  const [state, setState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setState('uploading');
+    setError(null);
+
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+
+    try {
+      const form = new FormData();
+      form.append('adminAddress', adminAddress);
+      form.append('file', file);
+
+      const res = await fetch('/api/admin/events/upload-cover', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      setState('done');
+      onComplete(data.data.url);
+    } catch (err: any) {
+      setError(err.message || 'Upload failed');
+      setState('error');
+      URL.revokeObjectURL(localPreview);
+      setPreviewUrl(null);
+    }
+  };
+
+  return (
+    <div className="mt-1">
+      {state === 'done' && previewUrl ? (
+        <div className="relative">
+          <img src={previewUrl} alt="Cover preview" className="w-full h-40 object-cover rounded-lg border border-gray-200" />
+          <button
+            type="button"
+            onClick={() => { setState('idle'); setPreviewUrl(null); onComplete(''); }}
+            className="absolute top-2 right-2 px-2 py-0.5 bg-white/90 text-gray-700 rounded text-xs font-georgia-pro border border-gray-300 hover:bg-white"
+          >
+            Remove
+          </button>
+        </div>
+      ) : state === 'uploading' ? (
+        <div className="flex items-center gap-3 h-40 justify-center bg-gray-50 rounded-lg border border-gray-200">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600 flex-shrink-0" />
+          <p className="font-georgia-pro text-sm text-gray-600">Uploading image...</p>
+        </div>
+      ) : (
+        <div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFile}
+            className="w-full text-sm file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-georgia-pro file:bg-gray-800 file:text-white file:cursor-pointer hover:file:bg-black"
+          />
+          <p className="mt-1 font-georgia-pro text-xs text-gray-500">JPG, PNG, WebP — used as the event title card background.</p>
+          {state === 'error' && error && (
+            <p className="mt-1 font-georgia-pro text-xs text-red-700 bg-red-50 px-2 py-1 rounded">❌ {error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VideoUploadPanel({
   onComplete,
   onClose,
@@ -345,6 +422,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
     musicMode: false,
     muxPlaybackId: '',
     muxAssetId: '',
+    coverImageUrl: '',
   });
 
   useEffect(() => {
@@ -432,6 +510,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         musicMode: formData.musicMode,
         muxPlaybackId: formData.muxPlaybackId || null,
         muxAssetId: formData.muxAssetId || null,
+        coverImageUrl: formData.coverImageUrl || null,
       };
 
       const response = await fetch('/api/events', {
@@ -469,6 +548,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       musicMode: false,
       muxPlaybackId: '',
       muxAssetId: '',
+      coverImageUrl: '',
     });
     setGuestAddressesInput('');
   };
@@ -770,6 +850,30 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
                   placeholder="Optional details about the event..."
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <label className="block font-georgia-pro text-sm mb-2">
+                  Cover Image (Optional)
+                  <span className="text-xs text-gray-500 ml-2">— shown as title card background</span>
+                </label>
+                {formData.coverImageUrl ? (
+                  <div className="relative">
+                    <img src={formData.coverImageUrl} alt="Cover" className="w-full h-40 object-cover rounded-lg border border-gray-200" />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, coverImageUrl: '' })}
+                      className="absolute top-2 right-2 px-2 py-0.5 bg-white/90 text-gray-700 rounded text-xs font-georgia-pro border border-gray-300 hover:bg-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <CoverImageUploadPanel
+                    adminAddress={adminAddress}
+                    onComplete={(url) => setFormData({ ...formData, coverImageUrl: url })}
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
