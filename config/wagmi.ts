@@ -1,8 +1,8 @@
 import { createConfig, http } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { metaMask, walletConnect, coinbaseWallet } from 'wagmi/connectors';
+import { farcasterFrame } from '@farcaster/frame-wagmi-connector';
 
-// Validate WalletConnect project ID
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 if (!walletConnectProjectId) {
   console.warn('⚠️ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. WalletConnect will not work.');
@@ -11,6 +11,7 @@ if (!walletConnectProjectId) {
 export const wagmiConfig = createConfig({
   chains: [base],
   connectors: [
+    farcasterFrame(), // Auto-connects wallet when running inside Base App frame
     metaMask(),
     ...(walletConnectProjectId
       ? [
@@ -28,9 +29,6 @@ export const wagmiConfig = createConfig({
       : []),
     coinbaseWallet({
       appName: 'Knead Magazine',
-      // 'all' allows both Smart Wallet (Base App) and EOA (browser) users.
-      // Paymaster/gas sponsorship for Smart Wallet is configured separately
-      // via Coinbase Developer Platform, not through this connector.
       preference: { options: 'all' },
     }),
   ],
