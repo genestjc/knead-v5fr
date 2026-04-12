@@ -391,7 +391,7 @@ function TownsChatJoinFlow({
               const balance = await erc721BalanceOf({ contract: spaceContract, owner: address });
               alreadyMintedOnChain = balance > 0n;
               if (alreadyMintedOnChain) {
-                console.log('✅ Space membership NFT found on-chain — skipping mint, syncing stream only');
+                console.log('✅ Space membership NFT found on-chain');
               }
             } catch (e) {
               console.warn('⚠️ Could not verify on-chain space membership:', e);
@@ -399,9 +399,30 @@ function TownsChatJoinFlow({
           }
         }
 
+        // If the user already has the NFT, give useUserSpaces a few extra seconds
+        // to finish syncing — in Base App the river sync lags behind isLoaded.
+        // If spaceIds updates during this wait, the effect re-runs and catches
+        // isAlreadyInSpace = true, skipping joinSpace entirely.
+        if (alreadyMintedOnChain && !isRetry) {
+          console.log('⏳ NFT confirmed, waiting 4s for river sync before joining...');
+          joinAttemptedRef.current = false; // allow re-check after wait
+          await new Promise((r) => setTimeout(r, 4000));
+          // If spaceIds has now updated, the effect will re-run and short-circuit above.
+          // If not, re-set the flag and fall through to joinSpace.
+          joinAttemptedRef.current = true;
+        }
+
         console.log(alreadyMintedOnChain ? '🔄 Re-syncing membership (skipping mint)...' : '🔄 Minting membership NFT...');
 
-        await joinSpace(SAVED_SPACE_ID, signerRef.current, alreadyMintedOnChain ? { skipMintMembership: true } : undefined);
+        // Shorter timeout for skipMintMembership (should be near-instant if already registered).
+        // Longer timeout for new users minting for the first time.
+        const JOIN_TIMEOUT_MS = alreadyMintedOnChain ? 12000 : 30000;
+        await Promise.race([
+          joinSpace(SAVED_SPACE_ID, signerRef.current, alreadyMintedOnChain ? { skipMintMembership: true } : undefined),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('joinSpace timeout')), JOIN_TIMEOUT_MS)
+          ),
+        ]);
 
         console.log('✅ Mint succeeded!');
 
