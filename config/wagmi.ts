@@ -28,6 +28,10 @@ export const wagmiConfig = createConfig({
       : []),
     coinbaseWallet({
       appName: 'Knead Magazine',
+      // 'all' allows both Smart Wallet (Base App) and EOA (browser) users.
+      // Paymaster/gas sponsorship for Smart Wallet is configured separately
+      // via Coinbase Developer Platform, not through this connector.
+      preference: { options: 'all' },
     }),
   ],
   transports: {
