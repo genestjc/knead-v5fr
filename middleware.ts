@@ -48,19 +48,27 @@ export function middleware(request: NextRequest) {
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'none';
-    frame-src 'self' 
-      https://embedded-wallet.thirdweb.com 
-      https://vercel.live 
-      https://js.stripe.com 
+    frame-ancestors 'self' https://www.coinbase.com https://*.coinbase.com;
+    frame-src 'self'
+      https://embedded-wallet.thirdweb.com
+      https://vercel.live
+      https://js.stripe.com
       https://checkout.stripe.com
       https://www.youtube.com
       https://www.youtube-nocookie.com
-      https://*.daily.co;
+      https://*.daily.co
+      https://wallet.coinbase.com
+      https://keys.coinbase.com
+      https://*.coinbase.com;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
       https://cca-lite.coinbase.com
+      https://wallet.coinbase.com
+      wss://wallet.coinbase.com
+      https://keys.coinbase.com
+      https://api.coinbase.com
+      https://*.coinbase.com
       https://relay.walletconnect.org
       https://rpc.walletconnect.com
       https://*.walletconnect.com
@@ -83,6 +91,8 @@ export function middleware(request: NextRequest) {
       wss://*.river.build
       wss://*.figment.io
       wss://*.towns.com
+      wss://*.towns-u4.com
+      wss://*.river.lgns.net
       https://devnet.rpc.river.build
       https://api.stripe.com
       https://checkout.stripe.com
