@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getContract } from 'thirdweb';
 import { balanceOf as erc721BalanceOf } from 'thirdweb/extensions/erc721';
 import { base } from 'thirdweb/chains';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
@@ -329,6 +330,8 @@ function TownsChatJoinFlow({
 }) {
   const { joinSpace } = useJoinSpace();
   const { spaceIds, isLoaded } = useUserSpaces();
+  const { context: miniKitContext } = useMiniKit();
+  const isBaseApp = !!miniKitContext;
   const joinAttemptedRef = useRef(false);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 5;
@@ -399,16 +402,14 @@ function TownsChatJoinFlow({
           }
         }
 
-        // If the user already has the NFT, give useUserSpaces a few extra seconds
-        // to finish syncing — in Base App the river sync lags behind isLoaded.
-        // If spaceIds updates during this wait, the effect re-runs and catches
-        // isAlreadyInSpace = true, skipping joinSpace entirely.
-        if (alreadyMintedOnChain && !isRetry) {
-          console.log('⏳ NFT confirmed, waiting 4s for river sync before joining...');
-          joinAttemptedRef.current = false; // allow re-check after wait
+        // Base App only: give useUserSpaces extra time to sync before calling joinSpace.
+        // In the Base App webview, river sync lags behind isLoaded — if spaceIds updates
+        // during this wait the effect re-runs, catches isAlreadyInSpace = true, and skips
+        // joinSpace entirely. No delay added for desktop users.
+        if (isBaseApp && alreadyMintedOnChain && !isRetry) {
+          console.log('⏳ Base App: NFT confirmed, waiting 4s for river sync...');
+          joinAttemptedRef.current = false;
           await new Promise((r) => setTimeout(r, 4000));
-          // If spaceIds has now updated, the effect will re-run and short-circuit above.
-          // If not, re-set the flag and fall through to joinSpace.
           joinAttemptedRef.current = true;
         }
 
