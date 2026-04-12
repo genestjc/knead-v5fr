@@ -403,10 +403,13 @@ function TownsChatJoinFlow({
         // their space yet, don't call joinSpace immediately — release the lock and wait.
         // spaceIds is in the effect's dep array, so when useUserSpaces syncs the effect
         // re-runs, catches isAlreadyInSpace = true, and enters chat without joinSpace at all.
-        // Only fall through to joinSpace on retries, when we've already waited long enough.
+        // If useUserSpaces never syncs, the 10s fallback fires retryTrigger which sets
+        // isRetry = true and falls through to joinSpace with skipMintMembership.
         if (alreadyMintedOnChain && !isRetry) {
           console.log('⏳ NFT confirmed but river not synced yet — waiting for useUserSpaces...');
           joinAttemptedRef.current = false;
+          retryCountRef.current++; // ensures isRetry = true on next run, falling through to joinSpace
+          setTimeout(() => setRetryTrigger((n) => n + 1), 10000);
           return;
         }
 
