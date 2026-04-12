@@ -7,7 +7,9 @@ import { WalletProvider } from "@/components/wallet-provider";
 import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as SonnerToaster } from 'sonner'; // ✅ Add Sonner for toast notifications
+import { Toaster as SonnerToaster } from 'sonner';
+import { MiniKitProvider } from '@coinbase/onchainkit/minikit';
+import { base } from 'wagmi/chains';
 import dynamic from 'next/dynamic';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ErrorBoundary>
+      <MiniKitProvider apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
           <ThirdwebProvider>
@@ -67,6 +70,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </ThirdwebProvider>
         </WagmiProvider>
       </QueryClientProvider>
+      </MiniKitProvider>
     </ErrorBoundary>
   );
 }
