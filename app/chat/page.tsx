@@ -3,6 +3,8 @@
 export const dynamic = 'force-dynamic';
 
 import nextDynamic from 'next/dynamic';
+import { useEffect } from 'react';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 
 const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -13,12 +15,19 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// Dynamically import ALL Towns logic with ssr: false
 const ChatClient = nextDynamic(() => import('./chat-client'), {
   ssr: false,
   loading: () => <LoadingSpinner />,
 });
 
 export default function ChatPage() {
+  const { setFrameReady, isFrameReady } = useMiniKit();
+
+  useEffect(() => {
+    if (!isFrameReady) {
+      setFrameReady();
+    }
+  }, [setFrameReady, isFrameReady]);
+
   return <ChatClient />;
 }
