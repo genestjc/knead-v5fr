@@ -7,6 +7,9 @@ import { useActiveWallet } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
 import { privateKeyToAccount } from 'thirdweb/wallets';
+import { getContract } from 'thirdweb';
+import { balanceOf as erc721BalanceOf } from 'thirdweb/extensions/erc721';
+import { base } from 'thirdweb/chains';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
@@ -373,12 +376,32 @@ function TownsChatJoinFlow({
           await new Promise((r) => setTimeout(r, 300));
         }
 
-        // On retries (retryCountRef > 0) the mint already succeeded on-chain —
-        // pass skipMintMembership so the SDK only waits for stream sync, not re-mint.
+        // Check on-chain if user already holds the space membership NFT.
+        // useUserSpaces() can return empty in Base App if river sync hasn't completed yet,
+        // causing a re-mint attempt that fails with "not enough funds".
         const isRetry = retryCountRef.current > 0;
-        console.log(isRetry ? '🔄 Re-syncing membership (skipping mint)...' : '🔄 Minting membership NFT...');
+        let alreadyMintedOnChain = isRetry; // retries always skip re-mint
 
-        await joinSpace(SAVED_SPACE_ID, signerRef.current, isRetry ? { skipMintMembership: true } : undefined);
+        if (!alreadyMintedOnChain) {
+          const address = wallet?.getAccount()?.address;
+          const spaceContractAddress = process.env.NEXT_PUBLIC_KNEAD_SPACE_CONTRACT_ADDRESS;
+          if (address && spaceContractAddress) {
+            try {
+              const spaceContract = getContract({ client, chain: base, address: spaceContractAddress });
+              const balance = await erc721BalanceOf({ contract: spaceContract, owner: address });
+              alreadyMintedOnChain = balance > 0n;
+              if (alreadyMintedOnChain) {
+                console.log('✅ Space membership NFT found on-chain — skipping mint, syncing stream only');
+              }
+            } catch (e) {
+              console.warn('⚠️ Could not verify on-chain space membership:', e);
+            }
+          }
+        }
+
+        console.log(alreadyMintedOnChain ? '🔄 Re-syncing membership (skipping mint)...' : '🔄 Minting membership NFT...');
+
+        await joinSpace(SAVED_SPACE_ID, signerRef.current, alreadyMintedOnChain ? { skipMintMembership: true } : undefined);
 
         console.log('✅ Mint succeeded!');
 
