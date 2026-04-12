@@ -20,6 +20,7 @@ const nextConfig = {
     '@towns-protocol/web3',
     '@towns-protocol/generated',
     '@mux/mux-player-react',
+    '@coinbase/onchainkit',
   ],
 
   env: {
@@ -31,7 +32,6 @@ const nextConfig = {
     // Without this, webpack cascades the async module up through the Towns SDK,
     // making TownsSyncProvider arrive as a promise instead of a component → React #306 crash.
     config.experiments = { ...config.experiments, topLevelAwait: true };
-
     // Route React Native async-storage to a localStorage stub on both server and client.
     // MetaMask SDK pulls this in via @wagmi/connectors — it actively calls getItem/setItem
     // so aliasing to false (empty module) crashes the app at runtime.
