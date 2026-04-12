@@ -10,7 +10,6 @@ import { privateKeyToAccount } from 'thirdweb/wallets';
 import { getContract } from 'thirdweb';
 import { balanceOf as erc721BalanceOf } from 'thirdweb/extensions/erc721';
 import { base } from 'thirdweb/chains';
-import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import type { ChatUser } from '@/types/chat';
 import { ThirdWebConnectButton } from '@/components/thirdweb-connect-button';
 import { TOWNS_CONFIG } from '@/lib/towns-config';
@@ -330,8 +329,6 @@ function TownsChatJoinFlow({
 }) {
   const { joinSpace } = useJoinSpace();
   const { spaceIds, isLoaded } = useUserSpaces();
-  const { context: miniKitContext } = useMiniKit();
-  const isBaseApp = !!miniKitContext;
   const joinAttemptedRef = useRef(false);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 5;
@@ -402,14 +399,18 @@ function TownsChatJoinFlow({
           }
         }
 
-        // Base App only: give useUserSpaces extra time to sync before calling joinSpace.
-        // In the Base App webview, river sync lags behind isLoaded — if spaceIds updates
-        // during this wait the effect re-runs, catches isAlreadyInSpace = true, and skips
-        // joinSpace entirely. No delay added for desktop users.
-        if (isBaseApp && alreadyMintedOnChain && !isRetry) {
-          console.log('⏳ Base App: NFT confirmed, waiting 4s for river sync...');
+        // In mobile webviews (Base App, in-app browsers), river node WebSocket connections
+        // are throttled — useUserSpaces lags behind isLoaded. Give it time to sync so we
+        // can skip joinSpace entirely if the user is already in the space.
+        // Desktop browsers sync near-instantly so no wait is needed there.
+        const isMobileWebview = typeof navigator !== 'undefined' &&
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+          /CoinbaseWallet|CoinbaseBrowser|GSA|Instagram|FBAN|FBAV|Line|Twitter|Snapchat|wv/i.test(navigator.userAgent);
+
+        if (isMobileWebview && alreadyMintedOnChain && !isRetry) {
+          console.log('⏳ Mobile webview: NFT confirmed, waiting 8s for river sync...');
           joinAttemptedRef.current = false;
-          await new Promise((r) => setTimeout(r, 4000));
+          await new Promise((r) => setTimeout(r, 8000));
           joinAttemptedRef.current = true;
         }
 
