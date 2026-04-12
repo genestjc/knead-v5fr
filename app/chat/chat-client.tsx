@@ -399,19 +399,15 @@ function TownsChatJoinFlow({
           }
         }
 
-        // In mobile webviews (Base App, in-app browsers), river node WebSocket connections
-        // are throttled — useUserSpaces lags behind isLoaded. Give it time to sync so we
-        // can skip joinSpace entirely if the user is already in the space.
-        // Desktop browsers sync near-instantly so no wait is needed there.
-        const isMobileWebview = typeof navigator !== 'undefined' &&
-          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) &&
-          /CoinbaseWallet|CoinbaseBrowser|GSA|Instagram|FBAN|FBAV|Line|Twitter|Snapchat|wv/i.test(navigator.userAgent);
-
-        if (isMobileWebview && alreadyMintedOnChain && !isRetry) {
-          console.log('⏳ Mobile webview: NFT confirmed, waiting 8s for river sync...');
+        // If the user already has the NFT on-chain but useUserSpaces hasn't returned
+        // their space yet, don't call joinSpace immediately — release the lock and wait.
+        // spaceIds is in the effect's dep array, so when useUserSpaces syncs the effect
+        // re-runs, catches isAlreadyInSpace = true, and enters chat without joinSpace at all.
+        // Only fall through to joinSpace on retries, when we've already waited long enough.
+        if (alreadyMintedOnChain && !isRetry) {
+          console.log('⏳ NFT confirmed but river not synced yet — waiting for useUserSpaces...');
           joinAttemptedRef.current = false;
-          await new Promise((r) => setTimeout(r, 8000));
-          joinAttemptedRef.current = true;
+          return;
         }
 
         console.log(alreadyMintedOnChain ? '🔄 Re-syncing membership (skipping mint)...' : '🔄 Minting membership NFT...');
