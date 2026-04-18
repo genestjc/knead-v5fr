@@ -39,6 +39,9 @@ export function Menu({ isOpen, onClose }: MenuProps) {
         <Link href="/join" className="menu-link font-adonis" onClick={onClose}>
           Join
         </Link>
+        <Link href="/chat" className="menu-link font-adonis" onClick={onClose}>
+          Chat
+        </Link>
         <Link href="/archive" className="menu-link font-adonis" onClick={onClose}>
           The Archive
         </Link>
