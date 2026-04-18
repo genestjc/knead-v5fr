@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="border-t border-gray-100 py-16 mt-12">
       <div className="container-magazine">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-12">
           <div className="text-center md:text-left">
             <h3 className="font-adonis text-xl text-gray-400 hover:text-black transition-colors">
               <Link href="/about">About</Link>
@@ -16,6 +16,12 @@ export function Footer() {
           <div className="text-center md:text-left">
             <h3 className="font-adonis text-xl text-gray-400 hover:text-black transition-colors">
               <Link href="/join">Join</Link>
+            </h3>
+          </div>
+
+          <div className="text-center md:text-left">
+            <h3 className="font-adonis text-xl text-gray-400 hover:text-black transition-colors">
+              <Link href="/chat">Chat</Link>
             </h3>
           </div>
 
