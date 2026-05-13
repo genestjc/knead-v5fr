@@ -578,77 +578,11 @@ export default function MediaExplainerPage() {
         </div>
       </Slide>
 
-      {/* ── Slide 8: How Does This Help Others ──────────────────────────────── */}
-      <Slide id={8} {...slideProps} raw className="bg-gray-50">
-        <div className="min-h-screen py-20 px-6 md:px-16">
-          <div className="max-w-5xl mx-auto space-y-16">
-            <motion.h2
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
-              className="font-adonis text-4xl md:text-5xl text-black"
-            >
-              How does this framework help other businesses?
-            </motion.h2>
-
-            <div>
-              <h3 className="font-adonis text-2xl md:text-3xl text-black mb-6">Knead As A Publisher &amp; Community</h3>
-              <p className="font-georgia-pro text-lg text-gray-700 mb-8">
-                Our framework enables us to create curated digital events with real-world value for our partners. Some examples:
-              </p>
-              <div className="space-y-6">
-                {[
-                  {
-                    title: "Recruiting",
-                    body: "A well-known fashion designer based out of Milan is looking for new hires and wants to get in front of American students from FIT and Parsons. Knead sets up a time for those students to join a livestream, the designer can chat with them in real-time, and the top commenters earn USDC.",
-                  },
-                  {
-                    title: "Product Seeding & Feedback",
-                    body: "With a strong rolodex of Contributors, Knead enables companies to gain early feedback and interest on products. This can include direct metrics on who redeemed what items and when, plus live feedback from our community.",
-                  },
-                  {
-                    title: "Sponsorship",
-                    body: "By enabling video upload and streaming, we've expanded our ability to accept sponsorship opportunities without sacrificing editorial space. We've created significant new partnership opportunities for brands.",
-                  },
-                ].map((item, i) => (
-                  <div key={i} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                    <h4 className="font-adonis text-lg text-black mb-2">{item.title}</h4>
-                    <p className="font-georgia-pro text-base text-gray-700">{item.body}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-adonis text-2xl md:text-3xl text-black mb-6">Knead As A Solution</h3>
-              <p className="font-georgia-pro text-lg text-gray-700 mb-6">
-                We believe everything we offer with Knead can be used by other creators and brands alike. By offering bespoke solutions as a development agency, we can apply our framework to an array of use cases.
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  "A musician who wants to set up a temporary space for an album release stream, enabling the artist to tip the best comments.",
-                  "A consulting group that wants a password-protected encrypted chat to securely stream and chat with clients.",
-                  "Agencies that represent independent content creators.",
-                  "Brands that want to self-host their own media platforms for campaigns.",
-                  "Independent writers, podcasts, and other media who want their own platform.",
-                ].map((item, i) => (
-                  <div key={i} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start gap-3">
-                    <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p className="font-georgia-pro text-base text-gray-700">{item}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="font-georgia-pro text-lg text-black mt-8 font-semibold text-center">
-                Every company is a media company, which means there&apos;s no end of prospective clients we can work with.
-              </p>
-            </div>
-          </div>
-        </div>
-      </Slide>
-
-      {/* ── Slide 9: Closing ──────────────────────────────────────────────── */}
+      {/* ── Slide : Closing ──────────────────────────────────────────────── */}
       <Slide id={9} {...slideProps} className="bg-black text-white">
         <div className="text-center">
           <motion.h2 variants={fadeIn} className="font-adonis text-5xl md:text-7xl text-white mb-8">
-            Want to see for yourself?
+            Want to see how it works?
           </motion.h2>
           <motion.div variants={staggerContainer} className="space-y-3">
             <motion.p variants={fadeIn}>
