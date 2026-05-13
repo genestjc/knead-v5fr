@@ -669,6 +669,7 @@ export default function Knead20PitchPage() {
                 src="/chat-interface-example.png"
                 alt="Knead chat interface"
                 fill
+                style={{ objectPosition: "center 12%" }}
                 className="object-cover"
               />
             </div>
