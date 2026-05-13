@@ -508,6 +508,7 @@ export default function MediaExplainerPage() {
                 alt="Knead chat interface"
                 fill
                 className="object-cover"
+                style={{ objectPosition: "center 12%" }}
               />
             </div>
           </motion.div>
