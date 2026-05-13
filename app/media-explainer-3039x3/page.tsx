@@ -379,7 +379,7 @@ export default function MediaExplainerPage() {
           <motion.div variants={staggerContainer} className="space-y-8 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
             {[
               "Stadium-status musicians are using Linktree as their main website.",
-              "Best-selling authors are promoting the same blandly-designed Substack for their prose.",
+              "Best-selling authors are promoting the same formulaically-designed Substack for their prose.",
               "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
               "None of this was a part of our childhood dreams.", 
               "It's time we take ownership of making the internet fun again.",
