@@ -97,14 +97,14 @@ const SwipeableCarousel: React.FC<SwipeableCarouselProps> = ({
       </button>
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-10">
         {images.map((_, i) => (
-          <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(() => i) }} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-white" : "bg-white/40"}`} aria-label={`Go to photo ${i + 1}`} type="button" />
+          <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIndex(() => i) }} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-white" : "bg-white/50"}`} aria-label={`Go to photo ${i + 1}`} type="button" />
         ))}
       </div>
     </div>
   )
 }
 
-// ─── Slide Wrapper ────────────────────────────────────────────────────────────
+// ─── Slide Wrapper ─────────────────────────────────────────────────────────
 
 const Slide = ({
   id, children, slideRefs, setCurrentSlide, className = "", raw = false,
@@ -335,7 +335,7 @@ function ConstantPracticeDemo() {
         </p>
         <div className="relative overflow-hidden" style={{ maxHeight: "100px" }}>
           <p className="font-georgia-pro text-sm text-gray-700 leading-relaxed mb-2">
-            &ldquo;It&apos;s like looking at art - everyone will have their own opinion and be drawn to something different, so we don&apos;t hope to convey anything in particular, we just like sharing it,&rdquo; — Jonah Franke-Fuller says of Constant Practice.
+            &ldquo;It&apos;s like looking at art - everyone will have their own opinion and be drawn to something different, so we don&apos;t hope to convey anything in particular, we just like sharing.&rdquo;
           </p>
           <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-white to-transparent" />
         </div>
@@ -390,99 +390,7 @@ function ConstantPracticeDemo() {
   )
 }
 
-// ─── CameraDemoStage ──────────────────────────────────────────────────────────
-
-function CameraDemoStage() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [permissionDenied, setPermissionDenied] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  const startDemo = async () => {
-    setPermissionDenied(false)
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      setStream(mediaStream)
-      setIsOpen(true)
-    } catch {
-      setPermissionDenied(true)
-    }
-  }
-
-  const stopDemo = () => {
-    if (stream) stream.getTracks().forEach((t) => t.stop())
-    setStream(null)
-    setIsOpen(false)
-  }
-
-  useEffect(() => {
-    if (isOpen && videoRef.current && stream) {
-      videoRef.current.srcObject = stream
-    }
-  }, [isOpen, stream])
-
-  useEffect(() => {
-    return () => { if (stream) stream.getTracks().forEach((t) => t.stop()) }
-  }, [stream])
-
-  return (
-    <>
-      <div className="flex flex-col gap-3">
-        <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ height: "300px" }}>
-          <Image src="/VideoScreenExample.png" alt="Live streaming in the Knead chat" fill className="object-cover" />
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <button
-              onClick={startDemo}
-              className="bg-white text-black px-6 py-3 rounded font-adonis text-sm hover:bg-gray-100 transition-colors shadow-lg"
-              type="button"
-            >
-              Click to Demo
-            </button>
-          </div>
-        </div>
-        {permissionDenied && (
-          <p className="font-georgia-pro text-xs text-red-500 text-center">Camera access is required for the demo.</p>
-        )}
-        <p className="font-georgia-pro text-sm text-gray-500 text-center italic">
-          Want to see what it&apos;s like to be the star of the show?
-        </p>
-      </div>
-
-      {isOpen && (
-        <div className="fixed inset-0 bg-black z-[100] flex flex-col">
-          <div className="relative flex-1 overflow-hidden">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-              style={{ transform: "scaleX(-1)" }}
-            />
-            <div className="absolute top-5 left-5 flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="font-adonis text-white text-xs tracking-widest uppercase">Live</span>
-            </div>
-            <div className="absolute top-5 right-5">
-              <p className="font-adonis text-white/70 text-xs">1 viewer</p>
-            </div>
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
-              <button
-                onClick={stopDemo}
-                className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full font-adonis text-sm transition-colors shadow-xl"
-                type="button"
-              >
-                Leave Stage
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-// ─── DonutChart ───────────────────────────────────────────────────────────────
+// ─── DonutChart ──────────────────────────────────────────────────────────
 
 function DonutChart() {
   const data = [
@@ -560,7 +468,7 @@ function DonutChart() {
   )
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────────────────
 
 const TOTAL_SLIDES = 16
 
@@ -733,7 +641,7 @@ export default function Knead20PitchPage() {
             </motion.h2>
             <motion.div variants={staggerContainer} className="space-y-5 font-georgia-pro text-lg text-gray-700">
               <motion.p variants={fadeIn}>
-                Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. Built on Towns Protocol, it&apos;s capable of hosting a wide range of events, using tools like:
+                Knead&apos;s chat is our hub for community, serving as the focal point for connecting with our audience. Built on Towns Protocol, it&apos;s capable of hosting a wide range of events.
               </motion.p>
               <motion.ul variants={fadeIn} className="space-y-3 pl-2">
                 <li className="flex items-start gap-3">
@@ -750,13 +658,20 @@ export default function Knead20PitchPage() {
                 </li>
                </motion.ul>
               <motion.p variants={fadeIn}>
-                It&apos;s intentionally designed to be a space we want to spend every day in — hosting an array of events we&apos;d be excited to attend ourselves, while being an enriching experience for our members.
+                It&apos;s intentionally designed to be a space we want to spend every day in — hosting an array of events we&apos;d be excited to attend ourselves, while being an enriching experience for our community.
               </motion.p>
             </motion.div>
           </div>
 
-          <motion.div variants={fadeIn} className="pl-4 md:pl-8">
-            <CameraDemoStage />
+          <motion.div variants={fadeIn} className="flex justify-center">
+            <div className="relative w-full rounded-xl overflow-hidden shadow-lg" style={{ height: "500px" }}>
+              <Image
+                src="/chat-interface-example.png"
+                alt="Knead chat interface"
+                fill
+                className="object-cover"
+              />
+            </div>
           </motion.div>
         </div>
       </Slide>
@@ -773,7 +688,7 @@ export default function Knead20PitchPage() {
                 When a Knead Monthly member joins the chat, they&apos;ll be able to leave comments during events like livestreams, premieres, open hours, etc.
               </motion.p>
               <motion.p variants={fadeIn}>
-                Knead Monthly members can earn USDC for comments from Contributors, which is kept track of in Knead&apos;s Treasury. With enough earnings, members can graduate to become a Contributor — which enables full functionality of the chat.
+                Knead Monthly members can earn USDC for comments from Contributors, which is kept track of in Knead&apos;s Treasury. With enough earnings, members can graduate to become a Contributor themselves.
               </motion.p>
             </motion.div>
           </div>
@@ -807,10 +722,10 @@ export default function Knead20PitchPage() {
                 Contributors are VIPs we invite (magazine subjects, influencers, etc.) or Knead Monthly members who have graduated.
               </motion.p>
               <motion.p variants={fadeIn}>
-                Each week, Contributors are allocated an allowance of USDC to spend on Knead Monthly members, earning <strong className="text-black">20% back</strong> of what they spend. The allowance is on a &lsquo;use it or lose it&rsquo; basis.
+                Each week, Contributors are allocated an allowance of USDC to spend on Knead Monthly members, earning <strong className="text-black">20% back</strong> of what they spend. The allowance resets weekly.
               </motion.p>
               <motion.p variants={fadeIn}>
-                In addition to posting freely, Contributors are granted access to DMs — including video chat. Contributors can search the DM rolodex for others they want to connect with, or turn off being contacted altogether.
+                In addition to posting freely, Contributors are granted access to DMs — including video chat. Contributors can search the DM rolodex for others they want to connect with, or turn off discovery if they prefer.
               </motion.p>
               <motion.p variants={fadeIn}>
                 Being a Contributor is a title you have to earn your way into IRL or in the chat — <strong>it&apos;s not something that can be bought into.</strong>
@@ -845,15 +760,15 @@ export default function Knead20PitchPage() {
                 {[
                   {
                     title: "Recruiting",
-                    body: "A well-known fashion designer based out of Milan is looking for new hires and wants to get in front of American students from FIT and Parsons. Knead sets up a time for those students to exclusively ask the designer questions in the chat — creating opportunities for upcoming graduates to gain visibility with Contributors and other viewers.",
+                    body: "A well-known fashion designer based out of Milan is looking for new hires and wants to get in front of American students from FIT and Parsons. Knead sets up a time for those students to join a livestream, the designer can chat with them in real-time, and the top commenters earn USDC.",
                   },
                   {
                     title: "Product Seeding & Feedback",
-                    body: "With a strong rolodex of Contributors, Knead enables companies to gain early feedback and interest on products. This can include direct metrics on who redeemed what items and why — valuable in early seeding and messaging.",
+                    body: "With a strong rolodex of Contributors, Knead enables companies to gain early feedback and interest on products. This can include direct metrics on who redeemed what items and when, plus live feedback from our community.",
                   },
                   {
                     title: "Sponsorship",
-                    body: "By enabling video upload and streaming, we've expanded our ability to accept sponsorship opportunities without sacrificing editorial space. We've created significant new pathways to deliver bespoke opportunities for sponsors to engage with our brand.",
+                    body: "By enabling video upload and streaming, we've expanded our ability to accept sponsorship opportunities without sacrificing editorial space. We've created significant new partnership opportunities for brands.",
                   },
                 ].map((item, i) => (
                   <div key={i} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
@@ -867,7 +782,7 @@ export default function Knead20PitchPage() {
             <div>
               <h3 className="font-adonis text-2xl md:text-3xl text-black mb-6">Knead As A Solution</h3>
               <p className="font-georgia-pro text-lg text-gray-700 mb-6">
-                We believe everything we offer with Knead can be used by other creators and brands alike. By offering bespoke solutions as a development agency, we can apply our framework to an array of prospective customers. A few examples:
+                We believe everything we offer with Knead can be used by other creators and brands alike. By offering bespoke solutions as a development agency, we can apply our framework to an array of use cases.
               </p>
               <div className="grid md:grid-cols-2 gap-4">
                 {[
@@ -923,7 +838,7 @@ export default function Knead20PitchPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                    <p>Provides a powerful marketing tool to onboard Contributors from beyond Knead's network, strategically inviting a thoughtful community across fashion, media, and art — graduating into a mix of thought leaders and celebrities.</p>
+                    <p>Provides a powerful marketing tool to onboard Contributors from beyond Knead's network, strategically inviting a thoughtful community across fashion, media, and art — graduating from paid subscriber to active contributor.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
@@ -1026,7 +941,7 @@ export default function Knead20PitchPage() {
               </motion.h2>
               <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
                 <motion.p variants={fadeIn}>
-                  Knead&apos;s print issue will also be NFC-enabled as a membership option. TBD printing schedule, the magazine will be a heavy-matte, coffee table style publication with rich interviews of the world&apos;s leading creative minds.
+                  Knead&apos;s print issue will also be NFC-enabled as a membership option. TBD printing schedule, the magazine will be a heavy-matte, coffee table style publication with rich interviews and original art.
                 </motion.p>
                 <motion.p variants={fadeIn}>
                   Each issue will feature an NFC chip enabling a semi-annual Knead membership upon tap — another access point to onboard into the chat.
@@ -1062,10 +977,10 @@ export default function Knead20PitchPage() {
                     Knead will be inviting the musician Blvck Svm to Knead's home of Richmond, Virginia for an exclusive <em>michelinman</em> dinner pairing.
                   </p>
                   <p>
-                    Partnering with Michelin-star chefs around the world, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album <em>michelinman</em> — with the chef defining a dish to accompany.
+                    Partnering with Michelin-star chefs around the world, Blvck Svm has been offering diners an intimate experience of breaking down each song off his album <em>michelinman</em> — with each course paired to a different track.
                   </p>
                   <p>
-                    For one of our giveaways, we&apos;d like to fly five Contributors from the chat in for an all expenses paid experience — highlighting an exclusive event only for superfans/VIPs. Other Contributors will be able to nominate and vote on who should be treated to the experience.
+                    For one of our giveaways, we&apos;d like to fly five Contributors from the chat in for an all expenses paid experience — highlighting an exclusive event only for superfans/VIPs.
                   </p>
                 </div>
               </div>
