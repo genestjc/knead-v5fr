@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Knead — Partnership Proposal</title>
+<title>Knead — Base Partnership Proposal</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -14,7 +14,6 @@
 
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .no-print { display: none; }
   }
 
   :root {
@@ -106,16 +105,25 @@
     margin-bottom: 12px;
   }
 
+  .section-heading {
+    font-family: var(--adonis);
+    font-size: 13pt;
+    color: var(--black);
+    margin-bottom: 8px;
+    margin-top: 0.18in;
+  }
+
+  /* ── Retainer grid ── */
   .retainer-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: 0;
     border: 0.5px solid var(--rule);
-    margin-bottom: 0.28in;
+    margin-bottom: 0.2in;
   }
 
   .retainer-cell {
-    padding: 14px 18px;
+    padding: 14px 16px;
     border-right: 0.5px solid var(--rule);
   }
 
@@ -123,7 +131,7 @@
 
   .retainer-cell-label {
     font-family: var(--adonis);
-    font-size: 7.5pt;
+    font-size: 7pt;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--gray-mid);
@@ -132,23 +140,97 @@
 
   .retainer-cell-value {
     font-family: var(--adonis);
-    font-size: 16pt;
+    font-size: 14pt;
     color: var(--black);
     line-height: 1.1;
   }
 
   .retainer-cell-sub {
     font-family: var(--georgia);
-    font-size: 8pt;
+    font-size: 7.5pt;
     color: var(--gray-mid);
     margin-top: 3px;
     font-style: italic;
   }
 
+  /* ── Split grid ── */
+  .split-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 0.5px solid var(--rule);
+    margin-bottom: 0.2in;
+  }
+
+  .split-cell {
+    padding: 14px 18px;
+    border-right: 0.5px solid var(--rule);
+  }
+
+  .split-cell:last-child { border-right: none; }
+
+  .split-cell-label {
+    font-family: var(--adonis);
+    font-size: 7pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 5px;
+  }
+
+  .split-cell-value {
+    font-family: var(--adonis);
+    font-size: 14pt;
+    color: var(--black);
+    line-height: 1.1;
+  }
+
+  .split-cell-sub {
+    font-family: var(--georgia);
+    font-size: 7.5pt;
+    color: var(--gray-mid);
+    margin-top: 3px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  /* ── Agency spend ── */
+  .agency-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border: 0.5px solid var(--rule);
+    margin-bottom: 0.2in;
+  }
+
+  .agency-cell {
+    padding: 12px 16px;
+    border-right: 0.5px solid var(--rule);
+  }
+
+  .agency-cell:last-child { border-right: none; }
+
+  .agency-cell-label {
+    font-family: var(--adonis);
+    font-size: 7pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 4px;
+  }
+
+  .agency-cell-value {
+    font-family: var(--georgia);
+    font-size: 9.5pt;
+    color: var(--black);
+    line-height: 1.5;
+  }
+
+  /* ── Tier table ── */
   .tier-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 0.28in;
+    margin-bottom: 0.2in;
   }
 
   .tier-table thead tr { border-bottom: 0.5px solid var(--rule); }
@@ -169,47 +251,96 @@
   .tier-table tbody tr:last-child { border-bottom: none; }
 
   .tier-table tbody td {
-    padding: 11px 0;
+    padding: 10px 0;
     font-family: var(--georgia);
-    font-size: 10pt;
+    font-size: 9.5pt;
     color: var(--gray-dark);
     vertical-align: top;
   }
 
   .tier-table tbody td:first-child {
     font-family: var(--adonis);
-    font-size: 10.5pt;
+    font-size: 10pt;
     color: var(--black);
-    width: 28%;
+    width: 26%;
     padding-right: 16px;
   }
 
   .tier-table tbody td:last-child {
     text-align: right;
     font-family: var(--adonis);
-    font-size: 11pt;
+    font-size: 10.5pt;
     color: var(--black);
     white-space: nowrap;
   }
 
   .tier-examples {
-    font-size: 8.5pt;
+    font-size: 8pt;
     color: var(--gray-mid);
     font-style: italic;
     margin-top: 2px;
     font-family: var(--georgia);
   }
 
+  /* ── Bonus table ── */
+  .bonus-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.2in;
+  }
+
+  .bonus-table thead tr { border-bottom: 0.5px solid var(--rule); }
+
+  .bonus-table thead th {
+    font-family: var(--adonis);
+    font-size: 7.5pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    font-weight: normal;
+    padding: 0 0 10px 0;
+    text-align: left;
+  }
+
+  .bonus-table thead th:last-child { text-align: right; }
+  .bonus-table tbody tr { border-bottom: 0.5px solid var(--rule); }
+  .bonus-table tbody tr:last-child { border-bottom: none; }
+
+  .bonus-table tbody td {
+    padding: 10px 0;
+    font-family: var(--georgia);
+    font-size: 9.5pt;
+    color: var(--gray-dark);
+    vertical-align: top;
+  }
+
+  .bonus-table tbody td:first-child {
+    font-family: var(--adonis);
+    font-size: 10pt;
+    color: var(--black);
+    width: 32%;
+    padding-right: 16px;
+  }
+
+  .bonus-table tbody td:last-child {
+    text-align: right;
+    font-family: var(--adonis);
+    font-size: 10.5pt;
+    color: var(--black);
+    white-space: nowrap;
+  }
+
+  /* ── Terms grid ── */
   .terms-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
     border: 0.5px solid var(--rule);
-    margin-bottom: 0.28in;
+    margin-bottom: 0.24in;
   }
 
   .terms-cell {
-    padding: 12px 16px;
+    padding: 12px 14px;
     border-right: 0.5px solid var(--rule);
   }
 
@@ -226,16 +357,17 @@
 
   .terms-cell-value {
     font-family: var(--georgia);
-    font-size: 9.5pt;
+    font-size: 9pt;
     color: var(--black);
     line-height: 1.4;
   }
 
+  /* ── Verification ── */
   .verification {
     background: var(--gray-bg);
     border-left: 2px solid var(--black);
     padding: 11px 16px;
-    margin-bottom: 0.3in;
+    margin-bottom: 0.28in;
   }
 
   .verification p {
@@ -251,6 +383,7 @@
     font-size: 9.5pt;
   }
 
+  /* ── Footer ── */
   .footer {
     border-top: 0.5px solid var(--rule);
     padding-top: 14px;
@@ -274,34 +407,37 @@
     font-style: italic;
     line-height: 1.7;
   }
-
 </style>
 </head>
 <body>
 
+  <!-- ── Header ── -->
   <div class="header">
     <div class="wordmark">Knead</div>
     <div class="header-meta">
-      <strong>Partnership Proposal</strong>
-      Submitted to Base + Towns Protocol<br>
+      <strong>Partnership Proposal — Base</strong>
+      Submitted to Jesse Pollak + Xen<br>
       May 2026 · Confidential
     </div>
   </div>
 
+  <!-- ── Elevator ── -->
   <p class="elevator">Helping creators build platforms to own their media distribution.</p>
 
+  <!-- ── Overview ── -->
   <p class="overview">
-    Knead is a media and community platform built entirely on Base and Towns Protocol. We believe the future is about owning your hub for streaming, community, and content, which is exactly why we want to partner with you both. We'd like to help Base and Towns onboard new creators quickly by offering to build them bespoke solutions — think popular Substack writers, podcasters using Patreon, and cultural figures with real audiences looking for platforms they actually own. Below is a business development retainer with sales incentives where Towns and Base pay Knead to onboard new creators. As part of the agreement, Knead would be offering our services to these creators for free as a marketing strategy to rapidly build case studies for Base, Towns, and Knead.
+    Knead is a media and community platform built entirely on Base and Towns Protocol. We believe the future is about owning your hub for streaming, community, and content, which is exactly why we want to partner with you both. We'd like to help Base onboard new creators quickly by offering to build them bespoke solutions — think popular Substack writers, podcasters using Patreon, and cultural figures with real audiences looking for platforms they actually own. Below is a business development retainer with benchmark bonuses where Base pays Knead to onboard new creators. As part of the agreement, Knead would be offering our services to these creators for free as a marketing strategy to rapidly build case studies for Base and Knead.
   </p>
 
   <hr class="section-rule">
 
+  <!-- ── Retainer ── -->
   <p class="section-label">Retainer</p>
   <div class="retainer-grid">
     <div class="retainer-cell">
       <div class="retainer-cell-label">Monthly</div>
-      <div class="retainer-cell-value">$10,000</div>
-      <div class="retainer-cell-sub">Base + Towns combined</div>
+      <div class="retainer-cell-value">$12,500</div>
+      <div class="retainer-cell-sub">Paid in USDC to Knead's Coinbase account</div>
     </div>
     <div class="retainer-cell">
       <div class="retainer-cell-label">Term</div>
@@ -310,17 +446,63 @@
     </div>
     <div class="retainer-cell">
       <div class="retainer-cell-label">Total commitment</div>
-      <div class="retainer-cell-value">$60,000</div>
-      <div class="retainer-cell-sub">Placement fees are additional</div>
+      <div class="retainer-cell-value">$75,000</div>
+      <div class="retainer-cell-sub">Benchmark bonuses are additional</div>
+    </div>
+    <div class="retainer-cell">
+      <div class="retainer-cell-label">Expenses</div>
+      <div class="retainer-cell-value">$1,500</div>
+      <div class="retainer-cell-sub">Pre-approved monthly cap</div>
     </div>
   </div>
 
-  <p class="section-label">Placement Fee Schedule — per verified onboarded creator</p>
+  <!-- ── Monthly split ── -->
+  <p class="section-label">Monthly Retainer Split</p>
+  <div class="split-grid">
+    <div class="split-cell">
+      <div class="split-cell-label">Knead Operations</div>
+      <div class="split-cell-value">$10,000 / month</div>
+      <div class="split-cell-sub">Covers founder compensation, freelance developers for code review and delivery, photographers and visual talent for creator onboarding campaigns, and travel for activations and outreach.</div>
+    </div>
+    <div class="split-cell">
+      <div class="split-cell-label">Knead Chat Treasury</div>
+      <div class="split-cell-value">$2,500 / month</div>
+      <div class="split-cell-sub">Deposited onchain to Knead's Gnosis Safe multisig treasury on Base. Funds the USDC creator economy — tipping, contributor allowances, and community rewards. Publicly verifiable on Basescan.</div>
+    </div>
+  </div>
+
+  <!-- ── Expense reimbursement ── -->
+  <p class="section-label">Pre-Approved Expense Categories</p>
+  <div class="agency-grid">
+    <div class="agency-cell">
+      <div class="agency-cell-label">Travel</div>
+      <div class="agency-cell-value">Flights, hotels, and ground transport for creator outreach, activations, and partnership meetings.</div>
+    </div>
+    <div class="agency-cell">
+      <div class="agency-cell-label">Photography + Visual</div>
+      <div class="agency-cell-value">Photographers, videographers, and creative talent hired per activation or creator onboarding campaign.</div>
+    </div>
+    <div class="agency-cell">
+      <div class="agency-cell-label">Infrastructure</div>
+      <div class="agency-cell-value">Cloud hosting, software subscriptions, and platform costs directly supporting creator deployments.</div>
+    </div>
+  </div>
+
+  <hr class="section-rule">
+
+  <!-- ── Creator outreach ── -->
+  <p class="section-label">Creator Outreach Strategy</p>
+  <p class="overview" style="margin-bottom: 0.18in;">
+    Outreach begins with independent creators who have highly engaged followings on Instagram, TikTok, and X — prioritizing authentic audience relationships over raw follower counts. Initial targets are Substack writers, podcast hosts, and Patreon creators with existing community infrastructure who are actively looking for ownership alternatives. Each onboarded creator receives a bespoke platform deployment built on Base and Towns Protocol, offered at no cost as part of this agreement.
+  </p>
+
+  <!-- ── Influencer placement fees ── -->
+  <p class="section-label">Influencer Placement Fees — per verified onboarded creator</p>
   <table class="tier-table">
     <thead>
       <tr>
         <th>Tier</th>
-        <th>Description</th>
+        <th>Criteria</th>
         <th style="text-align:right;">Fee</th>
       </tr>
     </thead>
@@ -330,15 +512,15 @@
           Independent Creator
           <div class="tier-examples">Substack, podcast, Patreon</div>
         </td>
-        <td>Existing audience of 5K–50K. Deploys a Towns community or Base membership. Primary target for initial case studies.</td>
+        <td>Highly engaged following on Instagram, TikTok, or X. Audience of 5K–10K. Primary target for initial case studies and proof of model.</td>
         <td>$750</td>
       </tr>
       <tr>
         <td>
           Tastemaker
-          <div class="tier-examples">50K–500K following</div>
+          <div class="tier-examples">10K–500K following</div>
         </td>
-        <td>Cultural credibility in fashion, food, music, or media. Recognized name in their lane with an engaged, non-crypto audience.</td>
+        <td>Cultural credibility in fashion, food, music, or media. Recognized name in their lane with an engaged, non-crypto audience across Instagram, TikTok, or X.</td>
         <td>$2,000</td>
       </tr>
       <tr>
@@ -346,7 +528,7 @@
           Celebrity / Influencer
           <div class="tier-examples">500K+ · press-worthy</div>
         </td>
-        <td>Real Instagram or TikTok presence. The kind of name that becomes a Base press release. Deploys anything active on Base — membership, tipping, or drop.</td>
+        <td>Verified presence on Instagram, TikTok, or X with 500K+ followers. The kind of name that becomes a Base press release. Deploys anything active on Base — membership, tipping, or drop.</td>
         <td>$5,000</td>
       </tr>
       <tr>
@@ -354,17 +536,76 @@
           Enterprise
           <div class="tier-examples">Agency, publisher, brand</div>
         </td>
-        <td>Institutional reach — talent agency, Hearst property, major label, or global brand. Full platform deployment on Base and Towns.</td>
+        <td>Institutional reach — talent agency, Hearst property, major label, or global brand. Full platform deployment on Base and Towns Protocol.</td>
         <td>$10,000</td>
       </tr>
     </tbody>
   </table>
 
+  <hr class="section-rule">
+
+  <!-- ── Benchmark bonuses ── -->
+  <p class="section-label">Benchmark Bonuses</p>
+
+  <p class="section-heading">Monthly Creator Volume</p>
+  <table class="bonus-table">
+    <thead>
+      <tr>
+        <th>Milestone</th>
+        <th>Description</th>
+        <th style="text-align:right;">Bonus</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>3–4 creators / month</td>
+        <td>Exceeds baseline expectation of 1–2 onboarded creators per month.</td>
+        <td>$1,500</td>
+      </tr>
+      <tr>
+        <td>5+ creators / month</td>
+        <td>Breakout month. Signals pipeline maturity and strong word-of-mouth in the creator community.</td>
+        <td>$3,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="section-heading">Base Product Adoption</p>
+  <table class="bonus-table">
+    <thead>
+      <tr>
+        <th>Milestone</th>
+        <th>Requirements</th>
+        <th style="text-align:right;">Bonus</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Smart Contract Deployment</td>
+        <td>2+ smart contracts deployed with minimum 10 verified onchain transactions each.</td>
+        <td>$1,000</td>
+      </tr>
+      <tr>
+        <td>Base Product Suite</td>
+        <td>3+ Base products active with minimum 100 unique users across deployments.</td>
+        <td>$2,500</td>
+      </tr>
+      <tr>
+        <td>Full Stack Deployment</td>
+        <td>Complete platform deployment — embedded wallet, smart contract, Towns community, and active USDC tipping — live and verified onchain.</td>
+        <td>$5,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr class="section-rule">
+
+  <!-- ── Terms ── -->
   <p class="section-label">Terms</p>
   <div class="terms-grid">
     <div class="terms-cell">
       <div class="terms-cell-label">Payment</div>
-      <div class="terms-cell-value">Net-15, 1st of month</div>
+      <div class="terms-cell-value">Net-15, 1st of month in USDC</div>
     </div>
     <div class="terms-cell">
       <div class="terms-cell-label">Exit</div>
@@ -380,10 +621,12 @@
     </div>
   </div>
 
+  <!-- ── Verification ── -->
   <div class="verification">
-    <p><strong>Verification:</strong> Every placement is confirmed by onchain activity — wallet creation, smart contract deployment, or active Towns community. No soft metrics. All activity is publicly verifiable on Basescan.</p>
+    <p><strong>Verification:</strong> Every placement and benchmark bonus is confirmed by onchain activity — wallet creation, smart contract deployment, transaction volume, or active Towns community. No soft metrics. All activity publicly verifiable on Basescan.</p>
   </div>
 
+  <!-- ── Footer ── -->
   <div class="footer">
     <div class="footer-left">
       Joseph Genest<br>
