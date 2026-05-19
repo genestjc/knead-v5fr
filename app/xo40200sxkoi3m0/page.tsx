@@ -387,7 +387,7 @@ export default function ProposalPage() {
         <p className="p-label font-adonis">Where This Partnership Could Go</p>
         <p className="p-body font-georgia-pro">
           Knead is willing to document and save all creator solutions to help onboard the masses
-          onto Base. This can manifest in a few directions:
+          onto Base. This can manifest in a couple of directions:
         </p>
 
         <div className="p-vision">
