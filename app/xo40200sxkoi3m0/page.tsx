@@ -404,7 +404,7 @@ export default function ProposalPage() {
             <span className="font-georgia-pro">
               <strong className="font-adonis">Ceiling:</strong> Feeding all the conversations and
               documentation into a custom chat/LLM with Base-powered solutions (e.g.{' '}
-              
+              <a
                 href="https://base.org/create"
                 target="_blank"
                 rel="noopener noreferrer"
