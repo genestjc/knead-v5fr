@@ -11,7 +11,6 @@ export default function ProposalPage() {
           color: #0a0a0a;
         }
 
-        /* ── Print ── */
         @media print {
           .proposal { padding: 0; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -19,10 +18,8 @@ export default function ProposalPage() {
 
         @page { size: letter; margin: 0.75in 0.85in; }
 
-        /* ── Rules + spacing ── */
         .p-rule { border: none; border-top: 0.5px solid #d4d4d0; margin: 0.22in 0; }
 
-        /* ── Header ── */
         .p-header {
           display: flex;
           justify-content: space-between;
@@ -35,32 +32,26 @@ export default function ProposalPage() {
         .p-header-meta { text-align: right; font-size: 8pt; color: #6b6b6b; line-height: 1.8; padding-top: 6px; }
         .p-header-meta strong { font-size: 9pt; color: #2c2c2c; display: block; margin-bottom: 2px; }
 
-        /* ── Elevator + body ── */
         .p-elevator { font-size: 18pt; line-height: 1.25; color: #0a0a0a; margin-bottom: 0.28in; max-width: 5.5in; letter-spacing: -0.01em; }
-        .p-body { font-size: 10.5pt; color: #2c2c2c; line-height: 1.7; margin-bottom: 0.28in; max-width: 6.2in; }
-        .p-body-sm { font-size: 9.5pt; color: #2c2c2c; line-height: 1.7; margin-bottom: 0.18in; max-width: 6.2in; }
+        .p-body { font-size: 10.5pt; color: #2c2c2c; line-height: 1.7; margin-bottom: 0.2in; max-width: 6.2in; }
+        .p-body-sm { font-size: 9.5pt; color: #2c2c2c; line-height: 1.7; margin-bottom: 0.14in; max-width: 6.2in; }
 
-        /* ── Section labels + headings ── */
         .p-label { font-size: 7.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: #6b6b6b; margin-bottom: 12px; }
         .p-heading { font-size: 13pt; color: #0a0a0a; margin-bottom: 8px; margin-top: 0.16in; }
 
-        /* ── Grids ── */
         .p-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); border: 0.5px solid #d4d4d0; margin-bottom: 0.2in; }
         .p-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); border: 0.5px solid #d4d4d0; margin-bottom: 0.2in; }
         .p-grid-2 { display: grid; grid-template-columns: 1fr 1fr; border: 0.5px solid #d4d4d0; margin-bottom: 0.2in; }
         .p-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); border: 0.5px solid #d4d4d0; margin-bottom: 0.24in; }
 
-        .p-cell {
-          padding: 13px 15px;
-          border-right: 0.5px solid #d4d4d0;
-        }
+        .p-cell { padding: 13px 15px; border-right: 0.5px solid #d4d4d0; }
         .p-cell:last-child { border-right: none; }
         .p-cell-label { font-size: 7pt; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6b6b; margin-bottom: 4px; }
         .p-cell-value { font-size: 14pt; color: #0a0a0a; line-height: 1.1; }
-        .p-cell-value-sm { font-size: 10pt; color: #0a0a0a; line-height: 1.4; }
+        .p-cell-value-sm { font-size: 9.5pt; color: #0a0a0a; line-height: 1.4; }
         .p-cell-sub { font-size: 7.5pt; color: #6b6b6b; margin-top: 3px; font-style: italic; line-height: 1.5; }
+        .p-cell-address { font-size: 7pt; color: #6b6b6b; margin-top: 4px; line-height: 1.5; word-break: break-all; font-family: monospace; }
 
-        /* ── Tables ── */
         .p-table { width: 100%; border-collapse: collapse; margin-bottom: 0.2in; }
         .p-table thead tr { border-bottom: 0.5px solid #d4d4d0; }
         .p-table thead th {
@@ -73,15 +64,11 @@ export default function ProposalPage() {
         .p-table tbody td { padding: 10px 0; font-size: 9.5pt; color: #2c2c2c; vertical-align: top; }
         .p-table tbody td:first-child { font-size: 10pt; color: #0a0a0a; width: 30%; padding-right: 16px; }
         .p-table tbody td:last-child { text-align: right; font-size: 10.5pt; color: #0a0a0a; white-space: nowrap; }
-        .p-table-note { font-size: 8pt; color: #6b6b6b; font-style: italic; margin-top: 2px; }
 
-        /* ── Quota list ── */
         .p-quota { margin-bottom: 0.18in; }
         .p-quota-title { font-size: 10.5pt; color: #0a0a0a; margin-bottom: 4px; }
-        .p-quota-body { font-size: 9.5pt; color: #2c2c2c; line-height: 1.65; }
-        .p-quota-body + .p-quota-body { margin-top: 4px; }
+        .p-quota-body { font-size: 9.5pt; color: #2c2c2c; line-height: 1.65; margin-bottom: 4px; }
 
-        /* ── Verification ── */
         .p-verification {
           background: #f7f7f5;
           border-left: 2px solid #0a0a0a;
@@ -92,12 +79,10 @@ export default function ProposalPage() {
           line-height: 1.6;
         }
 
-        /* ── Vision ── */
         .p-vision { margin-bottom: 0.2in; }
         .p-vision-item { display: flex; gap: 12px; margin-bottom: 10px; font-size: 9.5pt; color: #2c2c2c; line-height: 1.6; }
         .p-vision-num { font-size: 9.5pt; color: #6b6b6b; flex-shrink: 0; width: 16px; }
 
-        /* ── Footer ── */
         .p-footer {
           border-top: 0.5px solid #d4d4d0;
           padding-top: 14px;
@@ -171,7 +156,7 @@ export default function ProposalPage() {
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Monthly</div>
             <div className="p-cell-value font-adonis">$12,500</div>
-            <div className="p-cell-sub font-georgia-pro">Paid in USDC to Knead&apos;s Coinbase account</div>
+            <div className="p-cell-sub font-georgia-pro">Paid in USDC</div>
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Term</div>
@@ -185,8 +170,8 @@ export default function ProposalPage() {
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Expenses</div>
-            <div className="p-cell-value font-adonis">$1,500</div>
-            <div className="p-cell-sub font-georgia-pro">Pre-approved monthly cap</div>
+            <div className="p-cell-value font-adonis" style={{fontSize: '11pt'}}>Included</div>
+            <div className="p-cell-sub font-georgia-pro">Included in retainer</div>
           </div>
         </div>
 
@@ -196,45 +181,20 @@ export default function ProposalPage() {
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Knead Operations</div>
             <div className="p-cell-value font-adonis">$10,000 / month</div>
-            <div className="p-cell-sub font-georgia-pro">
-              Covers founder compensation, freelance developers for code review and delivery,
-              photographers and visual talent for creator onboarding campaigns, and travel for
-              activations and outreach.
+            <div className="p-cell-address font-georgia-pro">
+              Paid to Knead&apos;s Base USDC Address:<br />
+              0x3C82E818247b2132e7e05b873BeEED5ab37CCcD4
             </div>
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Knead Chat Treasury</div>
             <div className="p-cell-value font-adonis">$2,500 / month</div>
-            <div className="p-cell-sub font-georgia-pro">
-              Deposited onchain to Knead&apos;s Gnosis Safe multisig treasury on Base. Funds the
-              USDC creator economy — tipping, contributor allowances, and community rewards.
-              Publicly verifiable on Basescan.
+            <div className="p-cell-address font-georgia-pro">
+              Paid to Knead&apos;s Chat Treasury Address:<br />
+              0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa
             </div>
-          </div>
-        </div>
-
-        {/* ── Expense categories ── */}
-        <p className="p-label font-adonis">Pre-Approved Expense Categories</p>
-        <div className="p-grid-3">
-          <div className="p-cell">
-            <div className="p-cell-label font-adonis">Travel</div>
-            <div className="p-cell-value-sm font-georgia-pro">
-              Flights, hotels, and ground transport for creator outreach, activations, and
-              partnership meetings.
-            </div>
-          </div>
-          <div className="p-cell">
-            <div className="p-cell-label font-adonis">Photography + Visual</div>
-            <div className="p-cell-value-sm font-georgia-pro">
-              Photographers, videographers, and creative talent hired per activation or creator
-              onboarding campaign.
-            </div>
-          </div>
-          <div className="p-cell">
-            <div className="p-cell-label font-adonis">Infrastructure</div>
-            <div className="p-cell-value-sm font-georgia-pro">
-              Cloud hosting, software subscriptions, and platform costs directly supporting
-              creator deployments.
+            <div className="p-cell-sub font-georgia-pro" style={{marginTop: '6px'}}>
+              Inbound marketing tool for additional creators.
             </div>
           </div>
         </div>
@@ -252,9 +212,9 @@ export default function ProposalPage() {
             creators, which also serve as inbound leads for creator solutions.
           </p>
           <p className="p-quota-body font-georgia-pro">
-            Permission to break the four stories quota must be submitted in writing one week in
+            <em>Permission to break the four stories quota must be submitted in writing one week in
             advance to Base&apos;s team, explaining what other work is being accomplished to
-            overshadow content creation.
+            overshadow content creation.</em>
           </p>
         </div>
 
@@ -263,7 +223,7 @@ export default function ProposalPage() {
           <p className="p-quota-body font-georgia-pro">
             Knead must hire one photographer, videographer, or other content creator per month from
             the retainer. This reinvests back into the creative community and directly creates a
-            sales pipeline to offer bespoke solutions to.
+            creator pipeline to offer bespoke solutions to.
           </p>
         </div>
 
@@ -297,8 +257,8 @@ export default function ProposalPage() {
 
         {/* ── Bonuses ── */}
         <p className="p-label font-adonis">Benchmark Bonuses</p>
-        <p className="p-body-sm font-georgia-pro" style={{marginBottom: '0.1in'}}>
-          Note: Bonus structure applies on top of the monthly retainer and pre-approved expenses.
+        <p className="p-body-sm font-georgia-pro">
+          Note: Bonus structure applies on top of the monthly retainer.
         </p>
 
         <p className="p-heading font-adonis">Onboarding + Solutions</p>
@@ -394,11 +354,11 @@ export default function ProposalPage() {
         <div className="p-grid-5">
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Payment</div>
-            <div className="p-cell-value-sm font-georgia-pro">Net-15, 1st of month in USDC</div>
+            <div className="p-cell-value-sm font-georgia-pro">Net-5, 1st of month in USDC</div>
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Exit</div>
-            <div className="p-cell-value-sm font-georgia-pro">30-day written notice, either party</div>
+            <div className="p-cell-value-sm font-georgia-pro">7-day written notice, either party</div>
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Equity / Tokens</div>
@@ -406,11 +366,11 @@ export default function ProposalPage() {
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Reporting</div>
-            <div className="p-cell-value-sm font-georgia-pro">Monthly onchain metrics brief</div>
+            <div className="p-cell-value-sm font-georgia-pro">Shared business development spreadsheet + monthly onchain metrics</div>
           </div>
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Technical Support</div>
-            <div className="p-cell-value-sm font-georgia-pro">Base developer code review available upon request prior to smart contract deployment.</div>
+            <div className="p-cell-value-sm font-georgia-pro">Base developer code review available upon request prior to live deployment.</div>
           </div>
         </div>
 
@@ -434,20 +394,25 @@ export default function ProposalPage() {
         <div className="p-vision">
           <div className="p-vision-item">
             <span className="p-vision-num font-georgia-pro">1.</span>
-            <span className="font-georgia-pro">Documentation of solutions for creators to plug-and-play into an LLM.</span>
+            <span className="font-georgia-pro">
+              <strong className="font-adonis">Floor:</strong> Documentation of solutions for
+              creators to plug-and-play into an LLM.
+            </span>
           </div>
           <div className="p-vision-item">
             <span className="p-vision-num font-georgia-pro">2.</span>
             <span className="font-georgia-pro">
-              Feeding an LLM with Base ecosystem products and common smart contracts — ThirdWeb,
-              Towns Protocol, Alchemy, etc. — and outputting custom solutions for creators.
-            </span>
-          </div>
-          <div className="p-vision-item">
-            <span className="p-vision-num font-georgia-pro">3.</span>
-            <span className="font-georgia-pro">
-              A combination of educational and AI tools to ensure every creator knows how to get
-              going on their own.
+              <strong className="font-adonis">Ceiling:</strong> Feeding all the conversations and
+              documentation into a custom chat/LLM with Base-powered solutions (e.g.{' '}
+              
+                href="https://base.org/create"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{color: '#0a0a0a', textDecoration: 'underline', textUnderlineOffset: '2px'}}
+              >
+                base.org/create
+              </a>
+              ). Any creator can hop on and ask how to build something great.
             </span>
           </div>
         </div>
@@ -468,7 +433,7 @@ export default function ProposalPage() {
             kneadmag.com
           </div>
           <div className="p-footer-right font-georgia-pro">
-            Built on Base · Powered by Towns Protocol
+            Built on Base
           </div>
         </div>
 
