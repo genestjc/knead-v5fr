@@ -171,7 +171,6 @@ export default function ProposalPage() {
           <div className="p-cell">
             <div className="p-cell-label font-adonis">Expenses</div>
             <div className="p-cell-value font-adonis" style={{fontSize: '11pt'}}>Included</div>
-            <div className="p-cell-sub font-georgia-pro">Included in retainer</div>
           </div>
         </div>
 
