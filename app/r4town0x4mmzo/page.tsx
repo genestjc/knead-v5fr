@@ -111,7 +111,7 @@ export default function ProposalPage() {
         <div className="p-header">
           <div className="p-wordmark font-adonis">Knead</div>
           <div className="p-header-meta font-georgia-pro">
-            <strong className="font-adonis">Partnership Proposal — Base</strong>
+            <strong className="font-adonis">Partnership Proposal — Towns Protocol</strong>
             May 2026 · Confidential
           </div>
         </div>
