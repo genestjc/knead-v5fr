@@ -103,7 +103,15 @@ async function main() {
       if (event.content?.kind !== RiverTimelineEvent.ChannelMessage) continue;
 
       const text = event.content.body;
-      if (!isBotMentioned(text)) continue;
+      const mentions = event.content.mentions ?? [];
+      const isMentionedInBody = isBotMentioned(text);
+      const isMentionedByRef  = mentions.some(
+        (m: any) => m.userId === botUserId || m.address?.toLowerCase() === wallet.address.toLowerCase(),
+      );
+
+      console.log(`[agent] New message from ${event.sender.id}: body="${text}" mentions=${JSON.stringify(mentions)}`);
+
+      if (!isMentionedInBody && !isMentionedByRef) continue;
 
       handleMessage(event.sender.id, text, channel).catch(err => {
         console.error('[agent] Unhandled error:', (err as Error).message);
