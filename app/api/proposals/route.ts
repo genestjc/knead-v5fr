@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       description: body.description,
       items: [{ type: 'request', description: body.request || body.description }],
       vote_threshold: 3,
+      status: 'pending',
       created_by: address.toLowerCase(),
     })
     .select('id, title')
