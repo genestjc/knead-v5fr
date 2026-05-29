@@ -12,6 +12,7 @@ import { AnnouncementsModal } from './AnnouncementsModal';
 import { ProposalsModal } from './ProposalsModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
+import { useMembership } from '@/components/membership-provider';
 import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { useUserDms, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
@@ -121,6 +122,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   const activeAccount = useActiveAccount();
   const { isContributor, isLoading: contributorLoading } = useContributorPermissions(activeAccount?.address);
+  const { membershipType } = useMembership();
+  const canSeeProposals = isContributor || membershipType === 'premium';
 
   const handleIncomingCall = useCallback((streamId: string, callerAddress: string) => {
     setIncomingDmCall({ streamId, callerAddress });
@@ -201,14 +204,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         setLogoExpanded(false);
       },
     },
-    {
+    ...(canSeeProposals ? [{
       icon: <FileText className="w-5 h-5" />,
       label: 'Proposals',
       onClick: () => {
         setShowProposalsModal(true);
         setLogoExpanded(false);
       },
-    },
+    }] : []),
     {
       icon: <Home className="w-5 h-5" />,
       label: 'Home',
