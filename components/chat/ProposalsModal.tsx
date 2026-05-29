@@ -189,8 +189,8 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
                 <NoWalletView />
               ) : isPremium || isContributor ? (
                 <>
-                  {/* Premium member — submit form */}
-                  {isPremium && (
+                  {/* Premium member only (not contributors) — submit form */}
+                  {isPremium && !isContributor && (
                     <SubmitSection
                       submitted={submitted}
                       title={title}
@@ -283,8 +283,8 @@ function SubmitSection({
           </motion.div>
         ) : (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <h3 className="font-adonis text-2xl text-gray-900 mb-1">Want to submit a proposal?</h3>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-5">
+            <h3 className="font-adonis text-2xl text-gray-900 mb-1 text-center">Want to submit a proposal?</h3>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-5 text-center">
               As a Knead Monthly member, your ideas shape what we do next. Enter your idea below.
             </p>
             <form onSubmit={onSubmit} className="space-y-4">
@@ -328,13 +328,13 @@ function SubmitSection({
                   disabled={isSubmitting}
                 />
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-center">
                 <button
                   type="submit"
                   disabled={isSubmitting}
                   className="px-8 py-3 bg-black text-white rounded-xl font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? 'Submitting…' : 'Submit proposal'}
+                  {isSubmitting ? 'Submitting…' : 'Submit Proposal'}
                 </button>
               </div>
             </form>
@@ -368,7 +368,8 @@ function VoteSection({
       {proposals.length === 0 ? (
         <div className="text-center py-10 border border-gray-100 rounded-2xl">
           <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-          <p className="font-georgia-pro text-gray-400 text-sm">No proposals this week yet.</p>
+          <p className="font-georgia-pro text-gray-500 text-sm">There's no proposals to vote on right now.</p>
+          <p className="font-georgia-pro text-gray-400 text-sm mt-1">Check back again soon.</p>
         </div>
       ) : (
         <div className="space-y-4">
