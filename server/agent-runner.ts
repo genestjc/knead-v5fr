@@ -83,26 +83,32 @@ async function main() {
   const space     = agent.spaces.getSpace(SPACE_ID);
   const channel   = space.getChannel(CHANNEL_ID);
 
-  // Seed seen events with existing history so we don't replay old messages on startup
-  const seenEventIds = new Set<string>();
+  // historyEventIds: events that existed at startup — never process these
+  // processedEventIds: new events we've already handled — don't double-process
+  // Encrypted events are intentionally NOT added until decrypted (kind flips to ChannelMessage)
+  const historyEventIds  = new Set<string>();
+  const processedEventIds = new Set<string>();
   let firstFire = true;
 
   channel.timeline.events.subscribe((events) => {
     if (firstFire) {
-      events.forEach(e => seenEventIds.add(e.eventId));
+      events.forEach(e => historyEventIds.add(e.eventId));
       firstFire = false;
-      console.log(`[agent] Seeded ${seenEventIds.size} existing events — now listening for new messages`);
+      console.log(`[agent] Seeded ${historyEventIds.size} existing events — now listening for new messages`);
       return;
     }
 
     for (const event of events) {
-      if (seenEventIds.has(event.eventId)) continue;
-      seenEventIds.add(event.eventId);
+      if (historyEventIds.has(event.eventId)) continue;   // pre-existing history
+      if (processedEventIds.has(event.eventId)) continue; // already handled
+      if (event.sender.id === botUserId) { processedEventIds.add(event.eventId); continue; }
 
-      if (event.sender.id === botUserId) continue;
+      // Skip until decrypted — Observable will fire again once kind flips to ChannelMessage
       if (event.content?.kind !== RiverTimelineEvent.ChannelMessage) continue;
 
-      const text = event.content.body;
+      processedEventIds.add(event.eventId); // mark handled before async work
+
+      const text     = event.content.body;
       const mentions = event.content.mentions ?? [];
       const isMentionedInBody = isBotMentioned(text);
       const isMentionedByRef  = mentions.some(
