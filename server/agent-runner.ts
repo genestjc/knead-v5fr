@@ -1,3 +1,28 @@
+/**
+ * Knead Agent Runner — runs on Render alongside key-sharer.ts
+ *
+ * Uses the same connectTowns pattern as key-sharer.ts.
+ * Listens in NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID for commands from Admin/Contributor wallets,
+ * runs the Claude agent loop locally (including agentcard CLI), and posts results
+ * back to Towns — all inside this one process.
+ *
+ * Run with:  npx tsx server/agent-runner.ts
+ *
+ * Env vars needed on Render (most already exist from key-sharer):
+ *   AGENT_RUNNER_PRIVATE_KEY                  ← new agent wallet private key
+ *   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID           ✅ already on Render
+ *   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID                    ✅ already on Render
+ *   NEXT_PUBLIC_BASE_RPC_URL                  ✅ already on Render
+ *   ANTHROPIC_API_KEY                         ← add this
+ *   AGENTCARD_CLI_PATH                        ← add this (path to agentcard binary)
+ *   NEXT_PUBLIC_SUPABASE_URL                  ← add this (for role-gate)
+ *   SUPABASE_SERVICE_ROLE_KEY                 ← add this (for role-gate)
+ *   THIRDWEB_SECRET_KEY                       ← add this (for role-gate)
+ *   NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS ← add this (for role-gate)
+ *   SHOPIFY_STORE_DOMAIN                      ← add this (for merch checkout)
+ *   SHOPIFY_STOREFRONT_ACCESS_TOKEN           ← add this (for merch checkout)
+ */
+
 import { ethers } from 'ethers';
 import { connectTowns, townsEnv } from '@towns-protocol/sdk';
 import { runAgent } from '@/lib/agent';
@@ -5,10 +30,11 @@ import { getWalletAgentRole } from '@/lib/agent/role-gate';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 const SPACE_ID   = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
-const CHANNEL_ID = process.env.NEXT_PUBLIC_CHANNEL_ID!;
+const CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID!;
 const KEY        = process.env.AGENT_RUNNER_PRIVATE_KEY!;
 const BASE_RPC   = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 
+// All commands must start with an @AgentCommune mention
 const MENTION_PATTERN = /^@agentcommune\b/i;
 
 function isBotMentioned(text: string): boolean {
@@ -17,11 +43,16 @@ function isBotMentioned(text: string): boolean {
 
 async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🤖 AgentCommune Runner');
+  console.log('🤖 Knead Agent Runner');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  if (!SPACE_ID || !CHANNEL_ID || !KEY) throw new Error('Missing env vars: AGENT_RUNNER_PRIVATE_KEY, NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID, NEXT_PUBLIC_CHANNEL_ID');
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error('Missing ANTHROPIC_API_KEY');
+  if (!SPACE_ID || !CHANNEL_ID || !KEY) {
+    throw new Error('Missing env vars: AGENT_RUNNER_PRIVATE_KEY, NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID, NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID');
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('Missing ANTHROPIC_API_KEY');
+  }
 
   const townsConfig = townsEnv().makeTownsConfig('omega', { rpcUrl: BASE_RPC });
   const provider    = new ethers.providers.JsonRpcProvider(BASE_RPC);
@@ -30,47 +61,67 @@ async function main() {
   console.log(`📋 Agent wallet: ${wallet.address}`);
   console.log(`📡 Listening in channel: ${CHANNEL_ID}\n`);
 
-  const agent  = await connectTowns(wallet, { townsConfig });
-  const space  = await agent.spaces.getSpace(SPACE_ID);
+  const agent = await connectTowns(wallet, { townsConfig });
+
+  const space   = await agent.spaces.getSpace(SPACE_ID);
   const channel = await space.getChannel(CHANNEL_ID);
 
-  // NOTE: verify the exact event name against your @towns-protocol/sdk version
+  // NOTE: check your @towns-protocol/sdk version for the exact event name.
   // Common alternatives: 'event', 'timeline', 'newMessage'
   channel.on('message', async (message: { senderId: string; content: string }) => {
     const { senderId, content } = message;
-    if (senderId === wallet.address) return;
-    if (!isBotMentioned(content)) return;
+
+    if (senderId === wallet.address) return;        // ignore own messages
+    if (!isBotMentioned(content)) return;           // only respond to @kneadagent mentions
 
     console.log(`\n[agent] Mention from ${senderId}: ${content}`);
 
     const { allowed, role } = await getWalletAgentRole(senderId).catch(() => ({ allowed: false, role: null }));
     if (!allowed) {
       console.log(`[agent] Unauthorized mention from ${senderId}`);
-      await channel.sendMessage(`[AgentCommune] This bot is only available to Contributors and Admins.`).catch(() => {});
+      await channel.sendMessage(
+        `[AgentCommune] This bot is only available to Contributors and Admins.`
+      ).catch(() => {});
       return;
     }
 
     console.log(`[agent] Role: ${role} — running agent`);
+
     await channel.sendMessage(`[AgentCommune] Got it — processing: "${content.substring(0, 80)}"`).catch(() => {});
 
     const result = await runAgent(
       { command: content, senderAddress: senderId, channelId: CHANNEL_ID },
-      async (msg: string) => { await channel.sendMessage(`[AgentCommune] ${msg}`).catch(() => {}); },
-    ).catch((err: Error) => ({ success: false, summary: `Agent error: ${err.message}`, actionsCompleted: [] as string[], errors: [err.message] }));
+      async (message: string) => {
+        await channel.sendMessage(`[AgentCommune] ${message}`).catch(() => {});
+      },
+    ).catch((err: Error) => ({
+      success: false,
+      summary: `Agent error: ${err.message}`,
+      actionsCompleted: [] as string[],
+      errors: [err.message],
+    }));
 
     console.log(`[agent] Done. Success: ${result.success} — ${result.summary}`);
-    if (!result.success) await channel.sendMessage(`[AgentCommune] Failed: ${result.summary}`).catch(() => {});
+
+    if (!result.success) {
+      await channel.sendMessage(`[AgentCommune] Failed: ${result.summary}`).catch(() => {});
+    }
   });
 
-  console.log('🟢 AgentCommune is online\n');
+  console.log('🟢 Agent Runner is online\n');
+
+  // Poll Supabase every 5 minutes for proposals that crossed their vote threshold
   startProposalPoller(channel, wallet.address);
 
   process.on('SIGTERM', () => { agent.stop(); process.exit(0); });
   process.on('SIGINT',  () => { agent.stop(); process.exit(0); });
+
   setInterval(() => console.log('💓 Online:', new Date().toISOString()), 30 * 60 * 1000);
 }
 
 function startProposalPoller(channel: any, botAddress: string) {
+  const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
   async function checkProposals() {
     try {
       const supabase = getSupabaseAdmin();
@@ -79,9 +130,12 @@ function startProposalPoller(channel: any, botAddress: string) {
         .select('id, title, description, items, created_by, vote_threshold, vote_count')
         .eq('status', 'open');
 
-      const ready = (proposals ?? []).filter((p: any) => p.vote_count >= p.vote_threshold);
+      const ready = (proposals ?? []).filter(
+        (p: any) => p.vote_count >= p.vote_threshold,
+      );
 
       for (const proposal of ready) {
+        // Atomically claim it to prevent double-execution
         const { data: claimed } = await supabase
           .from('proposals')
           .update({ status: 'triggered', triggered_at: new Date().toISOString() })
@@ -92,7 +146,7 @@ function startProposalPoller(channel: any, botAddress: string) {
 
         if (!claimed) continue;
 
-        console.log(`[proposals] Executing: ${proposal.title}`);
+        console.log(`[proposals] Executing proposal: ${proposal.title}`);
         await channel.sendMessage(`[AgentCommune] Executing approved proposal: "${proposal.title}"`).catch(() => {});
 
         const items = (proposal.items as any[]).map((item: any, i: number) => {
@@ -120,9 +174,13 @@ function startProposalPoller(channel: any, botAddress: string) {
     }
   }
 
+  // Run once shortly after startup, then every 5 minutes
   setTimeout(checkProposals, 10_000);
-  setInterval(checkProposals, 5 * 60 * 1000);
+  setInterval(checkProposals, POLL_INTERVAL);
   console.log('📋 Proposal poller started (every 5 minutes)');
 }
 
-main().catch(err => { console.error('❌ FATAL:', err.message); process.exit(1); });
+main().catch(err => {
+  console.error('❌ FATAL:', err.message);
+  process.exit(1);
+});
