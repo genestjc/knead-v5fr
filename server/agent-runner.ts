@@ -22,6 +22,7 @@
  *   SHOPIFY_STOREFRONT_ACCESS_TOKEN
  */
 
+import 'fake-indexeddb/auto'; // polyfill IndexedDB for Node.js (SyncAgent crypto store)
 import { ethers } from 'ethers';
 import {
   SyncAgent,
