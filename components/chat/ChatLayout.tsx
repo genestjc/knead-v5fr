@@ -9,12 +9,13 @@ import { DirectMessageInterface } from './DirectMessageInterface';
 import { EventsCalendarModal } from './EventsCalendarModal';
 import { AboutFAQModal } from './AboutFAQModal';
 import { AnnouncementsModal } from './AnnouncementsModal';
+import { ProposalsModal } from './ProposalsModal';
 import { useActiveAccount } from 'thirdweb/react';
 import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useCustomProfile } from '@/hooks/use-custom-profile';
 import { useUserDms, useTimeline, useMyMember } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
-import { Home, Calendar, BookOpen, Megaphone, Send, Landmark, MoreVertical } from 'lucide-react';
+import { Home, Calendar, BookOpen, Megaphone, Send, Landmark, MoreVertical, FileText } from 'lucide-react';
 
 const VIDEO_CALL_INVITE_PREFIX = '📹 [VIDEO_CALL_INVITE]';
 
@@ -108,6 +109,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
+  const [showProposalsModal, setShowProposalsModal] = useState(false);
   const [treasuryBalance, setTreasuryBalance] = useState<string>('...');
   
   const [dmPanelEverOpened, setDmPanelEverOpened] = useState(false);
@@ -196,6 +198,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       label: 'About',
       onClick: () => {
         setShowAboutModal(true);
+        setLogoExpanded(false);
+      },
+    },
+    {
+      icon: <FileText className="w-5 h-5" />,
+      label: 'Proposals',
+      onClick: () => {
+        setShowProposalsModal(true);
         setLogoExpanded(false);
       },
     },
@@ -518,6 +528,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <EventsCalendarModal isOpen={showEventsModal} onClose={() => setShowEventsModal(false)} />
       <AboutFAQModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
       <AnnouncementsModal isOpen={showAnnouncementsModal} onClose={() => setShowAnnouncementsModal(false)} />
+      <ProposalsModal isOpen={showProposalsModal} onClose={() => setShowProposalsModal(false)} />
 
       {isContributor && (
         <GlobalDmCallWatcher onIncomingCall={handleIncomingCall} />
