@@ -10,6 +10,7 @@ import { MonthlyMintManager } from '@/components/admin/MonthlyMintManager';
 import { MailingListManager } from '@/components/admin/MailingListManager';
 
 import { AnnouncementsManager } from '@/components/admin/AnnouncementsManager';
+import { ProposalsManager } from '@/components/admin/ProposalsManager';
 
 // ✅ Prevents static generation
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ function getClient() {
 
 export default function AdminPage() {
   const account = useActiveAccount();
-  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements' | 'proposals'>('events');
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
   const client = getClient();
@@ -178,6 +179,17 @@ export default function AdminPage() {
             >
               📢 Announcements
             </button>
+
+            <button
+              onClick={() => setActiveTab('proposals')}
+              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
+                activeTab === 'proposals'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📋 Proposals
+            </button>
           </nav>
         </div>
       </div>
@@ -197,6 +209,9 @@ export default function AdminPage() {
             )}
             {activeTab === 'announcements' && (
               <AnnouncementsManager adminAddress={account.address} />
+            )}
+            {activeTab === 'proposals' && (
+              <ProposalsManager adminAddress={account.address} />
             )}
           </>
         )}
