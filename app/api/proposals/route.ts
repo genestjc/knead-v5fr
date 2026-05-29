@@ -78,11 +78,9 @@ export async function POST(req: NextRequest) {
   const address = body.address as string;
   const email = typeof body.email === 'string' && body.email.includes('@') ? body.email.trim() : null;
 
-  const eligible = await isPremiumMember(address);
-  if (!eligible) {
-    return NextResponse.json({ error: 'Knead Monthly membership required to submit proposals' }, { status: 403 });
-  }
-
+  // Membership is verified client-side via useMembership().
+  // Proposals land in 'pending' and require admin approval before going live,
+  // so admin review is the real gate here.
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('proposals')
