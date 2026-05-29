@@ -111,9 +111,7 @@ async function main() {
       const text     = event.content.body;
       const mentions = event.content.mentions ?? [];
       const isMentionedInBody = isBotMentioned(text);
-      const isMentionedByRef  = mentions.some(
-        (m: any) => m.userId === botUserId || m.address?.toLowerCase() === wallet.address.toLowerCase(),
-      );
+      const isMentionedByRef  = mentions.some((m: any) => m.userId === botUserId);
 
       console.log(`[agent] New message from ${event.sender.id}: body="${text}" mentions=${JSON.stringify(mentions)}`);
 
