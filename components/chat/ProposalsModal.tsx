@@ -1,0 +1,468 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, FileText, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { toast } from 'sonner';
+import { useActiveAccount } from 'thirdweb/react';
+import { useMembership } from '@/components/membership-provider';
+import { subDays, isAfter } from 'date-fns';
+
+interface Proposal {
+  id: string;
+  title: string;
+  description: string;
+  items: any[];
+  vote_threshold: number;
+  vote_count: number;
+  status: 'open' | 'triggered' | 'executing' | 'executed';
+  created_by: string;
+  created_at: string;
+  user_has_voted: boolean;
+}
+
+interface ProposalsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
+  const account = useActiveAccount();
+  const { membershipType, isLoading: membershipLoading } = useMembership();
+
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isContributor, setIsContributor] = useState(false);
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const isPremium = membershipType === 'premium';
+  const address = account?.address;
+  const isReady = !membershipLoading && !loading;
+
+  const fetchProposals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = address
+        ? `/api/proposals?viewer=${encodeURIComponent(address)}`
+        : '/api/proposals';
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.proposals) {
+        setProposals(data.proposals);
+        setIsContributor(data.viewer_is_contributor ?? false);
+      }
+    } catch {
+      toast.error('Failed to load proposals');
+    } finally {
+      setLoading(false);
+    }
+  }, [address]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSubmitted(false);
+      fetchProposals();
+    }
+  }, [isOpen, fetchProposals]);
+
+  const thisWeekProposals = proposals.filter((p) =>
+    isAfter(new Date(p.created_at), subDays(new Date(), 7)),
+  );
+
+  const handleVote = async (proposal: Proposal) => {
+    if (!address) { toast.error('Connect your wallet to vote'); return; }
+
+    setVotingId(proposal.id);
+    try {
+      const method = proposal.user_has_voted ? 'DELETE' : 'POST';
+      const res = await fetch(`/api/proposals/${proposal.id}/vote`, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to vote');
+      } else {
+        toast.success(proposal.user_has_voted ? 'Vote removed' : 'Vote cast');
+        await fetchProposals();
+      }
+    } catch {
+      toast.error('Failed to vote');
+    } finally {
+      setVotingId(null);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!address) { toast.error('Connect your wallet'); return; }
+    if (!title.trim() || !description.trim()) { toast.error('Title and description are required'); return; }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, address, email: email || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to submit proposal');
+      } else {
+        setSubmitted(true);
+        await fetchProposals();
+      }
+    } catch {
+      toast.error('Failed to submit proposal');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      open: 'bg-blue-50 text-blue-700',
+      triggered: 'bg-amber-50 text-amber-700',
+      executing: 'bg-purple-50 text-purple-700',
+      executed: 'bg-green-50 text-green-700',
+    };
+    const labels: Record<string, string> = {
+      open: 'Open',
+      triggered: 'Approved',
+      executing: 'Executing',
+      executed: 'Executed',
+    };
+    return (
+      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+        {labels[status] || status}
+      </span>
+    );
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <FileText className="w-6 h-6 text-gray-700" />
+                <h2 className="text-2xl font-adonis">Proposals</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+              {!isReady ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
+                </div>
+              ) : !address ? (
+                <NoWalletView />
+              ) : isPremium || isContributor ? (
+                <>
+                  {/* Premium member — submit form */}
+                  {isPremium && (
+                    <SubmitSection
+                      submitted={submitted}
+                      title={title}
+                      description={description}
+                      email={email}
+                      isSubmitting={isSubmitting}
+                      onTitleChange={setTitle}
+                      onDescriptionChange={setDescription}
+                      onEmailChange={setEmail}
+                      onSubmit={handleSubmit}
+                      onReset={() => {
+                        setSubmitted(false);
+                        setTitle('');
+                        setDescription('');
+                        setEmail('');
+                      }}
+                    />
+                  )}
+
+                  {/* Contributor — this week's proposals */}
+                  {isContributor && (
+                    <VoteSection
+                      proposals={thisWeekProposals}
+                      votingId={votingId}
+                      onVote={handleVote}
+                      getStatusBadge={getStatusBadge}
+                      hasDivider={isPremium}
+                    />
+                  )}
+                </>
+              ) : (
+                <NoRoleView />
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Sub-sections ──────────────────────────────────────────────────────────────
+
+function SubmitSection({
+  submitted,
+  title,
+  description,
+  email,
+  isSubmitting,
+  onTitleChange,
+  onDescriptionChange,
+  onEmailChange,
+  onSubmit,
+  onReset,
+}: {
+  submitted: boolean;
+  title: string;
+  description: string;
+  email: string;
+  isSubmitting: boolean;
+  onTitleChange: (v: string) => void;
+  onDescriptionChange: (v: string) => void;
+  onEmailChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="mb-8">
+      <AnimatePresence mode="wait">
+        {submitted ? (
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="border border-gray-200 rounded-2xl p-8 text-center"
+          >
+            <p className="font-adonis text-2xl text-gray-900 mb-2">Proposal submitted.</p>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-6">
+              {email
+                ? `A confirmation has been sent to ${email}.`
+                : 'The community will now vote on it.'}
+            </p>
+            <button
+              onClick={onReset}
+              className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors"
+            >
+              Submit another
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <h3 className="font-adonis text-2xl text-gray-900 mb-1">Want to submit a proposal?</h3>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-5">
+              As a Knead Monthly member, your ideas shape what we do next. Enter your idea below.
+            </p>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div>
+                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => onTitleChange(e.target.value)}
+                  placeholder="Give your proposal a clear title"
+                  maxLength={120}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
+                  Description & Request
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => onDescriptionChange(e.target.value)}
+                  placeholder="Describe what you're proposing and what action you'd like the agent to take on behalf of the community"
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none placeholder-gray-300"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
+                  Email <span className="normal-case text-gray-300">(optional — for confirmation)</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => onEmailChange(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-8 py-3 bg-black text-white rounded-xl font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Submitting…' : 'Submit proposal'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function VoteSection({
+  proposals,
+  votingId,
+  onVote,
+  getStatusBadge,
+  hasDivider,
+}: {
+  proposals: Proposal[];
+  votingId: string | null;
+  onVote: (p: Proposal) => void;
+  getStatusBadge: (status: string) => React.ReactNode;
+  hasDivider: boolean;
+}) {
+  return (
+    <div className={hasDivider ? 'pt-8 border-t border-gray-100' : ''}>
+      <h3 className="font-adonis text-2xl text-gray-900 mb-1">This Week's Proposals</h3>
+      <p className="font-georgia-pro text-gray-500 text-sm mb-5">
+        Here's a list of all the proposals submitted this week. Vote on your favorite below:
+      </p>
+
+      {proposals.length === 0 ? (
+        <div className="text-center py-10 border border-gray-100 rounded-2xl">
+          <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+          <p className="font-georgia-pro text-gray-400 text-sm">No proposals this week yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {proposals.map((proposal) => {
+            const progress = Math.min((proposal.vote_count / proposal.vote_threshold) * 100, 100);
+            const isVotingThis = votingId === proposal.id;
+            const canVote = proposal.status === 'open';
+
+            return (
+              <motion.div
+                key={proposal.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border border-gray-200 rounded-2xl p-5 hover:border-gray-300 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <h4 className="font-adonis text-xl text-gray-900">{proposal.title}</h4>
+                      {getStatusBadge(proposal.status)}
+                    </div>
+                    <p className="font-georgia-pro text-gray-600 text-sm leading-relaxed">
+                      {proposal.description}
+                    </p>
+                  </div>
+                  {canVote && (
+                    <button
+                      onClick={() => onVote(proposal)}
+                      disabled={isVotingThis}
+                      className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-georgia-pro transition-all disabled:opacity-50 ${
+                        proposal.user_has_voted
+                          ? 'bg-black text-white hover:bg-gray-800'
+                          : 'border border-gray-300 text-gray-700 hover:border-black hover:text-black'
+                      }`}
+                    >
+                      {isVotingThis ? (
+                        <span className="inline-block w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
+                      ) : proposal.user_has_voted ? (
+                        <ThumbsDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                      )}
+                      {proposal.user_has_voted ? 'Remove vote' : 'Vote'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Vote progress */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-georgia-pro text-xs text-gray-400">Votes toward threshold</span>
+                    <span className="font-georgia-pro text-xs text-gray-600">
+                      {proposal.vote_count} / {proposal.vote_threshold}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className={`h-full rounded-full ${progress >= 100 ? 'bg-green-500' : 'bg-black'}`}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoWalletView() {
+  return (
+    <div className="text-center py-16">
+      <FileText className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+      <p className="font-adonis text-xl text-gray-700 mb-2">Connect your wallet</p>
+      <p className="font-georgia-pro text-sm text-gray-400">
+        Connect to see proposals and participate in governance.
+      </p>
+    </div>
+  );
+}
+
+function NoRoleView() {
+  return (
+    <div className="text-center py-16">
+      <FileText className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+      <p className="font-adonis text-xl text-gray-700 mb-2">Community governance</p>
+      <p className="font-georgia-pro text-sm text-gray-400 max-w-sm mx-auto">
+        Knead Monthly members can submit proposals. Contributors vote on which ones the agent executes.
+      </p>
+    </div>
+  );
+}
