@@ -29,7 +29,6 @@ import {
   makeSignerContext,
   townsEnv,
   RiverTimelineEvent,
-  userIdFromAddress,
 } from '@towns-protocol/sdk';
 import type { Channel } from '@towns-protocol/sdk';
 import { runAgent } from '@/lib/agent';
@@ -80,7 +79,7 @@ async function main() {
 
   await agent.start();
 
-  const botUserId = userIdFromAddress(wallet.address);
+  const botUserId = agent.userId;
   const space     = agent.spaces.getSpace(SPACE_ID);
   const channel   = space.getChannel(CHANNEL_ID);
 
