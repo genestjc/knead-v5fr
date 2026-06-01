@@ -82,6 +82,25 @@ export async function POST(req: NextRequest) {
   // Proposals land in 'pending' and require admin approval before going live,
   // so admin review is the real gate here.
   const supabase = getSupabaseAdmin();
+
+  // Enforce one proposal per rolling 7-day window per address
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recent } = await supabase
+    .from('proposals')
+    .select('id')
+    .eq('created_by', address.toLowerCase())
+    .neq('status', 'rejected')
+    .gte('created_at', oneWeekAgo)
+    .limit(1)
+    .maybeSingle();
+
+  if (recent) {
+    return NextResponse.json(
+      { error: 'You can only submit one proposal per week. Check back after your current proposal has been reviewed.' },
+      { status: 429 },
+    );
+  }
+
   const { data, error } = await supabase
     .from('proposals')
     .insert({
