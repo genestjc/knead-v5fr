@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { X, FileText, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
-import { subDays, isAfter } from 'date-fns';
+import { subDays, isAfter, format } from 'date-fns';
 
 interface Proposal {
   id: string;
@@ -39,6 +39,7 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
   const [description, setDescription] = useState('');
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [weeklyLimitHit, setWeeklyLimitHit] = useState(false);
 
   const isPremium = membershipType === 'premium';
   const address = account?.address;
@@ -66,12 +67,19 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setSubmitted(false);
+      setWeeklyLimitHit(false);
       fetchProposals();
     }
   }, [isOpen, fetchProposals]);
 
-  const thisWeekProposals = proposals.filter((p) =>
-    isAfter(new Date(p.created_at), subDays(new Date(), 7)),
+  // This week: open proposals from the last 7 days — eligible for voting
+  const thisWeekProposals = proposals.filter(
+    (p) => p.status === 'open' && isAfter(new Date(p.created_at), subDays(new Date(), 7)),
+  );
+
+  // Previous: proposals that have passed the voting stage
+  const previousProposals = proposals.filter(
+    (p) => p.status !== 'open',
   );
 
   const handleVote = async (proposal: Proposal) => {
@@ -113,7 +121,11 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Failed to submit proposal');
+        if (res.status === 429) {
+          setWeeklyLimitHit(true);
+        } else {
+          toast.error(data.error || 'Failed to submit proposal');
+        }
       } else {
         setSubmitted(true);
         await fetchProposals();
@@ -193,6 +205,7 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
                   {isPremium && !isContributor && (
                     <SubmitSection
                       submitted={submitted}
+                      weeklyLimitHit={weeklyLimitHit}
                       title={title}
                       description={description}
                       email={email}
@@ -203,6 +216,7 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
                       onSubmit={handleSubmit}
                       onReset={() => {
                         setSubmitted(false);
+                        setWeeklyLimitHit(false);
                         setTitle('');
                         setDescription('');
                         setEmail('');
@@ -210,15 +224,22 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
                     />
                   )}
 
-                  {/* Contributor — this week's proposals */}
+                  {/* Contributor — this week's proposals + previous */}
                   {isContributor && (
-                    <VoteSection
-                      proposals={thisWeekProposals}
-                      votingId={votingId}
-                      onVote={handleVote}
-                      getStatusBadge={getStatusBadge}
-                      hasDivider={isPremium}
-                    />
+                    <>
+                      <VoteSection
+                        proposals={thisWeekProposals}
+                        votingId={votingId}
+                        onVote={handleVote}
+                        getStatusBadge={getStatusBadge}
+                      />
+                      {previousProposals.length > 0 && (
+                        <PreviousSection
+                          proposals={previousProposals}
+                          getStatusBadge={getStatusBadge}
+                        />
+                      )}
+                    </>
                   )}
                 </>
               ) : (
@@ -236,6 +257,7 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
 
 function SubmitSection({
   submitted,
+  weeklyLimitHit,
   title,
   description,
   email,
@@ -247,6 +269,7 @@ function SubmitSection({
   onReset,
 }: {
   submitted: boolean;
+  weeklyLimitHit: boolean;
   title: string;
   description: string;
   email: string;
@@ -279,6 +302,26 @@ function SubmitSection({
               className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors"
             >
               Submit another
+            </button>
+          </motion.div>
+        ) : weeklyLimitHit ? (
+          <motion.div
+            key="limit"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="border border-amber-200 bg-amber-50 rounded-2xl p-8 text-center"
+          >
+            <Clock className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+            <p className="font-adonis text-xl text-gray-900 mb-2">One proposal per week</p>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-6 max-w-sm mx-auto">
+              You've already submitted a proposal this week. Check back once your current one has been reviewed.
+            </p>
+            <button
+              onClick={onReset}
+              className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors"
+            >
+              Go back
             </button>
           </motion.div>
         ) : (
@@ -350,16 +393,14 @@ function VoteSection({
   votingId,
   onVote,
   getStatusBadge,
-  hasDivider,
 }: {
   proposals: Proposal[];
   votingId: string | null;
   onVote: (p: Proposal) => void;
   getStatusBadge: (status: string) => React.ReactNode;
-  hasDivider: boolean;
 }) {
   return (
-    <div className={hasDivider ? 'pt-8 border-t border-gray-100' : ''}>
+    <div>
       <h3 className="font-adonis text-2xl text-gray-900 mb-1">This Week's Proposals</h3>
       <p className="font-georgia-pro text-gray-500 text-sm mb-5">
         Here's a list of all the proposals submitted this week. Vote on your favorite below:
@@ -440,6 +481,61 @@ function VoteSection({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function PreviousSection({
+  proposals,
+  getStatusBadge,
+}: {
+  proposals: Proposal[];
+  getStatusBadge: (status: string) => React.ReactNode;
+}) {
+  return (
+    <div className="mt-10 pt-8 border-t border-gray-100">
+      <h3 className="font-adonis text-xl text-gray-700 mb-1">Previous Proposals</h3>
+      <p className="font-georgia-pro text-gray-400 text-sm mb-5">
+        A record of proposals the community has actioned.
+      </p>
+      <div className="space-y-3">
+        {proposals.map((proposal) => {
+          const progress = Math.min((proposal.vote_count / proposal.vote_threshold) * 100, 100);
+          return (
+            <div
+              key={proposal.id}
+              className="border border-gray-100 rounded-2xl p-4 bg-gray-50/50"
+            >
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h4 className="font-adonis text-base text-gray-800">{proposal.title}</h4>
+                    {getStatusBadge(proposal.status)}
+                  </div>
+                  <p className="font-georgia-pro text-gray-500 text-xs leading-relaxed line-clamp-2">
+                    {proposal.description}
+                  </p>
+                </div>
+                <span className="font-georgia-pro text-xs text-gray-400 shrink-0 whitespace-nowrap">
+                  {format(new Date(proposal.created_at), 'MMM d, yyyy')}
+                </span>
+              </div>
+              {/* Compact vote bar */}
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex-1 h-0.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${progress >= 100 ? 'bg-green-400' : 'bg-gray-400'}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="font-georgia-pro text-xs text-gray-400 shrink-0">
+                  {proposal.vote_count} / {proposal.vote_threshold} votes
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
