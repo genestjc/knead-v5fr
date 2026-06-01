@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { createThirdwebClient, getContract, readContract } from 'thirdweb';
-import { base } from 'thirdweb/chains';
+import { createThirdwebClient, getContract, readContract, defineChain } from 'thirdweb';
+
+const base = defineChain(8453); // Base mainnet
 
 function getTwClient() {
   return createThirdwebClient({ secretKey: process.env.THIRDWEB_SECRET_KEY! });
