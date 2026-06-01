@@ -1,35 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { createThirdwebClient, getContract, readContract, defineChain } from 'thirdweb';
+import { ethers } from 'ethers';
 
-const base = defineChain(8453); // Base mainnet
-
-function getTwClient() {
-  return createThirdwebClient({ secretKey: process.env.THIRDWEB_SECRET_KEY! });
-}
+// Use ThirdWeb's RPC — more reliable than the public Base endpoint
+const RPC_URL = `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+const ERC1155_ABI = ['function balanceOf(address account, uint256 id) view returns (uint256)'];
 
 async function isContributor(address: string): Promise<boolean> {
   try {
     const contractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
     if (!contractAddress) return false;
-
-    const contract = getContract({
-      client: getTwClient(),
-      chain: base,
-      address: contractAddress as `0x${string}`,
-    });
-
-    const balances = await Promise.all(
-      [1, 2, 3].map((id) =>
-        readContract({
-          contract,
-          method: 'function balanceOf(address account, uint256 id) view returns (uint256)',
-          params: [address as `0x${string}`, BigInt(id)],
-        }),
-      ),
-    );
-
-    return balances.some((b) => b > BigInt(0));
+    const contract = new ethers.Contract(contractAddress, ERC1155_ABI, provider);
+    const balances = await Promise.all([1, 2, 3].map(id => contract.balanceOf(address, id)));
+    return balances.some((b: ethers.BigNumber) => b.gt(0));
   } catch {
     return false;
   }
