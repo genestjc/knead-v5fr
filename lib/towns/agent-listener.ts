@@ -122,7 +122,7 @@ async function handleMessage(event: TownsMessageEvent): Promise<void> {
   if (_bot) {
     await _bot.sendMessage(
       event.channelId,
-      `[Knead Agent] Got it — processing: "${event.content.substring(0, 80)}"`,
+      `[Demeter] Got it — processing: "${event.content.substring(0, 80)}"`,
     ).catch(() => {});
   }
 
@@ -143,7 +143,7 @@ async function handleMessage(event: TownsMessageEvent): Promise<void> {
   if (!result.success && _bot) {
     await _bot.sendMessage(
       event.channelId,
-      `[Knead Agent] Failed: ${result.summary}`,
+      `[Demeter] Failed: ${result.summary}`,
     ).catch(() => {});
   }
 }
@@ -162,7 +162,7 @@ export async function postToTownsChannel(
 
   if (_bot && targetChannel) {
     try {
-      await _bot.sendMessage(targetChannel, `[Knead Agent] ${message}`);
+      await _bot.sendMessage(targetChannel, `[Demeter] ${message}`);
     } catch (err) {
       console.error('[agent-listener] Failed to post message:', err);
     }
