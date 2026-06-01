@@ -26,6 +26,21 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ proposals: data ?? [] });
 }
 
+export async function DELETE(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  if (!body?.id || !body?.adminAddress) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+  if (!isAdmin(body.adminAddress)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from('proposals').delete().eq('id', body.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}
+
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.id || !body?.status || !body?.adminAddress) {
