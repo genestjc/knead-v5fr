@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
+import { X, FileText, ThumbsUp, ThumbsDown, Clock, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
@@ -24,15 +24,15 @@ interface Proposal {
 interface ProposalsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isContributor?: boolean;
 }
 
-export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
+export function ProposalsModal({ isOpen, onClose, isContributor = false }: ProposalsModalProps) {
   const account = useActiveAccount();
   const { membershipType, isLoading: membershipLoading } = useMembership();
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isContributor, setIsContributor] = useState(false);
   const [votingId, setVotingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState('');
@@ -55,7 +55,6 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
       const data = await res.json();
       if (data.proposals) {
         setProposals(data.proposals);
-        setIsContributor(data.viewer_is_contributor ?? false);
       }
     } catch {
       toast.error('Failed to load proposals');
@@ -231,6 +230,7 @@ export function ProposalsModal({ isOpen, onClose }: ProposalsModalProps) {
                         proposals={thisWeekProposals}
                         votingId={votingId}
                         onVote={handleVote}
+                        onRefresh={fetchProposals}
                         getStatusBadge={getStatusBadge}
                       />
                       {previousProposals.length > 0 && (
@@ -292,17 +292,11 @@ function SubmitSection({
             className="border border-gray-200 rounded-2xl p-8 text-center"
           >
             <p className="font-adonis text-2xl text-gray-900 mb-2">Proposal submitted.</p>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-6">
+            <p className="font-georgia-pro text-gray-500 text-sm">
               {email
                 ? `A confirmation has been sent to ${email}.`
                 : 'The community will now vote on it.'}
             </p>
-            <button
-              onClick={onReset}
-              className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors"
-            >
-              Submit another
-            </button>
           </motion.div>
         ) : weeklyLimitHit ? (
           <motion.div
@@ -392,16 +386,36 @@ function VoteSection({
   proposals,
   votingId,
   onVote,
+  onRefresh,
   getStatusBadge,
 }: {
   proposals: Proposal[];
   votingId: string | null;
   onVote: (p: Proposal) => void;
+  onRefresh: () => void;
   getStatusBadge: (status: string) => React.ReactNode;
 }) {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+  };
+
   return (
     <div>
-      <h3 className="font-adonis text-2xl text-gray-900 mb-1">This Week's Proposals</h3>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="font-adonis text-2xl text-gray-900">This Week's Proposals</h3>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+          title="Refresh proposals"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
       <p className="font-georgia-pro text-gray-500 text-sm mb-5">
         Here's a list of all the proposals submitted this week. Vote on your favorite below:
       </p>
