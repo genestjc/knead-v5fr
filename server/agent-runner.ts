@@ -2,7 +2,7 @@
  * Knead Agent Runner — runs on Render as a Background Worker
  *
  * Uses SyncAgent from @towns-protocol/sdk (server-side, no React).
- * Listens in NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID for @AgentCommune mentions
+ * Listens in NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID for @Demeter mentions
  * from Admin/Contributor wallets, runs the Claude agent loop, and posts results
  * back to Towns.
  *
@@ -40,7 +40,7 @@ const CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID!;
 const KEY        = process.env.AGENT_RUNNER_PRIVATE_KEY!;
 const BASE_RPC   = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 
-const MENTION_PATTERN = /^@agentcommune\b/i;
+const MENTION_PATTERN = /^@demeter\b/i;
 
 function isBotMentioned(text: string): boolean {
   return MENTION_PATTERN.test(text.trim());
@@ -139,17 +139,17 @@ async function handleMessage(senderId: string, content: string, channel: Channel
   const { allowed, role } = await getWalletAgentRole(senderId).catch(() => ({ allowed: false, role: null }));
   if (!allowed) {
     console.log(`[agent] Unauthorized mention from ${senderId}`);
-    await channel.sendMessage('[AgentCommune] This bot is only available to Contributors and Admins.').catch(() => {});
+    await channel.sendMessage('[Demeter] This bot is only available to Contributors and Admins.').catch(() => {});
     return;
   }
 
   console.log(`[agent] Role: ${role} — running agent`);
-  await channel.sendMessage(`[AgentCommune] Got it — processing: "${content.substring(0, 80)}"`).catch(() => {});
+  await channel.sendMessage(`[Demeter] Got it — processing: "${content.substring(0, 80)}"`).catch(() => {});
 
   const result = await runAgent(
     { command: content, senderAddress: senderId, channelId: CHANNEL_ID },
     async (message: string) => {
-      await channel.sendMessage(`[AgentCommune] ${message}`).catch(() => {});
+      await channel.sendMessage(`[Demeter] ${message}`).catch(() => {});
     },
   ).catch((err: Error) => ({
     success: false,
@@ -161,7 +161,7 @@ async function handleMessage(senderId: string, content: string, channel: Channel
   console.log(`[agent] Done. Success: ${result.success} — ${result.summary}`);
 
   if (!result.success) {
-    await channel.sendMessage(`[AgentCommune] Failed: ${result.summary}`).catch(() => {});
+    await channel.sendMessage(`[Demeter] Failed: ${result.summary}`).catch(() => {});
   }
 }
 
@@ -192,7 +192,7 @@ function startProposalPoller(channel: Channel) {
         if (!claimed) continue;
 
         console.log(`[proposals] Executing proposal: ${proposal.title}`);
-        await channel.sendMessage(`[AgentCommune] Executing approved proposal: "${proposal.title}"`).catch(() => {});
+        await channel.sendMessage(`[Demeter] Executing approved proposal: "${proposal.title}"`).catch(() => {});
 
         const items = (proposal.items as any[]).map((item: any, i: number) => {
           if (item.type === 'usdc')     return `${i + 1}. Pay ${item.amount_usdc} USDC to ${item.recipient_address}${item.notes ? ` for: ${item.notes}` : ''}`;
@@ -205,7 +205,7 @@ function startProposalPoller(channel: Channel) {
 
         const result = await runAgent(
           { command, senderAddress: proposal.created_by || '', proposalId: proposal.id },
-          async (msg: string) => { await channel.sendMessage(`[AgentCommune] ${msg}`).catch(() => {}); },
+          async (msg: string) => { await channel.sendMessage(`[Demeter] ${msg}`).catch(() => {}); },
         ).catch((err: Error) => ({ success: false, summary: err.message, actionsCompleted: [], errors: [err.message] }));
 
         await supabase.from('proposals').update({
