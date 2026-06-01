@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('proposals')
-    .select('id, title, description, created_by, created_at, status')
+    .select('id, title, description, created_by, created_at, status, vote_threshold')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -39,9 +39,21 @@ export async function PATCH(req: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
+
+  const updatePayload: Record<string, unknown> = { status: body.status };
+  if (
+    body.status === 'open' &&
+    typeof body.vote_threshold === 'number' &&
+    Number.isInteger(body.vote_threshold) &&
+    body.vote_threshold >= 1 &&
+    body.vote_threshold <= 50
+  ) {
+    updatePayload.vote_threshold = body.vote_threshold;
+  }
+
   const { error } = await supabase
     .from('proposals')
-    .update({ status: body.status })
+    .update(updatePayload)
     .eq('id', body.id)
     .eq('status', 'pending');
 
