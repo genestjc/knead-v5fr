@@ -38,6 +38,9 @@ export async function POST(
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Increment vote count (fire-and-forget — vote is already recorded)
+  await supabase.rpc('increment_proposal_votes', { p_id: proposalId }).catch(() => {});
+
   return NextResponse.json({ success: true });
 }
 
@@ -59,5 +62,9 @@ export async function DELETE(
     .eq('voter_address', address);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Decrement vote count
+  await supabase.rpc('decrement_proposal_votes', { p_id: proposalId }).catch(() => {});
+
   return NextResponse.json({ success: true });
 }
