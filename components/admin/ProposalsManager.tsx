@@ -11,6 +11,7 @@ interface Proposal {
   created_by: string;
   created_at: string;
   status: string;
+  vote_threshold: number;
 }
 
 interface ProposalsManagerProps {
@@ -21,6 +22,8 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
+  // Per-proposal threshold overrides (keyed by proposal id)
+  const [thresholds, setThresholds] = useState<Record<string, number>>({});
 
   const fetchProposals = useCallback(async () => {
     setLoading(true);
@@ -29,6 +32,12 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setProposals(data.proposals);
+      // Seed threshold inputs with each proposal's current value
+      const initial: Record<string, number> = {};
+      (data.proposals as Proposal[]).forEach((p) => {
+        initial[p.id] = p.vote_threshold ?? 3;
+      });
+      setThresholds(initial);
     } catch (err: any) {
       toast.error(err.message || 'Failed to load proposals');
     } finally {
@@ -46,11 +55,21 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
       const res = await fetch('/api/admin/proposals', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, adminAddress }),
+        body: JSON.stringify({
+          id,
+          status,
+          adminAddress,
+          // Only send threshold when approving
+          ...(status === 'open' ? { vote_threshold: thresholds[id] ?? 3 } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success(status === 'open' ? 'Proposal approved — now live for voting' : 'Proposal rejected');
+      toast.success(
+        status === 'open'
+          ? `Proposal approved — live for voting (threshold: ${thresholds[id] ?? 3} votes)`
+          : 'Proposal rejected',
+      );
       setProposals((prev) => prev.filter((p) => p.id !== id));
     } catch (err: any) {
       toast.error(err.message || 'Action failed');
@@ -64,7 +83,7 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
       <div className="mb-6">
         <h2 className="font-adonis text-2xl mb-1">Proposal Review</h2>
         <p className="font-georgia-pro text-sm text-gray-500">
-          Approve proposals to make them live for Contributors to vote on. Reject to remove them from the queue.
+          Set a vote threshold, then approve to make a proposal live for Contributors to vote on. Reject to remove it from the queue.
         </p>
       </div>
 
@@ -102,21 +121,50 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
                     <span>{format(new Date(proposal.created_at), 'MMM d, yyyy · h:mm a')}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleAction(proposal.id, 'rejected')}
-                    disabled={actingId === proposal.id}
-                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg font-georgia-pro text-sm hover:border-red-300 hover:text-red-600 transition disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => handleAction(proposal.id, 'open')}
-                    disabled={actingId === proposal.id}
-                    className="px-4 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50"
-                  >
-                    {actingId === proposal.id ? 'Saving…' : 'Approve'}
-                  </button>
+
+                <div className="flex flex-col items-end gap-3 shrink-0">
+                  {/* Vote threshold control */}
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor={`threshold-${proposal.id}`}
+                      className="font-georgia-pro text-xs text-gray-500 whitespace-nowrap"
+                    >
+                      Votes needed to trigger:
+                    </label>
+                    <input
+                      id={`threshold-${proposal.id}`}
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={thresholds[proposal.id] ?? 3}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1 && val <= 50) {
+                          setThresholds((prev) => ({ ...prev, [proposal.id]: val }));
+                        }
+                      }}
+                      disabled={actingId === proposal.id}
+                      className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg font-georgia-pro text-sm text-center focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleAction(proposal.id, 'rejected')}
+                      disabled={actingId === proposal.id}
+                      className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg font-georgia-pro text-sm hover:border-red-300 hover:text-red-600 transition disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => handleAction(proposal.id, 'open')}
+                      disabled={actingId === proposal.id}
+                      className="px-4 py-2 bg-black text-white rounded-lg font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50"
+                    >
+                      {actingId === proposal.id ? 'Saving…' : 'Approve'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
