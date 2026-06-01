@@ -531,7 +531,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <EventsCalendarModal isOpen={showEventsModal} onClose={() => setShowEventsModal(false)} />
       <AboutFAQModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
       <AnnouncementsModal isOpen={showAnnouncementsModal} onClose={() => setShowAnnouncementsModal(false)} />
-      <ProposalsModal isOpen={showProposalsModal} onClose={() => setShowProposalsModal(false)} />
+      <ProposalsModal isOpen={showProposalsModal} onClose={() => setShowProposalsModal(false)} isContributor={isContributor} />
 
       {isContributor && (
         <GlobalDmCallWatcher onIncomingCall={handleIncomingCall} />
