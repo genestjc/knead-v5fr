@@ -88,7 +88,7 @@ export function HomepageEvents() {
 
   return (
     <section className="container-magazine pt-32 pb-24">
-      <h2 className="font-adonis text-2xl text-gray-900 mb-10">Chat Events</h2>
+      <h2 className="font-adonis text-2xl text-gray-900 mb-10 text-center">Chat Events</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
         {loading ? (
