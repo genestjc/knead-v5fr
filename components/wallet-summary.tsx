@@ -1,6 +1,7 @@
 "use client";
 
 import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
+import { getUserEmail } from "thirdweb/wallets/in-app";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, ArrowUpFromLine, Key, Wallet, AlertTriangle, DollarSign, Download, Settings, Zap, HelpCircle, Award, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +55,7 @@ export function WalletSummary({
 
   const [showContributorSettings, setShowContributorSettings] = useState(false);
   const [userData, setUserData] = useState<any>(null);
+  const [socialEmail, setSocialEmail] = useState<string | null>(null);
   const [contractAddresses, setContractAddresses] = useState<{
     rewardsAddress?: string;
     usdcAddress?: string;
@@ -79,6 +81,13 @@ export function WalletSummary({
       .then((data) => setContractAddresses(data))
       .catch((err) => console.error("Failed to fetch contract addresses:", err));
   }, []);
+
+  useEffect(() => {
+    if (!isInAppWallet) return;
+    getUserEmail({ client })
+      .then((email) => setSocialEmail(email ?? null))
+      .catch(() => setSocialEmail(null));
+  }, [isInAppWallet]);
 
   useEffect(() => {
     console.log("🔍 Contributor check useEffect triggered");
@@ -310,11 +319,16 @@ export function WalletSummary({
   const handleCopy = async () => {
     if (!account?.address) return;
     try {
-      await navigator.clipboard.writeText(account.address);
+      const text = socialEmail
+        ? `Email: ${socialEmail}\nWallet: ${account.address}`
+        : account.address;
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       toast({
-        title: "Address copied!",
-        description: "Wallet address copied to clipboard",
+        title: "Copied!",
+        description: socialEmail
+          ? "Email and wallet address copied to clipboard"
+          : "Wallet address copied to clipboard",
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -624,6 +638,13 @@ export function WalletSummary({
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="py-1">
+              {socialEmail && (
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-xs font-georgia-pro text-gray-400 mb-0.5">Signed in as</p>
+                  <p className="text-sm font-adonis text-gray-800 truncate">{socialEmail}</p>
+                </div>
+              )}
+
               <button
                 onClick={handleCopy}
                 className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
