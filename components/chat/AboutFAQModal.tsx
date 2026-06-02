@@ -57,14 +57,11 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                     connect with like-minded creatives across an array of disciplines.
                   </p>
                   <p>
-                    Every week we'll host events including live interviews, portfolio
-                    reviews, open discussions, product reviews, and more.
+                    Every week we'll host events including live interviews, DJ sets, open discussions, product reviews, and more.
                   </p>
                   <p>
                     The chat is designed to encourage thoughtful conversations using a gamified
-                    system with USDC for rewards. As
-                    members elevate their status, they'll unlock more permissions in the chat.
-                    Here's how it works:
+                    system with rewards. As members elevate their status, they'll unlock more permissions in the chat.
                   </p>
                 </div>
               </section>
@@ -75,37 +72,32 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                 <div className="space-y-4">
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Free</h4>
-                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Allowed to read messages + watch chat events for 1 hour per month.
-                    </p>
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                      <li>Allowed to read messages + watch chat events for 1 hour per month.</li>
+                    </ul>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Knead Monthly</h4>
-                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Unlimited viewing/reacting + the ability to participate during live events.
-                    </p>
-                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
-                      Knead Monthly members earn USDC for noteworthy comments (with bonuses
-                      available from Admins), available instantly in the account/wallet they signed
-                      up with. The amount of USDC a Knead Monthly member has earned with their
-                      wallet is accounted for in the chat's Treasury Contract, which automatically
-                      'graduates' them to becoming a Contributor.
-                    </p>
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                      <li>Unlimited viewing/reacting.</li>
+                      <li>Custom alias.</li>
+                      <li>Participate during live events.</li>
+                      <li>Submit Demeter proposals.</li>
+                      <li>Earn rewards.</li>
+                    </ul>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Contributors</h4>
-                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed">
-                      <span className="font-semibold">Permissions:</span> Full access including anytime messaging, DMs + Video Chat with other Contributors,
-                      custom profiles/avatars/bios, and the ability to spend USDC from
-                      the Treasury (earning 20% back on every transaction).
-                    </p>
-                    <p className="font-georgia-pro text-gray-700 text-sm leading-relaxed mt-2">
-                      Each week, Contributors are allocated a weekly budget in USDC to spend on
-                      comments from the Treasury, earning 20% back for each transaction. A Contributor's USDC
-                      will be sent from the Treasury Contract a week after allocation based on what they spent (use-it-or-lose-it) encouraging them to passively engage in the chat.
-                    </p>
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                      <li>Full access including anytime messaging.</li>
+                      <li>DMs + Video Chat with other Contributors.</li>
+                      <li>Custom alias, avatar, and bio.</li>
+                      <li>20% cashback on tips.</li>
+                      <li>Vote on Demeter proposals.</li>
+                      <li>Give gifts to Knead Monthly members.</li>
+                    </ul>
                   </div>
                 </div>
               </section>
@@ -115,29 +107,18 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                 <h3 className="text-2xl font-adonis mb-4 text-center">Frequently Asked Questions</h3>
                 <div className="space-y-2">
                   <FAQDropdown
-                    question="What's the goal of this chat?"
-                    answer={
-                      <div className="space-y-3">
-                        <p>The goal of the Knead chat is to create a digital community that's built around more mindful interactions.</p>
-                        <p>We care more about the quality of our member participation than we do the quantity. That doesn't necessarily mean everything needs to be thought-provoking; for example, sharing a photo of a wonderful Caesar salad questioning how such a popular item has so many renditions can be a great conversation starter.</p>
-                        <p>We want Knead Monthly members and Contributors to feel a sense of ownership in writing the content of the chat by encouraging better-quality conversation.</p>
-                      </div>
-                    }
-                  />
-
-                  <FAQDropdown
                     question="What's the Treasury Contract?"
-                    answer="The Treasury Contract is where the chat's reward system and rules are written. Knead never actually touches the USDC that ends up in your wallet, instead it's automatically distributed via the Treasury Contract's rules. If you'd like to donate, the Treasury address is: 0xf94ee5efd046486ad3c2554bad48c82dfb17ca12"
+                    answer="The Treasury Contract is where the chat's tipping system rules are written. If you'd like to donate, the address is: 0xf94ee5efd046486ad3c2554bad48c82dfb17ca12"
                   />
 
                   <FAQDropdown
-                    question="How do you establish the amount of USDC distributed for 'likes' and Contributor balances?"
-                    answer="We cycle through the amount of events we're forecasting against the total amount of USDC in our treasury."
+                    question="What's Demeter?"
+                    answer="Demeter is an agent for managing creator proposals and giving rewards."
                   />
 
                   <FAQDropdown
-                    question="Does Knead actually handle the Knead Monthly distributions?"
-                    answer="Knead is a decentralized platform, which means that no USDC actually passes through us. Instead, the funds are kept in the Treasury contract, which automatically distributes. Knead members own their account, which is why they have the ability to export their private keys."
+                    question="How do you establish the amount of tips and rewards for the Treasury and Demeter?"
+                    answer="We look at the amount of events we're forecasting against the total amount of USDC in our treasury. This includes how many Contributors and Knead Monthly members are currently active."
                   />
 
                   <FAQDropdown
