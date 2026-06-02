@@ -375,7 +375,7 @@ export default function JoinPage() {
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
               <h3 className="font-adonis text-2xl mb-4 text-left">Contributors</h3>
               <div className="mb-4">
-                <p className="text-4xl font-adonis text-left">Invite Only + Earned</p>
+                <p className="text-4xl font-adonis text-left">Invite Only</p>
                 <p className="font-georgia-pro text-sm text-gray-500 italic mt-1">
                   Knead Monthly members can graduate to Contributor status from chat participation.
                 </p>
