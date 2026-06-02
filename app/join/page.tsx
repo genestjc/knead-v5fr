@@ -290,7 +290,7 @@ export default function JoinPage() {
           
           {/* Membership Cards */}
           <div className="flex flex-col md:flex-row md:justify-center md:space-x-6 space-y-6 md:space-y-0 mb-12 cloud-float-delay-2">
-            
+
             {/* Free Membership Card */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
               <h3 className="font-adonis text-2xl mb-4 text-left">Free</h3>
@@ -298,11 +298,12 @@ export default function JoinPage() {
                 $0
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <p className="font-georgia-pro mb-6 text-left">
-                <li>Read three stories per month</li>
-              </p>
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+                <li>Read three stories per month.</li>
+                <li>Watch one hour of chat events.</li>
+              </ul>
               <p className="font-georgia-pro italic mb-4 text-left">
-                Sign In below to get started
+                Sign in below to get started
               </p>
               {isLoading ? (
                 <div className="animate-pulse h-8 bg-gray-100 rounded"></div>
@@ -316,7 +317,7 @@ export default function JoinPage() {
                 </div>
               )}
             </div>
-            
+
             {/* Premium Membership Card */}
             <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
               <h3 className="font-adonis text-2xl mb-4 text-left">Knead Monthly</h3>
@@ -324,10 +325,14 @@ export default function JoinPage() {
                 $5
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <p className="font-georgia-pro mb-6 text-left">
-                <li>Unlimited access to stories</li>
-                <li>Priority access to events and other activations</li>
-              </p>
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+                <li>Unlimited access to stories and chat events.</li>
+                <li>Create a chat alias.</li>
+                <li>Participate and comment during chat events.</li>
+                <li>Receive tips from Contributors in the chat.</li>
+                <li>Submit Demeter proposals in the chat.</li>
+                <li>Receive gifts from Contributors in the chat.</li>
+              </ul>
               {isLoading || isVerifying ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="animate-pulse h-12 bg-gray-100 rounded w-full"></div>
@@ -365,6 +370,25 @@ export default function JoinPage() {
                 </div>
               )}
             </div>
+
+            {/* Contributor Card */}
+            <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm membership-card gentle-float soft-glow max-w-md w-full text-left">
+              <h3 className="font-adonis text-2xl mb-4 text-left">Contributors</h3>
+              <div className="mb-4">
+                <p className="text-4xl font-adonis text-left">Invite Only + Earned</p>
+                <p className="font-georgia-pro text-sm text-gray-500 italic mt-1">
+                  Knead Monthly members can graduate to Contributor status from chat participation.
+                </p>
+              </div>
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+                <li>Unlimited access to stories and chat events.</li>
+                <li>Create a chat alias and profile picture.</li>
+                <li>Participate and comment freely in the chat.</li>
+                <li>Receive 20% cashback on chat tips.</li>
+                <li>DM and video chat other chat Contributors.</li>
+                <li>Gift Knead Monthly members items in chat.</li>
+              </ul>
+            </div>
           </div>
           
           {/* FAQ Section */}
@@ -372,10 +396,26 @@ export default function JoinPage() {
             <h2 className="font-adonis text-3xl mb-8 text-center">Frequently Asked Questions</h2>
             <div className="max-w-3xl mx-auto space-y-2 text-center">
               <FAQDropdown
-                question="How does the Knead Monthly subscription work?"
+                question="Can I cancel my subscription at any time?"
                 answer={
                   <span className="faq-answer text-left block">
-                    We mint you a membership NFT that enables access to all paywalls, experiences, and other perks.
+                    Yes, and you'll still be granted access to our stories and the chat for the duration of your membership.
+                  </span>
+                }
+              />
+              <FAQDropdown
+                question="Will I get access immediately after subscribing?"
+                answer={
+                  <span className="faq-answer text-left block">
+                    Yes, access is granted immediately after payment. If you're having trouble, try refreshing the page or contact support at info@kneadmag.com
+                  </span>
+                }
+              />
+              <FAQDropdown
+                question="How do I earn Contributor status?"
+                answer={
+                  <span className="faq-answer text-left block">
+                    Contributor status is granted to Knead interview subjects and people from our network, or is earned automatically via tips in the chat. Our ideal candidate for earning Contributor status is a Knead Monthly member who participates in events once for 2–3 months.
                   </span>
                 }
               />
@@ -388,26 +428,10 @@ export default function JoinPage() {
                 }
               />
               <FAQDropdown
-                question="Can I cancel my subscription at any time?"
-                answer={
-                  <span className="faq-answer text-left block">
-                    Yes, and you'll still be granted access to our stories for the duration of your membership.
-                  </span>
-                }
-              />
-              <FAQDropdown
                 question="How are payments accepted?"
                 answer={
                   <span className="faq-answer text-left block">
                     We use Stripe to safely and securely process payments.
-                  </span>
-                }
-              />
-              <FAQDropdown
-                question="Will I get access immediately after subscribing?"
-                answer={
-                  <span className="faq-answer text-left block">
-                    Yes! Your payment is verified instantly and access is granted immediately. Your membership NFT is minted in the background.
                   </span>
                 }
               />
