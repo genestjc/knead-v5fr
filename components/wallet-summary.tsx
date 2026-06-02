@@ -12,6 +12,8 @@ import { client, activeChain } from "@/thirdweb-client";
 import { useActiveWallet } from "thirdweb/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ContributorSettingsModal } from "@/components/chat/ContributorSettingsModal";
+import { MemberSettingsModal } from "@/components/chat/MemberSettingsModal";
+import { useMembership } from "@/components/membership-provider";
 import { getContributorStats, getParticipantStats, getContractConstants } from "@/lib/blockchain/contract-reads";
 
 interface WalletSummaryProps {
@@ -54,7 +56,9 @@ export function WalletSummary({
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
 
   const [showContributorSettings, setShowContributorSettings] = useState(false);
+  const [showMemberSettings, setShowMemberSettings] = useState(false);
   const [userData, setUserData] = useState<any>(null);
+  const { membershipType } = useMembership();
   const [socialEmail, setSocialEmail] = useState<string | null>(null);
   const [contractAddresses, setContractAddresses] = useState<{
     rewardsAddress?: string;
@@ -517,6 +521,11 @@ export function WalletSummary({
     setShowContributorSettings(true);
   };
 
+  const handleMemberSettings = () => {
+    setIsDropdownOpen(false);
+    setShowMemberSettings(true);
+  };
+
   const handleExportKey = () => {
     setIsDropdownOpen(false);
 
@@ -772,6 +781,16 @@ export function WalletSummary({
                     </button>
                   )}
 
+                  {!isContributor && membershipType === 'premium' && (
+                    <button
+                      onClick={handleMemberSettings}
+                      className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Profile Settings
+                    </button>
+                  )}
+
                   <button
                     onClick={handleExportKey}
                     className="flex items-center w-full px-4 py-2 text-sm font-adonis text-gray-700 hover:bg-gray-100 transition-colors"
@@ -974,6 +993,18 @@ export function WalletSummary({
         userId={userData?.id}
         onSaved={(alias, avatar, bio) => {
           setUserData((prev: any) => ({ ...prev, alias, avatar, bio }));
+        }}
+      />
+
+      <MemberSettingsModal
+        isOpen={showMemberSettings}
+        onClose={() => setShowMemberSettings(false)}
+        userAddress={account.address}
+        currentAlias={userData?.alias}
+        currentBio={userData?.bio}
+        userId={userData?.id}
+        onSaved={(alias, bio) => {
+          setUserData((prev: any) => ({ ...prev, alias, bio }));
         }}
       />
     </>
