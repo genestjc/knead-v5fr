@@ -21,6 +21,8 @@ import { EventVideoStage } from '@/components/chat/EventVideoStage';
 import MuxPlayer from '@mux/mux-player-react';
 import { WelcomeModal } from '@/components/chat/WelcomeModal';
 import { ContributorWelcomeModal } from '@/components/chat/ContributorWelcomeModal';
+import { MemberWelcomeModal } from '@/components/chat/MemberWelcomeModal';
+import { useMembership } from '@/components/membership-provider';
 import type { ChatUser, ChatEvent } from '@/types/chat';
 import { useActiveAccount } from 'thirdweb/react';
 import { useFreemiumChatTimer } from '@/hooks/use-freemium-chat-timer';
@@ -278,7 +280,10 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   // null = still loading from DB; true/false = resolved
   const [dbWelcomeSeen, setDbWelcomeSeen] = useState<boolean | null>(null);
   const [dbContributorWelcomeSeen, setDbContributorWelcomeSeen] = useState<boolean | null>(null);
+  const [dbMemberWelcomeSeen, setDbMemberWelcomeSeen] = useState<boolean | null>(null);
   const [showContributorModal, setShowContributorModal] = useState(false);
+  const [showMemberWelcomeModal, setShowMemberWelcomeModal] = useState(false);
+  const { membershipType } = useMembership();
 
   // 💳 Stripe modal states
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
@@ -459,20 +464,25 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         if (data.success && data.user) {
           const ws = data.user.welcomeSeen ?? false;
           const cws = data.user.contributorWelcomeSeen ?? false;
+          const mws = data.user.memberWelcomeSeen ?? false;
           setDbWelcomeSeen(ws);
           setDbContributorWelcomeSeen(cws);
+          setDbMemberWelcomeSeen(mws);
           // Restore localStorage cache so next load is instant
           if (ws) localStorage.setItem(`welcome_seen_${addr}`, 'true');
           if (cws) localStorage.setItem(`contributor_welcome_${addr}`, 'true');
+          if (mws) localStorage.setItem(`member_welcome_${addr}`, 'true');
         } else {
           setDbWelcomeSeen(false);
           setDbContributorWelcomeSeen(false);
+          setDbMemberWelcomeSeen(false);
         }
       })
       .catch(() => {
         // On network error fall back to not-seen so modal still shows
         setDbWelcomeSeen(false);
         setDbContributorWelcomeSeen(false);
+        setDbMemberWelcomeSeen(false);
       });
   }, [activeAccount?.address]);
 
@@ -502,14 +512,24 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     }
   }, [userRole, activeAccount?.address, dbContributorWelcomeSeen]);
 
+  // 🆕 Member Welcome Modal - Show once when a Knead Monthly member first enters
+  useEffect(() => {
+    if (!activeAccount?.address || membershipType !== 'premium' || userRole === 'contributor' || dbMemberWelcomeSeen === null) return;
+
+    const hasSeenMemberWelcome =
+      dbMemberWelcomeSeen || localStorage.getItem(`member_welcome_${activeAccount.address}`);
+    if (!hasSeenMemberWelcome) {
+      const timer = setTimeout(() => setShowMemberWelcomeModal(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeAccount?.address, membershipType, userRole, dbMemberWelcomeSeen]);
+
   // Helper: mark a modal as seen in both localStorage and Supabase (fire-and-forget)
-  const markModalSeen = (type: 'welcome' | 'contributor_welcome') => {
+  const markModalSeen = (type: 'welcome' | 'contributor_welcome' | 'member_welcome') => {
     if (!activeAccount?.address) return;
     const addr = activeAccount.address;
-    localStorage.setItem(
-      type === 'welcome' ? `welcome_seen_${addr}` : `contributor_welcome_${addr}`,
-      'true',
-    );
+    const lsKey = type === 'welcome' ? `welcome_seen_${addr}` : type === 'contributor_welcome' ? `contributor_welcome_${addr}` : `member_welcome_${addr}`;
+    localStorage.setItem(lsKey, 'true');
     fetch('/api/chat/mark-welcome-seen', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -522,6 +542,12 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     markModalSeen('welcome');
     setDbWelcomeSeen(true);
     setShowWelcomeModal(false);
+  };
+
+  const handleMemberWelcomeClose = () => {
+    markModalSeen('member_welcome');
+    setDbMemberWelcomeSeen(true);
+    setShowMemberWelcomeModal(false);
   };
 
   const handleContributorClose = () => {
@@ -1448,7 +1474,14 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </DialogContent>
       </Dialog>
 
-      <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
+      <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} userId={currentUser?.id} />
+
+      <MemberWelcomeModal
+        isOpen={showMemberWelcomeModal}
+        onClose={handleMemberWelcomeClose}
+        userAddress={activeAccount?.address || ''}
+        userId={currentUser?.id}
+      />
       
       <ContributorWelcomeModal
         isOpen={showContributorModal}
