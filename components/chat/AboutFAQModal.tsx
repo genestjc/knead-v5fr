@@ -69,17 +69,17 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
               {/* Tiers Section */}
               <section className="mb-8">
                 <h3 className="text-2xl font-adonis mb-4">Tiers</h3>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Free</h4>
-                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-outside pl-4">
                       <li>Allowed to read messages + watch chat events for 1 hour per month.</li>
                     </ul>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Knead Monthly</h4>
-                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-outside pl-4">
                       <li>Unlimited viewing/reacting.</li>
                       <li>Custom alias.</li>
                       <li>Participate during live events.</li>
@@ -90,7 +90,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
                   <div className="border border-gray-200 rounded-xl p-4">
                     <h4 className="font-adonis text-lg mb-2">Contributors</h4>
-                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-inside">
+                    <ul className="font-georgia-pro text-gray-700 text-sm leading-relaxed space-y-1 list-disc list-outside pl-4">
                       <li>Full access including anytime messaging.</li>
                       <li>DMs + Video Chat with other Contributors.</li>
                       <li>Custom alias, avatar, and bio.</li>
