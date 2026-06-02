@@ -394,22 +394,14 @@ function SubmitSection({
           </motion.div>
         ) : (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <h3 className="font-adonis text-2xl text-gray-900 mb-1 text-center">Want to submit a Demeter proposal?</h3>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
-              Demeter is our agent aimed to help get your creative ideas off the ground.
-            </p>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
-              As a Knead Monthly member, you get to submit a proposal once per week for an idea around any creative discipline.
-            </p>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
-              We highly encourage people to itemize the materials they'd like for a higher chance of approval, so Demeter can directly make orders.
-            </p>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
-              Upon admin approval, the proposal will be sent to the Contributor's panel for voting.
-            </p>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-6 text-center">
-              If the proposal passes the voting threshold, Demeter will begin ordering your requested items and send the corresponding USDC to your address.
-            </p>
+            <h3 className="font-adonis text-2xl text-gray-900 mb-4 text-center">Want to submit a Demeter proposal?</h3>
+            <div className="font-georgia-pro text-gray-700 text-base leading-relaxed space-y-4 mb-6">
+              <p>Demeter is our agent aimed to help get your creative ideas off the ground.</p>
+              <p>As a Knead Monthly member, you get to submit a proposal once per week for an idea around any creative discipline.</p>
+              <p>We highly encourage people to itemize the materials they'd like for a higher chance of approval, so Demeter can directly make orders.</p>
+              <p>Upon admin approval, the proposal will be sent to the Contributor's panel for voting.</p>
+              <p>If the proposal passes the voting threshold, Demeter will begin ordering your requested items and send the corresponding USDC to your address.</p>
+            </div>
 
             <form onSubmit={onSubmit} className="space-y-5">
               {/* Title */}
