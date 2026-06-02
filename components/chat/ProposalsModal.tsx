@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, ThumbsUp, ThumbsDown, Clock, RefreshCw } from 'lucide-react';
+import { X, FileText, ThumbsUp, ThumbsDown, Clock, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
@@ -37,6 +37,11 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [attachment, setAttachment] = useState('');
+  const [items, setItems] = useState([{ name: '', url: '' }]);
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [laborUsdc, setLaborUsdc] = useState('');
+  const [totalBudget, setTotalBudget] = useState('');
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [weeklyLimitHit, setWeeklyLimitHit] = useState(false);
@@ -67,6 +72,14 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
     if (isOpen) {
       setSubmitted(false);
       setWeeklyLimitHit(false);
+      setTitle('');
+      setDescription('');
+      setAttachment('');
+      setItems([{ name: '', url: '' }]);
+      setShippingAddress('');
+      setLaborUsdc('');
+      setTotalBudget('');
+      setEmail('');
       fetchProposals();
     }
   }, [isOpen, fetchProposals]);
@@ -111,12 +124,33 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
     if (!address) { toast.error('Connect your wallet'); return; }
     if (!title.trim() || !description.trim()) { toast.error('Title and description are required'); return; }
 
+    const laborNum = parseFloat(laborUsdc);
+    if (laborUsdc && (isNaN(laborNum) || laborNum > 1000)) {
+      toast.error('Labor USDC request cannot exceed $1,000'); return;
+    }
+    const budgetNum = parseFloat(totalBudget);
+    if (totalBudget && (isNaN(budgetNum) || budgetNum > 5000)) {
+      toast.error('Total budget cannot exceed $5,000'); return;
+    }
+
+    const filteredItems = items.filter(i => i.name.trim());
+
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/proposals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, address, email: email || undefined }),
+        body: JSON.stringify({
+          title,
+          description,
+          address,
+          email: email || undefined,
+          attachment: attachment || undefined,
+          itemizedItems: filteredItems.length ? filteredItems : undefined,
+          shippingAddress: shippingAddress || undefined,
+          laborUsdc: laborUsdc || undefined,
+          totalBudget: totalBudget || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -207,10 +241,20 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
                       weeklyLimitHit={weeklyLimitHit}
                       title={title}
                       description={description}
+                      attachment={attachment}
+                      items={items}
+                      shippingAddress={shippingAddress}
+                      laborUsdc={laborUsdc}
+                      totalBudget={totalBudget}
                       email={email}
                       isSubmitting={isSubmitting}
                       onTitleChange={setTitle}
                       onDescriptionChange={setDescription}
+                      onAttachmentChange={setAttachment}
+                      onItemsChange={setItems}
+                      onShippingAddressChange={setShippingAddress}
+                      onLaborUsdcChange={setLaborUsdc}
+                      onTotalBudgetChange={setTotalBudget}
                       onEmailChange={setEmail}
                       onSubmit={handleSubmit}
                       onReset={() => {
@@ -218,6 +262,11 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
                         setWeeklyLimitHit(false);
                         setTitle('');
                         setDescription('');
+                        setAttachment('');
+                        setItems([{ name: '', url: '' }]);
+                        setShippingAddress('');
+                        setLaborUsdc('');
+                        setTotalBudget('');
                         setEmail('');
                       }}
                     />
@@ -260,10 +309,20 @@ function SubmitSection({
   weeklyLimitHit,
   title,
   description,
+  attachment,
+  items,
+  shippingAddress,
+  laborUsdc,
+  totalBudget,
   email,
   isSubmitting,
   onTitleChange,
   onDescriptionChange,
+  onAttachmentChange,
+  onItemsChange,
+  onShippingAddressChange,
+  onLaborUsdcChange,
+  onTotalBudgetChange,
   onEmailChange,
   onSubmit,
   onReset,
@@ -272,14 +331,34 @@ function SubmitSection({
   weeklyLimitHit: boolean;
   title: string;
   description: string;
+  attachment: string;
+  items: { name: string; url: string }[];
+  shippingAddress: string;
+  laborUsdc: string;
+  totalBudget: string;
   email: string;
   isSubmitting: boolean;
   onTitleChange: (v: string) => void;
   onDescriptionChange: (v: string) => void;
+  onAttachmentChange: (v: string) => void;
+  onItemsChange: (v: { name: string; url: string }[]) => void;
+  onShippingAddressChange: (v: string) => void;
+  onLaborUsdcChange: (v: string) => void;
+  onTotalBudgetChange: (v: string) => void;
   onEmailChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onReset: () => void;
 }) {
+  const addItem = () => onItemsChange([...items, { name: '', url: '' }]);
+  const removeItem = (i: number) => onItemsChange(items.filter((_, idx) => idx !== i));
+  const updateItem = (i: number, field: 'name' | 'url', val: string) => {
+    const next = items.map((item, idx) => idx === i ? { ...item, [field]: val } : item);
+    onItemsChange(next);
+  };
+
+  const label = "block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest";
+  const input = "w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300";
+
   return (
     <div className="mb-8">
       <AnimatePresence mode="wait">
@@ -293,9 +372,7 @@ function SubmitSection({
           >
             <p className="font-adonis text-2xl text-gray-900 mb-2">Proposal submitted.</p>
             <p className="font-georgia-pro text-gray-500 text-sm">
-              {email
-                ? `A confirmation has been sent to ${email}.`
-                : 'The community will now vote on it.'}
+              {email ? `A confirmation has been sent to ${email}.` : 'The community will now vote on it.'}
             </p>
           </motion.div>
         ) : weeklyLimitHit ? (
@@ -311,66 +388,147 @@ function SubmitSection({
             <p className="font-georgia-pro text-gray-500 text-sm mb-6 max-w-sm mx-auto">
               You've already submitted a proposal this week. Check back once your current one has been reviewed.
             </p>
-            <button
-              onClick={onReset}
-              className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors"
-            >
+            <button onClick={onReset} className="font-georgia-pro text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900 transition-colors">
               Go back
             </button>
           </motion.div>
         ) : (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <h3 className="font-adonis text-2xl text-gray-900 mb-1 text-center">Want to submit a proposal?</h3>
-            <p className="font-georgia-pro text-gray-500 text-sm mb-5 text-center">
-              As a Knead Monthly member, your ideas shape what we do next. Enter your idea below.
+            <h3 className="font-adonis text-2xl text-gray-900 mb-1 text-center">Want to submit a Demeter proposal?</h3>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
+              Demeter is our agent aimed to help get your creative ideas off the ground.
             </p>
-            <form onSubmit={onSubmit} className="space-y-4">
+            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
+              As a Knead Monthly member, you get to submit a proposal once per week for an idea around any creative discipline.
+            </p>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
+              We highly encourage people to itemize the materials they'd like for a higher chance of approval, so Demeter can directly make orders.
+            </p>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-2 text-center">
+              Upon admin approval, the proposal will be sent to the Contributor's panel for voting.
+            </p>
+            <p className="font-georgia-pro text-gray-500 text-sm mb-6 text-center">
+              If the proposal passes the voting threshold, Demeter will begin ordering your requested items and send the corresponding USDC to your address.
+            </p>
+
+            <form onSubmit={onSubmit} className="space-y-5">
+              {/* Title */}
               <div>
-                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => onTitleChange(e.target.value)}
-                  placeholder="Give your proposal a clear title"
-                  maxLength={120}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
-                  disabled={isSubmitting}
-                />
+                <label className={label}>Title</label>
+                <input type="text" value={title} onChange={(e) => onTitleChange(e.target.value)}
+                  placeholder="Give your proposal a clear title" maxLength={120}
+                  className={input} disabled={isSubmitting} />
               </div>
+
+              {/* Description */}
               <div>
-                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
-                  Description & Request
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => onDescriptionChange(e.target.value)}
-                  placeholder="Describe what you're proposing and what action you'd like the agent to take on behalf of the community"
+                <label className={label}>Description & Request</label>
+                <p className="font-georgia-pro text-xs text-gray-400 mb-1.5">
+                  Describe the scope of your project. Include any useful links in your pitch.
+                </p>
+                <textarea value={description} onChange={(e) => onDescriptionChange(e.target.value)}
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none placeholder-gray-300"
-                  disabled={isSubmitting}
-                />
+                  disabled={isSubmitting} />
               </div>
+
+              {/* Supplementary attachment */}
               <div>
-                <label className="block font-georgia-pro text-xs text-gray-400 mb-1.5 uppercase tracking-widest">
-                  Email <span className="normal-case text-gray-300">(optional — for confirmation)</span>
+                <label className={label}>
+                  Supplementary Items{' '}
+                  <span className="normal-case text-gray-300">(optional — link or description)</span>
                 </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => onEmailChange(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
-                  disabled={isSubmitting}
-                />
+                <input type="text" value={attachment} onChange={(e) => onAttachmentChange(e.target.value)}
+                  placeholder="Link, file URL, or description of any supporting material"
+                  className={input} disabled={isSubmitting} />
               </div>
-              <div className="flex justify-center">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-8 py-3 bg-black text-white rounded-xl font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+
+              {/* Itemized Items */}
+              <div>
+                <label className={label}>Itemized Items</label>
+                <div className="space-y-2">
+                  {items.map((item, i) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <input type="text" value={item.name} onChange={(e) => updateItem(i, 'name', e.target.value)}
+                        placeholder="Item name"
+                        className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                        disabled={isSubmitting} />
+                      <input type="text" value={item.url} onChange={(e) => updateItem(i, 'url', e.target.value)}
+                        placeholder="Item URL (optional)"
+                        className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                        disabled={isSubmitting} />
+                      {items.length > 1 && (
+                        <button type="button" onClick={() => removeItem(i)} disabled={isSubmitting}
+                          className="p-2.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={addItem} disabled={isSubmitting}
+                    className="flex items-center gap-1.5 font-georgia-pro text-sm text-gray-500 hover:text-black transition-colors disabled:opacity-40 mt-1">
+                    <Plus className="w-3.5 h-3.5" /> Add item
+                  </button>
+                </div>
+              </div>
+
+              {/* Shipping */}
+              <div>
+                <label className={label}>
+                  Shipping Address{' '}
+                  <span className="normal-case text-gray-300">(optional)</span>
+                </label>
+                <input type="text" value={shippingAddress} onChange={(e) => onShippingAddressChange(e.target.value)}
+                  placeholder="Best address for shipping"
+                  className={input} disabled={isSubmitting} />
+              </div>
+
+              {/* Labor USDC */}
+              <div>
+                <label className={label}>
+                  USDC Request for Labor{' '}
+                  <span className="normal-case text-gray-300">Max: $1,000 USDC</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-georgia-pro text-sm text-gray-400">$</span>
+                  <input type="number" min="0" max="1000" step="1" value={laborUsdc}
+                    onChange={(e) => onLaborUsdcChange(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                    disabled={isSubmitting} />
+                </div>
+              </div>
+
+              {/* Total Budget */}
+              <div>
+                <label className={label}>
+                  Total Budget{' '}
+                  <span className="normal-case text-gray-300">Max: $5,000</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-georgia-pro text-sm text-gray-400">$</span>
+                  <input type="number" min="0" max="5000" step="1" value={totalBudget}
+                    onChange={(e) => onTotalBudgetChange(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl font-georgia-pro text-sm focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-300"
+                    disabled={isSubmitting} />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className={label}>
+                  Email{' '}
+                  <span className="normal-case text-gray-300">(optional — for confirmation)</span>
+                </label>
+                <input type="email" value={email} onChange={(e) => onEmailChange(e.target.value)}
+                  placeholder="your@email.com"
+                  className={input} disabled={isSubmitting} />
+              </div>
+
+              <div className="flex justify-center pt-2">
+                <button type="submit" disabled={isSubmitting}
+                  className="px-8 py-3 bg-black text-white rounded-xl font-georgia-pro text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
                   {isSubmitting ? 'Submitting…' : 'Submit Proposal'}
                 </button>
               </div>
