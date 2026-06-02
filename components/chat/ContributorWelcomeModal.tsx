@@ -263,10 +263,13 @@ export function ContributorWelcomeModal({
                   </p>
                   <p>
                     Contributors are allocated a weekly budget of USDC from the Treasury to spend on Knead
-                    Monthly members, earning 20% back for each 'like' they allocate.
+                    Monthly members, earning 20% back for each tip they allocate.
                   </p>
                   <p>
                     To encourage passive engagement, your allowance is on a 'use it or lose it' basis.
+                  </p>
+                  <p>
+                    Contributors also get to vote on Demeter proposals, as well as tag @demeter to send Knead Monthly members gifts.
                   </p>
                   <p>
                     If you're a Contributor who earned this status from making good contributions as a Knead
@@ -422,7 +425,7 @@ export function ContributorWelcomeModal({
 
               {/* Closing thank-you */}
               <p className="font-adonis text-center text-xl leading-relaxed pb-2">
-                Thank you so much for your contributions to Knead's community, we're excited to have you as a Contributor.
+                Thank you so much for your support to Knead's community, we're excited to have you as a Contributor.
               </p>
             </div>
           </div>
