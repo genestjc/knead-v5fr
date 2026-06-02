@@ -17,15 +17,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (type !== 'welcome' && type !== 'contributor_welcome') {
+    if (type !== 'welcome' && type !== 'contributor_welcome' && type !== 'member_welcome') {
       return NextResponse.json(
-        { success: false, error: 'Invalid type — must be welcome or contributor_welcome' },
+        { success: false, error: 'Invalid type — must be welcome, contributor_welcome, or member_welcome' },
         { status: 400 },
       );
     }
 
     const supabase = createSupabaseAdmin();
-    const column = type === 'welcome' ? 'welcome_seen' : 'contributor_welcome_seen';
+    const column = type === 'welcome' ? 'welcome_seen' : type === 'contributor_welcome' ? 'contributor_welcome_seen' : 'member_welcome_seen';
 
     // Upsert so we create the row if the user doesn't exist yet
     const { error } = await supabase
