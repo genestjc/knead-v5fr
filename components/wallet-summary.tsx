@@ -1,7 +1,7 @@
 "use client";
 
 import { useActiveAccount, useDisconnect, useWalletDetailsModal } from "thirdweb/react";
-import { getUserEmail } from "thirdweb/wallets/in-app";
+import { getUserEmail, getUserLinkedAccounts } from "thirdweb/wallets/in-app";
 import { useState, useRef, useEffect } from "react";
 import { Copy, LogOut, ArrowUpFromLine, Key, Wallet, AlertTriangle, DollarSign, Download, Settings, Zap, HelpCircle, Award, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +60,7 @@ export function WalletSummary({
   const [userData, setUserData] = useState<any>(null);
   const { membershipType } = useMembership();
   const [socialEmail, setSocialEmail] = useState<string | null>(null);
+  const [linkedAccounts, setLinkedAccounts] = useState<{ type: string; details: { phone?: string; email?: string; id?: string; } }[]>([]);
   const [contractAddresses, setContractAddresses] = useState<{
     rewardsAddress?: string;
     usdcAddress?: string;
@@ -91,6 +92,9 @@ export function WalletSummary({
     getUserEmail({ client })
       .then((email) => setSocialEmail(email ?? null))
       .catch(() => setSocialEmail(null));
+    getUserLinkedAccounts({ client })
+      .then((accounts) => setLinkedAccounts(accounts ?? []))
+      .catch(() => setLinkedAccounts([]));
   }, [isInAppWallet]);
 
   useEffect(() => {
@@ -323,8 +327,14 @@ export function WalletSummary({
   const handleCopy = async () => {
     if (!account?.address) return;
     try {
-      const text = socialEmail
-        ? `Email: ${socialEmail}\nWallet: ${account.address}`
+      const socialLines = linkedAccounts.length > 0
+        ? linkedAccounts.map((acc) => {
+            const handle = acc.details?.email || acc.details?.phone || acc.details?.id || '';
+            return `${acc.type}: ${handle}`;
+          }).join('\n')
+        : socialEmail ? `Email: ${socialEmail}` : null;
+      const text = socialLines
+        ? `${socialLines}\nWallet: ${account.address}`
         : account.address;
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -647,10 +657,23 @@ export function WalletSummary({
         {isDropdownOpen && (
           <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="py-1">
-              {socialEmail && (
+              {(linkedAccounts.length > 0 || socialEmail) && (
                 <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-xs font-georgia-pro text-gray-400 mb-0.5">Signed in as</p>
-                  <p className="text-sm font-adonis text-gray-800 truncate">{socialEmail}</p>
+                  <p className="text-xs font-georgia-pro text-gray-400 mb-1">Signed in as</p>
+                  {linkedAccounts.length > 0 ? (
+                    linkedAccounts.map((acc) => {
+                      const handle = acc.details?.email || acc.details?.phone || acc.details?.id || '';
+                      const provider = acc.type;
+                      return (
+                        <p key={provider} className="text-sm font-adonis text-gray-800 truncate">
+                          {handle}{' '}
+                          <span className="text-xs text-gray-400 font-georgia-pro capitalize">({provider})</span>
+                        </p>
+                      );
+                    })
+                  ) : socialEmail ? (
+                    <p className="text-sm font-adonis text-gray-800 truncate">{socialEmail}</p>
+                  ) : null}
                 </div>
               )}
 
