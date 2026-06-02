@@ -298,7 +298,7 @@ export default function JoinPage() {
                 $0
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Read three stories per month.</li>
                 <li>Watch one hour of chat events.</li>
               </ul>
@@ -325,7 +325,7 @@ export default function JoinPage() {
                 $5
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
-              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Unlimited access to stories and chat events.</li>
                 <li>Create a chat alias.</li>
                 <li>Participate and comment during chat events.</li>
@@ -380,7 +380,7 @@ export default function JoinPage() {
                   Knead Monthly members can graduate to Contributor status from chat participation.
                 </p>
               </div>
-              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-inside">
+              <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Unlimited access to stories and chat events.</li>
                 <li>Create a chat alias and profile picture.</li>
                 <li>Participate and comment freely in the chat.</li>
