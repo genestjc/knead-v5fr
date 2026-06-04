@@ -160,8 +160,10 @@ async function handleMessage(senderId: string, content: string, channel: Channel
 
   console.log(`[agent] Done. Success: ${result.success} — ${result.summary}`);
 
-  if (!result.success) {
-    await channel.sendMessage(`[Demeter] Failed: ${result.summary}`).catch(() => {});
+  // Always post the final response back to chat
+  const reply = result.success ? result.summary : `Failed: ${result.summary}`;
+  if (reply && reply !== 'Agent completed.') {
+    await channel.sendMessage(`[Demeter] ${reply}`).catch(() => {});
   }
 }
 
