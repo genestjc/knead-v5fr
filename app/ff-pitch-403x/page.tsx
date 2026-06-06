@@ -619,7 +619,7 @@ export default function Knead20PitchPage() {
             </motion.h1>
             <div className="space-y-7 font-georgia-pro text-lg md:text-xl max-w-3xl">
               {[
-                { text: "Stadium-status musicians are using Linktree as their main website.", muted: false },
+                { text: "Top-touring musicians are using Linktree as their main website.", muted: false },
                 { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: false },
                 { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: false },
                 { text: "None of this was a part of our childhood dreams.", },
