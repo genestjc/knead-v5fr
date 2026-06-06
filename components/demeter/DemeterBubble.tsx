@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { X, Send, Loader2 } from 'lucide-react';
-import Image from 'next/image';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -191,7 +190,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
         className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center font-adonis text-lg"
         aria-label="Chat with Demeter"
       >
-        {open ? <X size={20} /> : <Image src="/demeter-icon.png" alt="Demeter" width={32} height={32} />}
+        {open ? <X size={20} /> : <img src="/demeter-icon.png" alt="D" width={32} height={32} className="object-contain" />}
       </button>
     </>
   );
