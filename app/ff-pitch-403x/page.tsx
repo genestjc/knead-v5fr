@@ -464,7 +464,7 @@ function SAFEInvestorForm() {
           <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 space-y-3">
             <p className="font-adonis text-sm text-black">Send USDC on Base L2</p>
             <p className="font-georgia-pro text-sm text-gray-600">Amount: <strong>{form.amount} USDC</strong></p>
-            <p className="font-georgia-pro text-xs text-gray-500 break-all">Wallet: <strong className="font-adonis text-black">0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa</strong></p>
+            <p className="font-georgia-pro text-xs text-gray-500 break-all">Wallet: <strong className="font-adonis text-black">0x3C82E818247b2132e7e05b873BeEED5ab37CCcD4</strong></p>
             <p className="font-georgia-pro text-xs text-gray-400 italic">Include your email address in the memo. Your SAFE will be sent once payment is confirmed on-chain.</p>
           </div>
         )}
@@ -619,11 +619,11 @@ export default function Knead20PitchPage() {
             </motion.h1>
             <div className="space-y-7 font-georgia-pro text-lg md:text-xl max-w-3xl">
               {[
-                { text: "Stadium-status musicians are using Linktree as their main website.", muted: true },
-                { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: true },
-                { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: true },
-                { text: "None of this was a part of our childhood dreams.", muted: false },
-                { text: "It's time we take ownership of making the internet fun again.", muted: false },
+                { text: "Stadium-status musicians are using Linktree as their main website.", muted: false },
+                { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: false },
+                { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: false },
+                { text: "None of this was a part of our childhood dreams.", },
+                { text: "It's time we take ownership of making the internet fun again.",},
               ].map((item, i) => (
                 <motion.p
                   key={i}
@@ -631,7 +631,7 @@ export default function Knead20PitchPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={vp}
                   transition={{ duration: 0.7, delay: i * 0.12, ease: "easeOut" }}
-                  className={item.muted ? "text-gray-400" : "text-white"}
+                  className={i >= 3 ? "text-white font-bold" : "text-white"}
                 >
                   {item.text}
                 </motion.p>
@@ -750,8 +750,8 @@ export default function Knead20PitchPage() {
             </motion.h2>
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { tier: "Tier 03 · Highest Status", name: "Contributor", items: ["Influencers, interview subjects, photographers, industry experts", "Highest status in Knead's chat", "Vote on Demeter proposals", "Can tell Demeter to send Knead Monthly members merchandise from store", "Can tip on Knead Monthly member comments, earning 20% cashback"] },
-                { tier: "Tier 02", name: "Knead Monthly", items: ["Pays $5/month for unlimited viewing", "Can comment during events", "Earns tips from Contributors for good comments", "Eligible to submit Demeter proposals for community funding", "Can receive Demeter gifts from Contributors"] },
+                { tier: "Tier 03 · Highest Status", name: "Contributor", items: ["Industry experts, interview subjects, creatives, investors", "Highest status in Knead's chat", "Vote on Demeter proposals", "Can tell Demeter to send Knead Monthly members merchandise from store", "Can tip on Knead Monthly member comments, earning 20% cashback"] },
+                { tier: "Tier 02", name: "Knead Monthly", items: ["Pays $5/month for unlimited viewing", "Can comment during events", "Earns tips from Contributors for quality comments", "Eligible to submit Demeter proposals for community funding", "Can receive Demeter gifts from Contributors"] },
                 { tier: "Tier 01", name: "Free", items: ["Watch live events like interviews or DJ sets for one hour", "Read-only access to community chat", "Entry point to the Knead ecosystem"] },
               ].map((col, i) => (
                 <motion.div
@@ -788,11 +788,11 @@ export default function Knead20PitchPage() {
               <motion.p variants={fadeIn}>Knead&apos;s chat is our hub for community.</motion.p>
               <motion.p variants={fadeIn}>It&apos;s capable of hosting a wide range of events, including:</motion.p>
               <motion.ul variants={fadeIn} className="space-y-3 pl-2">
-                <li className="flex items-start gap-3"><span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span><span><strong className="text-black font-adonis">Livestreams:</strong> Includes guest takeovers + music mode (for high-quality audio). Perfect for interviews, DJ sets, and more.</span></li>
-                <li className="flex items-start gap-3"><span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span><span><strong className="text-black font-adonis">Video Upload:</strong> Movies, music videos, interviews, and other content to premiere.</span></li>
+                <li className="flex items-start gap-3"><span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span><span><strong className="text-black font-adonis">Livestreams:</strong> Guest takeovers + music mode (for high-quality audio). Perfect for interviews, DJ sets, and more.</span></li>
+                <li className="flex items-start gap-3"><span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span><span><strong className="text-black font-adonis">Video Upload:</strong> Movies, music videos, interviews.</span></li>
                 <li className="flex items-start gap-3"><span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span><span><strong className="text-black font-adonis">Private Events:</strong> Gate the chat&apos;s functionality exclusively for niche community events, like students or nonprofits.</span></li>
               </motion.ul>
-              <motion.p variants={fadeIn}>The chat&apos;s membership tiers are designed for a gamified experience. Knead Members earn tips/rewards, engage with high-quality guests, and earn their way into top-level status as a Contributor.</motion.p>
+              <motion.p variants={fadeIn}>The chat&apos;s designed to be our home for engaging and interactive media.</motion.p>
             </motion.div>
           </div>
           <motion.div variants={fadeIn} className="flex justify-center">
@@ -813,12 +813,12 @@ export default function Knead20PitchPage() {
                 <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }} className="font-georgia-pro text-lg text-gray-500 italic mb-8">Knead&apos;s Agentic Companion</motion.p>
                 <div className="space-y-6 font-georgia-pro text-base text-gray-700">
                   <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}>
-                    Demeter lives across Knead&apos;s chat and stories serving a few different purposes, including:
+                    Demeter lives across Knead&apos;s chat and stories serving a few different purposes:
                   </motion.p>
                   {[
-                    { title: "Editorial Context", body: "Ask Demeter for the TLDR or to explore how the context of a story fits within the greater cultural landscape." },
-                    { title: "Agentic Commerce", body: "In our chat, Contributors and Admin can give Knead merch via Demeter, as well as handle our creator proposal system." },
-                    { title: "Community Management", body: "Rewards and giveaways handled automatically for admin approval." },
+                    { title: "Editorial Intelligence", body: "Ask Demeter for the TLDR or greater context of a story." },
+                    { title: "Agentic Commerce", body: "Demeter is set up in our chat to gift Knead merch and handle creator proposals." },
+                    { title: "Community Management", body: "The logistics of rewards and giveaways handled automatically." },
                   ].map((item, i) => (
                     <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.3 + i * 0.12, ease: "easeOut" }} className="flex items-start gap-3">
                       <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
@@ -854,15 +854,15 @@ export default function Knead20PitchPage() {
               <div className="text-center mb-16 pt-12">
                 <motion.h2 initial={fi.hidden} whileInView={fi.visible} viewport={vp} className="font-adonis text-4xl md:text-6xl text-white mb-6">Knead As An Agency</motion.h2>
                 <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }} className="font-georgia-pro text-xl md:text-2xl text-white/90 mb-2">Every company&apos;s a media company.</motion.p>
-                <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }} className="font-georgia-pro text-lg text-white/70">We build the solutions for you to own how it engages with your community.</motion.p>
+                <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }} className="font-georgia-pro text-lg text-white/70">We build how you own it.</motion.p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  { name: "Platform", desc: "Own how your content is distributed from day one." },
-                  { name: "Community", desc: "Build systems that turn your audience into a community — and rewards them for it." },
-                  { name: "Intelligence", desc: "Put AI to work across editorial, commerce, or community." },
-                  { name: "Story", desc: "Uncover where your message is missing its audience." },
-                  { name: "Commerce", desc: "Agentic solutions that reward communities and reduce empty carts." },
+                  { name: "Platform", desc: "Own your content  distribution from top of funnel." },
+                  { name: "Community", desc: "Build reward systems that turn your audience into superfans." },
+                  { name: "Intelligence", desc: "Put AI to work across editorial, eCommerce, or community." },
+                  { name: "Story", desc: "Discover where you resonate in today's cultural landscape." },
+                  { name: "Commerce", desc: "Agentic solutions that engage communities and reduce empty carts." },
                 ].map((service, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, y: 12 }}
@@ -911,9 +911,9 @@ export default function Knead20PitchPage() {
               <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }} className="space-y-3">
                 <p className="font-adonis text-sm text-black">Investor Benefits</p>
                 {[
-                  { amount: "$1,000+", items: ["All-Access Knead Membership", "Contributor status (20% cashback, DMs, video chat & Demeter)", "Knead Merch + Print Pack", "Name credit in print magazine"] },
-                  { amount: "$5,000+", items: ["Everything in $1K tier", "Priority event access", "16 hrs Knead agency project ($1,600 value)", "Special-tiered name credit in print"] },
-                  { amount: "$10,000+", items: ["Everything in $5K tier", "VIP dinner treatment", "32 hrs Knead agency project ($3,200 value)", "One special message in a Knead print issue"] },
+                  { amount: "$1,000+", items: ["All-Access Knead Membership", "Contributor status (20% cashback, DMs, video chat & Demeter)", "Knead Merch + Print Pack", "Name credit in first print magazine"] },
+                  { amount: "$5,000+", items: ["Everything in $1K tier", "Priority event access", "16 hrs Knead agency project ($1,600 value)", "Special-tiered name credit in first print magazine"] },
+                  { amount: "$10,000+", items: ["Everything in $5K tier", "VIP dinner treatment", "32 hrs Knead agency project ($3,200 value)", "One special message/advertisement in first print magazine (upon approval)"] },
                 ].map((tier, i) => (
                   <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="font-adonis text-sm text-black mb-1.5">{tier.amount}</p>
@@ -1016,7 +1016,7 @@ export default function Knead20PitchPage() {
             <div className="space-y-10">
               {[
                 { title: "Phase 1: Build & Iterate", tag: "✓ Complete", done: true, items: ["V1 of chat finished", "Early beta testing and community feedback", "V1.2 of chat — security hardening and smart contract overhaul", "Implemented Demeter — our agentic solution — in the chat", "Added social-ready features and new community tools"] },
-                { title: "Phase 2: Launch", tag: "(Months 1–3)", done: false, items: ["Public launch and contributor onboarding", "Agency pipeline established — first client projects begin", "S-Tier clothing line and print magazine in production", "Inaugural dinner series confirmed", "Change LLC to C-Corp", "Hire Consultants for full system audit"] },
+                { title: "Phase 2: Launch", tag: "(Months 1–3)", done: false, items: ["Change LLC to C-Corp", "Public launch and contributor onboarding", "Agency pipeline established — first client projects begin", "S-Tier clothing line and print magazine in production", "Inaugural dinner series confirmed", "Hire consultants + freelancers"] },
                 { title: "Phase 3: Scale", tag: "(Months 4–6)", done: false, items: ["First agency clients acquired and case studies built", "50+ Contributors established, community self-sustaining", "Membership + Agency model is self-sustaining"] },
               ].map((phase, pi) => (
                 <motion.div key={pi} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: pi * 0.1, ease: "easeOut" }}>
