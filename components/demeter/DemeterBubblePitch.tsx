@@ -26,11 +26,13 @@ export function DemeterBubblePitch() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
   }, [messages, loading]);
 
   function resetTextareaHeight() {
@@ -85,7 +87,7 @@ export function DemeterBubblePitch() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
+      <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
         {messages.length === 0 && (
           <p className="font-georgia-pro text-sm text-gray-400 text-center pt-4">
             Ask me anything about Knead — the platform, memberships, Demeter, or the raise.
@@ -133,7 +135,6 @@ export function DemeterBubblePitch() {
           </div>
         )}
 
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
