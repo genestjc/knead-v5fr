@@ -34,7 +34,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Scroll to latest message
   useEffect(() => {
@@ -46,12 +46,19 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
+  function resetTextareaHeight() {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
+  }
+
   async function send(text: string) {
     if (!text.trim() || loading) return;
 
     const userMsg: Message = { role: 'user', content: text.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    resetTextareaHeight();
     setLoading(true);
 
     try {
@@ -97,6 +104,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
             <div className="flex items-center gap-2">
               <span className="font-adonis text-sm tracking-wide">Demeter</span>
+              <span className="text-gray-400 text-xs font-georgia-pro">· Knead</span>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -160,21 +168,33 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 px-3 py-3 border-t border-gray-100 flex items-center gap-2">
-            <input
+          <div className="shrink-0 px-3 py-3 border-t border-gray-100 flex items-end gap-2">
+            <textarea
               ref={inputRef}
-              type="text"
               value={input}
+              rows={1}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send(input)}
+              onInput={(e) => {
+                const t = e.target as HTMLTextAreaElement;
+                t.style.height = 'auto';
+                t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+              }}
+              onKeyDown={(e) => {
+                const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                if (!isTouch && e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
               placeholder="Ask about this story…"
               disabled={loading}
-              className="flex-1 text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black disabled:opacity-50"
+              className="flex-1 text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black disabled:opacity-50 resize-none overflow-y-auto"
+              style={{ minHeight: '38px', maxHeight: '120px' }}
             />
             <button
               onClick={() => send(input)}
               disabled={!input.trim() || loading}
-              className="p-2 bg-black text-white rounded-xl hover:bg-gray-800 transition disabled:opacity-40"
+              className="p-2 bg-black text-white rounded-xl hover:bg-gray-800 transition disabled:opacity-40 flex-shrink-0 mb-0.5"
               aria-label="Send"
             >
               <Send size={14} />
