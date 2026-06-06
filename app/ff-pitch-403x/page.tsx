@@ -827,24 +827,40 @@ export default function Knead20PitchPage() {
       </Slide>
 
       {/* ── Slide 1: The Internet + Problem ─────────────────────────────────── */}
-      <Slide id={1} {...slideProps} className="bg-gray-900">
-        <div className="max-w-4xl">
-          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-white mb-10 leading-tight">
-            We&apos;ve lost the art of being premium online.
-          </motion.h1>
-          <motion.div variants={staggerContainer} className="space-y-7 font-georgia-pro text-lg md:text-xl max-w-3xl">
-            {[
-              { text: "Stadium-status musicians are using Linktree as their main website.", muted: true },
-              { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: true },
-              { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: true },
-              { text: "None of this was a part of our childhood dreams.", muted: false },
-              { text: "It's time we take ownership of making the internet fun again.", muted: false },
-            ].map((item, i) => (
-              <motion.p key={i} variants={fadeIn} className={item.muted ? "text-gray-400" : "text-white"}>
-                {item.text}
-              </motion.p>
-            ))}
-          </motion.div>
+      <Slide id={1} {...slideProps} raw className="bg-gray-900">
+        <div className="absolute inset-0">
+          <Image src="/Knead Mag - 4.8.24 - Select 01.jpg" alt="Knead editorial" fill className="object-cover" />
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+        <div className="relative z-10 min-h-screen flex items-center py-20 px-6 md:px-16">
+          <div className="max-w-4xl">
+            <motion.h1
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-6xl lg:text-7xl text-white mb-14 leading-tight"
+            >
+              We&apos;ve lost the art of being premium online.
+            </motion.h1>
+            <div className="space-y-7 font-georgia-pro text-lg md:text-xl max-w-3xl">
+              {[
+                { text: "Stadium-status musicians are using Linktree as their main website.", muted: true },
+                { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: true },
+                { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: true },
+                { text: "None of this was a part of our childhood dreams.", muted: false },
+                { text: "It's time we take ownership of making the internet fun again.", muted: false },
+              ].map((item, i) => (
+                <motion.p
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4 + i * 0.15, ease: "easeOut" }}
+                  className={item.muted ? "text-gray-400" : "text-white"}
+                >
+                  {item.text}
+                </motion.p>
+              ))}
+            </div>
+          </div>
         </div>
       </Slide>
 
@@ -1196,8 +1212,14 @@ export default function Knead20PitchPage() {
                 </div>
               </motion.div>
 
-              {/* Top-right: Investor Benefits */}
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.25 }} className="space-y-3">
+              {/* Top-right: 6-Month Budget */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.25 }}>
+                <p className="font-adonis text-sm text-black mb-2 text-center">6-Month Budget</p>
+                <DonutChart />
+              </motion.div>
+
+              {/* Bottom-left: Investor Benefits */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.35 }} className="space-y-3">
                 <p className="font-adonis text-sm text-black">Investor Benefits</p>
                 {[
                   { amount: "$1,000+", items: ["All-Access Knead Membership", "Contributor status (20% cashback, DMs, video chat & Demeter)", "Knead Merch + Print Pack", "Name credit in print magazine"] },
@@ -1215,12 +1237,6 @@ export default function Knead20PitchPage() {
                     </ul>
                   </div>
                 ))}
-              </motion.div>
-
-              {/* Bottom-left: Chart */}
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.35 }}>
-                <p className="font-adonis text-sm text-black mb-2 text-center">6-Month Budget</p>
-                <DonutChart />
               </motion.div>
 
               {/* Bottom-right: Investment Calculator */}
