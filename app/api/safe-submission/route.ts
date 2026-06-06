@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           from: 'Knead <noreply@kneadmag.com>',
-          to: ['joe@josephgenest.com'],
+          to: ['info@kneadmag.com'],
           subject: `New FF Round Submission — ${name} ($${parseInt(amount).toLocaleString()})`,
           html: `
             <h2>New SAFE Submission</h2>
