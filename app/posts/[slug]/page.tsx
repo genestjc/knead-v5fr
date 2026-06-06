@@ -9,6 +9,7 @@ import type { Metadata } from "next"
 import { UnlockContent } from "../../../components/unlock-content"
 import { PremiumBadge } from "../../../components/premium-badge"
 import { PortableTextRenderer } from "../../../components/portable-text-renderer"
+import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -128,6 +129,7 @@ export default async function PostPage({ params }: PostPageProps) {
     return (
       <>
         <Header />
+        <DemeterBubble slug={params.slug} />
         <main className="min-h-screen bg-white">
           <article className="py-12 md:py-16">
             <div className="container-magazine">
