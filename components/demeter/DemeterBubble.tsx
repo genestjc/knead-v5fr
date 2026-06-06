@@ -103,7 +103,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
             <div className="flex items-center gap-2">
-              <span className="font-adonis text-sm tracking-wide">Demeter</span>
+              <span className="font-adonis text-md tracking-wide">Demeter</span>
             </div>
             <button
               onClick={() => setOpen(false)}
