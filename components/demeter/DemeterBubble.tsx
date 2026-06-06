@@ -190,7 +190,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
         className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center font-adonis text-lg"
         aria-label="Chat with Demeter"
       >
-        {open ? <X size={20} /> : <img src="/demeter-icon.png" alt="D" width={32} height={32} className="object-contain" />}
+        {open ? <X size={20} /> : <img src="/demeter-icon.png" alt="D" width={32} height={32} className="object-contain invert" />}
       </button>
     </>
   );
