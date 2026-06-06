@@ -469,38 +469,44 @@ function DonutChart() {
   )
 }
 
-// ─── Community Round Calculator ───────────────────────────────────────────────
+// ─── Round Calculator ─────────────────────────────────────────────────────────
 
-function CommunityRoundCalculator() {
+function RoundCalculator() {
   const [amount, setAmount] = useState("")
-  const CAP = 2000000
-  const pct = amount && parseInt(amount) > 0
-    ? ((parseInt(amount) / CAP) * 100).toFixed(4)
+  const rounds = [
+    { label: "FF Round (Private)", cap: 1500000, note: "Min $1K · Closes before launch", dark: true },
+    { label: "Community Round", cap: 2000000, note: "Open July 2026 · Wefunder", dark: false },
+  ]
+  const pct = (cap: number) => amount && parseInt(amount) >= 1000
+    ? ((parseInt(amount) / cap) * 100).toFixed(4)
     : null
 
   return (
-    <div className="space-y-3">
-      <p className="font-georgia-pro text-xs text-gray-400">Estimate your ownership at the $2M cap:</p>
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-adonis text-gray-400 text-sm">$</span>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-full bg-white/10 border border-white/30 rounded-lg pl-7 pr-3 py-2.5 font-georgia-pro text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/60"
-            placeholder="Investment amount"
-          />
-        </div>
-        {pct && (
-          <div className="bg-white/20 rounded-lg px-4 py-2.5 min-w-[90px] text-center">
-            <p className="font-adonis text-white text-sm">~{pct}%</p>
-          </div>
-        )}
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <p className="font-adonis text-sm text-black">Estimate your ownership</p>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-adonis text-gray-400">$</span>
+        <input
+          type="number"
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 font-georgia-pro text-base text-black focus:outline-none focus:border-black transition-colors"
+          placeholder="Enter investment amount"
+        />
       </div>
-      {pct && (
+      {amount && parseInt(amount) >= 1000 ? (
+        <div className="grid grid-cols-2 gap-3">
+          {rounds.map((r, i) => (
+            <div key={i} className={`rounded-xl p-4 border ${r.dark ? "bg-black border-black text-white" : "bg-gray-50 border-gray-200"}`}>
+              <p className={`font-adonis text-xs mb-1 ${r.dark ? "text-gray-400" : "text-gray-500"}`}>{r.label}</p>
+              <p className={`font-adonis text-3xl my-1 ${r.dark ? "text-white" : "text-black"}`}>~{pct(r.cap)}%</p>
+              <p className={`font-georgia-pro text-xs ${r.dark ? "text-gray-400" : "text-gray-500"}`}>{r.note}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
         <p className="font-georgia-pro text-xs text-gray-400 italic">
-          At the $2M post-money cap, ${parseInt(amount).toLocaleString()} converts to approximately {pct}% of Knead.
+          Type an amount of $1,000 or more to see your approximate ownership across both rounds.
         </p>
       )}
     </div>
@@ -730,7 +736,7 @@ function MockPaywallDemo() {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden max-w-sm w-full">
       <div className="relative w-full" style={{ height: "180px" }}>
-        <Image src="/nisei-kitchen-blvck-svm.jpg" alt="Story preview" fill className="object-cover" />
+        <Image src="/constant-practice-photo.jpg" alt="Story preview" fill className="object-cover" />
       </div>
       <div className="p-5">
         <p className="font-adonis text-base text-black mb-1">Constant Practice</p>
@@ -844,14 +850,19 @@ export default function Knead20PitchPage() {
           </div>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative z-10 max-w-4xl px-6 md:px-16 py-20 mx-auto">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="font-adonis text-4xl md:text-6xl lg:text-7xl text-white mb-14 leading-tight"
-            >
-              We&apos;ve lost the art of being premium online.
-            </motion.h1>
+            <h1 className="font-adonis text-4xl md:text-6xl lg:text-7xl text-white mb-14 leading-tight">
+              {"We've lost the art of being premium online.".split(" ").map((word, i) => (
+                <motion.span
+                  key={i}
+                  initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.55, delay: 0.05 + i * 0.07, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="inline-block mr-[0.28em]"
+                >
+                  {word}
+                </motion.span>
+              ))}
+            </h1>
             <div className="space-y-7">
               {[
                 "Stadium-status musicians are using Linktree as their main website.",
@@ -864,10 +875,8 @@ export default function Knead20PitchPage() {
                   key={i}
                   initial={{ opacity: 0, y: 28 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.65, delay: 0.3 + i * 0.18, ease: "easeOut" }}
-                  className={`font-georgia-pro text-lg md:text-xl leading-relaxed ${
-                    i >= 3 ? "text-white font-semibold" : "text-gray-300"
-                  }`}
+                  transition={{ duration: 0.65, delay: 0.7 + i * 0.18, ease: "easeOut" }}
+                  className={`font-georgia-pro text-lg md:text-xl leading-relaxed ${i >= 3 ? "text-white" : "text-gray-300"}`}
                 >
                   {line}
                 </motion.p>
@@ -889,12 +898,22 @@ export default function Knead20PitchPage() {
         </div>
         <div className="relative z-10 min-h-screen flex flex-col justify-between px-6 md:px-16 py-20">
           <div className="text-center max-w-3xl mx-auto flex-1 flex flex-col items-center justify-center">
-            <h2 className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-16">
+            <motion.h2
+              initial={{ opacity: 0, y: -70, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", damping: 14, stiffness: 170, delay: 0.1 }}
+              className="font-adonis text-5xl md:text-7xl lg:text-8xl text-black mb-16"
+            >
               Knead 2.0
-            </h2>
-            <p className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.55, ease: "easeOut" }}
+              className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto"
+            >
               Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
-            </p>
+            </motion.p>
           </div>
 
         </div>
@@ -912,86 +931,29 @@ export default function Knead20PitchPage() {
         </div>
         <div className="relative z-10 min-h-screen flex items-center justify-center py-20 px-6 md:px-16">
           <div className="w-full max-w-4xl">
-            <h2 className="font-adonis text-4xl md:text-5xl text-white mb-10">
-              Our Stories
-            </h2>
-            <div className="space-y-5 font-georgia-pro text-lg md:text-xl text-white max-w-3xl">
-              <p>Knead&apos;s writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.</p>
-              <p>We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.</p>
-              <p>Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start &lsquo;kneading&rsquo; for themselves too.</p>
-            </div>
-          </div>
-        </div>
-      </Slide>
-
-      {/* ── Slide 4: How Knead's Community Works ────────────────────────────── */}
-      <Slide id={4} {...slideProps} raw className="bg-gray-50">
-        <div className="relative min-h-screen py-20 px-6 md:px-16">
-          <div className="absolute inset-0">
-            <Image src="/chatbackground2.png" alt="Community background" fill className="object-cover" />
-            <div className="absolute inset-0 bg-white/75" />
-          </div>
-          <div className="relative z-10 max-w-5xl mx-auto">
             <motion.h2
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
-              className="font-adonis text-4xl md:text-5xl text-black mb-12 text-center"
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-5xl text-white mb-10"
             >
-              How Knead&apos;s Community Works
+              Our Stories
             </motion.h2>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="space-y-5 font-georgia-pro text-lg md:text-xl text-white max-w-3xl">
               {[
-                {
-                  tier: "Tier 03 · Highest Status",
-                  name: "Contributor",
-                  items: [
-                    "Influencers, interview subjects, photographers, industry experts",
-                    "Highest status in Knead's chat",
-                    "Vote on Demeter proposals",
-                    "Can tell Demeter to send Knead Monthly members merchandise from store",
-                    "Can tip on Knead Monthly member comments, earning 20% cashback",
-                  ],
-                },
-                {
-                  tier: "Tier 02",
-                  name: "Knead Monthly",
-                  items: [
-                    "Pays $5/month for unlimited viewing",
-                    "Can comment during events",
-                    "Earns tips from Contributors for good comments",
-                    "Eligible to submit Demeter proposals for community funding",
-                    "Can receive Demeter gifts from Contributors",
-                  ],
-                },
-                {
-                  tier: "Tier 01",
-                  name: "Free",
-                  items: [
-                    "Watch live events like interviews or DJ sets for one hour",
-                    "Read-only access to community chat",
-                    "Entry point to the Knead ecosystem",
-                  ],
-                },
-              ].map((col, i) => (
-                <div key={i} className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-                  <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">{col.tier}</p>
-                  <h3 className="font-adonis text-3xl mb-4 pb-4 border-b border-black text-black">{col.name}</h3>
-                  <ul className="space-y-3">
-                    {col.items.map((item, j) => (
-                      <li key={j} className="flex items-start gap-2">
-                        <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
-                        <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                "Knead's writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.",
+                "We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.",
+                "Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start 'kneading' for themselves too.",
+              ].map((p, i) => (
+                <motion.p key={i} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 + i * 0.18 }}>{p}</motion.p>
               ))}
             </div>
           </div>
         </div>
       </Slide>
 
-      {/* ── Slide 5: The Knead Membership ───────────────────────────────────── */}
-      <Slide id={5} {...slideProps} className="bg-white">
+      {/* ── Slide 4: The Knead Membership ───────────────────────────────────── */}
+      <Slide id={4} {...slideProps} className="bg-white">
         <div className="max-w-5xl grid md:grid-cols-2 gap-12 items-center">
           <div>
             <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
@@ -1034,6 +996,76 @@ export default function Knead20PitchPage() {
             <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-3">When the limit is reached</p>
             <MockPaywallDemo />
           </motion.div>
+        </div>
+      </Slide>
+
+      {/* ── Slide 5: How Knead's Community Works ────────────────────────────── */}
+      <Slide id={5} {...slideProps} raw className="bg-gray-50">
+        <div className="relative min-h-screen py-28 px-6 md:px-16">
+          <div className="absolute inset-0">
+            <Image src="/chatbackground2.png" alt="Community background" fill className="object-cover" />
+            <div className="absolute inset-0 bg-white/82" style={{ backdropFilter: "blur(1px)" }} />
+            <div className="absolute inset-0 shadow-[inset_0_0_80px_rgba(0,0,0,0.08)]" />
+          </div>
+          <div className="relative z-10 max-w-5xl mx-auto">
+            <motion.h2
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7 }}
+              className="font-adonis text-4xl md:text-5xl text-black mb-16 text-center"
+            >
+              How Knead&apos;s Community Works
+            </motion.h2>
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                {
+                  tier: "Tier 03 · Highest Status", name: "Contributor",
+                  items: [
+                    "Influencers, interview subjects, photographers, industry experts",
+                    "Highest status in Knead's chat",
+                    "Vote on Demeter proposals",
+                    "Can tell Demeter to send Knead Monthly members merchandise from store",
+                    "Can tip on Knead Monthly member comments, earning 20% cashback",
+                  ],
+                },
+                {
+                  tier: "Tier 02", name: "Knead Monthly",
+                  items: [
+                    "Pays $5/month for unlimited viewing",
+                    "Can comment during events",
+                    "Earns tips from Contributors for good comments",
+                    "Eligible to submit Demeter proposals for community funding",
+                    "Can receive Demeter gifts from Contributors",
+                  ],
+                },
+                {
+                  tier: "Tier 01", name: "Free",
+                  items: [
+                    "Watch live events like interviews or DJ sets for one hour",
+                    "Read-only access to community chat",
+                    "Entry point to the Knead ecosystem",
+                  ],
+                },
+              ].map((col, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 + i * 0.15 }}
+                  className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm"
+                >
+                  <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">{col.tier}</p>
+                  <h3 className="font-adonis text-3xl mb-4 pb-4 border-b border-black text-black">{col.name}</h3>
+                  <ul className="space-y-3">
+                    {col.items.map((item, j) => (
+                      <li key={j} className="flex items-start gap-2">
+                        <span className="text-black mt-1.5 flex-shrink-0 text-xs">●</span>
+                        <p className="font-georgia-pro text-sm text-gray-700">{item}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
       </Slide>
 
@@ -1138,21 +1170,17 @@ export default function Knead20PitchPage() {
       <Slide id={8} {...slideProps} raw className="bg-black">
         <div className="relative min-h-screen">
           <div className="absolute inset-0">
-            <Image
-              src="/Tarantula-04.jpg"
-              alt="Knead As An Agency"
-              fill
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-black/60" />
+            <Image src="/Tarantula-04.jpg" alt="Knead As An Agency" fill className="object-cover" />
+            <div className="absolute inset-0 bg-black/72" />
           </div>
           <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-20 px-6 md:px-16">
             <div className="w-full max-w-5xl">
-              <div className="text-center mb-16 pt-12">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
+                className="text-center mb-16 pt-12">
                 <h2 className="font-adonis text-4xl md:text-6xl text-white mb-6">Knead As An Agency</h2>
                 <p className="font-georgia-pro text-xl md:text-2xl text-white/90 mb-2">Every company&apos;s a media company.</p>
                 <p className="font-georgia-pro text-lg text-white/70">We build the solutions for you to own how it engages with your community.</p>
-              </div>
+              </motion.div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
                   { name: "Platform", desc: "Own how your content is distributed from day one." },
@@ -1161,13 +1189,14 @@ export default function Knead20PitchPage() {
                   { name: "Story", desc: "Uncover where your message is missing its audience." },
                   { name: "Commerce", desc: "Agentic solutions that reward communities and reduce empty carts." },
                 ].map((service, i) => (
-                  <div
-                    key={i}
-                    className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-5 hover:bg-white/20 transition-all duration-300 cursor-default group text-center flex flex-col items-center"
+                  <motion.div key={i}
+                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.4 + i * 0.1 }}
+                    className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-5 hover:bg-white/18 transition-all duration-400 cursor-default group text-center flex flex-col items-center justify-center min-h-[160px]"
                   >
-                    <p className="font-adonis text-lg text-white mb-3 text-center">{service.name}</p>
-                    <p className="font-georgia-pro text-xs text-white/70 text-center leading-relaxed">{service.desc}</p>
-                  </div>
+                    <p className="font-adonis text-3xl md:text-4xl text-white text-center leading-tight">{service.name}</p>
+                    <p className="font-georgia-pro text-xs text-transparent group-hover:text-white/80 text-center leading-relaxed mt-0 max-h-0 group-hover:max-h-24 group-hover:mt-4 overflow-hidden transition-all duration-500 ease-in-out">{service.desc}</p>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -1177,89 +1206,81 @@ export default function Knead20PitchPage() {
 
       {/* ── Slide 9: What We Want To Raise ──────────────────────────────────── */}
       <Slide id={9} {...slideProps} raw className="bg-white">
-        <div className="min-h-screen py-20 px-6 md:px-16">
-          <div className="max-w-5xl mx-auto space-y-10">
+        <div className="min-h-screen py-16 px-6 md:px-16">
+          <div className="max-w-5xl mx-auto space-y-8">
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
-              <h2 className="font-adonis text-4xl md:text-5xl text-black mb-3">What We Want To Raise</h2>
-              <p className="font-georgia-pro text-xl text-black">
-                Knead is raising <strong className="font-adonis text-2xl">$375,000–$400,000</strong> for a 6-month sprint.
+              <h2 className="font-adonis text-4xl md:text-5xl text-black mb-2">What We Want To Raise</h2>
+              <p className="font-georgia-pro text-lg text-black">
+                Knead is raising <span className="font-adonis text-xl">$375,000–$400,000</span> for a 6-month sprint.
               </p>
             </motion.div>
 
-            <div className="grid md:grid-cols-2 gap-10 items-start">
-              {/* Left: treasury + FF terms + chart */}
-              <div className="space-y-6">
-                <p className="font-georgia-pro text-base text-gray-700">
-                  The Treasury funds community tips and Demeter activations. It&apos;s protected by a multi-sig wallet — one of which is a cold storage physical wallet for signature. Verifiable on Basescan{" "}
-                  <a href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-black transition-colors">here</a>.
-                </p>
+            {/* 2×2 grid: treasury+terms top-left, chart top-right, benefits bottom-left, calculator bottom-right */}
+            <div className="grid md:grid-cols-2 gap-6">
 
+              {/* Top-left: Treasury + FF Terms */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15 }} className="space-y-4">
+                <p className="font-georgia-pro text-sm text-gray-700">
+                  The Treasury funds community tips and Demeter activations — protected by a multi-sig wallet with a cold storage physical wallet for signature. Verifiable on Basescan{" "}
+                  <a href="https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-black">here</a>.
+                </p>
                 <div>
-                  <p className="font-adonis text-base text-black mb-3">FF Round Terms (Private)</p>
+                  <p className="font-adonis text-sm text-black mb-2">FF Round Terms (Private)</p>
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     {[
                       ["Instrument", "Post-Money SAFE"],
                       ["Valuation Cap", "$1,500,000"],
                       ["Discount", "20%"],
-                      ["Minimum Investment", "$1,000"],
-                      ["Minimum Raise", "$25,000"],
-                      ["Maximum Raise", "$150,000"],
+                      ["Min Investment", "$1,000"],
+                      ["Min Raise", "$25,000"],
+                      ["Max Raise", "$150,000"],
                     ].map(([k, v], i) => (
-                      <div key={i} className={`flex justify-between items-center px-4 py-2.5 ${i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}>
+                      <div key={i} className={`flex justify-between items-center px-3 py-2 ${i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}>
                         <span className="font-adonis text-xs text-gray-500">{k}</span>
                         <span className="font-adonis text-sm text-black">{v}</span>
                       </div>
                     ))}
                   </div>
                 </div>
+              </motion.div>
 
-                <div>
-                  <h3 className="font-adonis text-base text-black mb-2 text-center">6-Month Budget</h3>
-                  <DonutChart />
-                </div>
-              </div>
+              {/* Top-right: Chart */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.25 }}>
+                <p className="font-adonis text-sm text-black mb-2 text-center">6-Month Budget</p>
+                <DonutChart />
+              </motion.div>
 
-              {/* Right: investor benefits + community round calculator */}
-              <div className="space-y-6">
-                <div>
-                  <p className="font-adonis text-base text-black mb-3">Investor Benefits</p>
-                  <div className="space-y-3">
-                    {[
-                      {
-                        amount: "$1,000+",
-                        items: ["All-Access Knead Membership", "Contributor status (20% cashback, DMs, video chat & Demeter)", "Knead Merch + Print Pack", "Name credit in print magazine"],
-                      },
-                      {
-                        amount: "$5,000+",
-                        items: ["Everything in $1K tier", "Priority event access", "16 hrs Knead agency project ($1,600 value)", "Special-tiered name credit in print"],
-                      },
-                      {
-                        amount: "$10,000+",
-                        items: ["Everything in $5K tier", "VIP dinner treatment", "32 hrs Knead agency project ($3,200 value)", "One special message in a Knead print issue"],
-                      },
-                    ].map((tier, i) => (
-                      <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                        <p className="font-adonis text-sm text-black mb-2">{tier.amount}</p>
-                        <ul className="space-y-1">
-                          {tier.items.map((item, j) => (
-                            <li key={j} className="flex items-start gap-2 font-georgia-pro text-xs text-gray-600">
-                              <span className="text-black mt-1 flex-shrink-0 text-[10px]">●</span>
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+              {/* Bottom-left: Investor Benefits */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.35 }} className="space-y-3">
+                <p className="font-adonis text-sm text-black">Investor Benefits</p>
+                {[
+                  { amount: "$1,000+", items: ["All-Access Knead Membership", "Contributor status (20% cashback, DMs, video chat & Demeter)", "Knead Merch + Print Pack", "Name credit in print magazine"] },
+                  { amount: "$5,000+", items: ["Everything in $1K tier", "Priority event access", "16 hrs Knead agency project ($1,600 value)", "Special-tiered name credit in print"] },
+                  { amount: "$10,000+", items: ["Everything in $5K tier", "VIP dinner treatment", "32 hrs Knead agency project ($3,200 value)", "One special message in a Knead print issue"] },
+                ].map((tier, i) => (
+                  <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="font-adonis text-sm text-black mb-1.5">{tier.amount}</p>
+                    <ul className="space-y-1">
+                      {tier.items.map((item, j) => (
+                        <li key={j} className="flex items-start gap-2 font-georgia-pro text-xs text-gray-600">
+                          <span className="text-black mt-1 flex-shrink-0 text-[10px]">●</span>{item}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                ))}
+              </motion.div>
 
-                <div className="bg-black rounded-xl p-5 text-white">
+              {/* Bottom-right: White round calculator */}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.45 }} className="space-y-4">
+                <RoundCalculator />
+                <div className="bg-gray-900 rounded-xl p-4 text-white">
                   <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">Coming Early July 2026</p>
                   <p className="font-adonis text-base text-white mb-1">Community Round — Open To All</p>
-                  <p className="font-georgia-pro text-xs text-gray-300 mb-4">Knead&apos;s public raise on Wefunder (Reg CF) opens alongside our public launch — anyone can invest.</p>
-                  <CommunityRoundCalculator />
+                  <p className="font-georgia-pro text-xs text-gray-300">Knead&apos;s public raise on Wefunder (Reg CF) opens alongside our public launch — anyone can invest.</p>
                 </div>
-              </div>
+              </motion.div>
+
             </div>
           </div>
         </div>
@@ -1278,7 +1299,7 @@ export default function Knead20PitchPage() {
                 The S-Tier line will be NFC-enabled clothing that will be how we distribute semi-annual and annual memberships.
               </motion.p>
               <motion.p variants={fadeIn}>
-                The lineup will consist of high-quality embroidered items priced to match our membership — a <strong className="text-black">$25 hat</strong> unlocks a 6-month membership, while a <strong className="text-black">$45 sweatshirt</strong> unlocks 12 months.
+                The lineup will consist of high-quality embroidered items priced to match our membership — a $25 hat unlocks a 6-month membership, while a $45 sweatshirt unlocks 12 months.
               </motion.p>
               <motion.p variants={fadeIn}>
                 With initial seeding to Contributors, those individuals will be able to tap and redeem Knead memberships to give — driving word-of-mouth to their influential networks.
@@ -1291,8 +1312,8 @@ export default function Knead20PitchPage() {
           <motion.div variants={fadeIn} className="flex justify-center items-center">
             <div className="relative w-full rounded-xl overflow-hidden shadow-lg" style={{ height: "480px" }}>
               <Image
-                src="/s-tier-clothing.jpg"
-                alt="S-Tier clothing line"
+                src="/mock-up.png"
+                alt="S-Tier clothing mockup"
                 fill
                 className="object-cover"
               />
