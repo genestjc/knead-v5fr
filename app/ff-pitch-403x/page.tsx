@@ -832,22 +832,48 @@ export default function Knead20PitchPage() {
       </Slide>
 
       {/* ── Slide 1: The Internet + Problem (combined) ───────────────────────── */}
-      <Slide id={1} {...slideProps} className="bg-gray-50">
-        <div className="max-w-4xl">
-          <motion.h1 variants={fadeIn} className="font-adonis text-4xl md:text-6xl lg:text-7xl text-black mb-10 leading-tight">
-            We&apos;ve lost the art of being premium online.
-          </motion.h1>
-          <motion.div variants={staggerContainer} className="space-y-8 font-georgia-pro text-lg md:text-xl text-gray-700 max-w-3xl">
-            {[
-              "Stadium-status musicians are using Linktree as their main website.",
-              "Best-selling authors are promoting the same formulaically-designed Substack for their prose.",
-              "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
-              "None of this was a part of our childhood dreams.", 
-              "It's time we take ownership of making the internet fun again.",
-            ].map((line, i) => (
-              <motion.p key={i} variants={fadeIn}>{line}</motion.p>
-            ))}
-          </motion.div>
+      <Slide id={1} {...slideProps} raw className="bg-gray-900">
+        <div className="relative min-h-screen flex items-center">
+          <div className="absolute inset-0">
+            <Image
+              src="/Knead Mag - 4.8.24 - Select 01.jpg"
+              alt="Knead editorial"
+              fill
+              className="object-cover"
+            />
+          </div>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative z-10 max-w-4xl px-6 md:px-16 py-20 mx-auto">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="font-adonis text-4xl md:text-6xl lg:text-7xl text-white mb-14 leading-tight"
+            >
+              We&apos;ve lost the art of being premium online.
+            </motion.h1>
+            <div className="space-y-7">
+              {[
+                "Stadium-status musicians are using Linktree as their main website.",
+                "Best-selling authors are promoting the same formulaically-designed Substack for their prose.",
+                "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.",
+                "None of this was a part of our childhood dreams.",
+                "It's time we take ownership of making the internet fun again.",
+              ].map((line, i) => (
+                <motion.p
+                  key={i}
+                  initial={{ opacity: 0, y: 28 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.65, delay: 0.3 + i * 0.18, ease: "easeOut" }}
+                  className={`font-georgia-pro text-lg md:text-xl leading-relaxed ${
+                    i >= 3 ? "text-white font-semibold" : "text-gray-300"
+                  }`}
+                >
+                  {line}
+                </motion.p>
+              ))}
+            </div>
+          </div>
         </div>
       </Slide>
 
@@ -1274,35 +1300,7 @@ export default function Knead20PitchPage() {
           </motion.div>
         </div>
       </Slide>
-        <div className="max-w-5xl">
-          <motion.p variants={fadeIn} className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-4">Activation 01</motion.p>
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <motion.h2 variants={fadeIn} className="font-adonis text-4xl md:text-5xl text-black mb-8">
-                The S-Tier Line
-              </motion.h2>
-              <motion.div variants={staggerContainer} className="space-y-4 font-georgia-pro text-lg text-gray-700">
-                <motion.p variants={fadeIn}>
-                  The S-Tier line will be NFC-enabled clothing that will be how we distribute semi-annual and annual memberships.
-                </motion.p>
-                <motion.p variants={fadeIn}>
-                  The lineup will consist of high-quality embroidered items priced to match our membership — a $25 hat unlocks a 6-month membership, while a $40 sweatshirt unlocks 12 months.
-                </motion.p>
-                <motion.p variants={fadeIn}>
-                  The goal is for the clothing&apos;s (S) tag to be a talking point IRL: <em>&ldquo;What&apos;s that S? You don&apos;t wear a small.&rdquo;</em>
-                </motion.p>
-                <motion.p variants={fadeIn}>
-                  With initial seeding to Contributors, those individuals will be able to tap and redeem Knead memberships to gift — driving word-of-mouth to their influential networks.
-                </motion.p>
-                <motion.p variants={fadeIn}>
-                  IYK for NFC chips.
-                </motion.p>
-              </motion.div>
-            </div>
-            <motion.div variants={fadeIn} className="flex justify-center">
-              <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ height: "480px" }}>
-                <Image
-                  src="/mock-up.png"
+
       {/* ── Slide 11: Knead Print Magazine ──────────────────────────────────── */}
       <Slide id={11} {...slideProps} className="bg-gray-50">
         <div className="max-w-5xl">
