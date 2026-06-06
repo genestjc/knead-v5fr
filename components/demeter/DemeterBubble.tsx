@@ -97,7 +97,6 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
             <div className="flex items-center gap-2">
               <span className="font-adonis text-sm tracking-wide">Demeter</span>
-              <span className="text-gray-400 text-xs font-georgia-pro">· Knead</span>
             </div>
             <button
               onClick={() => setOpen(false)}
