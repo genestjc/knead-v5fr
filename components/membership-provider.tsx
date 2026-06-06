@@ -90,11 +90,10 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
 
   const cacheMembership = (address: string, type: MembershipType) => {
     try {
-      // ✅ NEW: Shorter cache for non-premium users (they might upgrade soon)
       const cacheDuration = type === 'premium' 
-        ? 6 * 60 * 60 * 1000  // 6 hours for premium (stable)
-        : 5 * 60 * 1000;      // 5 minutes for freemium/null (might upgrade)
-      
+        ? 6 * 60 * 60 * 1000  // 6 hours for premium
+        : 5 * 60 * 1000;      // 5 minutes for freemium/null
+
       const cacheData: CachedMembership = {
         address,
         type,
@@ -117,7 +116,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         setMembershipType(cachedMembership.type);
         setIsLoading(false);
         
-        // Background verification (check if cache is stale)
+        // Silent background verification — no loading state, no flicker
         checkMembershipFromContract(address)
           .then(freshMembership => {
             if (freshMembership !== cachedMembership.type) {
@@ -132,7 +131,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       
-      // No cache, fetch from blockchain
+      // No cache — fetch from blockchain
       const contractMembership = await checkMembershipFromContract(address);
       cacheMembership(address, contractMembership);
       setMembershipType(contractMembership);
@@ -146,6 +145,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  // Check membership on wallet connect/disconnect
   useEffect(() => {
     if (!account?.address) {
       setMembershipType(null);
@@ -157,27 +157,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     fetchMembershipType(account.address);
   }, [account?.address]);
 
-  // ✅ NEW: Auto-refresh membership every 30 seconds for non-premium users
-  // This catches new NFT mints without manual refresh
-  useEffect(() => {
-    if (!account?.address || membershipType === 'premium') {
-      return; // Don't poll if not connected or already premium
-    }
-
-    console.log('[membership-provider] Starting auto-refresh for non-premium user');
-    const intervalId = setInterval(() => {
-      console.log('[membership-provider] Auto-refreshing membership...');
-      localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
-      fetchMembershipType(account.address);
-    }, 30000); // 30 seconds
-
-    return () => {
-      console.log('[membership-provider] Stopping auto-refresh');
-      clearInterval(intervalId);
-    };
-  }, [account?.address, membershipType]);
-
-  // ✅ NEW: Listen for manual membership update events
+  // Listen for manual membership update events (e.g. after upgrade)
   useEffect(() => {
     const handleMembershipUpdate = () => {
       console.log('[membership-provider] Manual refresh triggered via event');
@@ -193,18 +173,9 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
 
   const hasAccess = (requiredLevel: "premium" | "freemium"): boolean => {
     try {
-      if (!account?.address) {
-        return false;
-      }
-      
-      if (isLoading && !error) {
-        return true; // Grant temporary access while loading
-      }
-      
-      if (requiredLevel === "premium") {
-        return membershipType === "premium";
-      }
-      
+      if (!account?.address) return false;
+      if (isLoading && !error) return true; // Grant temporary access while loading
+      if (requiredLevel === "premium") return membershipType === "premium";
       return membershipType === "freemium" || membershipType === "premium";
     } catch (error) {
       console.error("[membership-provider] Error checking access:", error);
