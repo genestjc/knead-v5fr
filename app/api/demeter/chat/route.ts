@@ -20,7 +20,45 @@ const ARTICLE_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   body
 }`;
 
-/** Convert Portable Text blocks to plain readable text */
+const TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'web_search',
+    description:
+      'Search the web for current information about people, places, events, or topics mentioned in the article — e.g. upcoming dinners, recent news, social media activity, event dates.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'A focused search query.',
+        },
+      },
+      required: ['query'],
+    },
+  },
+];
+
+async function webSearch(query: string): Promise<string> {
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: process.env.TAVILY_API_KEY,
+      query,
+      search_depth: 'basic',
+      include_answer: true,
+      max_results: 5,
+    }),
+  });
+  const data = await res.json();
+  if (data.answer) return data.answer;
+  return (
+    data.results
+      ?.map((r: any) => `${r.title}: ${r.content}`)
+      .join('\n\n') || 'No results found.'
+  );
+}
+
 function portableTextToPlain(blocks: any[]): string {
   if (!Array.isArray(blocks)) return '';
   return blocks
@@ -44,7 +82,6 @@ export async function POST(req: NextRequest) {
     history: { role: 'user' | 'assistant'; content: string }[];
   };
 
-  // Build article context if a slug is provided
   let articleContext = '';
   let articleTitle = '';
   if (slug) {
@@ -71,26 +108,28 @@ export async function POST(req: NextRequest) {
   const systemPrompt = articleContext
     ? `You are Demeter, Knead Magazine's editorial AI companion — curious, warm, and knowledgeable about culture, food, fashion, and the arts.
 
-You are currently embedded in this article:
+You are embedded in this article:
 
 ---
 ${articleContext}
 ---
 
-Your role:
-- Answer questions about this article, its subjects, themes, and context
-- Bring in relevant wider knowledge that enriches what the reader just read
-- Keep responses concise — 2 to 3 short paragraphs at most
-- Match Knead's voice: intelligent, approachable, never stuffy
-- If a question is unrelated to the article, answer helpfully but gently tie it back to the story
+Rules:
+- Only answer questions related to this article and the people, places, events, and themes within it
+- Use web_search when you need current information — upcoming events, recent news, social media activity — about subjects in the article
+- If someone asks something completely unrelated to this article or Knead's world (recipes, homework, coding, etc.), respond: "I'm here to help you explore this story — ask me anything about it."
+- Keep responses to 2–3 short paragraphs
+- Match Knead's voice: intelligent, warm, never stuffy
 
-After every response, suggest two natural follow-up questions on a new line in this exact format:
+After every on-topic response, suggest two follow-up questions:
 You might also ask:
 • [question one]
 • [question two]`
     : `You are Demeter, Knead Magazine's editorial AI companion — curious, warm, and knowledgeable about culture, food, fashion, and the arts.
 
-Answer questions helpfully and in Knead's voice: intelligent, approachable, never stuffy. Keep responses to 2-3 short paragraphs.
+Only answer questions related to Knead Magazine's world: culture, food, fashion, music, art, and the stories we cover. If asked something unrelated, respond: "I'm here to help you explore Knead's world — ask me anything about our stories."
+
+Use web_search for current information when relevant. Keep responses to 2–3 short paragraphs.
 
 After every response, suggest two follow-up questions:
 You might also ask:
@@ -103,20 +142,50 @@ You might also ask:
   ];
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    });
+    let reply = '';
 
-    const text =
-      response.content.find((b) => b.type === 'text') as Anthropic.TextBlock | undefined;
+    for (let round = 0; round < 5; round++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages,
+      });
 
-    return NextResponse.json({
-      reply: text?.text ?? '',
-      articleTitle,
-    });
+      messages.push({ role: 'assistant', content: response.content });
+
+      if (response.stop_reason === 'end_turn') {
+        const text = response.content.find(
+          (b) => b.type === 'text',
+        ) as Anthropic.TextBlock | undefined;
+        reply = text?.text ?? '';
+        break;
+      }
+
+      if (response.stop_reason === 'tool_use') {
+        const toolUses = response.content.filter(
+          (b) => b.type === 'tool_use',
+        ) as Anthropic.ToolUseBlock[];
+
+        const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+          toolUses.map(async (t) => ({
+            type: 'tool_result' as const,
+            tool_use_id: t.id,
+            content:
+              t.name === 'web_search'
+                ? await webSearch((t.input as any).query).catch(
+                    () => 'Search unavailable.',
+                  )
+                : 'Unknown tool.',
+          })),
+        );
+
+        messages.push({ role: 'user', content: toolResults });
+      }
+    }
+
+    return NextResponse.json({ reply, articleTitle });
   } catch (err: any) {
     console.error('[Demeter] Claude error:', err.message);
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 });
