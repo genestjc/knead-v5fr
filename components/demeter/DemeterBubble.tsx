@@ -35,6 +35,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Scroll to latest message
   useEffect(() => {
@@ -44,6 +45,18 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
   // Focus input when panel opens
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
+  }, [open]);
+
+  // Close when clicking/tapping outside
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [open]);
 
   function resetTextareaHeight() {
@@ -96,14 +109,14 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
   if (!account) return null;
 
   return (
-    <>
+    <div ref={wrapperRef}>
       {/* Chat panel */}
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[520px] flex flex-col bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
             <div className="flex items-center gap-2">
-              <span className="font-adonis text-md tracking-wide">Demeter</span>
+              <span className="font-adonis text-lg tracking-wide">Demeter</span>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -210,6 +223,6 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
       >
         {open ? <X size={20} /> : <img src="/demeter-icon.png" alt="D" width={32} height={32} className="object-contain" />}
       </button>
-    </>
+    </div>
   );
 }
