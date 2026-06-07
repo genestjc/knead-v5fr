@@ -696,7 +696,7 @@ export default function Knead20PitchPage() {
               {[
                 "Knead's writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.",
                 "We pride ourselves on presenting original work, prioritizing organic photography, illustration, design, and film.",
-                "Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start 'kneading' for themselves too.",
+                "Our rich storytelling is aimed to nourish the creative spirit, inspiring someone to start 'kneading' for themselves too.",
               ].map((p, i) => (
                 <motion.p
                   key={i}
