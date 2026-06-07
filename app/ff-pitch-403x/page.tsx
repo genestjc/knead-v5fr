@@ -863,7 +863,7 @@ export default function Knead20PitchPage() {
               <div className="text-center mb-16 pt-12">
                 <motion.h2 initial={fi.hidden} whileInView={fi.visible} viewport={vp} className="font-adonis text-4xl md:text-6xl text-white mb-6">Knead As An Agency</motion.h2>
                 <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }} className="font-georgia-pro text-xl md:text-2xl text-white/90 mb-2">Every company&apos;s a media company.</motion.p>
-                <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }} className="font-georgia-pro text-lg text-white/70">We build how you own it.</motion.p>
+                <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }} className="font-georgia-pro text-lg text-white/70">Take ownership over how yours is distributed:.</motion.p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
