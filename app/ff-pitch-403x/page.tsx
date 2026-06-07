@@ -318,9 +318,9 @@ function ConstantPracticeDemo() {
 function DonutChart() {
   const data = [
     { label: "Team", value: 288000, color: "#C17A4A" },
-    { label: "Operations + AI", value: 65000, color: "#8B5E35", note: "Infra, AI credits, travel" },
-    { label: "Consultants + Freelancers", value: 60000, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
-    { label: "Activations", value: 50000, color: "#C8A87A", note: "Print, clothing, dinner, investor gifts" },
+    { label: "Operations + AI", value: 60000, color: "#8B5E35", note: "Infra, AI credits, travel" },
+    { label: "Consultants + Freelancers", value: 75000, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
+    { label: "Activations", value: 40000, color: "#C8A87A", note: "Print, clothing, dinner, investor gifts" },
     { label: "Treasury", value: 30000, color: "#B5705A", note: "Community fund seed" },
   ]
   const total = 493000
