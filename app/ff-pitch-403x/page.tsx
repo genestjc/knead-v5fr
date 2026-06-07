@@ -374,12 +374,38 @@ function DonutChart() {
 }
 
 // ─── Investment Calculator ────────────────────────────────────────────────────
+// ─── Investment Calculator (drop-in replacement) ──────────────────────────────
+// Requires: import { useState } from "react"  (already imported at top of your file)
+//
+// What changed vs. the prior version:
+//  • Ownership is now labeled correctly for a post-money SAFE: it's your % at the
+//    cap the moment a PRICED round happens, before that round's new money + option
+//    pool dilute you. (Other SAFEs don't dilute it — that's the point of post-money.)
+//  • Return scenarios now apply a visible, adjustable dilution haircut instead of
+//    assuming zero dilution (the old version showed $10K → $200K, which implied none).
+//  • The round-comparison copy no longer says the Community Round "triggers
+//    conversion." It doesn't — every SAFE converts together at the next priced round.
+//    The real edge is the lower cap = more equity per dollar.
+//  • Added a plain-English illustrative-only disclaimer.
 
 function InvestmentCalculator() {
   const [amount, setAmount] = useState("")
+  const [dilutionIdx, setDilutionIdx] = useState(1) // default: "Typical"
+
   const val = parseInt(amount) || 0
   const cap = 1500000
-  const equity = val >= 1000 ? val / cap : null
+  // Post-money SAFE: ownership at the cap = Purchase Amount / Post-Money Valuation Cap.
+  // This is your stake the instant a priced round closes — before that round's new
+  // shares and option-pool expansion dilute it.
+  const ownership = val >= 1000 ? val / cap : null
+
+  const dilutionOptions = [
+    { label: "Light", value: 0.25, note: "~25% diluted by future rounds" },
+    { label: "Typical", value: 0.45, note: "~45% diluted by future rounds" },
+    { label: "Heavy", value: 0.65, note: "~65% diluted by future rounds" },
+  ]
+  const dilution = dilutionOptions[dilutionIdx].value
+  const retain = 1 - dilution
 
   const scenarios = [
     { label: "Conservative", valuation: 5000000 },
@@ -389,33 +415,93 @@ function InvestmentCalculator() {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-      <p className="font-adonis text-sm text-black">Estimate your return</p>
+      <p className="font-adonis text-sm text-black">Estimate your stake</p>
+
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 font-adonis text-gray-400">$</span>
-        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 font-georgia-pro text-base text-black focus:outline-none focus:border-black transition-colors" placeholder="Enter investment amount" />
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 font-georgia-pro text-base text-black focus:outline-none focus:border-black transition-colors"
+          placeholder="Enter investment amount"
+        />
       </div>
-      {equity !== null ? (
+
+      {ownership !== null ? (
         <div className="space-y-3">
+          {/* Ownership at the cap */}
           <div className="bg-black rounded-xl p-4 text-white">
-            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">FF Round · $1.5M Cap · 20% Discount</p>
-            <p className="font-adonis text-3xl">~{(equity * 100).toFixed(3)}%</p>
-            <p className="font-georgia-pro text-xs text-gray-400 mt-1">of Knead at conversion</p>
+            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">
+              FF Round · $1.5M Cap · 20% Discount
+            </p>
+            <p className="font-adonis text-3xl">~{(ownership * 100).toFixed(3)}%</p>
+            <p className="font-georgia-pro text-xs text-gray-400 mt-1">
+              your stake at the cap, the moment a priced round closes
+            </p>
+            <p className="font-georgia-pro text-xs text-gray-500 mt-2 leading-relaxed border-t border-white/10 pt-2">
+              Post-money SAFEs fix this percentage against other SAFEs — but the priced
+              round&apos;s new investment and option pool dilute it from here.
+            </p>
           </div>
-          <p className="font-adonis text-xs text-gray-500 uppercase tracking-widest">If Knead is valued at:</p>
+
+          {/* Dilution assumption */}
+          <div>
+            <p className="font-adonis text-xs text-gray-500 uppercase tracking-widest mb-2">
+              Assumed future dilution
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {dilutionOptions.map((opt, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setDilutionIdx(i)}
+                  className={`rounded-lg border-2 py-2 px-2 text-center transition-all ${
+                    dilutionIdx === i
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  <p className="font-adonis text-sm">{opt.label}</p>
+                  <p
+                    className={`font-georgia-pro text-[10px] mt-0.5 ${
+                      dilutionIdx === i ? "text-gray-300" : "text-gray-400"
+                    }`}
+                  >
+                    {Math.round(opt.value * 100)}%
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Illustrative value at exit */}
+          <p className="font-adonis text-xs text-gray-500 uppercase tracking-widest">
+            Illustrative value if Knead is later worth:
+          </p>
           <div className="grid grid-cols-3 gap-2">
-            {scenarios.map((s, i) => (
-              <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                <p className="font-georgia-pro text-xs text-gray-500 mb-1">{s.label}</p>
-                <p className="font-adonis text-xs text-gray-400">${(s.valuation / 1000000).toFixed(0)}M</p>
-                <p className="font-adonis text-lg text-black mt-0.5">${Math.round(equity * s.valuation).toLocaleString()}</p>
-              </div>
-            ))}
+            {scenarios.map((s, i) => {
+              const effectiveOwnership = ownership * retain
+              const value = Math.round(effectiveOwnership * s.valuation)
+              return (
+                <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+                  <p className="font-georgia-pro text-xs text-gray-500 mb-1">{s.label}</p>
+                  <p className="font-adonis text-xs text-gray-400">${(s.valuation / 1000000).toFixed(0)}M</p>
+                  <p className="font-adonis text-lg text-black mt-0.5">${value.toLocaleString()}</p>
+                  <p className="font-georgia-pro text-[10px] text-gray-400 mt-0.5">
+                    at ~{(effectiveOwnership * 100).toFixed(3)}%
+                  </p>
+                </div>
+              )
+            })}
           </div>
+
+          {/* Round comparison — corrected mechanics */}
           <div className="bg-gray-900 rounded-xl p-4 space-y-3">
             <div className="space-y-1">
               {[
                 { label: "FF Round", detail: "$1.5M cap · You are here", active: true },
-                { label: "Community (Reg CF)", detail: "$2M cap · Anyone can invest", active: false },
+                { label: "Community (Reg CF)", detail: "$2M cap · opens after we convert to a C-Corp", active: false },
               ].map((round, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className={`text-xs mt-0.5 flex-shrink-0 ${round.active ? "text-white" : "text-gray-500"}`}>●</span>
@@ -426,11 +512,26 @@ function InvestmentCalculator() {
                 </div>
               ))}
             </div>
-            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. When the Community Round opens, it prices at a $2M cap — your FF SAFE converts at $1.5M, locking in your stake before the crowd at a lower price per unit of equity.</p>
+            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3 leading-relaxed">
+              FF investors get the lowest cap in the raise. Every SAFE — FF and Community alike —
+              converts together at the next priced equity round, not when the Community Round opens.
+              Because your $1.5M cap is lower than the Community&apos;s $2M, each of your dollars
+              converts into more equity than the crowd&apos;s.
+            </p>
           </div>
+
+          {/* Disclaimer */}
+          <p className="font-georgia-pro text-[10px] text-gray-400 italic leading-relaxed border-t border-gray-100 pt-3">
+            Illustrative only — not a forecast, projection, or guarantee of returns. Figures assume a
+            single future valuation and a flat dilution estimate; actual ownership and value depend on
+            future financings, the option pool, and performance. Startup investments are high-risk and
+            you could lose the entire amount.
+          </p>
         </div>
       ) : (
-        <p className="font-georgia-pro text-xs text-gray-400 italic">Type $1,000 or more to see your equity and projected return scenarios.</p>
+        <p className="font-georgia-pro text-xs text-gray-400 italic">
+          Type $1,000 or more to see your stake and illustrative scenarios.
+        </p>
       )}
     </div>
   )
