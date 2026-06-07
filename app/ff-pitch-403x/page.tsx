@@ -816,8 +816,8 @@ export default function Knead20PitchPage() {
                     Demeter lives across Knead&apos;s chat and stories serving a few different purposes:
                   </motion.p>
                   {[
-                    { title: "Editorial Intelligence", body: "Ask Demeter for the TLDR or greater context of a story." },
-                    { title: "Agentic Commerce", body: "Demeter is set up in our chat to gift Knead merch and handle creator proposals." },
+                    { title: "Editorial Intelligence", body: "Ask Demeter for the TLDR or greater cultural context of a story." },
+                    { title: "Agentic Commerce", body: "Demeter is set up in our chat to gift Knead merch and award creator proposals." },
                     { title: "Community Management", body: "The logistics of rewards and giveaways handled automatically." },
                   ].map((item, i) => (
                     <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.3 + i * 0.12, ease: "easeOut" }} className="flex items-start gap-3">
@@ -828,9 +828,6 @@ export default function Knead20PitchPage() {
                       </div>
                     </motion.div>
                   ))}
-                  <motion.p initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.7, ease: "easeOut" }} className="text-gray-500 italic text-sm">
-                    As we grow our community, we look forward to building more agentic solutions to serve them.
-                  </motion.p>
                 </div>
               </div>
               <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }} className="flex flex-col gap-4 pt-4">
