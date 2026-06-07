@@ -673,7 +673,7 @@ export default function Knead20PitchPage() {
               transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
               className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto"
             >
-              Knead is a media and community platform with paywalled articles, live streaming, agentic intelligence, video premieres, a gamified chat, &amp; more.
+              Knead is a media and community platform with paywalled articles, live streaming, agentic intelligence, a gamified chat, &amp; more.
             </motion.p>
           </div>
         </div>
@@ -762,7 +762,7 @@ export default function Knead20PitchPage() {
             </motion.h2>
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { tier: "Tier 03 · Highest Status", name: "Contributor", items: ["Industry experts, interview subjects, creatives, investors", "Highest status in Knead's chat", "Vote on Demeter proposals", "Can tell Demeter to send Knead Monthly members merchandise from store", "Can tip on Knead Monthly member comments, earning 20% cashback"] },
+                { tier: "Tier 03 · Highest Status", name: "Contributor", items: ["Industry experts, interview subjects, creatives, investors", "Highest status in Knead's chat", "Can video chat + DM other Contributors", "Vote on Demeter proposals", "Can tell Demeter to send Knead Monthly members merchandise from store", "Can tip on Knead Monthly member comments, earning 20% cashback"] },
                 { tier: "Tier 02", name: "Knead Monthly", items: ["Pays $5/month for unlimited viewing", "Can comment during events", "Earns tips from Contributors for quality comments", "Eligible to submit Demeter proposals for community funding", "Can receive Demeter gifts from Contributors"] },
                 { tier: "Tier 01", name: "Free", items: ["Watch live events like interviews or DJ sets for one hour", "Read-only access to community chat", "Entry point to the Knead ecosystem"] },
               ].map((col, i) => (
