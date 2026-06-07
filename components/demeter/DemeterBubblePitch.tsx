@@ -90,7 +90,7 @@ export function DemeterBubblePitch() {
       <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
         {messages.length === 0 && (
           <p className="font-georgia-pro text-sm text-gray-400 text-center pt-4">
-            Ask me anything about Knead — the platform, memberships, Demeter, or the raise.
+            Ask me anything about Knead
           </p>
         )}
 
