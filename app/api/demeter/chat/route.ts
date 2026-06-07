@@ -20,6 +20,19 @@ const ARTICLE_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   body
 }`;
 
+const ARTICLE_SEARCH_QUERY = `*[_type == "post" && (
+  title match $keyword ||
+  pt::text(body) match $keyword ||
+  author->name match $keyword
+)] | order(publishedAt desc) [0...6] {
+  title,
+  "slug": slug.current,
+  "author": author->name,
+  publishedAt,
+  "categories": categories[]->title,
+  excerpt
+}`;
+
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'web_search',
@@ -28,15 +41,85 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object' as const,
       properties: {
-        query: {
-          type: 'string',
-          description: 'A focused search query.',
-        },
+        query: { type: 'string', description: 'A focused search query.' },
       },
       required: ['query'],
     },
   },
+  {
+    name: 'search_articles',
+    description:
+      "Search Knead's published stories by keyword, subject name, or topic. Use this whenever someone asks about a specific story, person, or subject — e.g. 'Tell me about the Joey Khamis story' or 'Do you have anything about vintage fashion?'. Returns titles, authors, slugs, and excerpts.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'A name, subject, or topic to search for.',
+        },
+      },
+      required: ['keyword'],
+    },
+  },
+  {
+    name: 'get_article',
+    description:
+      "Fetch the full text of a specific Knead story by its slug. Use this after search_articles returns a match and the user wants to know more about that story.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        slug: {
+          type: 'string',
+          description: 'The story slug from search_articles results.',
+        },
+      },
+      required: ['slug'],
+    },
+  },
 ];
+
+async function searchArticles(keyword: string): Promise<string> {
+  try {
+    const results = await sanity.fetch(ARTICLE_SEARCH_QUERY, { keyword: `*${keyword}*` });
+    if (!results?.length) return `No Knead stories found matching "${keyword}".`;
+    return results
+      .map((r: any) =>
+        [
+          `TITLE: ${r.title}`,
+          `SLUG: ${r.slug}`,
+          r.author ? `BY: ${r.author}` : '',
+          r.categories?.length ? `TOPICS: ${r.categories.join(', ')}` : '',
+          r.excerpt ? `EXCERPT: ${r.excerpt}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+      .join('\n\n---\n\n');
+  } catch (err) {
+    console.error('[Demeter] Article search error:', err);
+    return 'Could not search articles right now.';
+  }
+}
+
+async function getArticle(slug: string): Promise<string> {
+  try {
+    const post = await sanity.fetch(ARTICLE_QUERY, { slug });
+    if (!post) return `No story found with slug "${slug}".`;
+    const bodyText = portableTextToPlain(post.body || []);
+    return [
+      `TITLE: ${post.title}`,
+      post.author ? `BY: ${post.author}` : '',
+      post.categories?.length ? `TOPICS: ${post.categories.join(', ')}` : '',
+      '',
+      bodyText,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  } catch (err) {
+    console.error('[Demeter] Get article error:', err);
+    return 'Could not fetch that story right now.';
+  }
+}
 
 async function webSearch(query: string): Promise<string> {
   const res = await fetch('https://api.tavily.com/search', {
@@ -82,9 +165,11 @@ export async function POST(req: NextRequest) {
     history: { role: 'user' | 'assistant'; content: string }[];
   };
 
+  const isPitchDeck = slug === 'ff-pitch-deck';
+
   let articleContext = '';
   let articleTitle = '';
-  if (slug) {
+  if (slug && !isPitchDeck) {
     try {
       const post = await sanity.fetch(ARTICLE_QUERY, { slug });
       if (post) {
@@ -105,7 +190,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const systemPrompt = articleContext
+  const systemPrompt = isPitchDeck
+    ? `You are Demeter, Knead Magazine's editorial AI companion — curious, warm, and knowledgeable about culture, food, fashion, and the arts.
+
+You are embedded in Knead's investor pitch deck. Potential investors are reading about the platform and may want to explore Knead's actual published stories to get a feel for the editorial voice.
+
+You have two special abilities:
+1. search_articles — search Knead's full library of published stories by name, subject, or topic
+2. get_article — read the full text of a specific story once you've found its slug via search_articles
+
+When someone asks about a specific story or person (e.g. "Tell me about the Joey Khamis story", "Do you have anything on vintage fashion?"), always use search_articles first. If they want to go deeper, use get_article to pull the full piece.
+
+You can also answer questions about:
+- How Knead works (memberships, chat, Demeter, the raise)
+- The culture and themes Knead covers
+- Specific stories and the people in them
+
+Keep responses to 2–3 short paragraphs. Match Knead's voice: intelligent, warm, never stuffy.
+
+After every response, suggest two follow-up questions:
+You might also ask:
+• [question one]
+• [question two]`
+    : articleContext
     ? `You are Demeter, Knead Magazine's editorial AI companion — curious, warm, and knowledgeable about culture, food, fashion, and the arts.
 
 You are embedded in this article:
@@ -169,16 +276,17 @@ You might also ask:
         ) as Anthropic.ToolUseBlock[];
 
         const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-          toolUses.map(async (t) => ({
-            type: 'tool_result' as const,
-            tool_use_id: t.id,
-            content:
-              t.name === 'web_search'
-                ? await webSearch((t.input as any).query).catch(
-                    () => 'Search unavailable.',
-                  )
-                : 'Unknown tool.',
-          })),
+          toolUses.map(async (t) => {
+            let content = 'Unknown tool.';
+            if (t.name === 'web_search') {
+              content = await webSearch((t.input as any).query).catch(() => 'Search unavailable.');
+            } else if (t.name === 'search_articles') {
+              content = await searchArticles((t.input as any).keyword);
+            } else if (t.name === 'get_article') {
+              content = await getArticle((t.input as any).slug);
+            }
+            return { type: 'tool_result' as const, tool_use_id: t.id, content };
+          }),
         );
 
         messages.push({ role: 'user', content: toolResults });
