@@ -347,7 +347,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
               Subscribe to Knead Monthly
             </DialogTitle>
             <DialogDescription className="font-georgia-pro text-sm text-center text-gray-600">
-              Complete your payment to get unlimited access to all Knead stories
+              Complete your payment to get unlimited access to Knead
             </DialogDescription>
           </DialogHeader>
           {clientSecret && stripeOptions && (
