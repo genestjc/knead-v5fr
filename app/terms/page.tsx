@@ -239,10 +239,6 @@ export default function TermsPage() {
                   info@kneadmag.com
                 </a>
               </address>
-              <p className="font-georgia-pro text-sm text-gray-500 mt-8 italic">
-                Note: These documents are provided for informational purposes and should be reviewed by legal counsel
-                before being relied upon.
-              </p>
             </div>
           </div>
         </div>
