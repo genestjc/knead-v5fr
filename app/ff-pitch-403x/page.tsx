@@ -415,7 +415,7 @@ function InvestmentCalculator() {
             <div className="space-y-1">
               {[
                 { label: "FF Round", detail: "$1.5M cap · You are here", active: true },
-                { label: "Community (Reg CF)", detail: "$4M cap · Anyone can invest", active: false },
+                { label: "Community (Reg CF)", detail: "$2M cap · Anyone can invest", active: false },
               ].map((round, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className={`text-xs mt-0.5 flex-shrink-0 ${round.active ? "text-white" : "text-gray-500"}`}>●</span>
@@ -426,7 +426,7 @@ function InvestmentCalculator() {
                 </div>
               ))}
             </div>
-            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. FF investors lock in the best terms in the entire raise. When the Community Round opens, it prices at a $2M cap — your FF SAFE converts at $1.5M, locking in your stake before the crowd at a lower price per unit of equity.</p>
+            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. When the Community Round opens, it prices at a $2M cap — your FF SAFE converts at $1.5M, locking in your stake before the crowd at a lower price per unit of equity.</p>
           </div>
         </div>
       ) : (
