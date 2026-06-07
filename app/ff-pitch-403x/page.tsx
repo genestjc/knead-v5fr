@@ -537,6 +537,34 @@ function InvestmentCalculator() {
   )
 }
 
+// ─── Deck Disclaimer ──────────────────────────────────────────────────────────
+
+function DeckDisclaimer() {
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-10 border-t border-gray-100">
+      <p className="font-georgia-pro text-[11px] text-gray-400 leading-relaxed text-center">
+        <span className="font-adonis text-gray-500">Confidential.</span> This page and its contents
+        are intended solely for the named recipient and others with a pre-existing relationship with
+        Knead Publishing LLC, and may not be forwarded, shared publicly, or otherwise distributed.
+        This is not an offer to sell, or the solicitation of an offer to buy, any securities to the
+        general public. Knead&apos;s private round is offered only to such persons in reliance on the
+        exemption from registration under Rule 506(b) of Regulation D of the Securities Act of 1933.
+        The securities described have not been registered with the SEC or any state securities
+        regulator and are subject to restrictions on transfer.
+      </p>
+      <p className="font-georgia-pro text-[11px] text-gray-400 leading-relaxed text-center mt-3">
+        An investment in Knead is high-risk, illiquid, and may result in the total loss of capital.
+        Nothing on this page is a forecast, projection, or guarantee of future results, and any
+        figures shown are illustrative only. Prospective investors should rely on the executed SAFE
+        and consult their own legal, tax, and financial advisors before investing.
+      </p>
+      <p className="font-georgia-pro text-[10px] text-gray-300 text-center mt-3">
+        &copy; {new Date().getFullYear()} Knead Publishing LLC. All rights reserved.
+      </p>
+    </div>
+  )
+}
+
 // ─── SAFE Investor Form ───────────────────────────────────────────────────────
 
 type SAFEFormState = "form" | "submitted" | "payment"
@@ -712,6 +740,7 @@ export default function Knead20PitchPage() {
         <div className="text-center max-w-4xl mx-auto">
           <motion.h1 variants={fadeIn} className="font-adonis text-[7rem] md:text-[10rem] lg:text-[13rem] text-black leading-none">Knead</motion.h1>
           <motion.p variants={fadeIn} className="font-georgia-pro text-xl md:text-2xl text-gray-500 italic mt-6">FF Deck (Private)</motion.p>
+          <motion.p variants={fadeIn} className="font-georgia-pro text-xs text-gray-400 italic mt-4">Confidential — intended for recipients with a pre-existing relationship with Knead. Please don&apos;t forward or share.</motion.p>
           <motion.p variants={fadeIn} className="font-georgia-pro text-sm text-gray-400 mt-16">Scroll to explore ↓</motion.p>
         </div>
       </Slide>
@@ -1166,7 +1195,7 @@ export default function Knead20PitchPage() {
           </div>
         </div>
       </Slide>
-
+      <DeckDisclaimer />
     </div>
   )
 }
