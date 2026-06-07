@@ -1024,7 +1024,7 @@ export default function Knead20PitchPage() {
             <motion.h2 initial={fi.hidden} whileInView={fi.visible} viewport={vp} className="font-adonis text-4xl md:text-5xl text-black mb-12">Timeline</motion.h2>
             <div className="space-y-10">
               {[
-                { title: "Phase 1: Build & Iterate", tag: "✓ Complete", done: true, items: ["V1 of chat finished", "Early beta testing and community feedback", "V1.2 of chat — public feedback", "Implemented Demeter — our agentic solution — in the chat", "Added social-ready features and new community tools"] },
+                { title: "Phase 1: Build & Iterate", tag: "✓ Complete", done: true, items: ["V1 of chat finished", "Early beta testing and community feedback", "V1.2 of chat — public feedback", "Implemented Demeter — our agentic solution — in the chat + editorial", "Added social-ready features and new community tools"] },
                 { title: "Phase 2: Launch", tag: "(Months 1–3)", done: false, items: ["Change LLC to C-Corp", "Hire consultants + freelancers", "Contributor onboarding", "Public fund launched", "Agency pipeline established — first client projects begin", "S-Tier clothing line and print magazine in production", "Inaugural dinner series confirmed"] },
                 { title: "Phase 3: Scale", tag: "(Months 4–6)", done: false, items: ["First agency clients acquired and case studies built", "50+ Contributors established, community self-sustaining", "Membership + Agency model is self-sustaining"] },
               ].map((phase, pi) => (
