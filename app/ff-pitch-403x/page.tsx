@@ -317,13 +317,13 @@ function ConstantPracticeDemo() {
 
 function DonutChart() {
   const data = [
-    { label: "Team", value: 504000, color: "#C17A4A", note: "5 contractors, 1 year" },
-    { label: "Operations + AI", value: 130000, color: "#8B5E35", note: "Infra, AI credits, travel" },
-    { label: "Consultants + Freelancers", value: 105000, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
-    { label: "Activations", value: 67200, color: "#C8A87A", note: "Print, clothing, dinner, investor gifts" },
-    { label: "Treasury", value: 44800, color: "#B5705A", note: "Community fund seed" },
+    { label: "Team", value: 288000, color: "#C17A4A" },
+    { label: "Operations + AI", value: 65000, color: "#8B5E35", note: "Infra, AI credits, travel" },
+    { label: "Consultants + Freelancers", value: 60000, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
+    { label: "Activations", value: 50000, color: "#C8A87A", note: "Print, clothing, dinner, investor gifts" },
+    { label: "Treasury", value: 30000, color: "#B5705A", note: "Community fund seed" },
   ]
-  const total = 851000
+  const total = 493000
   const cx = 110, cy = 110, r = 90, ir = 52
   const toRad = (deg: number) => (deg * Math.PI) / 180
 
@@ -348,7 +348,7 @@ function DonutChart() {
         <svg width="220" height="220" viewBox="0 0 220 220" className="overflow-visible">
           {segments.map((seg, i) => <path key={i} d={seg.path} fill={seg.color} stroke="white" strokeWidth="2" />)}
           <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: '"adonis-web", serif', fontSize: 13, fill: "#111" }}>Total Ask</text>
-          <text x={cx} y={cx + 10} textAnchor="middle" style={{ fontFamily: '"Georgia Pro", Georgia, serif', fontSize: 12, fill: "#555" }}>$851,000</text>
+          <text x={cx} y={cx + 10} textAnchor="middle" style={{ fontFamily: '"Georgia Pro", Georgia, serif', fontSize: 12, fill: "#555" }}>$493,000</text>
         </svg>
       </div>
       <div className="space-y-4 w-full md:w-auto">
@@ -366,7 +366,7 @@ function DonutChart() {
           </div>
         ))}
         <div className="pt-3 border-t border-gray-200">
-          <p className="font-georgia-pro text-xs text-gray-400 italic">Full raise target: $851,000 across all rounds</p>
+          <p className="font-georgia-pro text-xs text-gray-400 italic">Recommended raise: $350K–$500K</p>
         </div>
       </div>
     </div>
@@ -415,8 +415,7 @@ function InvestmentCalculator() {
             <div className="space-y-1">
               {[
                 { label: "FF Round", detail: "$1.5M cap · You are here", active: true },
-                { label: "Institutional", detail: "$3M cap · Target $500K · Base, VCs, tech investors", active: false },
-                { label: "Community (Reg CF)", detail: "$4M cap · Opens July 2026 · Anyone can invest", active: false },
+                { label: "Community (Reg CF)", detail: "$4M cap · Anyone can invest", active: false },
               ].map((round, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className={`text-xs mt-0.5 flex-shrink-0 ${round.active ? "text-white" : "text-gray-500"}`}>●</span>
@@ -427,7 +426,7 @@ function InvestmentCalculator() {
                 </div>
               ))}
             </div>
-            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. After this round closes, Knead opens an institutional round at a $3M cap, followed by a public community round on Wefunder at $4M. Your $1.5M SAFE converts before all of them — with a 20% discount on top.</p>
+            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. FF investors lock in the best terms in the entire raise. When the Community Round opens, it prices at a $2M cap — your FF SAFE converts at $1.5M, locking in your stake before the crowd at a lower price per unit of equity.</p>
           </div>
         </div>
       ) : (
@@ -897,7 +896,7 @@ export default function Knead20PitchPage() {
           <div className="max-w-5xl mx-auto space-y-8">
             <motion.div initial={fi.hidden} whileInView={fi.visible} viewport={vp}>
               <h2 className="font-adonis text-4xl md:text-5xl text-black mb-2">What We Want To Raise</h2>
-              <p className="font-georgia-pro text-lg text-black">Knead is raising <span className="font-adonis text-xl">$375,000–$400,000</span> for a 6-month sprint.</p>
+              <p className="font-georgia-pro text-lg text-black">Knead is raising across two rounds — a private FF Round now open, and a public Community Round to follow. Total target: <span className="font-adonis text-xl">$350,000–$500,000</span>.</p>
             </motion.div>
             <div className="grid md:grid-cols-2 gap-6">
               <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }} className="space-y-4">
@@ -915,7 +914,7 @@ export default function Knead20PitchPage() {
                 </div>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}>
-                <p className="font-adonis text-sm text-black mb-2 text-center">6-Month Budget</p>
+                <p className="font-adonis text-sm text-black mb-2 text-center">Budget Breakdown</p>
                 <DonutChart />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={vp} transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }} className="space-y-3">
