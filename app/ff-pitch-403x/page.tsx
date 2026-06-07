@@ -857,9 +857,9 @@ export default function Knead20PitchPage() {
                 {[
                   { name: "Platform", desc: "Own your content distribution from top of funnel." },
                   { name: "Community", desc: "Build reward systems that turn your audience into superfans." },
-                  { name: "Intelligence", desc: "Put AI to work across editorial, commerce, + community." },
+                  { name: "Intelligence", desc: "Put AI to work across editorial, commerce, or community." },
                   { name: "Story", desc: "Discover where you resonate in today's cultural landscape." },
-                  { name: "Commerce", desc: "Solutions that engage communities + reduce empty carts." },
+                  { name: "Commerce", desc: "Solutions that engage communities and reduce empty carts." },
                 ].map((service, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, y: 12 }}
