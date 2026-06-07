@@ -661,7 +661,7 @@ export default function Knead20PitchPage() {
               transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
               className="font-georgia-pro text-lg md:text-xl text-black max-w-2xl mx-auto"
             >
-              Knead is a media and community platform with paywalled articles, live streaming, video premieres, a gamified chat, &amp; more.
+              Knead is a media and community platform with paywalled articles, live streaming, agentic intelligence, video premieres, a gamified chat, &amp; more.
             </motion.p>
           </div>
         </div>
@@ -683,7 +683,7 @@ export default function Knead20PitchPage() {
             <div className="space-y-5 font-georgia-pro text-lg md:text-xl text-white max-w-3xl">
               {[
                 "Knead's writing is focused on original interviews with the most inspiring minds across an array of disciplines, including art, music, technology, food, fashion, and others.",
-                "We pride ourselves on original work, prioritizing organic photography, illustration, design, and film.",
+                "We pride ourselves on presenting original work, prioritizing organic photography, illustration, design, and film.",
                 "Our rich storytelling is aimed to nourish the creative spirit, inspiring that someone can start 'kneading' for themselves too.",
               ].map((p, i) => (
                 <motion.p
