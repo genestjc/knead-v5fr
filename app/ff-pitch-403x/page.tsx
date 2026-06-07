@@ -855,11 +855,11 @@ export default function Knead20PitchPage() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  { name: "Platform", desc: "Own your content  distribution from top of funnel." },
+                  { name: "Platform", desc: "Own your content distribution from top of funnel." },
                   { name: "Community", desc: "Build reward systems that turn your audience into superfans." },
-                  { name: "Intelligence", desc: "Put AI to work across editorial, eCommerce, or community." },
+                  { name: "Intelligence", desc: "Put AI to work across editorial, commerce, + community." },
                   { name: "Story", desc: "Discover where you resonate in today's cultural landscape." },
-                  { name: "Commerce", desc: "Agentic solutions that engage communities and reduce empty carts." },
+                  { name: "Commerce", desc: "Solutions that engage communities + reduce empty carts." },
                 ].map((service, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, y: 12 }}
