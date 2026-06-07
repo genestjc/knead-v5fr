@@ -317,13 +317,13 @@ function ConstantPracticeDemo() {
 
 function DonutChart() {
   const data = [
-    { label: "Team", value: 144780, color: "#C17A4A", note: "3 people, 6 months" },
-    { label: "Treasury", value: 90000, color: "#8B5E35", note: "Tips + Demeter activities" },
-    { label: "Consultants", value: 73500, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
-    { label: "Operations", value: 26500, color: "#C8A87A", note: "Infra, coworking, travel" },
-    { label: "Activations", value: 27000, color: "#B5705A", note: "Clothing, print, dinner, investor gifts" },
+    { label: "Team", value: 504000, color: "#C17A4A", note: "5 contractors, 1 year" },
+    { label: "Operations + AI", value: 130000, color: "#8B5E35", note: "Infra, AI credits, travel" },
+    { label: "Consultants + Freelancers", value: 105000, color: "#7B9068", note: "Dev, editorial, legal, accounting" },
+    { label: "Activations", value: 67200, color: "#C8A87A", note: "Print, clothing, dinner, investor gifts" },
+    { label: "Treasury", value: 44800, color: "#B5705A", note: "Community fund seed" },
   ]
-  const total = 361780
+  const total = 851000
   const cx = 110, cy = 110, r = 90, ir = 52
   const toRad = (deg: number) => (deg * Math.PI) / 180
 
@@ -348,7 +348,7 @@ function DonutChart() {
         <svg width="220" height="220" viewBox="0 0 220 220" className="overflow-visible">
           {segments.map((seg, i) => <path key={i} d={seg.path} fill={seg.color} stroke="white" strokeWidth="2" />)}
           <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: '"adonis-web", serif', fontSize: 13, fill: "#111" }}>Total Ask</text>
-          <text x={cx} y={cx + 10} textAnchor="middle" style={{ fontFamily: '"Georgia Pro", Georgia, serif', fontSize: 12, fill: "#555" }}>$361,780</text>
+          <text x={cx} y={cx + 10} textAnchor="middle" style={{ fontFamily: '"Georgia Pro", Georgia, serif', fontSize: 12, fill: "#555" }}>$851,000</text>
         </svg>
       </div>
       <div className="space-y-4 w-full md:w-auto">
@@ -366,7 +366,7 @@ function DonutChart() {
           </div>
         ))}
         <div className="pt-3 border-t border-gray-200">
-          <p className="font-georgia-pro text-xs text-gray-400 italic">Recommended raise: $375K–$400K</p>
+          <p className="font-georgia-pro text-xs text-gray-400 italic">Full raise target: $851,000 across all rounds</p>
         </div>
       </div>
     </div>
@@ -411,10 +411,23 @@ function InvestmentCalculator() {
               </div>
             ))}
           </div>
-          <div className="bg-gray-900 rounded-xl p-4">
-            <p className="font-adonis text-xs text-gray-400 uppercase tracking-widest mb-1">Community Round · Opens July 2026</p>
-            <p className="font-adonis text-sm text-white mb-1">FF investors get in at the best terms</p>
-            <p className="font-georgia-pro text-xs text-gray-300">The public Wefunder round opens at a $2M cap. Your FF SAFE converts at $1.5M — locking in your stake before the crowd at a 20% discount.</p>
+          <div className="bg-gray-900 rounded-xl p-4 space-y-3">
+            <div className="space-y-1">
+              {[
+                { label: "FF Round", detail: "$1.5M cap · You are here", active: true },
+                { label: "Institutional", detail: "$3M cap · Target $500K · Base, VCs, tech investors", active: false },
+                { label: "Community (Reg CF)", detail: "$4M cap · Opens July 2026 · Anyone can invest", active: false },
+              ].map((round, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className={`text-xs mt-0.5 flex-shrink-0 ${round.active ? "text-white" : "text-gray-500"}`}>●</span>
+                  <div>
+                    <span className={`font-adonis text-xs ${round.active ? "text-white" : "text-gray-400"}`}>{round.label}</span>
+                    <span className={`font-georgia-pro text-xs ml-1.5 ${round.active ? "text-gray-300" : "text-gray-500"}`}>{round.detail}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="font-georgia-pro text-xs text-gray-300 border-t border-white/10 pt-3">FF investors lock in the best terms in the entire raise. After this round closes, Knead opens an institutional round at a $3M cap, followed by a public community round on Wefunder at $4M. Your $1.5M SAFE converts before all of them — with a 20% discount on top.</p>
           </div>
         </div>
       ) : (
@@ -619,11 +632,11 @@ export default function Knead20PitchPage() {
             </motion.h1>
             <div className="space-y-7 font-georgia-pro text-lg md:text-xl max-w-3xl">
               {[
-                { text: "Top-touring musicians are using Linktree as their main website.", muted: false },
-                { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose.", muted: false },
-                { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations.", muted: false },
-                { text: "None of this was a part of our childhood dreams.", },
-                { text: "It's time we take ownership of making the internet fun again.",},
+                { text: "Top-touring musicians are using Linktree as their main website." },
+                { text: "Best-selling authors are promoting the same formulaically-designed Substack for their prose." },
+                { text: "Well-respected interviewers are stopping thought-provoking conversations to ask for Patreon donations." },
+                { text: "None of this was a part of our childhood dreams." },
+                { text: "It's time we take ownership of making the internet fun again." },
               ].map((item, i) => (
                 <motion.p
                   key={i}
