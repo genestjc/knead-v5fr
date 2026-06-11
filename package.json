@@ -12,8 +12,8 @@
     "@anthropic-ai/sdk": "^0.36.3",
     "fake-indexeddb": "^6.0.0",
     "@coinbase/onchainkit": "^0.38.0",
-    "@connectrpc/connect-node": "^1.4.0",
-    "@connectrpc/connect-web": "^1.4.0",
+    "@connectrpc/connect-node": "^2.1.0",
+    "@connectrpc/connect-web": "^2.1.0",
     "@daily-co/daily-js": "^0.87.0",
     "@daily-co/daily-react": "^0.24.0",
     "@emoji-mart/data": "^1.2.1",
@@ -112,9 +112,7 @@
   },
   "overrides": {
     "lru-cache": "^10.4.3",
-    "@connectrpc/connect": "^2.1.0",
-    "@connectrpc/connect-node": "^2.1.0",
-    "@connectrpc/connect-web": "^2.1.0"
+    "@connectrpc/connect": "^2.1.0"
   },
   "devDependencies": {
     "@types/shopify-buy": "^2.10.11",
