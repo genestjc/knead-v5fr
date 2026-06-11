@@ -111,7 +111,10 @@
     "zod": "^3.23.6"
   },
   "overrides": {
-    "lru-cache": "^10.4.3"
+    "lru-cache": "^10.4.3",
+    "@connectrpc/connect": "^2.1.0",
+    "@connectrpc/connect-node": "^2.1.0",
+    "@connectrpc/connect-web": "^2.1.0"
   },
   "devDependencies": {
     "@types/shopify-buy": "^2.10.11",
