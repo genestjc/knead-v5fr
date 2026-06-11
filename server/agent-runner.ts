@@ -23,6 +23,15 @@
  */
 
 import 'fake-indexeddb/auto'; // polyfill IndexedDB for Node.js (SyncAgent crypto store)
+
+// The Towns SDK catches this error internally and logs it via its debug logger — it recovers
+// on its own retry. Filter it from stderr so Render stops sending email alerts for it.
+const _stderrWrite = process.stderr.write.bind(process.stderr);
+(process.stderr as any).write = (chunk: any, ...args: any[]) => {
+  const s = typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? '';
+  if (s.includes('createMethodSerializationLookup') || s.includes("reading 'I'")) return true;
+  return _stderrWrite(chunk, ...args);
+};
 import { ethers } from 'ethers';
 import {
   SyncAgent,
