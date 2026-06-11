@@ -23,15 +23,6 @@
  */
 
 import 'fake-indexeddb/auto'; // polyfill IndexedDB for Node.js (SyncAgent crypto store)
-
-// The Towns SDK catches this error internally and logs it via its debug logger — it recovers
-// on its own retry. Filter it from stderr so Render stops sending email alerts for it.
-const _stderrWrite = process.stderr.write.bind(process.stderr);
-(process.stderr as any).write = (chunk: any, ...args: any[]) => {
-  const s = typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? '';
-  if (s.includes('createMethodSerializationLookup') || s.includes("reading 'I'")) return true;
-  return _stderrWrite(chunk, ...args);
-};
 import { ethers } from 'ethers';
 import {
   SyncAgent,
@@ -43,6 +34,18 @@ import type { Channel } from '@towns-protocol/sdk';
 import { runAgent } from '@/lib/agent';
 import { getWalletAgentRole } from '@/lib/agent/role-gate';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
+
+// The Towns SDK catches this error internally and logs it via its debug logger — it recovers
+// on its own retry. Filter it from both stdout and stderr so Render stops alerting on it.
+function suppressTownsInitError(write: Function) {
+  return (chunk: any, ...args: any[]) => {
+    const s = typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? '';
+    if (s.includes('createMethodSerializationLookup') || s.includes("reading 'I'")) return true;
+    return write(chunk, ...args);
+  };
+}
+(process.stdout as any).write = suppressTownsInitError(process.stdout.write.bind(process.stdout));
+(process.stderr as any).write = suppressTownsInitError(process.stderr.write.bind(process.stderr));
 
 const SPACE_ID   = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID!;
 const CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID!;
@@ -138,15 +141,6 @@ async function main() {
 
   process.on('SIGTERM', async () => { await agent.stop(); process.exit(0); });
   process.on('SIGINT',  async () => { await agent.stop(); process.exit(0); });
-
-  // The Towns SDK throws this during its internal reconnect when userExists=false and
-  // newUserMetadata is transiently undefined. It recovers on its own — suppress the
-  // unhandled rejection so Render stops alerting on it.
-  process.on('unhandledRejection', (reason) => {
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    if (msg.includes("reading 'I'") || msg.includes('createMethodSerializationLookup')) return;
-    console.error('[agent] Unhandled rejection:', msg);
-  });
 
   setInterval(() => console.log('💓 Online:', new Date().toISOString()), 30 * 60 * 1000);
 }
