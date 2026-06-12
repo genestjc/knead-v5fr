@@ -56,6 +56,7 @@ export function SocialAssetStudio() {
   const [posX, setPosX] = useState(0.5);
   const [posY, setPosY] = useState(0.5);
   const [zoom, setZoom] = useState(1);
+  const [imagePan, setImagePan] = useState(50);
   const [showWordmark, setShowWordmark] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
   const [fontsReady, setFontsReady] = useState(false);
