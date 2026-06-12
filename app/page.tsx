@@ -5,8 +5,11 @@ import type { SanityDocument } from "next-sanity"
 import { ScrollFadeWrapper } from "@/components/scroll-fade-wrapper"
 import { HomepageEvents } from "@/components/homepage-events"
 
-// Enhanced query to get more image data
-const SPECIFIC_POSTS_QUERY = `*[_type == "post" && title in $titles]{
+// Re-fetch from Sanity at most once a minute so new stories appear without a redeploy
+export const revalidate = 60
+
+// Five most recent stories, newest first
+const RECENT_POSTS_QUERY = `*[_type == "post" && defined(slug.current)] | order(publishedAt desc)[0...5]{
  _id,
  title,
  slug,
@@ -23,10 +26,8 @@ const SPECIFIC_POSTS_QUERY = `*[_type == "post" && title in $titles]{
  "author": author->name
 }`
 
-// Restored original story titles
-const topFiveStoryTitles = ["Blvck Svm", "Constant Practice", "Eli McMullen", "Tarantula", "Ben Rubin of Towns"]
-
-const fallbackTopFiveStories = [
+// Shown only if Sanity is unreachable or returns nothing
+const fallbackHeroStories = [
   {
     _id: "blvck-svm",
     title: "Blvck Svm",
@@ -79,48 +80,25 @@ const fallbackTopFiveStories = [
   },
 ]
 
-// Helper function to sort posts by the specified order and fill missing ones with fallback
-function sortAndFillPosts(posts: SanityDocument[], titleOrder: string[], fallbackPosts: any[]) {
-  const sortedPosts: any[] = []
-
-  titleOrder.forEach((title, index) => {
-    const post = posts.find((p) => p.title === title)
-    if (post) {
-      sortedPosts.push(post)
-    } else {
-      // Use fallback post if not found in Sanity
-      const fallbackPost = fallbackPosts.find((fp) => fp.title === title)
-      if (fallbackPost) {
-        sortedPosts.push(fallbackPost)
-      }
-    }
-  })
-
-  return sortedPosts
-}
-
 export default async function Home() {
-  let topFivePosts: SanityDocument[] = []
+  let recentPosts: SanityDocument[] = []
 
   try {
     if (process.env.NEXT_PUBLIC_SANITY_PROJECT_ID) {
-      const topFiveFromSanity = await client.fetch<SanityDocument[]>(SPECIFIC_POSTS_QUERY, {
-        titles: topFiveStoryTitles,
-      })
-      topFivePosts = sortAndFillPosts(topFiveFromSanity, topFiveStoryTitles, fallbackTopFiveStories)
+      recentPosts = await client.fetch<SanityDocument[]>(RECENT_POSTS_QUERY)
     }
   } catch (error) {
     console.error("Error fetching posts from Sanity:", error)
   }
 
-  const heroPosts = topFivePosts.length > 0 ? topFivePosts : fallbackTopFiveStories
+  const heroPosts = recentPosts.length > 0 ? recentPosts : fallbackHeroStories
 
   return (
     <main className="min-h-screen">
       <Header />
 
       <ScrollFadeWrapper>
-        {/* Hero Section - Top 5 stories with scroll fade */}
+        {/* Hero Section - 5 most recent stories with scroll fade */}
         <section className="full-bleed">
           {heroPosts.map((post, index) => (
             <div key={`${post._id}-${index}`} data-scroll-index={index}>
