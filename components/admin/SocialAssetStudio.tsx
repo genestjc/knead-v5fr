@@ -42,6 +42,7 @@ export function SocialAssetStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const dragRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
 
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [format, setFormat] = useState<Format>('square');
@@ -51,7 +52,10 @@ export function SocialAssetStudio() {
   const [textColor, setTextColor] = useState<TextColor>('white');
   const [textPosition, setTextPosition] = useState<TextPosition>('bottom');
   const [overlay, setOverlay] = useState(45);
-  const [imagePan, setImagePan] = useState(50);
+  // Image placement within the frame: 0..1 on each axis (0.5 = centered), plus zoom
+  const [posX, setPosX] = useState(0.5);
+  const [posY, setPosY] = useState(0.5);
+  const [zoom, setZoom] = useState(1);
   const [showWordmark, setShowWordmark] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
   const [fontsReady, setFontsReady] = useState(false);
