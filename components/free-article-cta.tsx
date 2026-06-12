@@ -267,7 +267,7 @@ export function FreeArticleCTA() {
                 )}
               </button>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 flex flex-col items-center">
                 <div onClick={() => { pendingPayment.current = true; }}>
                   <ThirdWebConnectButton />
                 </div>
