@@ -48,6 +48,7 @@ export function SocialAssetStudio() {
   const [format, setFormat] = useState<Format>('square');
   const [kicker, setKicker] = useState('');
   const [headline, setHeadline] = useState('');
+  const [bodyText, setBodyText] = useState('');
   const [byline, setByline] = useState('');
   const [textColor, setTextColor] = useState<TextColor>('white');
   const [textPosition, setTextPosition] = useState<TextPosition>('bottom');
@@ -162,14 +163,20 @@ export function SocialAssetStudio() {
       const kickerSize = W * 0.026;
       const headlineSize = W * 0.075;
       const headlineLine = headlineSize * 1.12;
+      const bodySize = W * 0.032;
+      const bodyLine = bodySize * 1.3;
       const bylineSize = W * 0.028;
 
       ctx.font = `400 ${headlineSize}px "adonis-web", serif`;
       const headlineLines = headline ? wrapText(ctx, headline, maxWidth) : [];
 
+      ctx.font = `400 ${bodySize}px "Georgia Pro", Georgia, serif`;
+      const bodyLines = bodyText ? wrapText(ctx, bodyText, maxWidth) : [];
+
       let blockHeight = 0;
       if (kicker) blockHeight += kickerSize + W * 0.03;
       blockHeight += headlineLines.length * headlineLine;
+      if (bodyText) blockHeight += W * 0.04 + bodyLines.length * bodyLine;
       if (byline) blockHeight += W * 0.035 + bylineSize;
 
       let y: number;
@@ -202,6 +209,17 @@ export function SocialAssetStudio() {
       for (const line of headlineLines) {
         ctx.fillText(line, pad, y);
         y += headlineLine;
+      }
+
+      // Body copy
+      if (bodyText) {
+        y += W * 0.04;
+        ctx.fillStyle = color;
+        ctx.font = `400 ${bodySize}px "Georgia Pro", Georgia, serif`;
+        for (const line of bodyLines) {
+          ctx.fillText(line, pad, y);
+          y += bodyLine;
+        }
       }
 
       // Byline
@@ -239,6 +257,7 @@ export function SocialAssetStudio() {
       textColor,
       kicker,
       headline,
+      bodyText,
       byline,
       showWordmark,
     ],
@@ -343,6 +362,18 @@ export function SocialAssetStudio() {
               onChange={(e) => setHeadline(e.target.value)}
               placeholder="Can We Make Websites Fun Again?"
               rows={2}
+              className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black resize-none"
+            />
+          </div>
+          <div>
+            <label className="block font-georgia-pro text-xs uppercase tracking-wide text-gray-500 mb-1.5">
+              Body copy (Georgia Pro)
+            </label>
+            <textarea
+              value={bodyText}
+              onChange={(e) => setBodyText(e.target.value)}
+              placeholder="Add supporting text, a summary, or call-to-action here..."
+              rows={3}
               className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black resize-none"
             />
           </div>
