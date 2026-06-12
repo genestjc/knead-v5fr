@@ -102,8 +102,8 @@ const PullQuote = ({ value }: { value: { text: string; author?: string } }) => <
 const CodeBlock = ({ value }: { value: { language?: string; code: string; filename?: string } }) => <div className="my-8 animate-fade-in-up animation-delay-200">{value.filename && <div className="bg-gray-800 text-gray-300 px-4 py-2 text-sm font-mono rounded-t-lg border-b border-gray-700 animate-fade-in animation-delay-300">{value.filename}</div>}<SyntaxHighlighter language={value.language || "text"} style={tomorrow} className={`${value.filename ? "rounded-t-none" : ""} rounded-lg animate-fade-in-up animation-delay-400`} showLineNumbers>{value.code}</SyntaxHighlighter></div>;
 const CustomImage = ({ value }: { value: any }) => {
   if (!value?.asset) return null;
-  const imageUrl = urlFor(value).width(800).height(600).url();
-  return <div className="my-8 animate-fade-in-up animation-delay-200"><div className="relative overflow-hidden rounded-lg shadow-lg"><Image src={imageUrl || "/placeholder.svg"} alt={value.alt || "Article image"} width={800} height={600} className="w-full h-auto object-cover transition-transform duration-500 hover:scale-105" /></div>{value.caption && <p className="mt-2 text-sm text-gray-600 text-center font-georgia-pro italic animate-fade-in animation-delay-300">{value.caption}</p>}</div>;
+  const imageUrl = urlFor(value).width(1600).fit("max").quality(100).url();
+  return <div className="my-8 animate-fade-in-up animation-delay-200"><div className="relative overflow-hidden rounded-lg shadow-lg"><Image src={imageUrl || "/placeholder.svg"} alt={value.alt || "Article image"} width={1600} height={900} quality={100} className="w-full h-auto transition-transform duration-500 hover:scale-105" /></div>{value.caption && <p className="mt-2 text-sm text-gray-600 text-center font-georgia-pro italic animate-fade-in animation-delay-300">{value.caption}</p>}</div>;
 };
 
 
