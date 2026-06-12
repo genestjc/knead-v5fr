@@ -10,6 +10,7 @@ import { UnlockContent } from "../../../components/unlock-content"
 import { PremiumBadge } from "../../../components/premium-badge"
 import { PortableTextRenderer } from "../../../components/portable-text-renderer"
 import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
+import { FreeArticleCTA } from "../../../components/free-article-cta"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -196,15 +197,18 @@ export default async function PostPage({ params }: PostPageProps) {
                     </UnlockContent>
                   </>
                 ) : (
-                  <div className="article-body">
-                    {post.body && Array.isArray(post.body) && post.body.length > 0 ? (
-                      <PortableTextRenderer content={post.body} />
-                    ) : (
-                      <p className="font-georgia-pro text-lg leading-relaxed my-6 text-gray-700">
-                        {post.excerpt || "Article content is being prepared..."}
-                      </p>
-                    )}
-                  </div>
+                  <>
+                    <div className="article-body">
+                      {post.body && Array.isArray(post.body) && post.body.length > 0 ? (
+                        <PortableTextRenderer content={post.body} />
+                      ) : (
+                        <p className="font-georgia-pro text-lg leading-relaxed my-6 text-gray-700">
+                          {post.excerpt || "Article content is being prepared..."}
+                        </p>
+                      )}
+                    </div>
+                    <FreeArticleCTA />
+                  </>
                 )}
               </div>
               <div className="mt-12 pt-8 border-t border-gray-100">
