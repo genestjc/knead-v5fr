@@ -57,7 +57,7 @@ export function PostCardFullBleed({ post }: { post: any }) {
 
       <Link href={`/posts/${slug}`} className="block absolute inset-0 z-10">
         <div className="absolute bottom-8 left-8 md:bottom-12 md:left-12 max-w-4xl text-left">
-          <h1 className="font-adonis text-3xl md:text-4xl lg:text-5xl xl:text-6xl opacity-70 transition-opacity duration-300 text-white group-hover:opacity-100 whitespace-nowrap">
+          <h1 className="font-adonis text-3xl md:text-4xl lg:text-5xl xl:text-6xl opacity-70 transition-opacity duration-300 text-white group-hover:opacity-100">
             {post.title}
           </h1>
         </div>
