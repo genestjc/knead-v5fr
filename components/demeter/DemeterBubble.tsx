@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { X, Send, Loader2 } from 'lucide-react';
+import { X, Send, Loader2, Copy, Check } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -13,18 +13,86 @@ interface DemeterBubbleProps {
   slug?: string;
 }
 
-/** Split Demeter's reply from the suggested follow-up questions */
-function parseReply(text: string): { reply: string; suggestions: string[] } {
-  const marker = /you might also ask[:\s]*/i;
-  const idx = text.search(marker);
-  if (idx === -1) return { reply: text.trim(), suggestions: [] };
+/** Split Demeter's reply into the answer, a shareable social post, and suggested follow-ups */
+function parseReply(text: string): {
+  reply: string;
+  suggestions: string[];
+  share: string | null;
+} {
+  // Pull out a [SHARE]...[/SHARE] block if present
+  let share: string | null = null;
+  let rest = text;
+  const shareMatch = text.match(/\[SHARE\]([\s\S]*?)\[\/SHARE\]/i);
+  if (shareMatch) {
+    share = shareMatch[1].trim();
+    rest = text.replace(shareMatch[0], '').trim();
+  }
 
-  const replyPart = text.slice(0, idx).trim();
-  const suggestionPart = text.slice(idx);
+  const marker = /you might also ask[:\s]*/i;
+  const idx = rest.search(marker);
+  if (idx === -1) return { reply: rest.trim(), suggestions: [], share };
+
+  const replyPart = rest.slice(0, idx).trim();
+  const suggestionPart = rest.slice(idx);
   const suggestions = [...suggestionPart.matchAll(/•\s*(.+)/g)].map((m) =>
     m[1].trim(),
   );
-  return { reply: replyPart, suggestions };
+  return { reply: replyPart, suggestions, share };
+}
+
+/** A crafted social post with one-tap share buttons */
+function ShareCard({ text, slug }: { text: string; slug?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl =
+    typeof window !== 'undefined'
+      ? slug
+        ? `${window.location.origin}/posts/${slug}`
+        : window.location.href
+      : '';
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`${text} ${shareUrl}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[88%] bg-white shadow-sm">
+      <p className="text-sm font-georgia-pro text-gray-900 leading-relaxed whitespace-pre-wrap">
+        {text}
+      </p>
+      <div className="flex items-center gap-2 mt-3 flex-wrap">
+        <a
+          href={`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-georgia-pro bg-black text-white rounded-lg px-3 py-1.5 hover:bg-gray-800 transition"
+        >
+          Share on X
+        </a>
+        <a
+          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(text)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-georgia-pro border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 hover:border-gray-500 hover:text-black transition"
+        >
+          Facebook
+        </a>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 text-xs font-georgia-pro border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 hover:border-gray-500 hover:text-black transition"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function DemeterBubble({ slug }: DemeterBubbleProps) {
@@ -131,7 +199,7 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
             {messages.length === 0 && (
               <p className="font-georgia-pro text-sm text-gray-400 text-center pt-4">
-                Ask me anything about this story.
+                Ask me about this story or get the TLDR.
               </p>
             )}
 
@@ -146,12 +214,15 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
                 );
               }
 
-              const { reply, suggestions } = parseReply(msg.content);
+              const { reply, suggestions, share } = parseReply(msg.content);
               return (
                 <div key={i} className="flex flex-col gap-2">
-                  <div className="bg-gray-50 text-gray-900 text-sm font-georgia-pro rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[88%] leading-relaxed whitespace-pre-wrap">
-                    {reply}
-                  </div>
+                  {reply && (
+                    <div className="bg-gray-50 text-gray-900 text-sm font-georgia-pro rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[88%] leading-relaxed whitespace-pre-wrap">
+                      {reply}
+                    </div>
+                  )}
+                  {share && <ShareCard text={share} slug={slug} />}
                   {suggestions.length > 0 && (
                     <div className="flex flex-col gap-1.5 pl-1">
                       {suggestions.map((s, j) => (
