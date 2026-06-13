@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const adminAddress = formData.get('adminAddress') as string;
-    const file = formData.get('file') as File;
-
-    if (!adminAddress || !file) {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress or file' },
-        { status: 400 }
+        { success: false, error: auth.error },
+        { status: auth.status }
       );
     }
 
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Missing file' },
+        { status: 400 }
       );
     }
 
