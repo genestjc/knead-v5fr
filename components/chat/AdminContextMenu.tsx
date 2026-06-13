@@ -8,6 +8,7 @@ import { useAdminRedact, useSyncAgent } from '@towns-protocol/react-sdk';
 
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface AdminContextMenuProps {
   message: {
@@ -303,11 +304,10 @@ export function AdminContextMenu({
 
       console.log('🔄 Step 2: Updating Supabase...');
       
-      const response = await fetch('/api/admin/ban-user', {
+      const response = await adminFetch('/api/admin/ban-user', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminAddress: activeAccount.address,
           userAddress: message.sender.id,
           ban: true,
           spaceId: spaceId,
