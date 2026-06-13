@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { isContributor } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,13 +10,35 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { roomName, walletAddress } = body;
+    // The caller is the *recovered* signer — used as the Daily user_name.
+    // Previously walletAddress was client-supplied and is_owner was always true,
+    // so anyone could mint an owner token for any room by posting a wallet
+    // address they don't control.
+    const auth = await verifyWalletRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const walletAddress = auth.address!;
 
-    if (!roomName || !walletAddress) {
+    const body = await req.json();
+    const { roomName } = body;
+
+    if (!roomName) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: roomName, walletAddress' },
+        { success: false, error: 'Missing required field: roomName' },
         { status: 400 }
+      );
+    }
+
+    // DM video is a contributor-to-contributor feature — contributor status is
+    // the access gate. Both the caller and the joiner pass this check (both are
+    // contributors); a non-contributor cannot obtain an owner token even if they
+    // learn the (private, DM-only) room name.
+    const { isContributor: eligible } = await isContributor(walletAddress);
+    if (!eligible) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: contributor status required for video calls' },
+        { status: 403 }
       );
     }
 
