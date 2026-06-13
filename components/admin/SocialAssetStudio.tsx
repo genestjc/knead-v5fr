@@ -19,26 +19,143 @@ const INK = '#141414';
 const WHITE = '#ffffff';
 const BLACK = '#000000';
 
-/** Greedy word-wrap for canvas text */
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
+type Style = { bold: boolean; italic: boolean; underline: boolean };
+type Run = { text: string; style: Style };
+
+const PLAIN: Style = { bold: false, italic: false, underline: false };
+
+/** Parse inline markup into styled runs: **bold**, *italic*, __underline__ */
+function parseInline(text: string): Run[] {
+  const runs: Run[] = [];
+  let bold = false;
+  let italic = false;
+  let underline = false;
+  let buf = '';
+  const flush = () => {
+    if (buf) {
+      runs.push({ text: buf, style: { bold, italic, underline } });
+      buf = '';
+    }
+  };
+  let i = 0;
+  while (i < text.length) {
+    if (text.startsWith('**', i)) {
+      flush();
+      bold = !bold;
+      i += 2;
+    } else if (text.startsWith('__', i)) {
+      flush();
+      underline = !underline;
+      i += 2;
+    } else if (text[i] === '*') {
+      flush();
+      italic = !italic;
+      i += 1;
     } else {
-      line = test;
+      buf += text[i];
+      i += 1;
     }
   }
-  if (line) lines.push(line);
+  flush();
+  return runs;
+}
+
+function styledFont(size: number, family: string, style: Style): string {
+  const weight = style.bold ? 700 : 400;
+  const italic = style.italic ? 'italic ' : '';
+  return `${italic}${weight} ${size}px ${family}`;
+}
+
+function measureRuns(
+  ctx: CanvasRenderingContext2D,
+  frags: Run[],
+  size: number,
+  family: string,
+): number {
+  let w = 0;
+  for (const f of frags) {
+    ctx.font = styledFont(size, family, f.style);
+    w += ctx.measureText(f.text).width;
+  }
+  return w;
+}
+
+/** Split styled runs into words (Run[][]), preserving each fragment's style */
+function splitWords(runs: Run[]): Run[][] {
+  const words: Run[][] = [];
+  let current: Run[] = [];
+  for (const run of runs) {
+    const parts = run.text.split(/(\s+)/);
+    for (const part of parts) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) {
+        if (current.length) {
+          words.push(current);
+          current = [];
+        }
+      } else {
+        current.push({ text: part, style: run.style });
+      }
+    }
+  }
+  if (current.length) words.push(current);
+  return words;
+}
+
+/** Style-aware greedy word-wrap. Each line is an array of styled fragments. */
+function wrapStyled(
+  ctx: CanvasRenderingContext2D,
+  runs: Run[],
+  maxWidth: number,
+  size: number,
+  family: string,
+): Run[][] {
+  const words = splitWords(runs);
+  ctx.font = styledFont(size, family, PLAIN);
+  const spaceW = ctx.measureText(' ').width;
+  const lines: Run[][] = [];
+  let line: Run[] = [];
+  let lineWidth = 0;
+  for (const word of words) {
+    const wordWidth = measureRuns(ctx, word, size, family);
+    if (line.length && lineWidth + spaceW + wordWidth > maxWidth) {
+      lines.push(line);
+      line = [...word];
+      lineWidth = wordWidth;
+    } else {
+      if (line.length) {
+        line.push({ text: ' ', style: PLAIN });
+        lineWidth += spaceW;
+      }
+      line.push(...word);
+      lineWidth += wordWidth;
+    }
+  }
+  if (line.length) lines.push(line);
   return lines;
+}
+
+/** Draw a wrapped line fragment-by-fragment, applying per-fragment styling. */
+function drawStyledLine(
+  ctx: CanvasRenderingContext2D,
+  line: Run[],
+  x: number,
+  y: number,
+  size: number,
+  family: string,
+  color: string,
+) {
+  let cursor = x;
+  ctx.fillStyle = color;
+  for (const frag of line) {
+    ctx.font = styledFont(size, family, frag.style);
+    ctx.fillText(frag.text, cursor, y);
+    const w = ctx.measureText(frag.text).width;
+    if (frag.style.underline && frag.text.trim()) {
+      ctx.fillRect(cursor, y + size * 0.92, w, Math.max(1, size * 0.045));
+    }
+    cursor += w;
+  }
 }
 
 export function SocialAssetStudio() {
@@ -169,11 +286,16 @@ export function SocialAssetStudio() {
       const bodyLine = bodySize * 1.3;
       const bylineSize = W * 0.028;
 
-      ctx.font = `400 ${headlineSize}px "adonis-web", serif`;
-      const headlineLines = headline ? wrapText(ctx, headline, maxWidth) : [];
+      const headlineFamily = '"adonis-web", serif';
+      const bodyFamily = '"Georgia Pro", Georgia, serif';
 
-      ctx.font = `400 ${bodySize}px "Georgia Pro", Georgia, serif`;
-      const bodyLines = bodyText ? wrapText(ctx, bodyText, maxWidth) : [];
+      const headlineLines = headline
+        ? wrapStyled(ctx, parseInline(headline), maxWidth, headlineSize, headlineFamily)
+        : [];
+
+      const bodyLines = bodyText
+        ? wrapStyled(ctx, parseInline(bodyText), maxWidth, bodySize, bodyFamily)
+        : [];
 
       let blockHeight = 0;
       if (kicker) blockHeight += kickerSize + W * 0.03;
@@ -206,20 +328,16 @@ export function SocialAssetStudio() {
       }
 
       // Headline
-      ctx.fillStyle = color;
-      ctx.font = `400 ${headlineSize}px "adonis-web", serif`;
       for (const line of headlineLines) {
-        ctx.fillText(line, pad, y);
+        drawStyledLine(ctx, line, pad, y, headlineSize, headlineFamily, color);
         y += headlineLine;
       }
 
       // Body copy
       if (bodyText) {
         y += W * 0.04;
-        ctx.fillStyle = color;
-        ctx.font = `400 ${bodySize}px "Georgia Pro", Georgia, serif`;
         for (const line of bodyLines) {
-          ctx.fillText(line, pad, y);
+          drawStyledLine(ctx, line, pad, y, bodySize, bodyFamily, color);
           y += bodyLine;
         }
       }
@@ -367,6 +485,10 @@ export function SocialAssetStudio() {
               rows={2}
               className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black resize-none"
             />
+            <p className="mt-1 font-georgia-pro text-[11px] text-gray-400">
+              Style words with <code>**bold**</code>, <code>*italic*</code>,{' '}
+              <code>__underline__</code>
+            </p>
           </div>
           <div>
             <label className="block font-georgia-pro text-xs uppercase tracking-wide text-gray-500 mb-1.5">
@@ -379,6 +501,10 @@ export function SocialAssetStudio() {
               rows={3}
               className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black resize-none"
             />
+            <p className="mt-1 font-georgia-pro text-[11px] text-gray-400">
+              Style words with <code>**bold**</code>, <code>*italic*</code>,{' '}
+              <code>__underline__</code>
+            </p>
           </div>
           <div>
             <label className="block font-georgia-pro text-xs uppercase tracking-wide text-gray-500 mb-1.5">
