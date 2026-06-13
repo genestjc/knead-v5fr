@@ -1440,7 +1440,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               {renderMessages()}
             </div>
 
-            <div className="flex-shrink-0 border-t border-gray-200 px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-white">
+            <div className="flex-shrink-0 border-t border-gray-200 p-4 bg-white">
               {renderChatInput()}
             </div>
           </div>
