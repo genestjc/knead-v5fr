@@ -3,28 +3,40 @@ import { isContributor } from '@/lib/blockchain/contributor-nft';
 import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
 import { getUserTownsBalance } from '@/lib/blockchain/towns-utils';
 import { isParticipantRegistered, registerParticipant } from '@/lib/blockchain/register-participant';
+import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/chat/award-tokens
- * 
- * Award tokens via Engine wallet (no user signature required).
- * 
+ *
+ * Award tokens via Engine wallet (Engine signs the on-chain tx; the *caller*
+ * must prove wallet ownership via signature).
+ *
  * This endpoint:
- * 1. Verifies contributor has NFT permission
- * 2. Auto-registers participant if needed
- * 3. Awards tokens via Engine wallet (80/20 split)
- * 4. Returns transaction hash
+ * 1. Verifies the caller's wallet signature (the contributor)
+ * 2. Verifies contributor has NFT permission
+ * 3. Auto-registers participant if needed
+ * 4. Awards tokens via Engine wallet (80/20 split)
+ * 5. Returns transaction hash
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contributorAddress, participantAddress, amount, actionType, messageId } = await req.json();
+    // The contributor is the *recovered* signer, never a client-supplied field.
+    // Previously `contributorAddress` came from the body, so anyone could paste
+    // a real contributor's (public) address and drain the Engine wallet.
+    const auth = await verifyWalletRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    const contributorAddress = auth.address!;
+
+    const { participantAddress, amount, actionType, messageId } = await req.json();
 
     // Validate inputs
-    if (!contributorAddress || !participantAddress || !amount) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: contributorAddress, participantAddress, and amount are required.' 
+    if (!participantAddress || !amount) {
+      return NextResponse.json({
+        error: 'Missing required fields: participantAddress and amount are required.'
       }, { status: 400 });
     }
 
