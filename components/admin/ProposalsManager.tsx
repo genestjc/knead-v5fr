@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useActiveAccount } from 'thirdweb/react';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface Proposal {
   id: string;
@@ -19,6 +21,7 @@ interface ProposalsManagerProps {
 }
 
 export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
+  const account = useActiveAccount();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -26,9 +29,10 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
 
   const fetchProposals = useCallback(async () => {
+    if (!account) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/proposals?adminAddress=${adminAddress}`);
+      const res = await adminFetch('/api/admin/proposals', account);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setProposals(data.proposals);
@@ -43,22 +47,25 @@ export function ProposalsManager({ adminAddress }: ProposalsManagerProps) {
     } finally {
       setLoading(false);
     }
-  }, [adminAddress]);
+  }, [account]);
 
   useEffect(() => {
     fetchProposals();
   }, [fetchProposals]);
 
   const handleAction = async (id: string, status: 'open' | 'rejected') => {
+    if (!account) {
+      toast.error('Connect your admin wallet first');
+      return;
+    }
     setActingId(id);
     try {
-      const res = await fetch('/api/admin/proposals', {
+      const res = await adminFetch('/api/admin/proposals', account, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
           status,
-          adminAddress,
           // Only send threshold when approving
           ...(status === 'open' ? { vote_threshold: thresholds[id] ?? 3 } : {}),
         }),
