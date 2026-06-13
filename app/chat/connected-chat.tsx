@@ -906,13 +906,21 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const tokenKey = `${event.dailyRoomName}:${myRole}`;
         if (dailyTokenKeyRef.current === tokenKey) return;
 
-        const tokenResponse = await walletFetch('/api/events/generate-token', activeAccount!, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roomName: event.dailyRoomName,
-          }),
-        });
+        // Only broadcasters (host/guest) sign — that's the gate that matters.
+        // Viewers fetch an unsigned, locked-down token so the watching majority
+        // (including external wallets) never sees a signature prompt.
+        const isBroadcaster = myRole === 'host' || myRole === 'guest';
+        const tokenResponse = isBroadcaster
+          ? await walletFetch('/api/events/generate-token', activeAccount!, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomName: event.dailyRoomName }),
+            })
+          : await fetch('/api/events/generate-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomName: event.dailyRoomName, walletAddress: me }),
+            });
         const tokenData = await tokenResponse.json();
         if (tokenData.success && tokenData.data?.token) {
           setDailyToken(tokenData.data.token);
