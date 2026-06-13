@@ -18,7 +18,7 @@ export default function PrivacyPage() {
             <h1 className="font-adonis text-4xl md:text-5xl mb-4">Privacy Policy</h1>
             <p className="font-georgia-pro text-gray-500 text-sm mb-2">Last Updated: March 10, 2026</p>
             <p className="font-georgia-pro text-gray-600 italic mb-12 leading-relaxed">
-              These terms were last updated on March 10, 2026. We recommend reviewing them regularly. If you have
+              This Privacy Policy was last updated on June 13, 2026. We recommend reviewing it regularly. If you have
               questions, contact us at{" "}
               <a href="mailto:info@kneadmag.com" className="hover:text-black transition-colors">
                 info@kneadmag.com
@@ -69,8 +69,10 @@ export default function PrivacyPage() {
               <h3 className="font-adonis text-xl md:text-2xl text-gray-600 mb-3">Payment Information</h3>
               <p className="font-georgia-pro text-base md:text-lg text-gray-700 leading-relaxed mb-6">
                 Subscription payments are processed by Stripe. We do not store your credit card number, CVV, or full
-                billing address on our servers. Stripe may collect and retain payment data in accordance with their own
-                privacy policy. We receive confirmation of successful payments and basic billing details from Stripe.
+                billing address on our servers. Stripe collects and retains payment data in accordance with their own
+                privacy policy. From Stripe we receive confirmation of successful payments along with limited billing
+                details—such as your name, the last four digits of your card, and your billing country—which we use to
+                manage your subscription.
               </p>
 
               <h3 className="font-adonis text-xl md:text-2xl text-gray-600 mb-3">Blockchain Data</h3>
@@ -201,9 +203,12 @@ export default function PrivacyPage() {
               <p className="font-georgia-pro text-base md:text-lg text-gray-700 leading-relaxed mb-4">
                 If you are located in the European Economic Area (EEA) or United Kingdom, you have additional rights
                 under the General Data Protection Regulation (GDPR), including the right to be forgotten and the right
-                to data portability. We process your data under the lawful bases of contractual necessity (to provide
-                our services), consent (for marketing emails), and legitimate interests (for platform security and
-                analytics).
+                to data portability. Please note that the right to be forgotten cannot extend to data recorded on a
+                public blockchain (such as chat messages stored via Towns Protocol and on-chain NFT transactions),
+                which is permanent and cannot be deleted or modified by us. We process your data under the lawful bases
+                of contractual necessity (to provide our services, including the use of your wallet address as a
+                persistent account identifier), consent (for marketing emails), and legitimate interests (for platform
+                security and analytics).
               </p>
               <p className="font-georgia-pro text-base md:text-lg text-gray-700 leading-relaxed">
                 To exercise your GDPR rights or submit a data subject request, contact us at{" "}
