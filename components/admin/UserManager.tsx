@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useActiveAccount } from 'thirdweb/react';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface User {
   id: string;
@@ -20,6 +22,7 @@ interface UserManagerProps {
 }
 
 export function UserManager({ adminAddress }: UserManagerProps) {
+  const account = useActiveAccount();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +31,11 @@ export function UserManager({ adminAddress }: UserManagerProps) {
 
   // Fetch all users
   const fetchUsers = async () => {
+    if (!account) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/users?adminAddress=${adminAddress}`);
+      const response = await adminFetch('/api/admin/users', account);
       const data = await response.json();
 
       if (data.success) {
@@ -49,21 +53,25 @@ export function UserManager({ adminAddress }: UserManagerProps) {
 
   useEffect(() => {
     fetchUsers();
-  }, [adminAddress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
 
   // Ban/Unban user
   const handleBanUser = async (userAddress: string, shouldBan: boolean) => {
+    if (!account) {
+      alert('Connect your admin wallet first');
+      return;
+    }
     if (!confirm(`Are you sure you want to ${shouldBan ? 'ban' : 'unban'} this user?`)) {
       return;
     }
 
     try {
-      const response = await fetch('/api/admin/ban-user', {
+      const response = await adminFetch('/api/admin/ban-user', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress,
-          adminAddress,
           ban: shouldBan,
         }),
       });
