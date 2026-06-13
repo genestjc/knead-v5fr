@@ -18,7 +18,7 @@ export default function TermsPage() {
             <h1 className="font-adonis text-4xl md:text-5xl mb-4">Terms of Service</h1>
             <p className="font-georgia-pro text-gray-500 text-sm mb-2">Last Updated: March 10, 2026</p>
             <p className="font-georgia-pro text-gray-600 italic mb-12 leading-relaxed">
-              These terms were last updated on March 10, 2026. We recommend reviewing them regularly. If you have
+              These terms were last updated on June 13, 2026. We recommend reviewing them regularly. If you have
               questions, contact us at{" "}
               <a href="mailto:info@kneadmag.com" className="hover:text-black transition-colors">
                 info@kneadmag.com
@@ -179,7 +179,7 @@ export default function TermsPage() {
                   'The Service is provided "as is" and "as available" without warranties of any kind, express or implied.',
                   "We do not guarantee continuous, uninterrupted availability of the platform.",
                   "Blockchain transactions are irreversible. We are not responsible for losses arising from user error in blockchain interactions.",
-                  "We are not responsible for the content of third-party services integrated with Knead (Stripe, ThirdWeb, Towns Protocol, etc.).",
+                  "We are not responsible for the content of third-party services integrated with Knead (Stripe, ThirdWeb, Towns Protocol, Supabase, IPFS, Resend, Vercel, etc.).",
                   "Token awards and community recognition features have no guaranteed monetary value.",
                 ].map((item) => (
                   <li key={item} className="font-georgia-pro text-base md:text-lg text-gray-700 leading-relaxed">
