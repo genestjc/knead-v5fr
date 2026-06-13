@@ -1,29 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const adminAddress = searchParams.get('adminAddress');
-
-    if (!adminAddress) {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress parameter' },
-        { status: 400 }
-      );
-    }
-
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-
-    // Verify admin
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: auth.error },
+        { status: auth.status }
       );
     }
 
