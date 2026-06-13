@@ -135,6 +135,29 @@ function wrapStyled(
   return lines;
 }
 
+/**
+ * Split text on newlines into paragraphs, wrapping each independently.
+ * Returns an array of paragraphs, each a list of styled lines.
+ */
+function wrapParagraphs(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  size: number,
+  family: string,
+): Run[][][] {
+  return text
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => wrapStyled(ctx, parseInline(p), maxWidth, size, family));
+}
+
+/** Total line count across all paragraphs. */
+function countLines(paras: Run[][][]): number {
+  return paras.reduce((n, p) => n + p.length, 0);
+}
+
 /** Draw a wrapped line fragment-by-fragment, applying per-fragment styling. */
 function drawStyledLine(
   ctx: CanvasRenderingContext2D,
@@ -288,19 +311,28 @@ export function SocialAssetStudio() {
 
       const headlineFamily = '"adonis-web", serif';
       const bodyFamily = '"Georgia Pro", Georgia, serif';
+      // Extra vertical gap inserted between paragraphs
+      const headlinePara = headlineLine * 0.45;
+      const bodyPara = bodyLine * 0.6;
 
-      const headlineLines = headline
-        ? wrapStyled(ctx, parseInline(headline), maxWidth, headlineSize, headlineFamily)
+      const headlineParas = headline
+        ? wrapParagraphs(ctx, headline, maxWidth, headlineSize, headlineFamily)
         : [];
 
-      const bodyLines = bodyText
-        ? wrapStyled(ctx, parseInline(bodyText), maxWidth, bodySize, bodyFamily)
+      const bodyParas = bodyText
+        ? wrapParagraphs(ctx, bodyText, maxWidth, bodySize, bodyFamily)
         : [];
 
       let blockHeight = 0;
       if (kicker) blockHeight += kickerSize + W * 0.03;
-      blockHeight += headlineLines.length * headlineLine;
-      if (bodyText) blockHeight += W * 0.04 + bodyLines.length * bodyLine;
+      blockHeight +=
+        countLines(headlineParas) * headlineLine +
+        Math.max(0, headlineParas.length - 1) * headlinePara;
+      if (bodyText)
+        blockHeight +=
+          W * 0.04 +
+          countLines(bodyParas) * bodyLine +
+          Math.max(0, bodyParas.length - 1) * bodyPara;
       if (byline) blockHeight += W * 0.035 + bylineSize;
 
       let y: number;
@@ -328,18 +360,24 @@ export function SocialAssetStudio() {
       }
 
       // Headline
-      for (const line of headlineLines) {
-        drawStyledLine(ctx, line, pad, y, headlineSize, headlineFamily, color);
-        y += headlineLine;
-      }
+      headlineParas.forEach((para, pi) => {
+        if (pi > 0) y += headlinePara;
+        for (const line of para) {
+          drawStyledLine(ctx, line, pad, y, headlineSize, headlineFamily, color);
+          y += headlineLine;
+        }
+      });
 
       // Body copy
       if (bodyText) {
         y += W * 0.04;
-        for (const line of bodyLines) {
-          drawStyledLine(ctx, line, pad, y, bodySize, bodyFamily, color);
-          y += bodyLine;
-        }
+        bodyParas.forEach((para, pi) => {
+          if (pi > 0) y += bodyPara;
+          for (const line of para) {
+            drawStyledLine(ctx, line, pad, y, bodySize, bodyFamily, color);
+            y += bodyLine;
+          }
+        });
       }
 
       // Byline
@@ -498,12 +536,12 @@ export function SocialAssetStudio() {
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
               placeholder="Add supporting text, a summary, or call-to-action here..."
-              rows={3}
+              rows={4}
               className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black resize-none"
             />
             <p className="mt-1 font-georgia-pro text-[11px] text-gray-400">
               Style words with <code>**bold**</code>, <code>*italic*</code>,{' '}
-              <code>__underline__</code>
+              <code>__underline__</code>. Press Enter for a new paragraph.
             </p>
           </div>
           <div>
