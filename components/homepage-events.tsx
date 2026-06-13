@@ -86,11 +86,17 @@ export function HomepageEvents() {
       .finally(() => setLoading(false));
   }, []);
 
+  const isSingleEvent = !loading && events.length === 1;
+
   return (
     <section className="container-magazine pt-32 pb-24">
       <h2 className="font-adonis text-2xl text-gray-900 mb-10 text-center">Chat Events</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
+      <div className={`grid gap-8 mb-24 ${
+        isSingleEvent 
+          ? 'grid-cols-1 max-w-sm mx-auto' 
+          : 'grid-cols-1 md:grid-cols-3'
+      }`}>
         {loading ? (
           <>
             <EventCardSkeleton />
