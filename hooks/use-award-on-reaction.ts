@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useSendReaction } from '@towns-protocol/react-sdk';
 import { useActiveAccount } from 'thirdweb/react';
 import { toast } from 'sonner';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 
 interface UseAwardOnReactionResult {
   awardTokensOnLike: (
@@ -90,8 +91,9 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       console.log('   Amount:', amount);
       console.log('   Message ID (Towns eventId):', messageId);
       
+      // contributorAddress is derived server-side from the wallet signature
+      // (the recovered signer), so it's no longer sent in the body.
       const requestBody = {
-        contributorAddress: activeAccount.address,
         participantAddress: recipientAddress,
         amount: amount.toString(),
         actionType: 'message_like',
@@ -99,8 +101,8 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
       };
 
       console.log('📤 [BLOCKCHAIN] Request body:', requestBody);
-      
-      const response = await fetch('/api/chat/award-tokens', {
+
+      const response = await walletFetch('/api/chat/award-tokens', activeAccount, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
