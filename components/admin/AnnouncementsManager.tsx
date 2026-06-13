@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { useActiveAccount } from 'thirdweb/react';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 import { toast } from 'sonner';
 
 interface Announcement {
@@ -21,6 +23,7 @@ interface AnnouncementsManagerProps {
 }
 
 export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps) {
+  const account = useActiveAccount();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -98,12 +101,16 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!account) {
+      toast.error('Connect your admin wallet first');
+      return;
+    }
+
     try {
-      const response = await fetch('/api/admin/announcements', {
+      const response = await adminFetch('/api/admin/announcements', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminAddress,
           title: formData.title,
           content: formData.content,
           contributorsOnly: formData.contributorsOnly,
@@ -132,15 +139,16 @@ export function AnnouncementsManager({ adminAddress }: AnnouncementsManagerProps
   };
 
   const handleDelete = async (id: string) => {
+    if (!account) {
+      toast.error('Connect your admin wallet first');
+      return;
+    }
     if (!confirm('Delete this announcement?')) return;
 
     console.log('🗑️ Deleting announcement:', id);
 
     try {
-      const url = `/api/admin/announcements/${id}?adminAddress=${adminAddress}`;
-      console.log('🗑️ DELETE URL:', url);
-
-      const response = await fetch(url, { method: 'DELETE' });
+      const response = await adminFetch(`/api/admin/announcements/${id}`, account, { method: 'DELETE' });
       const data = await response.json();
 
       console.log('🗑️ DELETE Response:', { status: response.status, data });
