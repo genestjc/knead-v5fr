@@ -9,23 +9,10 @@ export async function POST(req: NextRequest) {
   console.log('🎫 [generate-token] REQUEST RECEIVED');
 
   try {
-    // The caller is the *recovered* signer — used as the Daily user_name and as
-    // the identity we resolve the role against. Previously walletAddress and the
-    // isHost/isGuest flags came straight from the client, so anyone who knew a
-    // room name could mint themselves an owner/broadcaster token.
-    const auth = await verifyWalletRequest(req);
-    if (!auth.ok) {
-      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-    }
-    const walletAddress = auth.address!;
-
     let body;
     try {
       body = await req.json();
-      console.log('✅ [generate-token] Body parsed:', {
-        roomName: body?.roomName,
-        walletAddress: walletAddress.substring(0, 8),
-      });
+      console.log('✅ [generate-token] Body parsed:', { roomName: body?.roomName });
     } catch (parseError) {
       console.error('❌ [generate-token] Failed to parse JSON:', parseError);
       return NextResponse.json(
@@ -82,16 +69,31 @@ export async function POST(req: NextRequest) {
     }
     const guestAddresses: string[] = (event.guest_addresses ?? []).map((a: string) => a.toLowerCase());
 
-    const isHost = !!hostAddress && walletAddress === hostAddress;
-    const isGuest = guestAddresses.includes(walletAddress);
+    // Broadcast rights (is_owner) require a *verified* wallet signature whose
+    // recovered address is the event host or an admin-listed guest. Viewers do
+    // NOT need to sign — watching is the open free tier, so a missing/invalid
+    // signature simply yields a locked-down viewer token (no popup for the
+    // watching majority). A forged or unsigned request can never escalate to
+    // broadcaster, because the role is decided solely from the recovered address.
+    const auth = await verifyWalletRequest(req);
+    const verifiedAddress = auth.ok ? auth.address! : null;
+
+    const isHost = !!hostAddress && verifiedAddress === hostAddress;
+    const isGuest = !!verifiedAddress && guestAddresses.includes(verifiedAddress);
     const isActualViewer = !isHost && !isGuest;
     const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER';
+
+    // user_name: prefer the verified (signed) address; viewers may pass an
+    // unverified, display-only walletAddress for a friendlier label in the call.
+    const userName =
+      verifiedAddress ||
+      (typeof body.walletAddress === 'string' && body.walletAddress ? body.walletAddress : 'viewer');
 
     // ✅ FIXED: Removed user_data - only use Daily-supported fields
     const tokenPayload: any = {
       properties: {
         room_name: roomName,
-        user_name: walletAddress,
+        user_name: userName,
         is_owner: isHost || isGuest,  // ✅ Both can broadcast
         enable_screenshare: isHost || false,
         start_video_off: isActualViewer ? true : false,
