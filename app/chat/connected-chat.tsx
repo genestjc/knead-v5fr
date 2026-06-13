@@ -930,10 +930,20 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     const lastMessageId = lastMessage?.id;
 
     if (lastMessageIdRef.current === null) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      }, 100);
       lastMessageIdRef.current = lastMessageId;
+      // Jump straight to the newest message on first load. Scroll the container
+      // to its full height (more reliable than scrollIntoView for "absolute
+      // bottom"), then repeat as late-loading content — avatars, link previews,
+      // images — settles and changes the scroll height.
+      const jumpToBottom = () => {
+        const c = scrollContainerRef.current;
+        if (c) c.scrollTop = c.scrollHeight;
+        else messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      };
+      jumpToBottom();
+      requestAnimationFrame(jumpToBottom);
+      setTimeout(jumpToBottom, 150);
+      setTimeout(jumpToBottom, 500);
       return;
     }
 
@@ -1430,7 +1440,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
               {renderMessages()}
             </div>
 
-            <div className="flex-shrink-0 border-t border-gray-200 p-4 bg-white">
+            <div className="flex-shrink-0 border-t border-gray-200 px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-white">
               {renderChatInput()}
             </div>
           </div>
