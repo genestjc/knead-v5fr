@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
     const roleInfo = await getUserRole(userAddress);
     const { role } = roleInfo;
 
-    const supabase = createSupabaseClient();
+    // Use the service-role admin client (like every other server route). The anon
+    // client cannot read chat_events / event_passes (those tables are not exposed
+    // to anon per the security lockdown), which made isEventActive always false and
+    // permanently blocked participants — Knead Monthly members — from posting during events.
+    const supabase = createSupabaseAdmin();
     const { data: activeEvents, error: eventError } = await supabase
       .from('chat_events')
       .select('id, title, event_pass_only')
