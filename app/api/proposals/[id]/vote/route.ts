@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { isContributor } from '@/lib/blockchain/check-nft-ownership';
+import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const body = await req.json().catch(() => null);
-  if (!body?.address) return NextResponse.json({ error: 'Missing address' }, { status: 400 });
+  // Voter is the *recovered* signer, never a client-supplied field. Previously
+  // anyone could cast a vote on behalf of every known (public) contributor
+  // address and push a proposal past its threshold — which the cron then
+  // auto-executes as a payout.
+  const auth = await verifyWalletRequest(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const address = auth.address!;
 
-  const address = (body.address as string).toLowerCase();
   const proposalId = params.id;
 
-  const { isContributor: eligible } = await isContributor(body.address);
+  const { isContributor: eligible } = await isContributor(address);
   if (!eligible) {
     return NextResponse.json({ error: 'Contributor status required to vote' }, { status: 403 });
   }
@@ -48,10 +55,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const body = await req.json().catch(() => null);
-  if (!body?.address) return NextResponse.json({ error: 'Missing address' }, { status: 400 });
+  // Only the signer can retract their own vote.
+  const auth = await verifyWalletRequest(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const address = auth.address!;
 
-  const address = (body.address as string).toLowerCase();
   const proposalId = params.id;
 
   const supabase = getSupabaseAdmin();
