@@ -9,6 +9,8 @@ import {
   DailyAudio,
 } from '@daily-co/daily-react';
 import { DailyVideoTile } from './DailyVideoTile';
+import { useActiveAccount } from 'thirdweb/react';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 function ParticipantTile({
   sessionId,
@@ -81,6 +83,7 @@ interface EventVideoStageProps {
 const JOIN_TIMEOUT_MS = 15000;
 
 export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: EventVideoStageProps) {
+  const adminAccount = useActiveAccount();
   const daily = useDaily();
   const localSessionId = useLocalSessionId();
   const [joining, setJoining] = useState(false);
@@ -327,14 +330,17 @@ export function EventVideoStage({ event, currentUserAddress, roomUrl, token }: E
 
   const handleEndEvent = async () => {
     if (!isHost) return;
+    if (!adminAccount) {
+      alert('Connect your admin wallet first');
+      return;
+    }
 
     if (confirm('Are you sure you want to end this event for everyone?')) {
       try {
-        const response = await fetch(`/api/admin/events/${event.id}`, {
+        const response = await adminFetch(`/api/admin/events/${event.id}`, adminAccount, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            adminAddress: currentUserAddress,
             status: 'ended',
           }),
         });
