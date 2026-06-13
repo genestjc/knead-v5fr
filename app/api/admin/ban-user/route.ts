@@ -10,45 +10,29 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, adminAddress, ban } = await req.json();
+    const auth = await verifyAdminRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: auth.error }, { status: auth.status });
+    }
+
+    const { userAddress, ban } = await req.json();
 
     // Validation
-    if (!userAddress || !adminAddress || ban === undefined) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: 'Missing required fields: userAddress, adminAddress, ban' 
+    if (!userAddress || ban === undefined) {
+      return NextResponse.json<ApiResponse<null>>({
+        success: false,
+        error: 'Missing required fields: userAddress, ban'
       }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-
-    // Check if caller has admin or moderator role in DB
-    const { data: adminUser, error: adminError } = await supabase
-      .from('chat_users')
-      .select('address, role')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (adminError || !adminUser) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: 'Unauthorized: Admin user not found' 
-      }, { status: 401 });
-    }
-
-    const allowedRoles = ['master-admin', 'admin', 'moderator'];
-    if (!allowedRoles.includes(adminUser.role)) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: 'Unauthorized: Insufficient permissions' 
-      }, { status: 401 });
-    }
 
     // Check if user exists
     const { data: user, error: userError } = await supabase
