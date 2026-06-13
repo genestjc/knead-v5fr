@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface MonthlyMintManagerProps {
   adminAddress: string;
@@ -44,14 +45,13 @@ export function MonthlyMintManager({ adminAddress }: MonthlyMintManagerProps) {
     try {
       // Uses Engine server wallet (owner of membership contract) to mint.
       // Direct wallet minting is not possible as mint() is owner-only on the contract.
-      const response = await fetch('/api/mint-vip', {
+      const response = await adminFetch('/api/mint-vip', account, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           user_address: recipientAddress,
-          adminAddress: account.address,
         }),
       });
 
