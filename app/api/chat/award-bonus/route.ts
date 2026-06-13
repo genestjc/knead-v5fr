@@ -3,8 +3,22 @@ import {
   awardAdminBonus,
   isParticipant,
 } from '@/lib/blockchain/award-rewards-engine';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
+    // Admin bonuses are a 100% payout from the Engine wallet — restrict to
+    // master-admin / admin (moderators excluded from minting money) and require
+    // a wallet signature. Previously this route had NO authorization at all.
+    const auth = await verifyAdminRequest(req, {
+      allowedRoles: ['master-admin', 'admin'],
+    });
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { participantAddress, bonusAmount, bonusType } = await req.json();
     // Validate required fields
     if (!participantAddress || !bonusAmount || !bonusType) {
