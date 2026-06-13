@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { isAdmin } from '@/lib/chat/permissions';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+import { ADMIN_AUTH_HEADERS } from '@/lib/admin/message';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -10,31 +11,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { searchParams } = new URL(req.url);
-    const adminAddress = searchParams.get('adminAddress');
-
-    if (!adminAddress) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: 'Missing adminAddress parameter' 
-      }, { status: 400 });
+    // Revoking a contributor triggers an on-chain burn, so require the master wallet.
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>({
+        success: false,
+        error: auth.error
+      }, { status: auth.status });
     }
 
     const supabase = createSupabaseAdmin();
-
-    // Verify admin permissions
-    const { data: admin } = await supabase
-      .from('chat_users')
-      .select('*')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-      
-    if (!admin || !isAdmin({ role: admin.role })) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: 'Insufficient permissions' 
-      }, { status: 403 });
-    }
 
     // Get the user to be revoked
     const { data: userToRevoke, error: userError } = await supabase
@@ -66,14 +52,19 @@ export async function DELETE(
       }, { status: 400 });
     }
     
-    // Call burn API
+    // Call burn API, forwarding this request's admin signature so the
+    // downstream master-only check passes without a second wallet prompt.
     const burnResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/admin/burn-contributor`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        [ADMIN_AUTH_HEADERS.address]: req.headers.get(ADMIN_AUTH_HEADERS.address) ?? '',
+        [ADMIN_AUTH_HEADERS.timestamp]: req.headers.get(ADMIN_AUTH_HEADERS.timestamp) ?? '',
+        [ADMIN_AUTH_HEADERS.signature]: req.headers.get(ADMIN_AUTH_HEADERS.signature) ?? '',
+      },
       body: JSON.stringify({
         ownerAddress: userToRevoke.address,
         tokenId,
-        adminAddress: admin.address
       }),
     });
 
