@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import MuxPlayer from '@mux/mux-player-react';
+import { useActiveAccount } from 'thirdweb/react';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface EventsManagerProps {
   adminAddress: string;
@@ -71,6 +73,7 @@ function CoverImageUploadPanel({
   adminAddress: string;
   onComplete: (url: string) => void;
 }) {
+  const account = useActiveAccount();
   const [state, setState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -78,6 +81,11 @@ function CoverImageUploadPanel({
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!account) {
+      setError('Connect your admin wallet first');
+      setState('error');
+      return;
+    }
 
     setState('uploading');
     setError(null);
@@ -87,10 +95,9 @@ function CoverImageUploadPanel({
 
     try {
       const form = new FormData();
-      form.append('adminAddress', adminAddress);
       form.append('file', file);
 
-      const res = await fetch('/api/admin/events/upload-cover', { method: 'POST', body: form });
+      const res = await adminFetch('/api/admin/events/upload-cover', account, { method: 'POST', body: form });
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
@@ -148,6 +155,7 @@ function VideoUploadPanel({
   onComplete: (playbackId: string, assetId: string) => void;
   onClose?: () => void;
 }) {
+  const account = useActiveAccount();
   const [state, setState] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
@@ -155,13 +163,18 @@ function VideoUploadPanel({
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!account) {
+      setError('Connect your admin wallet first');
+      setState('error');
+      return;
+    }
 
     setState('uploading');
     setError(null);
     setPlaybackId(null);
 
     try {
-      const uploadRes = await fetch('/api/admin/mux/upload', { method: 'POST' });
+      const uploadRes = await adminFetch('/api/admin/mux/upload', account, { method: 'POST' });
       const uploadData = await uploadRes.json();
       if (!uploadData.success) throw new Error(uploadData.error);
 
@@ -178,7 +191,7 @@ function VideoUploadPanel({
 
       for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 3000));
-        const pollRes = await fetch(`/api/admin/mux/asset?uploadId=${uploadId}`);
+        const pollRes = await adminFetch(`/api/admin/mux/asset?uploadId=${uploadId}`, account);
         const pollData = await pollRes.json();
         if (!pollData.success) throw new Error(pollData.error);
         if (pollData.data.ready) {
@@ -277,6 +290,7 @@ function EventPassPanel({
   adminAddress: string;
   onClose: () => void;
 }) {
+  const account = useActiveAccount();
   const [addressInput, setAddressInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [successCount, setSuccessCount] = useState<number | null>(null);
@@ -296,16 +310,20 @@ function EventPassPanel({
       setTxError('Enter at least one valid 0x address.');
       return;
     }
+    if (!account) {
+      setTxError('Connect your admin wallet first');
+      return;
+    }
 
     setIsProcessing(true);
     setTxError(null);
     setSuccessCount(null);
 
     try {
-      const res = await fetch('/api/admin/event-passes', {
+      const res = await adminFetch('/api/admin/event-passes', account, {
         method: mode === 'mint' ? 'POST' : 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminAddress, eventId, addresses: parsedAddresses }),
+        body: JSON.stringify({ eventId, addresses: parsedAddresses }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -399,6 +417,7 @@ function EventPassPanel({
 }
 
 export function EventsManager({ adminAddress }: EventsManagerProps) {
+  const account = useActiveAccount();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -426,6 +445,7 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   });
 
   useEffect(() => {
+    if (!account) return;
     fetchAdminUser();
     fetchEvents();
 
@@ -446,7 +466,8 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [adminAddress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
 
   const fetchAdminUser = async () => {
     try {
@@ -464,12 +485,14 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const fetchEvents = async () => {
+    if (!account) return;
     try {
       setLoading(true);
       setError(null);
       const timestamp = Date.now();
-      const response = await fetch(
-        `/api/admin/events?adminAddress=${adminAddress}&_t=${timestamp}`,
+      const response = await adminFetch(
+        `/api/admin/events?_t=${timestamp}`,
+        account,
         { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } }
       );
       const data = await response.json();
@@ -554,11 +577,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const handleUpdateEventStatus = async (eventId: string, newStatus: string) => {
+    if (!account) { setError('Connect your admin wallet first'); return; }
     try {
-      const response = await fetch(`/api/admin/events/${eventId}`, {
+      const response = await adminFetch(`/api/admin/events/${eventId}`, account, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminAddress, status: newStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
       const data = await response.json();
       if (!data.success) setError(data.error || 'Failed to update event');
@@ -569,11 +593,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const handleUpdateMuxVideo = async (eventId: string, muxPlaybackId: string, muxAssetId: string) => {
+    if (!account) { setError('Connect your admin wallet first'); return; }
     try {
-      const response = await fetch(`/api/admin/events/${eventId}`, {
+      const response = await adminFetch(`/api/admin/events/${eventId}`, account, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminAddress, muxPlaybackId, muxAssetId }),
+        body: JSON.stringify({ muxPlaybackId, muxAssetId }),
       });
       const data = await response.json();
       if (!data.success) setError(data.error || 'Failed to save video');
@@ -584,11 +609,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
   };
 
   const handleToggleEventPassOnly = async (eventId: string, value: boolean) => {
+    if (!account) { setError('Connect your admin wallet first'); return; }
     try {
-      const response = await fetch(`/api/admin/events/${eventId}`, {
+      const response = await adminFetch(`/api/admin/events/${eventId}`, account, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminAddress, eventPassOnly: value }),
+        body: JSON.stringify({ eventPassOnly: value }),
       });
       const data = await response.json();
       if (!data.success) setError(data.error || 'Failed to update event');
@@ -600,8 +626,9 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
 
   const handleDeleteEvent = async (eventId: string) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
+    if (!account) { setError('Connect your admin wallet first'); return; }
     try {
-      const response = await fetch(`/api/admin/events/${eventId}?adminAddress=${adminAddress}`, { method: 'DELETE' });
+      const response = await adminFetch(`/api/admin/events/${eventId}`, account, { method: 'DELETE' });
       const data = await response.json();
       if (!data.success) setError(data.error || 'Failed to delete event');
     } catch (err) {
