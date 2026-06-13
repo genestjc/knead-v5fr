@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,20 +8,13 @@ export const fetchCache = 'force-no-store';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
-    const adminAddress = searchParams.get('adminAddress');
-
-    console.log('🔍 Mailing list request:', { type, adminAddress });
-
-    // Validate admin
-    const masterAdmin = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
-    if (!adminAddress || adminAddress.toLowerCase() !== masterAdmin.toLowerCase()) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
-    }
 
     if (!type || !['events', 'contributors'].includes(type)) {
       return NextResponse.json(
