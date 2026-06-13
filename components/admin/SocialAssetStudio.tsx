@@ -42,6 +42,7 @@ export function SocialAssetStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const faviconRef = useRef<HTMLImageElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
 
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -63,9 +64,11 @@ export function SocialAssetStudio() {
   const [fontsReady, setFontsReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Load brand fonts into the document so canvas can use them
+  // Load brand fonts and favicon into the document
   useEffect(() => {
     let cancelled = false;
+    
+    // Load fonts
     Promise.all([
       document.fonts.load('400 100px "adonis-web"'),
       document.fonts.load('400 100px "Georgia Pro"'),
@@ -75,6 +78,14 @@ export function SocialAssetStudio() {
       .finally(() => {
         if (!cancelled) setFontsReady(true);
       });
+
+    // Load favicon
+    const img = new Image();
+    img.onload = () => {
+      faviconRef.current = img;
+    };
+    img.src = '/faviconk.jpg';
+
     return () => {
       cancelled = true;
     };
@@ -142,21 +153,14 @@ export function SocialAssetStudio() {
 
       ctx.textBaseline = 'top';
 
-      // Wordmark — top center, like a masthead
+      // Favicon wordmark — top left corner
       let wordmarkBottom = topSafe;
-      if (showWordmark) {
-        const ws = W * 0.055;
-        ctx.fillStyle = color;
-        ctx.textAlign = 'center';
-        ctx.font = `400 ${ws}px "adonis-web", serif`;
-        try {
-          (ctx as any).letterSpacing = `${W * 0.012}px`;
-        } catch {}
-        ctx.fillText('KNEAD', W / 2 + W * 0.006, topSafe);
-        try {
-          (ctx as any).letterSpacing = '0px';
-        } catch {}
-        wordmarkBottom = topSafe + ws + W * 0.05;
+      if (showWordmark && faviconRef.current) {
+        const faviconSize = W * 0.08;
+        const x = pad;
+        const y = topSafe;
+        ctx.drawImage(faviconRef.current, x, y, faviconSize, faviconSize);
+        wordmarkBottom = y + faviconSize + W * 0.03;
       }
 
       // Measure the text block
@@ -475,7 +479,7 @@ export function SocialAssetStudio() {
               onChange={(e) => setShowWordmark(e.target.checked)}
               className="accent-black"
             />
-            KNEAD wordmark
+            Knead K favicon
           </label>
           {format === 'story' && (
             <label className="flex items-center gap-2 font-georgia-pro text-sm text-gray-700 cursor-pointer">
