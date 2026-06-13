@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mintContributorNFT } from '@/lib/blockchain/contributor-nft';
 import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 /**
  * FALLBACK: Engine server wallet contributor minting route
@@ -25,12 +26,18 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { recipientAddress, role, weeklyBudget, adminAddress } = await req.json();
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    const adminAddress = auth.address!;
+
+    const { recipientAddress, role, weeklyBudget } = await req.json();
 
     // Validate inputs
-    if (!recipientAddress || !role || !adminAddress) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: recipientAddress, role, and adminAddress are required' 
+    if (!recipientAddress || !role) {
+      return NextResponse.json({
+        error: 'Missing required fields: recipientAddress and role are required'
       }, { status: 400 });
     }
 
