@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@towns-protocol/react-sdk';
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
+import { useActiveAccount } from 'thirdweb/react';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { DailyDmVideoCall } from './DailyDmVideoCall';
 import { Paperclip, ArrowRight, Video, MoreVertical } from 'lucide-react';
@@ -123,6 +125,7 @@ export function DirectMessageInterface({
   const { sendMessage, isPending: isSending } = useSendMessage(townsDmId);
   const { userId: myUserId } = useMyMember(townsDmId);
   const { redact } = useRedact(townsDmId);
+  const activeAccount = useActiveAccount();
   
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -265,25 +268,31 @@ export function DirectMessageInterface({
       toast.error('Video calls are disabled for this conversation');
       return;
     }
+    if (!activeAccount) {
+      toast.error('Please connect your wallet');
+      return;
+    }
     setLoadingVideo(true);
     try {
-      const roomResponse = await fetch('/api/dm/create-video-room', {
+      // walletFetch attaches the signed proof; the server verifies the caller
+      // is a participant before creating the room / issuing an owner token.
+      const roomResponse = await walletFetch('/api/dm/create-video-room', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId1: currentUserId, userId2: dmId }),
       });
       const roomData = await roomResponse.json();
       if (!roomData.success) throw new Error(roomData.error);
-      
+
       const { roomUrl, roomName } = roomData.data;
-      
+
       const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
       await sendMessage(inviteMessage);
-      
-      const tokenResponse = await fetch('/api/dm/generate-dm-token', {
+
+      const tokenResponse = await walletFetch('/api/dm/generate-dm-token', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName, walletAddress: currentUserId }),
+        body: JSON.stringify({ roomName }),
       });
       const tokenData = await tokenResponse.json();
       if (!tokenData.success) throw new Error(tokenData.error);
@@ -305,12 +314,16 @@ export function DirectMessageInterface({
       toast.error('Call information is missing. Please ask the caller to try again.');
       return;
     }
+    if (!activeAccount) {
+      toast.error('Please connect your wallet');
+      return;
+    }
     setLoadingVideo(true);
     try {
-      const tokenResponse = await fetch('/api/dm/generate-dm-token', {
+      const tokenResponse = await walletFetch('/api/dm/generate-dm-token', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName: incomingCallRoomName, walletAddress: currentUserId }),
+        body: JSON.stringify({ roomName: incomingCallRoomName }),
       });
       const tokenData = await tokenResponse.json();
       if (!tokenData.success) throw new Error(tokenData.error);
