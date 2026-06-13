@@ -40,22 +40,12 @@ function EventCard({ event }: { event: Event }) {
             <CalendarIcon className="w-12 h-12 text-gray-500" />
           </div>
         )}
-        {event.status === 'live' && (
-          <span className="absolute top-3 left-3 px-2 py-1 bg-green-500 text-white text-xs font-georgia-pro rounded-full">
-            🔴 Live
-          </span>
-        )}
       </div>
       <h3 className="font-adonis text-lg text-gray-900 leading-tight mb-2">{event.title}</h3>
       <div className="flex items-center gap-1.5 text-sm font-georgia-pro text-gray-500">
         <Clock className="w-3.5 h-3.5" />
         <span>{format(new Date(event.scheduledStart), 'MMMM d, yyyy')}</span>
       </div>
-      {event.host && (
-        <p className="font-georgia-pro text-sm text-gray-400 mt-1">
-          {event.host.alias || event.host.displayName}
-        </p>
-      )}
     </div>
   );
 }
