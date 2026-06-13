@@ -1,34 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/chat-client";
+import { verifyAdminRequest } from "@/lib/admin/verify-admin-request";
 import type { ApiResponse } from '@/types/chat';
 
 const isAddress = (address: string) => /^0x[a-fA-F0-9]{40}$/.test(address);
 
 export async function POST(req: NextRequest) {
   try {
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>({ success: false, error: auth.error }, { status: auth.status });
+    }
 
-    const { ownerAddress, adminAddress } = await req.json();
+    const { ownerAddress } = await req.json();
 
-    if (!ownerAddress || !adminAddress) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: "Missing required fields." 
+    if (!ownerAddress) {
+      return NextResponse.json<ApiResponse<null>>({
+        success: false,
+        error: "Missing required fields."
       }, { status: 400 });
     }
 
-    if (!isAddress(ownerAddress) || !isAddress(adminAddress)) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: "Invalid address format." 
+    if (!isAddress(ownerAddress)) {
+      return NextResponse.json<ApiResponse<null>>({
+        success: false,
+        error: "Invalid address format."
       }, { status: 400 });
-    }
-
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
-      return NextResponse.json<ApiResponse<null>>({ 
-        success: false, 
-        error: "Unauthorized" 
-      }, { status: 401 });
     }
 
     // Just update database (no on-chain burn for now)
