@@ -6,6 +6,7 @@ import { Upload, Download, Loader2, ImageIcon } from 'lucide-react';
 type Format = 'square' | 'portrait' | 'story';
 type TextPosition = 'top' | 'center' | 'bottom';
 type TextColor = 'white' | 'black';
+type BackgroundColor = 'cream' | 'black' | 'white';
 
 const FORMATS: Record<Format, { w: number; h: number; label: string }> = {
   square: { w: 1080, h: 1080, label: 'Square 1:1' },
@@ -15,6 +16,8 @@ const FORMATS: Record<Format, { w: number; h: number; label: string }> = {
 
 const CREAM = '#f4f2ec';
 const INK = '#141414';
+const WHITE = '#ffffff';
+const BLACK = '#000000';
 
 /** Greedy word-wrap for canvas text */
 function wrapText(
@@ -42,7 +45,6 @@ export function SocialAssetStudio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
-  const faviconRef = useRef<HTMLImageElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
 
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -52,6 +54,7 @@ export function SocialAssetStudio() {
   const [bodyText, setBodyText] = useState('');
   const [byline, setByline] = useState('');
   const [textColor, setTextColor] = useState<TextColor>('white');
+  const [backgroundColor, setBackgroundColor] = useState<BackgroundColor>('cream');
   const [textPosition, setTextPosition] = useState<TextPosition>('bottom');
   const [overlay, setOverlay] = useState(45);
   // Image placement within the frame: 0..1 on each axis (0.5 = centered), plus zoom
@@ -64,11 +67,9 @@ export function SocialAssetStudio() {
   const [fontsReady, setFontsReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Load brand fonts and favicon into the document
+  // Load brand fonts into the document so canvas can use them
   useEffect(() => {
     let cancelled = false;
-    
-    // Load fonts
     Promise.all([
       document.fonts.load('400 100px "adonis-web"'),
       document.fonts.load('400 100px "Georgia Pro"'),
@@ -78,14 +79,6 @@ export function SocialAssetStudio() {
       .finally(() => {
         if (!cancelled) setFontsReady(true);
       });
-
-    // Load favicon
-    const img = new Image();
-    img.onload = () => {
-      faviconRef.current = img;
-    };
-    img.src = '/faviconk.jpg';
-
     return () => {
       cancelled = true;
     };
@@ -113,7 +106,11 @@ export function SocialAssetStudio() {
       if (!ctx) return;
 
       // Background
-      ctx.fillStyle = CREAM;
+      let bgColor = CREAM;
+      if (backgroundColor === 'black') bgColor = BLACK;
+      else if (backgroundColor === 'white') bgColor = WHITE;
+      
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, W, H);
 
       // Image — cover fit with vertical pan
@@ -144,7 +141,7 @@ export function SocialAssetStudio() {
         }
       }
 
-      const color = textColor === 'white' ? '#ffffff' : INK;
+      const color = textColor === 'white' ? WHITE : INK;
       const pad = W * 0.085;
       const maxWidth = W - pad * 2;
       // Keep text clear of Instagram's story UI (~13% top and bottom)
@@ -153,14 +150,15 @@ export function SocialAssetStudio() {
 
       ctx.textBaseline = 'top';
 
-      // Favicon wordmark — top left corner
+      // Adonis K wordmark — top left corner
       let wordmarkBottom = topSafe;
-      if (showWordmark && faviconRef.current) {
-        const faviconSize = W * 0.08;
-        const x = pad;
-        const y = topSafe;
-        ctx.drawImage(faviconRef.current, x, y, faviconSize, faviconSize);
-        wordmarkBottom = y + faviconSize + W * 0.03;
+      if (showWordmark) {
+        const kSize = W * 0.12;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.font = `400 ${kSize}px "adonis-web", serif`;
+        ctx.fillText('K', pad, topSafe);
+        wordmarkBottom = topSafe + kSize + W * 0.03;
       }
 
       // Measure the text block
@@ -259,6 +257,7 @@ export function SocialAssetStudio() {
       overlay,
       textPosition,
       textColor,
+      backgroundColor,
       kicker,
       headline,
       bodyText,
@@ -395,7 +394,7 @@ export function SocialAssetStudio() {
         </div>
 
         {/* Layout controls */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-3">
           <div>
             <label className="block font-georgia-pro text-xs uppercase tracking-wide text-gray-500 mb-2">
               Text position
@@ -432,6 +431,26 @@ export function SocialAssetStudio() {
                   }`}
                 >
                   {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block font-georgia-pro text-xs uppercase tracking-wide text-gray-500 mb-2">
+              Background color
+            </label>
+            <div className="flex gap-1.5">
+              {(['cream', 'black', 'white'] as BackgroundColor[]).map((bg) => (
+                <button
+                  key={bg}
+                  onClick={() => setBackgroundColor(bg)}
+                  className={`flex-1 py-1.5 rounded-md text-xs font-georgia-pro border capitalize transition ${
+                    backgroundColor === bg
+                      ? 'bg-black text-white border-black'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  {bg}
                 </button>
               ))}
             </div>
@@ -479,7 +498,7 @@ export function SocialAssetStudio() {
               onChange={(e) => setShowWordmark(e.target.checked)}
               className="accent-black"
             />
-            Knead K favicon
+            Adonis K wordmark
           </label>
           {format === 'story' && (
             <label className="flex items-center gap-2 font-georgia-pro text-sm text-gray-700 cursor-pointer">
