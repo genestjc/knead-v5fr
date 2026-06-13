@@ -8,6 +8,7 @@ import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { createClient } from "@supabase/supabase-js";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
+import { verifyAdminRequest } from "@/lib/admin/verify-admin-request";
 
 /**
  * FALLBACK: Engine server wallet minting route
@@ -38,15 +39,16 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { user_address, email, adminAddress } = await req.json();
-
-    // ✅ Verify admin authentication
-    if (!adminAddress || adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS) {
+    // ✅ Verify admin authentication via wallet signature
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
       return NextResponse.json(
-        { error: "Unauthorized: Admin access required" },
-        { status: 401 },
+        { error: auth.error },
+        { status: auth.status },
       );
     }
+
+    const { user_address, email } = await req.json();
 
     if (!user_address) {
       return NextResponse.json(
