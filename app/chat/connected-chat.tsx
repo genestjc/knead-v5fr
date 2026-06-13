@@ -1405,7 +1405,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
             </div>
           )}
 
-          <div className="flex flex-col h-screen bg-white">
+          <div className="flex flex-col h-full bg-white">
             {hasVideo && (
               <div className="flex-shrink-0 h-[40vh] md:h-[45vh] lg:h-[50vh] bg-gray-900">
                 <EventVideoStage
