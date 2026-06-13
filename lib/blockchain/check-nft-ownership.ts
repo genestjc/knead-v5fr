@@ -10,12 +10,53 @@
  */
 
 import { getContract, readContract } from "thirdweb";
-import { client as thirdwebClient, activeChain } from "@/thirdweb-client";
+import { client as thirdwebClient, activeChain, getAllRpcEndpoints } from "@/thirdweb-client";
 
 // Server-side in-memory cache — avoids redundant RPC calls on every permission check.
 // TTL is intentionally short enough to catch NFT purchases but long enough to cut RPS 10-20x.
 const NFT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const nftRoleCache = new Map<string, { result: UserRoleInfo; expiresAt: number }>();
+
+/**
+ * Read an ERC-1155 balance, falling through every configured RPC endpoint
+ * (ThirdWeb → Alchemy → public Base) before giving up.
+ *
+ * The server otherwise pins a single RPC (activeChain), so one flaky provider
+ * threw and made role checks fail. Trying the backups means a balance read only
+ * throws when ALL providers are down — which is what keeps a member's role
+ * stable instead of flapping on a transient blip.
+ */
+async function readErc1155Balance(
+  contractAddress: string,
+  owner: string,
+  tokenId: number,
+): Promise<number> {
+  const endpoints = getAllRpcEndpoints();
+  let lastError: unknown;
+
+  for (const rpc of endpoints) {
+    try {
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: { ...activeChain, rpc },
+        address: contractAddress,
+      });
+
+      const balance = await readContract({
+        contract,
+        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
+        params: [owner, BigInt(tokenId)],
+      });
+
+      return Number(balance);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[nft] balanceOf failed via ${rpc?.slice(0, 40)}… — trying next RPC`);
+    }
+  }
+
+  throw lastError ?? new Error("All RPC endpoints failed for balanceOf");
+}
 
 export type UserRole = 'freemium' | 'participant' | 'contributor';
 
@@ -44,19 +85,8 @@ async function readKneadMonthlyStrict(address: string): Promise<boolean> {
     return false;
   }
 
-  const contract = getContract({
-    client: thirdwebClient,
-    chain: activeChain,
-    address: nftContractAddress,
-  });
-
-  const balance = await readContract({
-    contract,
-    method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-    params: [address, BigInt(1)],
-  });
-
-  return Number(balance) > 0;
+  const balance = await readErc1155Balance(nftContractAddress, address, 1);
+  return balance > 0;
 }
 
 /**
@@ -73,22 +103,11 @@ async function readContributorStrict(address: string): Promise<{
     return { isContributor: false };
   }
 
-  const contract = getContract({
-    client: thirdwebClient,
-    chain: activeChain,
-    address: contributorContractAddress,
-  });
-
   const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
 
   for (const tokenId of tokenIds) {
-    const balance = await readContract({
-      contract,
-      method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-      params: [address, BigInt(tokenId)],
-    });
-
-    if (Number(balance) > 0) {
+    const balance = await readErc1155Balance(contributorContractAddress, address, tokenId);
+    if (balance > 0) {
       return { isContributor: true, tokenId };
     }
   }
