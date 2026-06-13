@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { isContributor } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,22 @@ interface CreateDmVideoRoomRequest {
  */
 export async function POST(req: NextRequest) {
   try {
+    // Require a wallet signature so this billable Daily.co room creation can't
+    // be hit anonymously in a loop, and gate on contributor status (DM video is
+    // a contributor-to-contributor feature).
+    const auth = await verifyWalletRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+
+    const { isContributor: eligible } = await isContributor(auth.address!);
+    if (!eligible) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: contributor status required for video calls' },
+        { status: 403 }
+      );
+    }
+
     const body: CreateDmVideoRoomRequest = await req.json();
     const { userId1, userId2 } = body;
 
