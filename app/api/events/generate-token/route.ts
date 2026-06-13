@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🎫 [generate-token] REQUEST RECEIVED');
-  
+
   try {
+    // The caller is the *recovered* signer — used as the Daily user_name and as
+    // the identity we resolve the role against. Previously walletAddress and the
+    // isHost/isGuest flags came straight from the client, so anyone who knew a
+    // room name could mint themselves an owner/broadcaster token.
+    const auth = await verifyWalletRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const walletAddress = auth.address!;
+
     let body;
     try {
       body = await req.json();
       console.log('✅ [generate-token] Body parsed:', {
         roomName: body?.roomName,
-        walletAddress: body?.walletAddress?.substring(0, 8),
-        isHost: body?.isHost,
-        isGuest: body?.isGuest,
-        isViewer: body?.isViewer,
+        walletAddress: walletAddress.substring(0, 8),
       });
     } catch (parseError) {
       console.error('❌ [generate-token] Failed to parse JSON:', parseError);
@@ -25,15 +34,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { roomName, walletAddress, isHost, isGuest, isViewer } = body;
+    const { roomName } = body;
 
-    if (!roomName || !walletAddress) {
-      console.error('❌ [generate-token] Missing required fields:', {
-        hasRoomName: !!roomName,
-        hasWalletAddress: !!walletAddress,
-      });
+    if (!roomName) {
+      console.error('❌ [generate-token] Missing required field: roomName');
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: roomName or walletAddress' },
+        { success: false, error: 'Missing required field: roomName' },
         { status: 400 }
       );
     }
@@ -48,6 +54,36 @@ export async function POST(req: NextRequest) {
     }
     console.log('✅ [generate-token] API key found:', apiKey.substring(0, 10) + '...');
 
+    // Determine the caller's role from the event record — never from the client.
+    // Host is resolved via chat_users.address; guests are stored as a lowercased
+    // address array on the event.
+    const supabase = getSupabaseAdmin();
+    const { data: event } = await supabase
+      .from('chat_events')
+      .select('host_id, guest_addresses')
+      .eq('daily_room_name', roomName)
+      .maybeSingle();
+
+    if (!event) {
+      return NextResponse.json(
+        { success: false, error: 'Event not found for this room' },
+        { status: 404 }
+      );
+    }
+
+    let hostAddress: string | null = null;
+    if (event.host_id) {
+      const { data: hostUser } = await supabase
+        .from('chat_users')
+        .select('address')
+        .eq('id', event.host_id)
+        .maybeSingle();
+      hostAddress = hostUser?.address?.toLowerCase() ?? null;
+    }
+    const guestAddresses: string[] = (event.guest_addresses ?? []).map((a: string) => a.toLowerCase());
+
+    const isHost = !!hostAddress && walletAddress === hostAddress;
+    const isGuest = guestAddresses.includes(walletAddress);
     const isActualViewer = !isHost && !isGuest;
     const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER';
 
