@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -23,24 +24,23 @@ export async function PATCH(
       );
     }
     
-    const body = await req.json();
-    const { adminAddress, status } = body;
-
-    console.log('[PATCH /api/admin/events] Updating event:', eventId, 'to status:', status);
-
-    if (!adminAddress || !status) {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 }
+        { success: false, error: auth.error },
+        { status: auth.status }
       );
     }
 
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
+    const body = await req.json();
+    const { status } = body;
 
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
+    console.log('[PATCH /api/events] Updating event:', eventId, 'to status:', status);
+
+    if (!status) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
       );
     }
 
@@ -116,24 +116,13 @@ export async function DELETE(
       );
     }
     
-    const { searchParams } = new URL(req.url);
-    const adminAddress = searchParams.get('adminAddress');
+    console.log('[DELETE /api/events] Deleting event:', eventId);
 
-    console.log('[DELETE /api/admin/events] Deleting event:', eventId);
-
-    if (!adminAddress) {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Missing adminAddress' },
-        { status: 400 }
-      );
-    }
-
-    const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-
-    if (adminAddress.toLowerCase() !== MASTER_ADMIN_ADDRESS?.toLowerCase()) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: auth.error },
+        { status: auth.status }
       );
     }
 
