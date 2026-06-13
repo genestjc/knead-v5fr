@@ -6,6 +6,7 @@ import { X, FileText, ThumbsUp, ThumbsDown, Clock, RefreshCw, Plus, Trash2 } fro
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 import { subDays, isAfter, format } from 'date-fns';
 
 interface Proposal {
@@ -95,15 +96,16 @@ export function ProposalsModal({ isOpen, onClose, isContributor = false }: Propo
   );
 
   const handleVote = async (proposal: Proposal) => {
-    if (!address) { toast.error('Connect your wallet to vote'); return; }
+    if (!account?.address) { toast.error('Connect your wallet to vote'); return; }
 
     setVotingId(proposal.id);
     try {
       const method = proposal.user_has_voted ? 'DELETE' : 'POST';
-      const res = await fetch(`/api/proposals/${proposal.id}/vote`, {
+      // Voter identity is proven by the signed headers (walletFetch) and
+      // verified server-side; address is no longer sent in the body.
+      const res = await walletFetch(`/api/proposals/${proposal.id}/vote`, account, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
       });
       const data = await res.json();
       if (!res.ok) {
