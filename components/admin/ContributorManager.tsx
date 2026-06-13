@@ -5,6 +5,7 @@ import { useActiveAccount, useSendTransaction } from 'thirdweb/react';
 import { getContract, prepareContractCall } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { client } from '@/thirdweb-client';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 import { ContributorPoolWidget } from './ContributorPoolWidget';
 
 interface Contributor {
@@ -107,7 +108,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
 
       // Step 2: Add to rewards contract via API (uses Engine server wallet with ADMIN_ROLE)
       // This automatically sets weeklyBudget AND lockedAllowance so contributor can tip immediately
-      const addResponse = await fetch('/api/admin/add-contributor', {
+      const addResponse = await adminFetch('/api/admin/add-contributor', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,6 +258,7 @@ function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
 
 // Weekly Allowance Management Section
 function WeeklyAllowanceManager({ onStatsRefreshed }: { onStatsRefreshed?: () => void }) {
+  const account = useActiveAccount();
   const [isAllocating, setIsAllocating] = useState(false);
   const [allocationResult, setAllocationResult] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
@@ -265,11 +267,16 @@ function WeeklyAllowanceManager({ onStatsRefreshed }: { onStatsRefreshed?: () =>
     if (!confirm('Allocate weekly allowances to all contributors? This sends a blockchain transaction.')) {
       return;
     }
+    if (!account) {
+      setIsError(true);
+      setAllocationResult('❌ Connect your admin wallet first');
+      return;
+    }
     setIsAllocating(true);
     setAllocationResult(null);
     setIsError(false);
     try {
-      const response = await fetch('/api/admin/allocate-allowances', {
+      const response = await adminFetch('/api/admin/allocate-allowances', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contributorAddresses: [] }),
@@ -326,6 +333,7 @@ function ContributorStatsTable({ stats, onBudgetUpdated }: {
   stats: ContributorStats[];
   onBudgetUpdated: () => void;
 }) {
+  const account = useActiveAccount();
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [newBudgetValue, setNewBudgetValue] = useState('');
   const [updatingAddress, setUpdatingAddress] = useState<string | null>(null);
@@ -338,10 +346,14 @@ function ContributorStatsTable({ stats, onBudgetUpdated }: {
       alert('Budget must be a positive number.');
       return;
     }
+    if (!account) {
+      setStatusMessage('❌ Connect your admin wallet first');
+      return;
+    }
     setUpdatingAddress(address);
     setStatusMessage(null);
     try {
-      const response = await fetch('/api/admin/contributors/update-budget', {
+      const response = await adminFetch('/api/admin/contributors/update-budget', account, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contributorAddress: address, newBudget: budget }),
@@ -362,10 +374,14 @@ function ContributorStatsTable({ stats, onBudgetUpdated }: {
   };
 
   const handleAllocateNow = async (address: string) => {
+    if (!account) {
+      setStatusMessage('❌ Connect your admin wallet first');
+      return;
+    }
     setAllocatingAddress(address);
     setStatusMessage(null);
     try {
-      const response = await fetch('/api/admin/allocate-allowances', {
+      const response = await adminFetch('/api/admin/allocate-allowances', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contributorAddresses: [address] }),
@@ -499,7 +515,7 @@ function ContributorList({ contributors, onRevokeSuccess }: { contributors: Cont
 
         setRevokingId(contributorId);
         try {
-            const response = await fetch(`/api/admin/contributors/${contributorId}?adminAddress=${account.address}`, {
+            const response = await adminFetch(`/api/admin/contributors/${contributorId}`, account, {
                 method: 'DELETE',
             });
             const data = await response.json();
