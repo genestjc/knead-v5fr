@@ -29,44 +29,83 @@ export interface UserRoleInfo {
 }
 
 /**
- * Check if user owns Knead Monthly subscription (Token ID 1)
+ * Strict balance read for Knead Monthly (Token ID 1).
+ *
+ * Returns true/false ONLY when the chain answered. Throws on a transient RPC
+ * failure so callers can tell "confirmed does NOT own" apart from "couldn't
+ * check right now" — the distinction getUserRole relies on to avoid downgrading
+ * a paying member to freemium when the RPC blips.
  */
-export async function hasKneadMonthly(address: string): Promise<boolean> {
-  try {
-    const nftContractAddress = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
-    
-    // 🔍 DEBUG LOGGING
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("🔍 hasKneadMonthly() called");
-    console.log("  Wallet:", address);
-    console.log("  Contract from env:", nftContractAddress);
-    console.log("  Expected:", "0xfd678ed8a0ed853d5399da9585d46aea44cbce85");
-    console.log("  Match?", nftContractAddress?.toLowerCase() === "0xfd678ed8a0ed853d5399da9585d46aea44cbce85");
-    
-    if (!nftContractAddress) {
-      console.warn("❌ NEXT_PUBLIC_NFT_CONTRACT_ADDRESS is not set");
-      return false;
-    }
+async function readKneadMonthlyStrict(address: string): Promise<boolean> {
+  const nftContractAddress = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
+  if (!nftContractAddress) {
+    // Missing config is a definitive "can't own", not a transient error.
+    console.warn("❌ NEXT_PUBLIC_NFT_CONTRACT_ADDRESS is not set");
+    return false;
+  }
 
-    const contract = getContract({
-      client: thirdwebClient,
-      chain: activeChain,
-      address: nftContractAddress,
-    });
+  const contract = getContract({
+    client: thirdwebClient,
+    chain: activeChain,
+    address: nftContractAddress,
+  });
 
-    console.log("  Checking Token ID: 1");
+  const balance = await readContract({
+    contract,
+    method: "function balanceOf(address account, uint256 id) view returns (uint256)",
+    params: [address, BigInt(1)],
+  });
 
+  return Number(balance) > 0;
+}
+
+/**
+ * Strict contributor balance read (Token ID 1, 2, or 3).
+ * Throws on RPC failure; returns a confirmed result otherwise.
+ */
+async function readContributorStrict(address: string): Promise<{
+  isContributor: boolean;
+  tokenId?: number;
+}> {
+  const contributorContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
+  if (!contributorContractAddress) {
+    console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS is not set");
+    return { isContributor: false };
+  }
+
+  const contract = getContract({
+    client: thirdwebClient,
+    chain: activeChain,
+    address: contributorContractAddress,
+  });
+
+  const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
+
+  for (const tokenId of tokenIds) {
     const balance = await readContract({
       contract,
       method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-      params: [address, BigInt(1)],
+      params: [address, BigInt(tokenId)],
     });
 
-    console.log("  Balance:", balance.toString());
-    console.log("  Has NFT?", Number(balance) > 0 ? "✅ YES" : "❌ NO");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    if (Number(balance) > 0) {
+      return { isContributor: true, tokenId };
+    }
+  }
 
-    return Number(balance) > 0;
+  return { isContributor: false };
+}
+
+/**
+ * Check if user owns Knead Monthly subscription (Token ID 1)
+ *
+ * Public contract preserved: returns false on RPC error (callers treat false as
+ * "not a member"). getUserRole does NOT use this — it uses the strict reader so
+ * it can handle errors without silently downgrading members.
+ */
+export async function hasKneadMonthly(address: string): Promise<boolean> {
+  try {
+    return await readKneadMonthlyStrict(address);
   } catch (error) {
     console.error("❌ Error checking Knead Monthly NFT:", error);
     return false;
@@ -76,39 +115,12 @@ export async function hasKneadMonthly(address: string): Promise<boolean> {
 /**
  * Check if user is a contributor (owns Token ID 1, 2, or 3)
  */
-export async function isContributor(address: string): Promise<{ 
-  isContributor: boolean; 
-  tokenId?: number 
+export async function isContributor(address: string): Promise<{
+  isContributor: boolean;
+  tokenId?: number
 }> {
   try {
-    const contributorContractAddress = process.env.NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS;
-    
-    if (!contributorContractAddress) {
-      console.warn("NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS is not set");
-      return { isContributor: false };
-    }
-
-    const contract = getContract({
-      client: thirdwebClient,
-      chain: activeChain,
-      address: contributorContractAddress,
-    });
-
-    const tokenIds = [1, 2, 3]; // Appointed, Invited, Earned
-    
-    for (const tokenId of tokenIds) {
-      const balance = await readContract({
-        contract,
-        method: "function balanceOf(address account, uint256 id) view returns (uint256)",
-        params: [address, BigInt(tokenId)],
-      });
-      
-      if (Number(balance) > 0) {
-        return { isContributor: true, tokenId };
-      }
-    }
-
-    return { isContributor: false };
+    return await readContributorStrict(address);
   } catch (error) {
     console.error("Error checking contributor NFT:", error);
     return { isContributor: false };
@@ -189,10 +201,12 @@ export async function getUserRole(address: string, force = false): Promise<UserR
   }
 
   try {
-    // Check NFT ownership in parallel (Event Pass is now tracked in Supabase, not on-chain)
+    // Use the STRICT readers so an RPC failure throws (instead of masquerading as
+    // "owns nothing"). Check NFT ownership in parallel (Event Pass is now tracked
+    // in Supabase, not on-chain).
     const [hasMonthly, contributorCheck] = await Promise.all([
-      hasKneadMonthly(address),
-      isContributor(address),
+      readKneadMonthlyStrict(address),
+      readContributorStrict(address),
     ]);
 
     // Determine role based on priority
@@ -212,11 +226,24 @@ export async function getUserRole(address: string, force = false): Promise<UserR
       contributorTokenId: contributorCheck.tokenId,
     };
 
+    // Only cache results the chain actually confirmed.
     nftRoleCache.set(cacheKey, { result, expiresAt: Date.now() + NFT_CACHE_TTL_MS });
     return result;
   } catch (error) {
     console.error("Error getting user role:", error);
 
+    // Transient RPC failure. Do NOT downgrade a member we've already resolved —
+    // that's what made the chat input flap (appear, then vanish) for Knead Monthly
+    // members. Serve the last-known-good role even if its TTL has lapsed, and give
+    // it a short grace window so we recover quickly without hammering the RPC.
+    const stale = nftRoleCache.get(cacheKey);
+    if (stale) {
+      stale.expiresAt = Math.max(stale.expiresAt, Date.now() + 30 * 1000);
+      return stale.result;
+    }
+
+    // Never resolved this address before — fail safe to freemium, but DON'T cache
+    // it, so the very next call retries the chain.
     return {
       role: 'freemium',
       hasKneadMonthly: false,
