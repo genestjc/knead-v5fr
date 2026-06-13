@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addContributorToRewards } from '@/lib/blockchain/add-contributor';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await verifyAdminRequest(request, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const { contributorAddress, contributorType, weeklyBudget } = body;
 
