@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-
-const MASTER_ADMIN = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET?.toLowerCase();
-
-function isAdmin(address: string): boolean {
-  return !!MASTER_ADMIN && address.toLowerCase() === MASTER_ADMIN;
-}
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const adminAddress = searchParams.get('adminAddress') || '';
-
-  if (!isAdmin(adminAddress)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  const auth = await verifyAdminRequest(req, { requireMaster: true });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const supabase = getSupabaseAdmin();
@@ -27,12 +20,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  if (!body?.id || !body?.adminAddress) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const auth = await verifyAdminRequest(req, { requireMaster: true });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (!isAdmin(body.adminAddress)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  const body = await req.json().catch(() => null);
+  if (!body?.id) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
@@ -42,12 +36,13 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  if (!body?.id || !body?.status || !body?.adminAddress) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const auth = await verifyAdminRequest(req, { requireMaster: true });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (!isAdmin(body.adminAddress)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  const body = await req.json().catch(() => null);
+  if (!body?.id || !body?.status) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
   if (!['open', 'rejected'].includes(body.status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
