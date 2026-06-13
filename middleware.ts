@@ -161,3 +161,13 @@ export function middleware(request: NextRequest) {
 
   return response;
 }
+
+export const config = {
+  // Run the middleware (CSP) on pages and API routes, but skip Next.js static
+  // assets, the image optimizer, and common static files. Without this matcher
+  // the middleware executes on every JS/CSS chunk and image request too, which
+  // adds an edge invocation + latency to assets that don't need a CSP.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)',
+  ],
+};
