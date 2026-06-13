@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,17 +8,13 @@ export const fetchCache = 'force-no-store';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { subscriberId, adminAddress } = body;
-
-    // Validate admin
-    const masterAdmin = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
-    if (!adminAddress || adminAddress.toLowerCase() !== masterAdmin.toLowerCase()) {
-      return NextResponse.json(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+
+    const body = await req.json();
+    const { subscriberId } = body;
 
     if (!subscriberId) {
       return NextResponse.json(
