@@ -1208,9 +1208,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         </div>
       );
     }
-
-    return null;
+    return (
+      <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+        <p className="font-georgia-pro text-sm text-gray-600 text-center">
+          {permissions?.reason || "Messaging isn't available right now."}
+        </p>
+      </div>
+    );
   };
+  
 
   const renderChatInput = () => {
     // ✅ Allow chat input if payment verified OR has permission
