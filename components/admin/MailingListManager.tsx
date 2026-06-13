@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
+import { adminFetch } from '@/lib/admin/admin-fetch';
 
 interface Subscriber {
   id: string;
@@ -16,6 +18,7 @@ interface MailingListManagerProps {
 }
 
 export function MailingListManager({ adminAddress, listType }: MailingListManagerProps) {
+  const account = useActiveAccount();
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
@@ -53,11 +56,10 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
   };
 
   const fetchSubscribers = useCallback(async () => {
+    if (!account) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `/api/mailing/list?type=${listType}&adminAddress=${encodeURIComponent(adminAddress)}`
-      );
+      const res = await adminFetch(`/api/mailing/list?type=${listType}`, account);
       const data = await res.json();
       if (data.success) {
         setSubscribers(data.data);
@@ -78,7 +80,7 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
     } finally {
       setIsLoading(false);
     }
-  }, [adminAddress, listType, toast]);
+  }, [account, listType, toast]);
 
   useEffect(() => {
     fetchSubscribers();
@@ -151,18 +153,21 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
       `Remove ${email} from the ${listLabel} mailing list?`
     );
     if (!confirmed) return;
+    if (!account) {
+      toast({ title: 'Error', description: 'Connect your admin wallet first', variant: 'destructive' });
+      return;
+    }
 
     try {
       const endpoint = listType === 'events'
         ? '/api/mailing/unsubscribe-events'
         : '/api/mailing/unsubscribe-contributor';
 
-      const res = await fetch(endpoint, {
+      const res = await adminFetch(endpoint, account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           subscriberId,
-          adminAddress 
         }),
       });
 
@@ -224,9 +229,14 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
     );
     if (!confirmed) return;
 
+    if (!account) {
+      toast({ title: 'Error', description: 'Connect your admin wallet first', variant: 'destructive' });
+      return;
+    }
+
     setIsSending(true);
     try {
-      const res = await fetch('/api/mailing/send-campaign', {
+      const res = await adminFetch('/api/mailing/send-campaign', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -235,7 +245,6 @@ export function MailingListManager({ adminAddress, listType }: MailingListManage
           htmlContent,
           fromEmail,
           campaignName,
-          adminAddress,
         }),
       });
 
