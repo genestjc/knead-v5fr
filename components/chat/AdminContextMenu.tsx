@@ -128,11 +128,12 @@ export function AdminContextMenu({
         eventId,
       });
 
-      const response = await fetch('/api/chat/award-bonus', {
+      // Admin identity is proven by the signed headers (adminFetch) and
+      // verified server-side; adminAddress is no longer sent in the body.
+      const response = await adminFetch('/api/chat/award-bonus', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminAddress: activeAccount.address,
           eventId,
           participantAddress: message.sender.id,
           bonusAmount: amount,
