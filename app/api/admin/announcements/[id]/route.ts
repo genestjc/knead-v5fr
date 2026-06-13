@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,31 +10,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params; // ← Await params
-    const searchParams = request.nextUrl.searchParams;
-    const adminAddress = searchParams.get('adminAddress');
 
-    if (!adminAddress) {
-      return NextResponse.json(
-        { success: false, error: 'Admin address required' },
-        { status: 400 }
-      );
+    const auth = await verifyAdminRequest(request, { allowedRoles: ['admin', 'master-admin'] });
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
-    // Validate admin permissions
     const supabase = createSupabaseAdmin();
-
-    const { data: adminUser, error: adminError } = await supabase
-      .from('chat_users')
-      .select('role')
-      .eq('address', adminAddress.toLowerCase())
-      .single();
-
-    if (adminError || !adminUser || !['admin', 'master-admin'].includes(adminUser.role)) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
 
     // Delete announcement
     const { error } = await supabase
