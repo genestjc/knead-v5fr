@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,19 +12,15 @@ function getSupabase() {
   );
 }
 
-function isAuthorized(adminAddress: string) {
-  const master = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET;
-  return adminAddress?.toLowerCase() === master?.toLowerCase();
-}
-
 // POST — grant passes to a list of addresses
 export async function POST(req: NextRequest) {
   try {
-    const { adminAddress, eventId, addresses } = await req.json();
-
-    if (!isAuthorized(adminAddress)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+
+    const { eventId, addresses } = await req.json();
 
     if (!eventId || !Array.isArray(addresses) || addresses.length === 0) {
       return NextResponse.json({ success: false, error: 'Missing eventId or addresses' }, { status: 400 });
@@ -56,11 +53,12 @@ export async function POST(req: NextRequest) {
 // DELETE — revoke (burn) passes for a list of addresses
 export async function DELETE(req: NextRequest) {
   try {
-    const { adminAddress, eventId, addresses } = await req.json();
-
-    if (!isAuthorized(adminAddress)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+
+    const { eventId, addresses } = await req.json();
 
     if (!eventId || !Array.isArray(addresses) || addresses.length === 0) {
       return NextResponse.json({ success: false, error: 'Missing eventId or addresses' }, { status: 400 });
