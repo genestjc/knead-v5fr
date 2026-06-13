@@ -30,6 +30,7 @@ import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X, Reply } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -262,6 +263,11 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [messageInput, setMessageInput] = useState('');
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
+  // Tracks the `${room}:${role}` we've already fetched a Daily token for, so the
+  // signed token request fires once per (room, role) instead of on every 30s
+  // poll — but still refetches if the admin promotes this user to guest/host
+  // mid-event (their role key changes).
+  const dailyTokenKeyRef = useRef<string | null>(null);
   const [userRole, setUserRole] = useState<'freemium' | 'participant' | 'contributor'>('freemium');
   const [isAdmin, setIsAdmin] = useState(false);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
@@ -871,40 +877,54 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         if (!data.success || !data.data?.length) {
           setActiveEvent(null);
           setDailyToken(null);
+          dailyTokenKeyRef.current = null;
           return;
         }
 
         const event = data.data[0];
         setActiveEvent(event);
 
-        const userAddress = activeAccount.address!.toLowerCase();
-        const isHost = event.host?.address?.toLowerCase() === userAddress;
-        const isGuest = event.guestAddresses?.some(
-          (addr: string) => addr.toLowerCase() === userAddress,
-        );
-        const isViewer = !isHost && !isGuest;
-
         if (!event.videoEnabled || !event.dailyRoomName) {
           setDailyToken(null);
+          dailyTokenKeyRef.current = null;
           return;
         }
 
-        const tokenResponse = await fetch('/api/events/generate-token', {
+        // Compute our role client-side ONLY to decide whether to (re)fetch a
+        // token — it is never trusted for access. The server independently
+        // re-derives the real role from the verified signature + event record.
+        // We refetch when the room changes or when our role changes (e.g. an
+        // admin pastes our address to promote us to guest mid-event), but NOT on
+        // every 30s poll — so a user isn't repeatedly prompted to sign.
+        const me = activeAccount!.address!.toLowerCase();
+        const myRole =
+          event.host?.address?.toLowerCase() === me
+            ? 'host'
+            : (event.guestAddresses ?? []).some((a: string) => a.toLowerCase() === me)
+            ? 'guest'
+            : 'viewer';
+        const tokenKey = `${event.dailyRoomName}:${myRole}`;
+        if (dailyTokenKeyRef.current === tokenKey) return;
+
+        const tokenResponse = await walletFetch('/api/events/generate-token', activeAccount!, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             roomName: event.dailyRoomName,
-            walletAddress: activeAccount.address,
-            isHost,
-            isGuest,
-            isViewer,
           }),
         });
         const tokenData = await tokenResponse.json();
-        setDailyToken(tokenData.success ? tokenData.data?.token : null);
+        if (tokenData.success && tokenData.data?.token) {
+          setDailyToken(tokenData.data.token);
+          dailyTokenKeyRef.current = tokenKey;
+        } else {
+          setDailyToken(null);
+          dailyTokenKeyRef.current = null;
+        }
       } catch {
         setActiveEvent(null);
         setDailyToken(null);
+        dailyTokenKeyRef.current = null;
       }
     }
 
