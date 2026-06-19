@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAgentConnection, useSpace, useJoinSpace, useUserSpaces } from '@towns-protocol/react-sdk';
-import { useActiveWallet } from 'thirdweb/react';
+import { useActiveWallet, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
 import { client, activeChain } from '@/thirdweb-client';
 import { privateKeyToAccount } from 'thirdweb/wallets';
@@ -582,6 +582,11 @@ function TownsChatReadyInner({
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
   const wallet = useActiveWallet();
+  // While AutoConnect (app/providers.tsx) is silently re-grabbing the wallet,
+  // status is 'connecting'/'unknown'. We must NOT render the sign-in screen in
+  // that window — doing so unmounts the chat + Towns session and re-prompts a
+  // signature, which is the bounce-back-to-sign-in loop on the desktop wallet.
+  const connectionStatus = useActiveWalletConnectionStatus();
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
@@ -612,6 +617,12 @@ export default function ChatTestClient() {
   }
 
   if (!wallet) {
+    // A reconnect is in flight — show a spinner instead of the sign-in screen so
+    // we don't tear down the chat session mid-reconnect.
+    if (connectionStatus === 'connecting' || connectionStatus === 'unknown') {
+      return <LoadingSpinner message="Reconnecting your wallet..." />;
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center max-w-3xl px-8">
