@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { useActiveAccount, ConnectButton } from 'thirdweb/react';
-import { createThirdwebClient } from 'thirdweb';
+import { useState, useEffect } from 'react';
+import { useActiveAccount, useActiveWalletConnectionStatus, ConnectButton } from 'thirdweb/react';
+import { base } from 'thirdweb/chains';
+import { client } from '@/thirdweb-client';
+import { wallets } from '@/lib/wallets';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
 import { UserManager } from '@/components/admin/UserManager';
@@ -16,25 +18,39 @@ import { SocialAssetStudio } from '@/components/admin/SocialAssetStudio';
 // ✅ Prevents static generation
 export const dynamic = 'force-dynamic';
 
-let cachedClient: ReturnType<typeof createThirdwebClient> | null = null;
-
-function getClient() {
-  if (!cachedClient) {
-    cachedClient = createThirdwebClient({
-      clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
-    });
-  }
-  return cachedClient;
-}
-
 export default function AdminPage() {
   const account = useActiveAccount();
+  // The root <AutoConnect> silently restores the wallet on load. While that's
+  // in flight the status is 'connecting'/'unknown' and `account` is null — we
+  // must NOT show the "Admin Access Required" gate then, or every reconnect
+  // looks like a sign-out. Once AutoConnect has settled once (connected OR
+  // disconnected), we stop suppressing the gate so a *manual* connect via the
+  // button isn't interrupted.
+  const connectionStatus = useActiveWalletConnectionStatus();
+  const [autoConnectSettled, setAutoConnectSettled] = useState(false);
+  useEffect(() => {
+    if (connectionStatus === 'connected' || connectionStatus === 'disconnected') {
+      setAutoConnectSettled(true);
+    }
+  }, [connectionStatus]);
+
   const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements' | 'proposals' | 'social'>('events');
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
-  const client = getClient();
 
   if (!account) {
+    // Initial auto-reconnect in flight — show a spinner, not the gate.
+    if (!autoConnectSettled && (connectionStatus === 'connecting' || connectionStatus === 'unknown')) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-black mx-auto mb-4" />
+            <p className="font-georgia-pro text-gray-600">Connecting your wallet…</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
@@ -42,8 +58,10 @@ export default function AdminPage() {
           <p className="font-georgia-pro text-lg text-gray-600 mb-6">
             Connect your admin wallet to continue
           </p>
-          <ConnectButton 
+          <ConnectButton
             client={client}
+            chain={base}
+            wallets={wallets}
             theme="light"
           />
         </div>
@@ -66,8 +84,10 @@ export default function AdminPage() {
           </div>
           
           <div className="mt-6">
-            <ConnectButton 
+            <ConnectButton
               client={client}
+              chain={base}
+              wallets={wallets}
               theme="light"
             />
           </div>
@@ -89,8 +109,10 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex gap-4 items-center">
-              <ConnectButton 
+              <ConnectButton
                 client={client}
+                chain={base}
+                wallets={wallets}
                 theme="light"
               />
               <a href="/chat" className="px-6 py-2 bg-gray-100 text-black rounded-full font-georgia-pro hover:bg-gray-200 transition">
