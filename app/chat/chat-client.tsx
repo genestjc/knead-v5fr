@@ -215,12 +215,19 @@ function TownsChat() {
 
   const signerRef = useRef<any>(null);
   const connectAttemptedRef = useRef(false);
+  // Counts consecutive throttle (429 / RESOURCE_EXHAUSTED) failures so we can
+  // back off and retry silently instead of bouncing to the error/sign-in
+  // screen. Accounts with many Towns streams (e.g. admins) can briefly exceed
+  // the shared River nodes' rate limit on connect; riding it out usually works.
+  const connectThrottleRef = useRef(0);
+  const [connectRetryTrigger, setConnectRetryTrigger] = useState(0);
+  const MAX_CONNECT_THROTTLE_RETRIES = 6;
 
   // Step 1: Handle wallet connection and agent setup
   useEffect(() => {
     const setupConnection = async () => {
       if (connectAttemptedRef.current || !wallet || isAgentConnected) return;
-      
+
       const account = wallet.getAccount();
       if (!SAVED_SPACE_ID) return;
 
@@ -236,14 +243,45 @@ function TownsChat() {
         // Connect agent
         setPhase('connecting');
         await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
-        
+
         // Move to joining phase
+        connectThrottleRef.current = 0;
         setPhase('joining');
-        
+
       } catch (e: any) {
         console.error('❌ Connection error:', e);
+
+        // Towns River nodes throttle the stream load with 429 / RESOURCE_EXHAUSTED
+        // when an account has a lot of streams. Don't surface the error screen
+        // (which makes the user re-sign and re-burst requests) — wait and retry.
+        // The signer already exists and the SDK caches the delegate signature,
+        // so this retry does NOT prompt the wallet again.
+        const msg = (e?.message || '').toLowerCase();
+        const throttled =
+          msg.includes('resource_exhausted') ||
+          msg.includes('429') ||
+          msg.includes('rate limit') ||
+          msg.includes('bandwidth') ||
+          msg.includes('too many requests');
+
+        if (throttled && connectThrottleRef.current < MAX_CONNECT_THROTTLE_RETRIES) {
+          connectThrottleRef.current += 1;
+          // 8s, 16s, 24s, 30s, 30s, 30s
+          const delayMs = Math.min(30000, connectThrottleRef.current * 8000);
+          console.warn(
+            `⏳ Towns nodes throttled (429/RESOURCE_EXHAUSTED). Retrying connect in ${delayMs / 1000}s ` +
+              `(attempt ${connectThrottleRef.current}/${MAX_CONNECT_THROTTLE_RETRIES})…`,
+          );
+          // Stay on the "Connecting to Towns…" loader; do not show sign-in.
+          setPhase('connecting');
+          connectAttemptedRef.current = false;
+          setTimeout(() => setConnectRetryTrigger((n) => n + 1), delayMs);
+          return;
+        }
+
         setPhase('error');
         setErrorMsg(friendlyError(e));
+        connectThrottleRef.current = 0;
         connectAttemptedRef.current = false;
 
         if (typeof window !== 'undefined' && window.KEY_SHARER_AUTO_MODE) {
@@ -254,7 +292,8 @@ function TownsChat() {
     };
 
     setupConnection();
-  }, [wallet, isAgentConnected, connectAgent]);
+  // connectRetryTrigger is included so a scheduled throttle-retry re-runs this effect.
+  }, [wallet, isAgentConnected, connectAgent, connectRetryTrigger]);
 
   if (phase === 'error') {
     return (
@@ -582,15 +621,23 @@ function TownsChatReadyInner({
 export default function ChatTestClient() {
   const [isMounted, setIsMounted] = useState(false);
   const wallet = useActiveWallet();
-  // While AutoConnect (app/providers.tsx) is silently re-grabbing the wallet,
-  // status is 'connecting'/'unknown'. We must NOT render the sign-in screen in
-  // that window — doing so unmounts the chat + Towns session and re-prompts a
-  // signature, which is the bounce-back-to-sign-in loop on the desktop wallet.
+  // While AutoConnect (app/providers.tsx) is silently re-grabbing the wallet on
+  // load, status is 'connecting'/'unknown' and `wallet` is undefined. We must
+  // NOT render the sign-in screen in that window — doing so unmounts the chat +
+  // Towns session and re-prompts a signature. Once AutoConnect has settled once
+  // we stop suppressing the sign-in screen so a *manual* connect isn't cut off.
   const connectionStatus = useActiveWalletConnectionStatus();
+  const [autoConnectSettled, setAutoConnectSettled] = useState(false);
   const { isAgentConnected } = useAgentConnection();
   const { botWallet } = useBotAutoConnect();
 
   useEffect(() => setIsMounted(true), []);
+
+  useEffect(() => {
+    if (connectionStatus === 'connected' || connectionStatus === 'disconnected') {
+      setAutoConnectSettled(true);
+    }
+  }, [connectionStatus]);
 
   useEffect(() => {
     if (localStorage.getItem('exportKeyIntent') !== '1') return;
@@ -617,9 +664,9 @@ export default function ChatTestClient() {
   }
 
   if (!wallet) {
-    // A reconnect is in flight — show a spinner instead of the sign-in screen so
-    // we don't tear down the chat session mid-reconnect.
-    if (connectionStatus === 'connecting' || connectionStatus === 'unknown') {
+    // Initial auto-reconnect in flight — show a spinner instead of the sign-in
+    // screen so we don't tear down the chat session mid-reconnect.
+    if (!autoConnectSettled && (connectionStatus === 'connecting' || connectionStatus === 'unknown')) {
       return <LoadingSpinner message="Reconnecting your wallet..." />;
     }
 
