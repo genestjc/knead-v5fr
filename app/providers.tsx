@@ -1,9 +1,8 @@
 "use client";
 
-import { ThirdwebProvider } from "thirdweb/react";
+import { ThirdwebProvider, AutoConnect } from "thirdweb/react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
-import { WalletProvider } from "@/components/wallet-provider";
 import { MembershipProvider } from "@/components/membership-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,6 +14,8 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/config/wagmi';
 import { useState } from 'react';
+import { client } from '@/thirdweb-client';
+import { wallets } from '@/lib/wallets';
 
 // Loaded dynamically (client-only) so that lru-cache v11's top-level await in its
 // ESM bundle does NOT cascade through the Towns SDK import chain and turn
@@ -32,7 +33,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <MiniKitProvider apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
+          {/*
+            Single ThirdwebProvider for the whole app. (There used to be a second,
+            nested one inside <WalletProvider>; two connection managers could
+            desync the active-wallet state and make transient drops more likely.)
+          */}
           <ThirdwebProvider>
+            {/*
+              Persistent, silent auto-reconnect. Previously the only reconnect
+              logic lived inside <ConnectButton>, which is mounted ONLY on the
+              sign-in screen — so a transient wallet drop while in chat (e.g. the
+              desktop MetaMask extension hiccupping during a signature) bounced
+              the user back to sign-in and remounted the whole chat/Towns session.
+              Mounting AutoConnect at the root reconnects the same wallet in place.
+            */}
+            <AutoConnect client={client} wallets={wallets} timeout={15000} />
             <TownsSyncProvider>
               <ThemeProvider
                 attribute="class"
@@ -40,31 +55,29 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 enableSystem={false}
                 disableTransitionOnChange
               >
-                <WalletProvider>
-                  <MembershipProvider>
-                    <TooltipProvider>
-                      <ErrorBoundary>
-                        {children}
-                      </ErrorBoundary>
-                      <Toaster />
-                      
-                      {/* ✅ Sonner Toaster for admin actions - configured for mobile */}
-                      <SonnerToaster 
-                        position="top-center"
-                        expand={true}
-                        richColors
-                        closeButton
-                        toastOptions={{
-                          style: {
-                            marginTop: '80px', // Below fixed header
-                          },
-                          className: 'font-georgia-pro',
-                          duration: 6000,
-                        }}
-                      />
-                    </TooltipProvider>
-                  </MembershipProvider>
-                </WalletProvider>
+                <MembershipProvider>
+                  <TooltipProvider>
+                    <ErrorBoundary>
+                      {children}
+                    </ErrorBoundary>
+                    <Toaster />
+
+                    {/* ✅ Sonner Toaster for admin actions - configured for mobile */}
+                    <SonnerToaster
+                      position="top-center"
+                      expand={true}
+                      richColors
+                      closeButton
+                      toastOptions={{
+                        style: {
+                          marginTop: '80px', // Below fixed header
+                        },
+                        className: 'font-georgia-pro',
+                        duration: 6000,
+                      }}
+                    />
+                  </TooltipProvider>
+                </MembershipProvider>
               </ThemeProvider>
             </TownsSyncProvider>
           </ThirdwebProvider>
