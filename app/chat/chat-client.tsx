@@ -156,7 +156,10 @@ function useBotAutoConnect() {
           client,
           activeChain,
         );
-        const agent = await connectAgent(signer, { townsConfig: TOWNS_CONFIG });
+        const agent = await connectAgent(signer, {
+          townsConfig: TOWNS_CONFIG,
+          ...(SAVED_SPACE_ID ? { highPriorityStreamIds: [SAVED_SPACE_ID] } : {}),
+        });
         if (!agent) {
           window.KEY_SHARER_ERROR = 'Agent connection returned undefined';
           window.KEY_SHARER_CONNECTED = false;
@@ -240,9 +243,19 @@ function TownsChat() {
           signerRef.current = await createTownsSigner(account, client, activeChain);
         }
 
-        // Connect agent
+        // Connect agent.
+        // highPriorityStreamIds tells the SyncAgent which streams must load
+        // before it reports "ready". By prioritizing the chat space, the agent
+        // becomes ready on the space and loads everything else (DMs/GDMs) as
+        // low-priority background streams. Per the SDK's syncedStreamsExtension,
+        // a low-priority stream that fails to initialize (e.g. a single DM stuck
+        // on an overloaded River node returning RESOURCE_EXHAUSTED) is caught
+        // and counted as numStreamsFailedToLoad — it no longer blocks connect.
         setPhase('connecting');
-        await connectAgent(signerRef.current, { townsConfig: TOWNS_CONFIG });
+        await connectAgent(signerRef.current, {
+          townsConfig: TOWNS_CONFIG,
+          highPriorityStreamIds: [SAVED_SPACE_ID],
+        });
 
         // Move to joining phase
         connectThrottleRef.current = 0;
