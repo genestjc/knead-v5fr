@@ -34,8 +34,11 @@ export function middleware(request: NextRequest) {
       https://cdn.sanity.io
       https://vercel.com
       https://*.supabase.co
+      https://*.cdninstagram.com
+      https://*.fbcdn.net
+      https://pbs.twimg.com
       https://fonts.gstatic.com;
-    font-src 'self' data: 
+    font-src 'self' data:
       https://use.typekit.net 
       https://p.typekit.net
       https://vercel.live
