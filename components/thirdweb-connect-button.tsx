@@ -1,29 +1,9 @@
 "use client"
 
 import { ConnectButton } from "thirdweb/react"
-import { inAppWallet, createWallet } from "thirdweb/wallets"
 import { client } from "@/thirdweb-client"
 import { base } from "thirdweb/chains"
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
-      mode: "redirect",
-      redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
-    },
-    hidePrivateKeyExport: false,
-    executionMode: {
-      mode: "EIP7702",
-      sponsorGas: true,
-    },
-  }),
-  createWallet("io.metamask"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-  createWallet("io.rabby"),
-  createWallet("io.zerion.wallet"),
-]
+import { wallets } from "@/lib/wallets"
 
 interface ThirdWebConnectButtonProps {
   className?: string
