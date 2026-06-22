@@ -14,7 +14,7 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/config/wagmi';
 import { useState } from 'react';
-import { client } from '@/thirdweb-client';
+import { client, activeChain } from '@/thirdweb-client';
 import { wallets } from '@/lib/wallets';
 
 // Loaded dynamically (client-only) so that lru-cache v11's top-level await in its
@@ -47,7 +47,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
               the user back to sign-in and remounted the whole chat/Towns session.
               Mounting AutoConnect at the root reconnects the same wallet in place.
             */}
-            <AutoConnect client={client} wallets={wallets} timeout={15000} />
+            {/* chain is REQUIRED: the inAppWallet uses EIP-7702 execution mode,
+                which needs a chain at (auto)connect time — without it AutoConnect
+                fails with "Chain is required for EIP-7702 execution" and breaks the
+                Google/email redirect login. */}
+            <AutoConnect client={client} wallets={wallets} chain={activeChain} timeout={15000} />
             <TownsSyncProvider>
               <ThemeProvider
                 attribute="class"
