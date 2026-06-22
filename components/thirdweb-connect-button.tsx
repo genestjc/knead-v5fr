@@ -21,7 +21,6 @@ export function ThirdWebConnectButton({
       <ConnectButton
         client={client}
         chain={base}
-        autoConnect={false}
         connectModal={{ size }}
         theme={theme}
         wallets={wallets}
