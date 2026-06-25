@@ -1,7 +1,7 @@
 /**
- * Knead Claude Agent
+ * Knead OpenAI Agent
  *
- * Agentic loop built on the Anthropic SDK with tool_use.
+ * Agentic loop built on the OpenAI SDK with function calling.
  * The agent is invoked with a natural-language command from a Towns chat
  * message (role-gated) or a triggered proposal, then autonomously calls
  * tools until all tasks are complete.
@@ -14,16 +14,16 @@
  *   lookup_member           — fetch member wallet / shipping info from Supabase
  *
  * Env vars required:
- *   ANTHROPIC_API_KEY
+ *   OPENAI_API_KEY
  *   TOWNS_AGENT_CHANNEL_ID  — default channel for agent reports
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { requestCard, sendUsdc } from '@/lib/agentcard';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = 'claude-sonnet-4-6';
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const MODEL = 'gpt-4o';
 const MAX_TOOL_ROUNDS = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,131 +48,146 @@ export interface AgentResult {
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
-    name: 'request_virtual_card',
-    description:
-      'Request a one-time virtual credit card from AgentCard for a given USD amount. ' +
-      'Returns PAN, CVV, expiry, and billing ZIP. Use this before any Shopify checkout.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        amount_usd: {
-          type: 'number',
-          description: 'Total charge amount in USD (e.g. 29.99).',
-        },
-        purpose: {
-          type: 'string',
-          description: 'Brief description of what this card will be used for (for audit trail).',
-        },
-      },
-      required: ['amount_usd', 'purpose'],
-    },
-  },
-  {
-    name: 'send_usdc_payment',
-    description:
-      'Send USDC directly to a contributor\'s wallet address on Base L2 for labor payments. ' +
-      'Uses the AgentCard wallet — do NOT use this for merch or magazine purchases.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        to_address: {
-          type: 'string',
-          description: 'Recipient\'s 0x wallet address on Base.',
-        },
-        amount_usdc: {
-          type: 'number',
-          description: 'Amount in USDC (e.g. 50.00).',
-        },
-        memo: {
-          type: 'string',
-          description: 'Human-readable memo describing the payment purpose.',
-        },
-      },
-      required: ['to_address', 'amount_usdc', 'memo'],
-    },
-  },
-  {
-    name: 'shopify_checkout',
-    description:
-      'Purchase a Shopify product on behalf of a member using a virtual card. ' +
-      'Call request_virtual_card first to get card details. ' +
-      'Use product_handle "knead-magazine" for the print magazine.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        product_handle: {
-          type: 'string',
-          description: 'Shopify product handle (slug) to purchase.',
-        },
-        quantity: {
-          type: 'number',
-          description: 'Number of units to order.',
-        },
-        recipient_name: {
-          type: 'string',
-          description: 'Full name for shipping label.',
-        },
-        shipping_address: {
-          type: 'object',
-          description: 'Shipping address for physical delivery.',
-          properties: {
-            address1: { type: 'string' },
-            city: { type: 'string' },
-            province: { type: 'string', description: 'State/province abbreviation' },
-            zip: { type: 'string' },
-            country: { type: 'string', description: 'Two-letter country code, e.g. US' },
+    type: 'function',
+    function: {
+      name: 'request_virtual_card',
+      description:
+        'Request a one-time virtual credit card from AgentCard for a given USD amount. ' +
+        'Returns PAN, CVV, expiry, and billing ZIP. Use this before any Shopify checkout.',
+      parameters: {
+        type: 'object',
+        properties: {
+          amount_usd: {
+            type: 'number',
+            description: 'Total charge amount in USD (e.g. 29.99).',
           },
-          required: ['address1', 'city', 'province', 'zip', 'country'],
-        },
-        card: {
-          type: 'object',
-          description: 'Virtual card details from request_virtual_card.',
-          properties: {
-            pan: { type: 'string' },
-            cvv: { type: 'string' },
-            expiry: { type: 'string', description: 'MM/YYYY or MM/YY' },
-            billing_zip: { type: 'string' },
+          purpose: {
+            type: 'string',
+            description: 'Brief description of what this card will be used for (for audit trail).',
           },
-          required: ['pan', 'cvv', 'expiry', 'billing_zip'],
         },
+        required: ['amount_usd', 'purpose'],
       },
-      required: ['product_handle', 'quantity', 'recipient_name', 'shipping_address', 'card'],
     },
   },
   {
-    name: 'post_towns_message',
-    description: 'Post a status update or completion report to the Towns chat channel.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        message: {
-          type: 'string',
-          description: 'Message text to post in the channel.',
+    type: 'function',
+    function: {
+      name: 'send_usdc_payment',
+      description:
+        'Send USDC directly to a contributor\'s wallet address on Base L2 for labor payments. ' +
+        'Uses the AgentCard wallet — do NOT use this for merch or magazine purchases.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to_address: {
+            type: 'string',
+            description: 'Recipient\'s 0x wallet address on Base.',
+          },
+          amount_usdc: {
+            type: 'number',
+            description: 'Amount in USDC (e.g. 50.00).',
+          },
+          memo: {
+            type: 'string',
+            description: 'Human-readable memo describing the payment purpose.',
+          },
         },
-        channel_id: {
-          type: 'string',
-          description: 'Towns channel ID. Omit to use the default agent channel.',
-        },
+        required: ['to_address', 'amount_usdc', 'memo'],
       },
-      required: ['message'],
     },
   },
   {
-    name: 'lookup_member',
-    description:
-      'Look up a Knead member by wallet address or alias to retrieve their profile, ' +
-      'including their wallet address and any stored shipping address.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        identifier: {
-          type: 'string',
-          description: '0x wallet address or display alias.',
+    type: 'function',
+    function: {
+      name: 'shopify_checkout',
+      description:
+        'Purchase a Shopify product on behalf of a member using a virtual card. ' +
+        'Call request_virtual_card first to get card details. ' +
+        'Use product_handle "knead-magazine" for the print magazine.',
+      parameters: {
+        type: 'object',
+        properties: {
+          product_handle: {
+            type: 'string',
+            description: 'Shopify product handle (slug) to purchase.',
+          },
+          quantity: {
+            type: 'number',
+            description: 'Number of units to order.',
+          },
+          recipient_name: {
+            type: 'string',
+            description: 'Full name for shipping label.',
+          },
+          shipping_address: {
+            type: 'object',
+            description: 'Shipping address for physical delivery.',
+            properties: {
+              address1: { type: 'string' },
+              city: { type: 'string' },
+              province: { type: 'string', description: 'State/province abbreviation' },
+              zip: { type: 'string' },
+              country: { type: 'string', description: 'Two-letter country code, e.g. US' },
+            },
+            required: ['address1', 'city', 'province', 'zip', 'country'],
+          },
+          card: {
+            type: 'object',
+            description: 'Virtual card details from request_virtual_card.',
+            properties: {
+              pan: { type: 'string' },
+              cvv: { type: 'string' },
+              expiry: { type: 'string', description: 'MM/YYYY or MM/YY' },
+              billing_zip: { type: 'string' },
+            },
+            required: ['pan', 'cvv', 'expiry', 'billing_zip'],
+          },
         },
+        required: ['product_handle', 'quantity', 'recipient_name', 'shipping_address', 'card'],
       },
-      required: ['identifier'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'post_towns_message',
+      description: 'Post a status update or completion report to the Towns chat channel.',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'Message text to post in the channel.',
+          },
+          channel_id: {
+            type: 'string',
+            description: 'Towns channel ID. Omit to use the default agent channel.',
+          },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'lookup_member',
+      description:
+        'Look up a Knead member by wallet address or alias to retrieve their profile, ' +
+        'including their wallet address and any stored shipping address.',
+      parameters: {
+        type: 'object',
+        properties: {
+          identifier: {
+            type: 'string',
+            description: '0x wallet address or display alias.',
+          },
+        },
+        required: ['identifier'],
+      },
     },
   },
 ];
@@ -460,7 +475,8 @@ Rules:
 The command was issued by wallet: ${command.senderAddress}
 ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: ${command.proposalId})` : ''}`;
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: command.command },
   ];
 
@@ -471,21 +487,22 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
 
-    const response = await anthropic.messages.create({
+    const response = await openai.chat.completions.create({
       model: MODEL,
       max_tokens: 4096,
-      system: systemPrompt,
       tools: TOOLS,
       messages,
     });
 
     // Append assistant turn
-    messages.push({ role: 'assistant', content: response.content });
+    const assistantMessage = response.choices[0].message;
+    messages.push(assistantMessage);
 
-    // Check stop condition
-    if (response.stop_reason === 'end_turn') {
-      const textBlock = response.content.find(b => b.type === 'text');
-      const summary = textBlock && 'text' in textBlock ? textBlock.text : 'Agent completed.';
+    const toolCalls = assistantMessage.tool_calls ?? [];
+
+    // Check stop condition — no tool calls means the agent is done
+    if (toolCalls.length === 0) {
+      const summary = assistantMessage.content || 'Agent completed.';
       return {
         success: errors.length === 0,
         summary,
@@ -494,41 +511,30 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
       };
     }
 
-    if (response.stop_reason !== 'tool_use') break;
-
     // Execute all tool calls in this turn
-    const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-    for (const block of toolUseBlocks) {
-      if (block.type !== 'tool_use') continue;
-
+    for (const call of toolCalls) {
       let result: string;
-      let isError = false;
+      const input = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
 
       try {
         result = await handleTool(
-          block.name,
-          block.input as Record<string, unknown>,
+          call.function.name,
+          input,
           { defaultChannelId, postMessage },
         );
-        actionsCompleted.push(`${block.name}(${JSON.stringify(block.input)})`);
+        actionsCompleted.push(`${call.function.name}(${JSON.stringify(input)})`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         result = `Error: ${msg}`;
-        isError = true;
-        errors.push(`${block.name}: ${msg}`);
+        errors.push(`${call.function.name}: ${msg}`);
       }
 
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: block.id,
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
         content: result,
-        is_error: isError,
       });
     }
-
-    messages.push({ role: 'user', content: toolResults });
   }
 
   return {
