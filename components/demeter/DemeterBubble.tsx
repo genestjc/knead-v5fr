@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { X, Send, Loader2, Copy, Check } from 'lucide-react';
+import { X, Send, Loader2, Copy, Check, Volume2, Square } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -104,6 +104,63 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Text-to-speech playback. Tracks which message index is loading/playing so
+  // each Demeter reply gets its own Listen/Stop toggle.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const [audioLoadingIdx, setAudioLoadingIdx] = useState<number | null>(null);
+
+  function stopAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setSpeakingIdx(null);
+  }
+
+  async function speak(text: string, idx: number) {
+    // Tapping the active message stops it
+    if (speakingIdx === idx) {
+      stopAudio();
+      return;
+    }
+    stopAudio(); // stop any other reply that's playing
+    setAudioLoadingIdx(idx);
+
+    try {
+      const res = await fetch('/api/demeter/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error('TTS failed');
+
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        if (audioRef.current === audio) audioRef.current = null;
+        setSpeakingIdx((cur) => (cur === idx ? null : cur));
+      };
+      audio.onended = cleanup;
+      audio.onerror = cleanup;
+
+      await audio.play();
+      setSpeakingIdx(idx);
+    } catch {
+      stopAudio();
+    } finally {
+      setAudioLoadingIdx(null);
+    }
+  }
+
+  // Stop narration when the panel closes or the component unmounts
+  useEffect(() => {
+    if (!open) stopAudio();
+  }, [open]);
+  useEffect(() => () => stopAudio(), []);
 
   // Scroll to latest message
   useEffect(() => {
@@ -218,8 +275,25 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
               return (
                 <div key={i} className="flex flex-col gap-2">
                   {reply && (
-                    <div className="bg-gray-50 text-gray-900 text-sm font-georgia-pro rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[88%] leading-relaxed whitespace-pre-wrap">
-                      {reply}
+                    <div className="flex flex-col gap-1 max-w-[88%]">
+                      <div className="bg-gray-50 text-gray-900 text-sm font-georgia-pro rounded-2xl rounded-tl-sm px-4 py-2.5 leading-relaxed whitespace-pre-wrap">
+                        {reply}
+                      </div>
+                      <button
+                        onClick={() => speak(reply, i)}
+                        disabled={audioLoadingIdx === i}
+                        className="flex items-center gap-1 text-xs font-georgia-pro text-gray-400 hover:text-black transition w-fit pl-1 disabled:opacity-60"
+                        aria-label={speakingIdx === i ? 'Stop narration' : 'Listen to this reply'}
+                      >
+                        {audioLoadingIdx === i ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : speakingIdx === i ? (
+                          <Square size={12} />
+                        ) : (
+                          <Volume2 size={12} />
+                        )}
+                        {audioLoadingIdx === i ? 'Loading…' : speakingIdx === i ? 'Stop' : 'Listen'}
+                      </button>
                     </div>
                   )}
                   {share && <ShareCard text={share} slug={slug} />}
