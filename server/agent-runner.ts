@@ -3,7 +3,7 @@
  *
  * Uses SyncAgent from @towns-protocol/sdk (server-side, no React).
  * Listens in NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID for @Demeter mentions
- * from Admin/Contributor wallets, runs the Claude agent loop, and posts results
+ * from Admin/Contributor wallets, runs the OpenAI agent loop, and posts results
  * back to Towns.
  *
  * Run with:  npx tsx server/agent-runner.ts
@@ -13,7 +13,7 @@
  *   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID                 ✅ already on Render
  *   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID       ✅ already on Render
  *   NEXT_PUBLIC_BASE_RPC_URL                        ✅ already on Render
- *   ANTHROPIC_API_KEY
+ *   OPENAI_API_KEY
  *   NEXT_PUBLIC_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  *   THIRDWEB_SECRET_KEY
@@ -69,8 +69,8 @@ async function main() {
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('Missing ANTHROPIC_API_KEY');
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('Missing OPENAI_API_KEY');
   }
 
   const townsConfig  = townsEnv().makeTownsConfig('omega', { rpcUrl: BASE_RPC });
