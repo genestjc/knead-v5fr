@@ -10,6 +10,7 @@ import { UnlockContent } from "../../../components/unlock-content"
 import { PremiumBadge } from "../../../components/premium-badge"
 import { PortableTextRenderer } from "../../../components/portable-text-renderer"
 import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
+import { ArticleListenButton } from "../../../components/demeter/ArticleListenButton"
 import { FreeArticleCTA } from "../../../components/free-article-cta"
 
 // Define the params type for the page
@@ -160,6 +161,7 @@ export default async function PostPage({ params }: PostPageProps) {
                   </div>
                 )}
               </header>
+              <ArticleListenButton slug={params.slug} isPremium={isPremiumPost} />
               {post.mainImage && (
                 <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg mb-12">
                   <Image
