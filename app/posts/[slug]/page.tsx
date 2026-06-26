@@ -161,7 +161,7 @@ export default async function PostPage({ params }: PostPageProps) {
                   </div>
                 )}
               </header>
-              <ArticleListenButton slug={params.slug} isPremium={isPremiumPost} />
+              <ArticleListenButton slug={params.slug} contentId={post._id} isPremium={isPremiumPost} />
               {post.mainImage && (
                 <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg mb-12">
                   <Image
