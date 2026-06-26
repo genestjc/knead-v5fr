@@ -79,16 +79,15 @@ export const RECIPES: BuildRecipe[] = [
     title: 'Streaming Site',
     emoji: '🎬',
     description:
-      'Mux-powered video streaming with membership paywalls. Upload, transcode, and serve video at scale.',
-    tags: ['Mux', 'Stripe', 'Thirdweb'],
+      'Daily.co-powered video streaming with membership paywalls. Host live rooms, gate access, and stream at scale.',
+    tags: ['Daily.co', 'Stripe', 'Thirdweb'],
     sourceFiles: [
-      'app/api/admin/mux/upload/route.ts',
-      'app/api/admin/mux/asset/route.ts',
+      'app/api/events/create-daily-room/route.ts',
+      'app/api/events/generate-token/route.ts',
     ],
-    stack: ['Next.js 14', 'Mux', 'Thirdweb', 'Stripe', 'Supabase'],
+    stack: ['Next.js 14', 'Daily.co', 'Thirdweb', 'Stripe', 'Supabase'],
     envVarsNeeded: [
-      'MUX_TOKEN_ID',
-      'MUX_TOKEN_SECRET',
+      'DAILY_API_KEY',
       'NEXT_PUBLIC_THIRDWEB_CLIENT_ID',
       'STRIPE_SECRET_KEY',
     ],
