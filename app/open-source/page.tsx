@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { Header } from '@/components/header';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
-
-// ─── Main page ────────────────────────────────────────────────────────────────
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,7 +22,10 @@ export default function OpenSourcePage() {
 
 // ─── Build UI ─────────────────────────────────────────────────────────────────
 
+type View = 'landing' | 'menu' | 'chat';
+
 function BuildUI({ walletAddress }: { walletAddress?: string }) {
+  const [view, setView] = useState<View>('landing');
   const [selectedRecipes, setSelectedRecipes] = useState<RecipeId[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -34,32 +35,12 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
-  const [activeIdx, setActiveIdx] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  // Sync scroll position → activeIdx
-  const onCarouselScroll = useCallback(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const idx = Math.round(el.scrollLeft / el.clientWidth);
-    setActiveIdx(idx);
-  }, []);
-
-  const scrollTo = useCallback((idx: number) => {
-    const el = carouselRef.current;
-    if (!el) return;
-    el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' });
-    setActiveIdx(idx);
-  }, []);
-
-  const prev = () => scrollTo(Math.max(0, activeIdx - 1));
-  const next = () => scrollTo(Math.min(RECIPES.length - 1, activeIdx + 1));
 
   const toggleRecipe = (id: RecipeId) => {
     setSelectedRecipes((prev) =>
@@ -69,6 +50,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading || rateLimited) return;
+    setView('chat');
 
     const userMsg: Message = { role: 'user', content: text.trim() };
     const history = [...messages];
@@ -93,10 +75,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
         setRateLimited(true);
         setMessages((prev) => [
           ...prev,
-          {
-            role: 'assistant',
-            content: `You've used your ${FREE_TURNS_PER_DAY} free turns today. [Upgrade to Knead Monthly](/join) for unlimited builds.`,
-          },
+          { role: 'assistant', content: `You've used your ${FREE_TURNS_PER_DAY} free turns today. [Upgrade to Knead Monthly](/join) for unlimited builds.` },
         ]);
         return;
       }
@@ -106,10 +85,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
       if (typeof data.turnsLeft === 'number') setTurnsLeft(data.turnsLeft);
       if (data.zipProposal) setZipProposal(data.zipProposal);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'Something went wrong. Please try again.' },
-      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]);
     } finally {
       setLoading(false);
     }
@@ -159,35 +135,90 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
-  };
-
   const startWithRecipe = (recipe: BuildRecipe) => {
     if (!selectedRecipes.includes(recipe.id)) setSelectedRecipes((prev) => [...prev, recipe.id]);
     sendMessage(`I want to build a ${recipe.title}: ${recipe.description}`);
-    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const showMenu = messages.length === 0;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white">
       <Header />
 
-      {showMenu ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
+      {/* ── Landing ─────────────────────────────────────────────────────────── */}
+      {view === 'landing' && (
+        <div className="flex-1 flex flex-col items-center justify-center px-4 animate-fade-in-up">
+          <div className="w-full max-w-2xl">
+            <h1 className="font-adonis text-4xl md:text-5xl text-black text-center mb-3">
+              What would you like to build?
+            </h1>
+            <p className="font-georgia-pro text-gray-400 text-center mb-10 text-base">
+              Describe it, or{' '}
+              <button
+                onClick={() => setView('menu')}
+                className="underline underline-offset-2 hover:text-black transition-colors"
+              >
+                browse the menu
+              </button>
+              .
+            </p>
 
-          {/* Full-bleed tile carousel */}
-          <div className="flex-1 relative overflow-hidden">
-            <div
-              ref={carouselRef}
-              onScroll={onCarouselScroll}
-              className="flex h-full overflow-x-auto snap-x snap-mandatory"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            <ChatInput
+              inputRef={inputRef}
+              value={input}
+              onChange={setInput}
+              onSubmit={() => sendMessage(input)}
+              onKeyDown={handleKeyDown}
+              loading={loading}
+              disabled={rateLimited}
+              placeholder="Describe what you want to build from Knead's stack…"
+            />
+
+            {/* Suggestion pills */}
+            <div className="flex flex-wrap gap-2 justify-center mt-6">
+              {RECIPES.slice(0, 4).map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => startWithRecipe(r)}
+                  className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
+                >
+                  {r.title}
+                </button>
+              ))}
+              <button
+                onClick={() => setView('menu')}
+                className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
+              >
+                See all →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Menu ────────────────────────────────────────────────────────────── */}
+      {view === 'menu' && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Menu header */}
+          <div className="shrink-0 px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <button
+              onClick={() => setView('landing')}
+              className="font-georgia-pro text-sm text-gray-400 hover:text-black transition-colors"
             >
+              ← Back
+            </button>
+            <span className="font-adonis text-sm tracking-widest uppercase text-gray-400">The Menu</span>
+            <div className="w-12" />
+          </div>
+
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 border-l border-t border-gray-100">
               {RECIPES.map((recipe, i) => (
-                <FullBleedTile
+                <MenuTile
                   key={recipe.id}
                   recipe={recipe}
                   index={i}
@@ -198,122 +229,69 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               ))}
             </div>
 
-            {/* Left arrow */}
-            {activeIdx > 0 && (
-              <button
-                onClick={prev}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:border-black transition-colors z-10"
-                aria-label="Previous"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M10 3L5 8l5 5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
-
-            {/* Right arrow */}
-            {activeIdx < RECIPES.length - 1 && (
-              <button
-                onClick={next}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:border-black transition-colors z-10"
-                aria-label="Next"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 3l5 5-5 5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
-
-            {/* Dot indicators */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-              {RECIPES.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => scrollTo(i)}
-                  className={`rounded-full transition-all duration-300 ${
-                    i === activeIdx ? 'w-4 h-1.5 bg-black' : 'w-1.5 h-1.5 bg-gray-300 hover:bg-gray-500'
-                  }`}
-                  aria-label={`Go to slide ${i + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom — title, description, input */}
-          <div className="shrink-0 border-t border-gray-100 px-6 md:px-12 pt-6 pb-6">
-            <div className="max-w-2xl mx-auto">
-              <h1 className="font-adonis text-2xl md:text-3xl text-black mb-1 animate-fade-in-up">
-                Ask Demeter what you&apos;d like to build.
-              </h1>
-              <p className="font-georgia-pro text-gray-500 text-sm mb-4 animate-fade-in-up-delay">
-                Anything from our stack — paywalled blog, streaming, live video, encrypted chat — yours to build.
-              </p>
-
-              {selectedRecipes.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
+            {selectedRecipes.length > 0 && (
+              <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between">
+                <div className="flex flex-wrap gap-1.5">
                   {selectedRecipes.map((id) => {
                     const r = RECIPES.find((x) => x.id === id)!;
                     return (
                       <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
-                        {r.emoji} {r.title}
+                        {r.title}
                         <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
                       </span>
                     );
                   })}
                 </div>
-              )}
-
-              <div className="animate-fade-in-up-delay-2">
-                <ChatInput
-                  inputRef={inputRef}
-                  value={input}
-                  onChange={setInput}
-                  onSubmit={() => sendMessage(input)}
-                  onKeyDown={handleKeyDown}
-                  loading={loading}
-                  disabled={rateLimited}
-                  placeholder="Describe what you want to build…"
-                />
+                <button
+                  onClick={() => sendMessage(`I want to build: ${selectedRecipes.map((id) => RECIPES.find((r) => r.id === id)?.title).join(', ')}`)}
+                  className="shrink-0 ml-4 bg-black text-white font-georgia-pro text-sm px-5 py-2 rounded-full hover:bg-gray-800 transition-colors"
+                >
+                  Build these →
+                </button>
               </div>
-            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Chat ────────────────────────────────────────────────────────────── */}
+      {view === 'chat' && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Top bar */}
+          <div className="shrink-0 border-b border-gray-50 px-4 py-2 flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => { setMessages([]); setView('landing'); }}
+              className="font-georgia-pro text-xs text-gray-400 hover:text-black transition-colors mr-2"
+            >
+              ← New
+            </button>
+            {selectedRecipes.map((id) => {
+              const r = RECIPES.find((x) => x.id === id)!;
+              return (
+                <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
+                  {r.title}
+                  <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
+                </span>
+              );
+            })}
+            {turnsLeft < FREE_TURNS_PER_DAY && !rateLimited && (
+              <span className="text-xs font-georgia-pro text-gray-300 ml-auto">
+                {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left
+              </span>
+            )}
+            {zipProposal && (
+              <button
+                onClick={downloadZip}
+                disabled={zipping}
+                className="ml-auto flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-1.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+              >
+                {zipping ? 'Building…' : '⬇ Download Starter'}
+              </button>
+            )}
           </div>
 
-        </div>
-      ) : (
-        /* ─── Chat view ─────────────────────────────────────────────────────── */
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Selected recipe chips + zip banner */}
-          {(selectedRecipes.length > 0 || zipProposal) && (
-            <div className="shrink-0 border-b border-gray-50 px-6 py-2 flex flex-wrap items-center gap-2">
-              {selectedRecipes.map((id) => {
-                const r = RECIPES.find((x) => x.id === id)!;
-                return (
-                  <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
-                    {r.emoji} {r.title}
-                    <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
-                  </span>
-                );
-              })}
-              {turnsLeft < FREE_TURNS_PER_DAY && !rateLimited && (
-                <span className="text-xs font-georgia-pro text-gray-400 ml-auto">
-                  {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left today
-                </span>
-              )}
-              {zipProposal && (
-                <button
-                  onClick={downloadZip}
-                  disabled={zipping}
-                  className="ml-auto flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-1.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
-                >
-                  {zipping ? 'Building…' : '⬇ Download Starter'}
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6">
             <div className="max-w-2xl mx-auto space-y-4">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -337,7 +315,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                   )}
                 </div>
               ))}
-
               {loading && (
                 <div className="flex justify-start">
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
@@ -353,8 +330,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
             </div>
           </div>
 
-          {/* Bottom input */}
-          <div className="shrink-0 border-t border-gray-100 px-4 md:px-8 py-4">
+          {/* Input */}
+          <div className="shrink-0 border-t border-gray-100 px-4 py-4">
             <div className="max-w-2xl mx-auto">
               <ChatInput
                 inputRef={inputRef}
@@ -368,82 +345,57 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               />
               {rateLimited && (
                 <p className="text-center text-xs font-georgia-pro text-gray-400 mt-2">
-                  <a href="/join" className="underline hover:text-black">Upgrade to Knead Monthly</a>{' '}
-                  for unlimited builds.
+                  <a href="/join" className="underline hover:text-black">Upgrade to Knead Monthly</a> for unlimited builds.
                 </p>
               )}
             </div>
           </div>
-
         </div>
       )}
     </div>
   );
 }
 
-// ─── Full-bleed tile ──────────────────────────────────────────────────────────
+// ─── Menu tile ────────────────────────────────────────────────────────────────
 
-function FullBleedTile({ recipe, index, selected, onToggle, onOrder }: {
+function MenuTile({ recipe, index, selected, onToggle, onOrder }: {
   recipe: BuildRecipe; index: number; selected: boolean; onToggle: () => void; onOrder: () => void;
 }) {
-  const isEven = index % 2 === 0;
-
   return (
     <div
-      className={`snap-center shrink-0 w-full h-full flex flex-col justify-between p-8 md:p-16 cursor-pointer transition-colors duration-300 ${
-        selected
-          ? 'bg-black text-white'
-          : isEven
-          ? 'bg-white text-black'
-          : 'bg-[#f8f7f4] text-black'
-      }`}
       onClick={onToggle}
+      className={`relative border-r border-b border-gray-100 p-6 cursor-pointer transition-colors duration-200 ${
+        selected ? 'bg-black' : 'bg-white hover:bg-gray-50'
+      }`}
     >
-      {/* Top — index number */}
-      <div className={`font-adonis text-sm tracking-widest uppercase ${selected ? 'text-gray-500' : 'text-gray-300'}`}>
-        0{index + 1}
-      </div>
+      {/* Number */}
+      <p className={`font-adonis text-xs tracking-widest mb-3 ${selected ? 'text-gray-600' : 'text-gray-300'}`}>
+        {String(index + 1).padStart(2, '0')}
+      </p>
 
-      {/* Middle — main content */}
-      <div className="flex-1 flex flex-col justify-center max-w-xl">
-        <p className={`text-4xl mb-6 ${selected ? '' : ''}`}>{recipe.emoji}</p>
-        <h2 className={`font-adonis text-4xl md:text-6xl leading-tight mb-4 ${selected ? 'text-white' : 'text-black'}`}>
-          {recipe.title}
-        </h2>
-        <div className={`w-12 h-px mb-4 ${selected ? 'bg-gray-600' : 'bg-gray-200'}`} />
-        <p className={`font-georgia-pro text-base md:text-lg leading-relaxed ${selected ? 'text-gray-300' : 'text-gray-500'}`}>
-          {recipe.description}
-        </p>
-        <div className="flex flex-wrap gap-2 mt-6">
-          {recipe.tags.map((t) => (
-            <span
-              key={t}
-              className={`text-xs font-georgia-pro uppercase tracking-wider px-3 py-1 border rounded-full ${
-                selected ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-400'
-              }`}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Title */}
+      <h3 className={`font-adonis text-lg leading-tight mb-2 ${selected ? 'text-white' : 'text-black'}`}>
+        {recipe.title}
+      </h3>
 
-      {/* Bottom — action */}
-      <div className="flex items-center justify-between">
-        <span className={`font-georgia-pro text-xs uppercase tracking-widest ${selected ? 'text-gray-500' : 'text-gray-300'}`}>
-          {selected ? 'Selected' : 'Tap to select'}
-        </span>
-        <button
-          className={`font-adonis text-sm px-6 py-2.5 rounded-full border transition-colors ${
-            selected
-              ? 'border-white text-white hover:bg-white hover:text-black'
-              : 'border-black text-black hover:bg-black hover:text-white'
-          }`}
-          onClick={(e) => { e.stopPropagation(); onOrder(); }}
-        >
-          Build this →
-        </button>
-      </div>
+      {/* Description */}
+      <p className={`font-georgia-pro text-xs leading-relaxed ${selected ? 'text-gray-400' : 'text-gray-400'}`}>
+        {recipe.description}
+      </p>
+
+      {/* Build button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onOrder(); }}
+        className={`mt-4 text-xs font-georgia-pro underline underline-offset-2 transition-colors ${
+          selected ? 'text-white hover:text-gray-300' : 'text-gray-400 hover:text-black'
+        }`}
+      >
+        Build this →
+      </button>
+
+      {selected && (
+        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-white" />
+      )}
     </div>
   );
 }
