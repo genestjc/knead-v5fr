@@ -159,7 +159,7 @@ export const RECIPES: BuildRecipe[] = [
     title: 'End-To-End Encrypted Chat',
     emoji: '💬',
     description:
-      'Create a group chat that\'s secure. Built with Towns Protocol.',
+      'Host a group chat that\'s secure. Built with Towns Protocol.',
     tags: ['Towns Protocol', 'Thirdweb'],
     sourceFiles: [
       'app/chat/page.tsx',
