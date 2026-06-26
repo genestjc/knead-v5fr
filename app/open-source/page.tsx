@@ -286,8 +286,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
-                    <div className="max-w-[85%]">
-                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap">
+                    <div className="max-w-[85%] min-w-0">
+                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap break-words overflow-hidden">
                         <MessageContent content={msg.content} />
                       </div>
                       {zipProposal && i === messages.length - 1 && (
@@ -302,7 +302,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                     </div>
                   )}
                   {msg.role === 'user' && (
-                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm font-georgia-pro max-w-[85%] whitespace-pre-wrap">
+                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm font-georgia-pro max-w-[85%] min-w-0 whitespace-pre-wrap break-words overflow-hidden">
                       {msg.content}
                     </div>
                   )}
@@ -368,7 +368,7 @@ function FlipTile({ recipe, index, onOrder }: {
 
   return (
     <div
-      className="relative border-r border-b border-white/10 cursor-pointer"
+      className="relative border-r border-b border-white/10 cursor-pointer overflow-hidden"
       style={{ perspective: '1000px', minHeight: '220px' }}
       onClick={() => setFlipped((v) => !v)}
     >
@@ -446,6 +446,7 @@ function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, di
           e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
         }}
         onKeyDown={onKeyDown}
+        onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
         placeholder={placeholder}
         disabled={disabled || loading}
         className="flex-1 resize-none outline-none text-sm font-georgia-pro text-black placeholder-gray-300 bg-transparent leading-relaxed disabled:opacity-50"
