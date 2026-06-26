@@ -4,63 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
 
-// ─── Password gate ────────────────────────────────────────────────────────────
-
-function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
-  const [pw, setPw] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/open-source/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
-      });
-      if (res.ok) {
-        onUnlock();
-      } else {
-        setError('Wrong password.');
-      }
-    } catch {
-      setError('Something went wrong.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <p className="text-2xl font-bold text-black mb-1">Knead Open Source</p>
-        <p className="text-gray-400 text-sm mb-8">Early access — enter the password to continue.</p>
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <input
-            type="password"
-            autoFocus
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            placeholder="Password"
-            className="border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-gray-400 transition-colors"
-          />
-          {error && <p className="text-red-500 text-xs">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !pw}
-            className="bg-black text-white rounded-xl py-3 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-40"
-          >
-            {loading ? 'Checking…' : 'Enter →'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 interface Message {
@@ -74,21 +17,7 @@ interface ZipProposal {
 }
 
 export default function OpenSourcePage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const account = useActiveAccount();
-
-  // Check cookie on mount
-  useEffect(() => {
-    fetch('/api/open-source/auth', { method: 'GET' })
-      .then((r) => { if (r.ok) setUnlocked(true); })
-      .catch(() => {})
-      .finally(() => setCheckingAuth(false));
-  }, []);
-
-  if (checkingAuth) return null;
-  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />;
-
   return <BuildUI walletAddress={account?.address} />;
 }
 
