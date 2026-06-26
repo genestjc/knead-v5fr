@@ -194,8 +194,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
       {/* ── Menu ────────────────────────────────────────────────────────────── */}
       {view === 'menu' && (
         <div className="flex-1 flex flex-col overflow-hidden bg-black">
-          {/* Menu header */}
-          <div className="shrink-0 px-6 py-5 border-b border-white/10 flex items-center justify-between">
+          {/* Menu header — no site Header, just title + back */}
+          <div className="shrink-0 px-6 py-5 flex items-center gap-4">
             <button
               onClick={() => setView('landing')}
               className="font-georgia-pro text-sm text-white/40 hover:text-white transition-colors"
@@ -203,7 +203,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               ← Back
             </button>
             <span className="font-adonis text-xl tracking-widest uppercase text-white">The Menu</span>
-            <div className="w-12" />
           </div>
 
           {/* Grid */}
@@ -269,15 +268,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                 {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left
               </span>
             )}
-            {zipProposal && (
-              <button
-                onClick={downloadZip}
-                disabled={zipping}
-                className="ml-auto flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-1.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
-              >
-                {zipping ? 'Building…' : '⬇ Download Starter'}
-              </button>
-            )}
           </div>
 
           {/* Messages */}
@@ -317,6 +307,17 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
           {/* Input */}
           <div className="shrink-0 border-t border-gray-100 px-4 py-4">
             <div className="max-w-2xl mx-auto">
+              {zipProposal && (
+                <div className="mb-3">
+                  <button
+                    onClick={downloadZip}
+                    disabled={zipping}
+                    className="flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+                  >
+                    {zipping ? 'Building…' : '⬇ Download Starter Kit'}
+                  </button>
+                </div>
+              )}
               <ChatInput
                 inputRef={inputRef}
                 value={input}
