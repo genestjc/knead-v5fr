@@ -144,7 +144,10 @@ export function middleware(request: NextRequest) {
       https://vercel.live
       https://vercel.com
       https://va.vercel-scripts.com
-      https://*.mux.com;
+      https://*.mux.com
+      https://raw.githubusercontent.com
+      https://api.github.com
+      https://api.tavily.com;
   `
     .replace(/\n/g, '')
     .replace(/\s{2,}/g, ' ')
