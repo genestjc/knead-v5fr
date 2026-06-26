@@ -100,10 +100,26 @@ function ShareCard({ text, slug }: { text: string; slug?: string }) {
 export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
   const account = useActiveAccount();
   const { membershipType } = useMembership();
+  const [canUse, setCanUse] = useState(!isPremiumPost); // free articles always visible
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isPremiumPost) { setCanUse(true); return; }
+    if (membershipType === 'premium') { setCanUse(true); return; }
+    if (!account) { setCanUse(false); return; }
+    // Freemium on a premium article — only show if they've already unlocked it
+    fetch('/api/track-article', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: slug, checkOnly: true }),
+    })
+      .then((r) => r.json())
+      .then((result) => setCanUse(Boolean(result.alreadyRead)))
+      .catch(() => setCanUse(false));
+  }, [isPremiumPost, membershipType, account, slug]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -196,34 +212,6 @@ export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
   async function send(text: string) {
     if (!text.trim() || loading) return;
 
-    if (!account && isPremiumPost) {
-      setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: 'Sign in to chat with Demeter.' }]);
-      setInput('');
-      resetTextareaHeight();
-      return;
-    }
-
-    // Premium articles: premium members always pass; freemium check their monthly read access
-    if (isPremiumPost && membershipType !== 'premium') {
-      try {
-        const res = await fetch('/api/track-article', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: slug, checkOnly: true }),
-        });
-        const result = await res.json();
-        const hasArticleAccess = result.alreadyRead;
-        if (!hasArticleAccess) {
-          setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: "Unlock this article first to chat with Demeter about it. Upgrade to Knead Monthly for unlimited access." }]);
-          setInput('');
-          resetTextareaHeight();
-          return;
-        }
-      } catch {
-        // Fail open — don't block on a network error
-      }
-    }
-
     const userMsg: Message = { role: 'user', content: text.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
@@ -260,6 +248,8 @@ export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
       setLoading(false);
     }
   }
+
+  if (!canUse) return null;
 
   return (
     <div ref={wrapperRef}>
