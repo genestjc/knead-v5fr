@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { Header } from '@/components/header';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -33,12 +34,32 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // Sync scroll position → activeIdx
+  const onCarouselScroll = useCallback(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveIdx(idx);
+  }, []);
+
+  const scrollTo = useCallback((idx: number) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' });
+    setActiveIdx(idx);
+  }, []);
+
+  const prev = () => scrollTo(Math.max(0, activeIdx - 1));
+  const next = () => scrollTo(Math.min(RECIPES.length - 1, activeIdx + 1));
 
   const toggleRecipe = (id: RecipeId) => {
     setSelectedRecipes((prev) =>
@@ -63,7 +84,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
           message: text.trim(),
           history,
           recipeIds: selectedRecipes,
-          walletAddress, // server verifies premium status — never send isPremium from client
+          walletAddress,
           zipProposal,
         }),
       });
@@ -151,127 +172,166 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const showMenu = messages.length === 0;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
-        <div className="flex items-center gap-3">
-          <a href="/" className="text-sm text-gray-400 hover:text-black transition-colors">← Knead</a>
-          <span className="text-gray-200">|</span>
-          <span className="font-semibold text-black">Open Source</span>
-        </div>
-        <div className="flex items-center gap-4">
-          {turnsLeft < FREE_TURNS_PER_DAY && !rateLimited && (
-            <span className="text-xs text-gray-400">
-              {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left today
-            </span>
-          )}
-          {zipProposal && (
-            <button
-              onClick={downloadZip}
-              disabled={zipping}
-              className="flex items-center gap-2 bg-black text-white text-sm px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+    <div className="h-screen flex flex-col overflow-hidden bg-white">
+      <Header />
+
+      {showMenu ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Full-bleed tile carousel */}
+          <div className="flex-1 relative overflow-hidden">
+            <div
+              ref={carouselRef}
+              onScroll={onCarouselScroll}
+              className="flex h-full overflow-x-auto snap-x snap-mandatory"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              {zipping ? '⏳ Building…' : '⬇ Download Starter'}
-            </button>
-          )}
-        </div>
-      </header>
+              {RECIPES.map((recipe, i) => (
+                <FullBleedTile
+                  key={recipe.id}
+                  recipe={recipe}
+                  index={i}
+                  selected={selectedRecipes.includes(recipe.id)}
+                  onToggle={() => toggleRecipe(recipe.id)}
+                  onOrder={() => startWithRecipe(recipe)}
+                />
+              ))}
+            </div>
 
-      {/* Selected recipe chips */}
-      {selectedRecipes.length > 0 && (
-        <div className="px-6 py-2 flex flex-wrap gap-2 border-b border-gray-50">
-          {selectedRecipes.map((id) => {
-            const r = RECIPES.find((x) => x.id === id)!;
-            return (
-              <span key={id} className="flex items-center gap-1 text-xs bg-gray-100 rounded-full px-3 py-1">
-                {r.emoji} {r.title}
-                <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
-              </span>
-            );
-          })}
-        </div>
-      )}
+            {/* Left arrow */}
+            {activeIdx > 0 && (
+              <button
+                onClick={prev}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:border-black transition-colors z-10"
+                aria-label="Previous"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M10 3L5 8l5 5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
-        {showMenu ? (
-          <div className="flex-1 py-12">
-            <div className="text-center mb-10">
-              <h1 className="text-4xl font-bold text-black mb-3">
-                Ask Demeter what you&apos;d like to build.
-              </h1>
-              <p className="text-gray-500 text-lg max-w-xl mx-auto">
-                Want a paywalled Sanity blog? You&apos;ve got it. Want a streaming site with Apple Pay
-                too? No problem. Anything from our stack, you can have.
-              </p>
-              <p className="text-gray-400 text-sm mt-3">
-                Can&apos;t decide?{' '}
+            {/* Right arrow */}
+            {activeIdx < RECIPES.length - 1 && (
+              <button
+                onClick={next}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:border-black transition-colors z-10"
+                aria-label="Next"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 3l5 5-5 5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            {/* Dot indicators */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+              {RECIPES.map((_, i) => (
                 <button
-                  className="underline hover:text-black transition-colors"
-                  onClick={() => document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' })}
-                >
-                  Check out the menu ↓
-                </button>
-              </p>
-            </div>
-
-            <div className="mb-12">
-              <ChatInput
-                inputRef={inputRef}
-                value={input}
-                onChange={setInput}
-                onSubmit={() => sendMessage(input)}
-                onKeyDown={handleKeyDown}
-                loading={loading}
-                disabled={rateLimited}
-                placeholder="Describe what you want to build…"
-              />
-            </div>
-
-            <div id="menu" className="scroll-mt-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="h-px flex-1 bg-gray-100" />
-                <span className="text-xs text-gray-400 uppercase tracking-widest font-medium">Today&apos;s Menu</span>
-                <div className="h-px flex-1 bg-gray-100" />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {RECIPES.map((recipe) => (
-                  <MenuTile
-                    key={recipe.id}
-                    recipe={recipe}
-                    selected={selectedRecipes.includes(recipe.id)}
-                    onToggle={() => toggleRecipe(recipe.id)}
-                    onOrder={() => startWithRecipe(recipe)}
-                  />
-                ))}
-              </div>
-
-              <p className="text-center text-xs text-gray-300 mt-8">
-                Knead is open-source. Everything here comes from our repository.
-              </p>
+                  key={i}
+                  onClick={() => scrollTo(i)}
+                  className={`rounded-full transition-all duration-300 ${
+                    i === activeIdx ? 'w-4 h-1.5 bg-black' : 'w-1.5 h-1.5 bg-gray-300 hover:bg-gray-500'
+                  }`}
+                  aria-label={`Go to slide ${i + 1}`}
+                />
+              ))}
             </div>
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col py-6">
-            <div className="flex-1 space-y-4 mb-4">
+
+          {/* Bottom — title, description, input */}
+          <div className="shrink-0 border-t border-gray-100 px-6 md:px-12 pt-6 pb-6">
+            <div className="max-w-2xl mx-auto">
+              <h1 className="font-adonis text-2xl md:text-3xl text-black mb-1 animate-fade-in-up">
+                Ask Demeter what you&apos;d like to build.
+              </h1>
+              <p className="font-georgia-pro text-gray-500 text-sm mb-4 animate-fade-in-up-delay">
+                Anything from our stack — paywalled blog, streaming, live video, encrypted chat — yours to build.
+              </p>
+
+              {selectedRecipes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {selectedRecipes.map((id) => {
+                    const r = RECIPES.find((x) => x.id === id)!;
+                    return (
+                      <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
+                        {r.emoji} {r.title}
+                        <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="animate-fade-in-up-delay-2">
+                <ChatInput
+                  inputRef={inputRef}
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={() => sendMessage(input)}
+                  onKeyDown={handleKeyDown}
+                  loading={loading}
+                  disabled={rateLimited}
+                  placeholder="Describe what you want to build…"
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      ) : (
+        /* ─── Chat view ─────────────────────────────────────────────────────── */
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Selected recipe chips + zip banner */}
+          {(selectedRecipes.length > 0 || zipProposal) && (
+            <div className="shrink-0 border-b border-gray-50 px-6 py-2 flex flex-wrap items-center gap-2">
+              {selectedRecipes.map((id) => {
+                const r = RECIPES.find((x) => x.id === id)!;
+                return (
+                  <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
+                    {r.emoji} {r.title}
+                    <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
+                  </span>
+                );
+              })}
+              {turnsLeft < FREE_TURNS_PER_DAY && !rateLimited && (
+                <span className="text-xs font-georgia-pro text-gray-400 ml-auto">
+                  {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left today
+                </span>
+              )}
+              {zipProposal && (
+                <button
+                  onClick={downloadZip}
+                  disabled={zipping}
+                  className="ml-auto flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-1.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+                >
+                  {zipping ? 'Building…' : '⬇ Download Starter'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+            <div className="max-w-2xl mx-auto space-y-4">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
                     <div className="flex flex-col gap-1 max-w-[85%]">
-                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-800 whitespace-pre-wrap">
+                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap">
                         <MessageContent content={msg.content} />
                       </div>
                       <button
                         onClick={() => speakMessage(msg.content, i)}
-                        className="text-left text-xs text-gray-300 hover:text-gray-500 transition-colors pl-1"
+                        className="text-left text-xs font-georgia-pro text-gray-300 hover:text-gray-500 transition-colors pl-1"
                       >
                         {speakingMsgIdx === i ? '⏸ stop' : '🔊 listen'}
                       </button>
                     </div>
                   )}
                   {msg.role === 'user' && (
-                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap">
+                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm font-georgia-pro max-w-[85%] whitespace-pre-wrap">
                       {msg.content}
                     </div>
                   )}
@@ -291,82 +351,104 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               )}
               <div ref={bottomRef} />
             </div>
-
-            {zipProposal && (
-              <div className="mb-3 bg-gray-50 border border-gray-100 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-black">Starter kit ready</p>
-                  <p className="text-xs text-gray-400">
-                    {zipProposal.files.length} file{zipProposal.files.length !== 1 ? 's' : ''} · README included
-                  </p>
-                </div>
-                <button
-                  onClick={downloadZip}
-                  disabled={zipping}
-                  className="bg-black text-white text-sm px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
-                >
-                  {zipping ? 'Building…' : '⬇ Download'}
-                </button>
-              </div>
-            )}
-
-            <ChatInput
-              inputRef={inputRef}
-              value={input}
-              onChange={setInput}
-              onSubmit={() => sendMessage(input)}
-              onKeyDown={handleKeyDown}
-              loading={loading}
-              disabled={rateLimited}
-              placeholder={rateLimited ? 'Daily limit reached — upgrade for unlimited builds' : 'Ask a follow-up…'}
-            />
-
-            {rateLimited && (
-              <p className="text-center text-xs text-gray-400 mt-2">
-                <a href="/join" className="underline hover:text-black">Upgrade to Knead Monthly</a>{' '}
-                for unlimited builds.
-              </p>
-            )}
           </div>
-        )}
-      </div>
+
+          {/* Bottom input */}
+          <div className="shrink-0 border-t border-gray-100 px-4 md:px-8 py-4">
+            <div className="max-w-2xl mx-auto">
+              <ChatInput
+                inputRef={inputRef}
+                value={input}
+                onChange={setInput}
+                onSubmit={() => sendMessage(input)}
+                onKeyDown={handleKeyDown}
+                loading={loading}
+                disabled={rateLimited}
+                placeholder={rateLimited ? 'Daily limit reached — upgrade for unlimited builds' : 'Ask a follow-up…'}
+              />
+              {rateLimited && (
+                <p className="text-center text-xs font-georgia-pro text-gray-400 mt-2">
+                  <a href="/join" className="underline hover:text-black">Upgrade to Knead Monthly</a>{' '}
+                  for unlimited builds.
+                </p>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Full-bleed tile ──────────────────────────────────────────────────────────
 
-function MenuTile({ recipe, selected, onToggle, onOrder }: {
-  recipe: BuildRecipe; selected: boolean; onToggle: () => void; onOrder: () => void;
+function FullBleedTile({ recipe, index, selected, onToggle, onOrder }: {
+  recipe: BuildRecipe; index: number; selected: boolean; onToggle: () => void; onOrder: () => void;
 }) {
+  const isEven = index % 2 === 0;
+
   return (
     <div
-      className={`relative border rounded-xl p-4 cursor-pointer transition-all ${
-        selected ? 'border-black bg-black text-white' : 'border-gray-100 bg-white hover:border-gray-300'
+      className={`snap-center shrink-0 w-full h-full flex flex-col justify-between p-8 md:p-16 cursor-pointer transition-colors duration-300 ${
+        selected
+          ? 'bg-black text-white'
+          : isEven
+          ? 'bg-white text-black'
+          : 'bg-[#f8f7f4] text-black'
       }`}
       onClick={onToggle}
     >
-      <p className="text-xl mb-1">{recipe.emoji}</p>
-      <p className={`font-semibold text-sm ${selected ? 'text-white' : 'text-black'}`}>{recipe.title}</p>
-      <p className={`text-xs mt-1 leading-relaxed ${selected ? 'text-gray-300' : 'text-gray-400'}`}>{recipe.description}</p>
-      <div className="flex flex-wrap gap-1 mt-2">
-        {recipe.tags.map((t) => (
-          <span key={t} className={`text-[10px] px-2 py-0.5 rounded-full ${selected ? 'bg-white/20 text-gray-200' : 'bg-gray-100 text-gray-500'}`}>
-            {t}
-          </span>
-        ))}
+      {/* Top — index number */}
+      <div className={`font-adonis text-sm tracking-widest uppercase ${selected ? 'text-gray-500' : 'text-gray-300'}`}>
+        0{index + 1}
       </div>
-      <button
-        className={`absolute bottom-3 right-3 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-          selected ? 'bg-white text-black hover:bg-gray-100' : 'bg-black text-white hover:bg-gray-800'
-        }`}
-        onClick={(e) => { e.stopPropagation(); onOrder(); }}
-      >
-        Build this →
-      </button>
+
+      {/* Middle — main content */}
+      <div className="flex-1 flex flex-col justify-center max-w-xl">
+        <p className={`text-4xl mb-6 ${selected ? '' : ''}`}>{recipe.emoji}</p>
+        <h2 className={`font-adonis text-4xl md:text-6xl leading-tight mb-4 ${selected ? 'text-white' : 'text-black'}`}>
+          {recipe.title}
+        </h2>
+        <div className={`w-12 h-px mb-4 ${selected ? 'bg-gray-600' : 'bg-gray-200'}`} />
+        <p className={`font-georgia-pro text-base md:text-lg leading-relaxed ${selected ? 'text-gray-300' : 'text-gray-500'}`}>
+          {recipe.description}
+        </p>
+        <div className="flex flex-wrap gap-2 mt-6">
+          {recipe.tags.map((t) => (
+            <span
+              key={t}
+              className={`text-xs font-georgia-pro uppercase tracking-wider px-3 py-1 border rounded-full ${
+                selected ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-400'
+              }`}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom — action */}
+      <div className="flex items-center justify-between">
+        <span className={`font-georgia-pro text-xs uppercase tracking-widest ${selected ? 'text-gray-500' : 'text-gray-300'}`}>
+          {selected ? 'Selected' : 'Tap to select'}
+        </span>
+        <button
+          className={`font-adonis text-sm px-6 py-2.5 rounded-full border transition-colors ${
+            selected
+              ? 'border-white text-white hover:bg-white hover:text-black'
+              : 'border-black text-black hover:bg-black hover:text-white'
+          }`}
+          onClick={(e) => { e.stopPropagation(); onOrder(); }}
+        >
+          Build this →
+        </button>
+      </div>
     </div>
   );
 }
+
+// ─── Chat input ───────────────────────────────────────────────────────────────
 
 function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, disabled, placeholder }: {
   inputRef: React.RefObject<HTMLTextAreaElement>;
@@ -388,7 +470,7 @@ function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, di
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         disabled={disabled || loading}
-        className="flex-1 resize-none outline-none text-sm text-black placeholder-gray-300 bg-transparent leading-relaxed disabled:opacity-50"
+        className="flex-1 resize-none outline-none text-sm font-georgia-pro text-black placeholder-gray-300 bg-transparent leading-relaxed disabled:opacity-50"
         style={{ minHeight: '24px', maxHeight: '160px' }}
       />
       <button
@@ -407,6 +489,8 @@ function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, di
     </div>
   );
 }
+
+// ─── Message content renderer ─────────────────────────────────────────────────
 
 function MessageContent({ content }: { content: string }) {
   const parts = content.split(/(```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*)/g);
