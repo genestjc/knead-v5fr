@@ -196,7 +196,7 @@ export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
   async function send(text: string) {
     if (!text.trim() || loading) return;
 
-    if (!account) {
+    if (!account && isPremiumPost) {
       setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: 'Sign in to chat with Demeter.' }]);
       setInput('');
       resetTextareaHeight();
