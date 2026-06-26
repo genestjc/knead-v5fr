@@ -131,7 +131,7 @@ export default async function PostPage({ params }: PostPageProps) {
     return (
       <>
         <Header />
-        <DemeterBubble slug={params.slug} isPremiumPost={isPremiumPost} />
+        <DemeterBubble slug={params.slug} contentId={post._id} isPremiumPost={isPremiumPost} />
         <main className="min-h-screen bg-white">
           <article className="py-12 md:py-16">
             <div className="container-magazine">
