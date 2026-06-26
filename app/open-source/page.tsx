@@ -133,10 +133,10 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
         <div className="flex-1 flex flex-col items-center justify-center px-4 animate-fade-in-up">
           <div className="w-full max-w-2xl">
             <h1 className="font-adonis text-4xl md:text-5xl text-black text-center mb-3">
-              Describe it to Demeter.
+              What would you like to build?
             </h1>
             <p className="font-georgia-pro text-gray-400 text-center mb-10 text-base">
-              Or{' '}
+              Describe it to Demeter, or{' '}
               <button
                 onClick={() => setView('menu')}
                 className="underline underline-offset-2 hover:text-black transition-colors"
@@ -159,7 +159,12 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
             {/* Suggestion pills */}
             <div className="flex flex-wrap gap-2 justify-center mt-6">
-              {(['paywalled-blog', 'streaming', 'e2e-chat', 'video-calls'] as RecipeId[]).map((id) => {
+              {([
+                { id: 'paywalled-blog', label: 'Paywalled Content' },
+                { id: 'streaming', label: 'Streaming' },
+                { id: 'e2e-chat', label: 'End-To-End Encrypted Chat' },
+                { id: 'asset-builder', label: 'Agentic Assistance' },
+              ] as { id: RecipeId; label: string }[]).map(({ id, label }) => {
                 const r = RECIPES.find((x) => x.id === id)!;
                 return (
                   <button
@@ -167,9 +172,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                     onClick={() => startWithRecipe(r)}
                     className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
                   >
-                    {id === 'paywalled-blog' ? 'Paywalled Content' :
-                     id === 'e2e-chat' ? 'End-To-End Encrypted Chat' :
-                     r.title}
+                    {label}
                   </button>
                 );
               })}
@@ -181,7 +184,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               </button>
             </div>
 
-            <p className="font-georgia-pro italic text-gray-300 text-xs text-center mt-4">
+            <p className="font-georgia-pro italic text-gray-400 text-sm text-center mt-5">
               Knead's stack is completely open source. Learn to build anything from our repository.
             </p>
           </div>
