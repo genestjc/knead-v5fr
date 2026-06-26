@@ -216,11 +216,11 @@ export const RECIPES: BuildRecipe[] = [
     title: 'Social Asset Studio',
     emoji: '🎨',
     description:
-      "Copy/Paste Knead's internal tool for creating social posts, plugging in your own branding and assets to turn out posts quickly.",
-    tags: ['OpenAI', 'Sanity'],
-    sourceFiles: ['app/api/demeter/chat/route.ts', 'app/api/demeter/speak/route.ts'],
-    stack: ['Next.js 14', 'OpenAI GPT-4o', 'Sanity'],
-    envVarsNeeded: ['OPENAI_API_KEY', 'NEXT_PUBLIC_SANITY_PROJECT_ID'],
+      "Copy/Paste Knead's internal tool for creating social posts. Upload an image, set your type, download a ready-to-post asset. Runs entirely in the browser — no API costs.",
+    tags: [],
+    sourceFiles: ['components/admin/socialassetstudio/index.tsx'],
+    stack: ['Next.js 14', 'Canvas API', 'Tailwind CSS'],
+    envVarsNeeded: [],
   },
   {
     id: 'membership-systems',
