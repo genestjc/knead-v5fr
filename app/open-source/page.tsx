@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { Header } from '@/components/header';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
+import { PaywallModal } from '@/components/PaywallModal';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -34,6 +35,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const [zipProposal, setZipProposal] = useState<ZipProposal | null>(null);
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -74,8 +76,9 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
         setRateLimited(true);
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `You've used your ${FREE_TURNS_PER_DAY} free turns today. [Upgrade to Knead Monthly](/join) for unlimited builds.` },
+          { role: 'assistant', content: `You've used your ${FREE_TURNS_PER_DAY} free turns for today.` },
         ]);
+        setShowPaywall(true);
         return;
       }
 
@@ -264,9 +267,15 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               );
             })}
             {turnsLeft < FREE_TURNS_PER_DAY && !rateLimited && (
-              <span className="text-xs font-georgia-pro text-gray-300 ml-auto">
+              <button
+                onClick={() => setShowPaywall(true)}
+                className="relative group text-xs font-georgia-pro text-gray-300 hover:text-gray-500 ml-auto transition-colors"
+              >
                 {turnsLeft} turn{turnsLeft !== 1 ? 's' : ''} left
-              </span>
+                <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-64 bg-black text-white text-xs font-georgia-pro rounded-xl px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity leading-relaxed z-10">
+                  Free members get {FREE_TURNS_PER_DAY} turns a day to pull from Knead's stack. Sign up for Knead Monthly for unlimited use.
+                </span>
+              </button>
             )}
           </div>
 
@@ -328,13 +337,23 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               />
               {rateLimited && (
                 <p className="text-center text-xs font-georgia-pro text-gray-400 mt-2">
-                  <a href="/join" className="underline hover:text-black">Upgrade to Knead Monthly</a> for unlimited builds.
+                  <button onClick={() => setShowPaywall(true)} className="underline hover:text-black transition-colors">Upgrade to Knead Monthly</button> for unlimited builds.
                 </p>
               )}
             </div>
           </div>
         </div>
       )}
+
+      <PaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => {
+          setRateLimited(false);
+          setTurnsLeft(FREE_TURNS_PER_DAY);
+          setShowPaywall(false);
+        }}
+      />
     </div>
   );
 }
