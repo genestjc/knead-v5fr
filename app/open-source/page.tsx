@@ -217,6 +217,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                   key={recipe.id}
                   recipe={recipe}
                   index={i}
+                  selected={selectedRecipes.includes(recipe.id)}
+                  onSelect={() => toggleRecipe(recipe.id)}
                   onOrder={() => startWithRecipe(recipe)}
                 />
               ))}
@@ -361,8 +363,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
 // ─── Flip tile ────────────────────────────────────────────────────────────────
 
-function FlipTile({ recipe, index, onOrder }: {
-  recipe: BuildRecipe; index: number; onOrder: () => void;
+function FlipTile({ recipe, index, onOrder, selected, onSelect }: {
+  recipe: BuildRecipe; index: number; onOrder: () => void; selected: boolean; onSelect: () => void;
 }) {
   const [flipped, setFlipped] = useState(false);
 
@@ -424,10 +426,10 @@ function FlipTile({ recipe, index, onOrder }: {
             {recipe.description}
           </p>
           <button
-            onClick={(e) => { e.stopPropagation(); onOrder(); }}
-            className="mt-4 text-xs font-georgia-pro text-black underline underline-offset-2 hover:text-gray-500 transition-colors w-fit"
+            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            className={`mt-4 text-xs font-georgia-pro underline underline-offset-2 transition-colors w-fit ${selected ? 'text-gray-400' : 'text-black hover:text-gray-500'}`}
           >
-            Build this →
+            {selected ? '✓ Added' : 'Build this →'}
           </button>
         </div>
       </div>
