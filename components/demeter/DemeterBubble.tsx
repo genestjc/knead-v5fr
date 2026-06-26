@@ -12,6 +12,7 @@ interface Message {
 
 interface DemeterBubbleProps {
   slug?: string;
+  contentId?: string;
   isPremiumPost?: boolean;
 }
 
@@ -97,7 +98,7 @@ function ShareCard({ text, slug }: { text: string; slug?: string }) {
   );
 }
 
-export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
+export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleProps) {
   const account = useActiveAccount();
   const { membershipType } = useMembership();
   const [canUse, setCanUse] = useState(!isPremiumPost); // free articles always visible
@@ -114,7 +115,7 @@ export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
     fetch('/api/track-article', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: slug, checkOnly: true }),
+      body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: contentId || slug, checkOnly: true }),
     })
       .then((r) => r.json())
       .then((result) => setCanUse(Boolean(result.alreadyRead)))
