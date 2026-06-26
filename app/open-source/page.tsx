@@ -184,7 +184,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               </button>
             </div>
 
-            <p className="font-georgia-pro italic text-gray-400 text-sm text-center mt-5">
+            <p className="font-georgia-pro italic text-gray-400 text-sm text-center mt-10">
               Knead's stack is completely open source. Learn to build anything from our repository.
             </p>
           </div>
