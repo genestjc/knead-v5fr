@@ -34,7 +34,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const [zipProposal, setZipProposal] = useState<ZipProposal | null>(null);
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
-  const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -115,25 +114,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
     }
   };
 
-  const speakMessage = async (text: string, idx: number) => {
-    if (speakingMsgIdx === idx) { setSpeakingMsgIdx(null); return; }
-    setSpeakingMsgIdx(idx);
-    try {
-      const res = await fetch('/api/demeter/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.replace(/[#*`[\]]/g, '').slice(0, 1000) }),
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => { setSpeakingMsgIdx(null); URL.revokeObjectURL(url); };
-      audio.play();
-    } catch {
-      setSpeakingMsgIdx(null);
-    }
-  };
 
   const startWithRecipe = (recipe: BuildRecipe) => {
     if (!selectedRecipes.includes(recipe.id)) setSelectedRecipes((prev) => [...prev, recipe.id]);
@@ -153,10 +133,10 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
         <div className="flex-1 flex flex-col items-center justify-center px-4 animate-fade-in-up">
           <div className="w-full max-w-2xl">
             <h1 className="font-adonis text-4xl md:text-5xl text-black text-center mb-3">
-              What would you like to build?
+              Describe it to Demeter.
             </h1>
             <p className="font-georgia-pro text-gray-400 text-center mb-10 text-base">
-              Describe it, or{' '}
+              Or{' '}
               <button
                 onClick={() => setView('menu')}
                 className="underline underline-offset-2 hover:text-black transition-colors"
@@ -179,15 +159,20 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
             {/* Suggestion pills */}
             <div className="flex flex-wrap gap-2 justify-center mt-6">
-              {RECIPES.slice(0, 4).map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => startWithRecipe(r)}
-                  className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
-                >
-                  {r.title}
-                </button>
-              ))}
+              {(['paywalled-blog', 'streaming', 'e2e-chat', 'video-calls'] as RecipeId[]).map((id) => {
+                const r = RECIPES.find((x) => x.id === id)!;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => startWithRecipe(r)}
+                    className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
+                  >
+                    {id === 'paywalled-blog' ? 'Paywalled Content' :
+                     id === 'e2e-chat' ? 'End-To-End Encrypted Chat' :
+                     r.title}
+                  </button>
+                );
+              })}
               <button
                 onClick={() => setView('menu')}
                 className="text-xs font-georgia-pro border border-gray-200 rounded-full px-4 py-2 text-gray-500 hover:border-black hover:text-black transition-colors"
@@ -195,6 +180,10 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                 See all →
               </button>
             </div>
+
+            <p className="font-georgia-pro italic text-gray-300 text-xs text-center mt-4">
+              Knead's stack is completely open source. Learn to build anything from our repository.
+            </p>
           </div>
         </div>
       )}
@@ -296,16 +285,10 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
-                    <div className="flex flex-col gap-1 max-w-[85%]">
+                    <div className="max-w-[85%]">
                       <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap">
                         <MessageContent content={msg.content} />
                       </div>
-                      <button
-                        onClick={() => speakMessage(msg.content, i)}
-                        className="text-left text-xs font-georgia-pro text-gray-300 hover:text-gray-500 transition-colors pl-1"
-                      >
-                        {speakingMsgIdx === i ? '⏸ stop' : '🔊 listen'}
-                      </button>
                     </div>
                   )}
                   {msg.role === 'user' && (
