@@ -193,50 +193,48 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
       {/* ── Menu ────────────────────────────────────────────────────────────── */}
       {view === 'menu' && (
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden bg-black">
           {/* Menu header */}
-          <div className="shrink-0 px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="shrink-0 px-6 py-5 border-b border-white/10 flex items-center justify-between">
             <button
               onClick={() => setView('landing')}
-              className="font-georgia-pro text-sm text-gray-400 hover:text-black transition-colors"
+              className="font-georgia-pro text-sm text-white/40 hover:text-white transition-colors"
             >
               ← Back
             </button>
-            <span className="font-adonis text-sm tracking-widest uppercase text-gray-400">The Menu</span>
+            <span className="font-adonis text-xl tracking-widest uppercase text-white">The Menu</span>
             <div className="w-12" />
           </div>
 
           {/* Grid */}
           <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 border-l border-t border-gray-100">
+            <div className="grid grid-cols-2 md:grid-cols-4">
               {RECIPES.map((recipe, i) => (
-                <MenuTile
+                <FlipTile
                   key={recipe.id}
                   recipe={recipe}
                   index={i}
-                  selected={selectedRecipes.includes(recipe.id)}
-                  onToggle={() => toggleRecipe(recipe.id)}
                   onOrder={() => startWithRecipe(recipe)}
                 />
               ))}
             </div>
 
             {selectedRecipes.length > 0 && (
-              <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between">
+              <div className="sticky bottom-0 border-t border-white/10 bg-black px-6 py-4 flex items-center justify-between">
                 <div className="flex flex-wrap gap-1.5">
                   {selectedRecipes.map((id) => {
                     const r = RECIPES.find((x) => x.id === id)!;
                     return (
-                      <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-gray-100 rounded-full px-3 py-1">
+                      <span key={id} className="flex items-center gap-1 text-xs font-georgia-pro bg-white/10 text-white rounded-full px-3 py-1">
                         {r.title}
-                        <button className="ml-1 text-gray-400 hover:text-black" onClick={() => toggleRecipe(id)}>×</button>
+                        <button className="ml-1 text-white/40 hover:text-white" onClick={() => toggleRecipe(id)}>×</button>
                       </span>
                     );
                   })}
                 </div>
                 <button
                   onClick={() => sendMessage(`I want to build: ${selectedRecipes.map((id) => RECIPES.find((r) => r.id === id)?.title).join(', ')}`)}
-                  className="shrink-0 ml-4 bg-black text-white font-georgia-pro text-sm px-5 py-2 rounded-full hover:bg-gray-800 transition-colors"
+                  className="shrink-0 ml-4 bg-white text-black font-georgia-pro text-sm px-5 py-2 rounded-full hover:bg-gray-100 transition-colors"
                 >
                   Build these →
                 </button>
@@ -342,46 +340,69 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   );
 }
 
-// ─── Menu tile ────────────────────────────────────────────────────────────────
+// ─── Flip tile ────────────────────────────────────────────────────────────────
 
-function MenuTile({ recipe, index, selected, onToggle, onOrder }: {
-  recipe: BuildRecipe; index: number; selected: boolean; onToggle: () => void; onOrder: () => void;
+function FlipTile({ recipe, index, onOrder }: {
+  recipe: BuildRecipe; index: number; onOrder: () => void;
 }) {
+  const [flipped, setFlipped] = useState(false);
+
   return (
     <div
-      onClick={onToggle}
-      className={`relative border-r border-b border-gray-100 p-6 cursor-pointer transition-colors duration-200 ${
-        selected ? 'bg-black' : 'bg-white hover:bg-gray-50'
-      }`}
+      className="relative border-r border-b border-white/10 cursor-pointer"
+      style={{ perspective: '1000px', minHeight: '220px' }}
+      onClick={() => setFlipped((v) => !v)}
     >
-      {/* Number */}
-      <p className={`font-adonis text-xs tracking-widest mb-3 ${selected ? 'text-gray-600' : 'text-gray-300'}`}>
-        {String(index + 1).padStart(2, '0')}
-      </p>
-
-      {/* Title */}
-      <h3 className={`font-adonis text-lg leading-tight mb-2 ${selected ? 'text-white' : 'text-black'}`}>
-        {recipe.title}
-      </h3>
-
-      {/* Description */}
-      <p className={`font-georgia-pro text-xs leading-relaxed ${selected ? 'text-gray-400' : 'text-gray-400'}`}>
-        {recipe.description}
-      </p>
-
-      {/* Build button */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onOrder(); }}
-        className={`mt-4 text-xs font-georgia-pro underline underline-offset-2 transition-colors ${
-          selected ? 'text-white hover:text-gray-300' : 'text-gray-400 hover:text-black'
-        }`}
+      <div
+        style={{
+          transition: 'transform 0.55s cubic-bezier(0.4,0.2,0.2,1)',
+          transformStyle: 'preserve-3d',
+          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          position: 'absolute', inset: 0,
+        }}
       >
-        Build this →
-      </button>
+        {/* Front */}
+        <div
+          style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+          className="absolute inset-0 flex flex-col justify-between p-6"
+        >
+          <p className="font-adonis text-xs tracking-widest text-white/30">
+            {String(index + 1).padStart(2, '0')}
+          </p>
+          <h3 className="font-adonis text-2xl md:text-3xl leading-tight text-white">
+            {recipe.title}
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {recipe.tags.slice(0, 2).map((t) => (
+              <span key={t} className="text-[10px] font-georgia-pro text-white/30 uppercase tracking-wider">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
 
-      {selected && (
-        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-white" />
-      )}
+        {/* Back */}
+        <div
+          style={{
+            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+          }}
+          className="absolute inset-0 flex flex-col justify-between p-6 bg-white"
+        >
+          <h3 className="font-adonis text-lg leading-tight text-black">
+            {recipe.title}
+          </h3>
+          <p className="font-georgia-pro text-sm leading-relaxed text-gray-600 flex-1 mt-3">
+            {recipe.description}
+          </p>
+          <button
+            onClick={(e) => { e.stopPropagation(); onOrder(); }}
+            className="mt-4 text-xs font-georgia-pro text-black underline underline-offset-2 hover:text-gray-500 transition-colors w-fit"
+          >
+            Build this →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
