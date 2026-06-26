@@ -74,11 +74,12 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
       if (res.status === 429) {
         setRateLimited(true);
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `You've used your ${FREE_TURNS_PER_DAY} free turns for today.` },
-        ]);
-        setShowPaywall(true);
+        if (!walletAddress) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: 'Please sign in to continue.' }]);
+        } else {
+          setMessages((prev) => [...prev, { role: 'assistant', content: `You've used your ${FREE_TURNS_PER_DAY} free turns for today.` }]);
+          setShowPaywall(true);
+        }
         return;
       }
 
@@ -333,9 +334,9 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                 onKeyDown={handleKeyDown}
                 loading={loading}
                 disabled={rateLimited}
-                placeholder={rateLimited ? 'Daily limit reached — upgrade for unlimited builds' : 'Ask a follow-up…'}
+                placeholder={rateLimited ? (walletAddress ? 'Daily limit reached — upgrade for unlimited builds' : 'Please sign in to continue') : 'Ask a follow-up…'}
               />
-              {rateLimited && (
+              {rateLimited && walletAddress && (
                 <p className="text-center text-xs font-georgia-pro text-gray-400 mt-2">
                   <button onClick={() => setShowPaywall(true)} className="underline hover:text-black transition-colors">Upgrade to Knead Monthly</button> for unlimited builds.
                 </p>
