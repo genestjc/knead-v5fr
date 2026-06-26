@@ -21,9 +21,11 @@ type Status = 'idle' | 'loading' | 'playing' | 'paused';
  */
 export function ArticleListenButton({
   slug,
+  contentId,
   isPremium,
 }: {
   slug: string;
+  contentId?: string;
   isPremium: boolean;
 }) {
   const account = useActiveAccount();
@@ -72,15 +74,13 @@ export function ArticleListenButton({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             user_address: account.address.toLowerCase(),
-            story_slug: slug,
+            story_slug: contentId || slug,
             checkOnly: true,
           }),
         });
         const result = await res.json();
         if (cancelled) return;
-        setAllowed(
-          Boolean(result.alreadyRead) || (result.reads || 0) < ARTICLE_LIMITS.FREEMIUM,
-        );
+        setAllowed(Boolean(result.alreadyRead));
       } catch {
         if (!cancelled) setAllowed(false);
       }
