@@ -126,7 +126,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white">
-      <Header />
+      {view !== 'menu' && <Header />
 
       {/* ── Landing ─────────────────────────────────────────────────────────── */}
       {view === 'landing' && (
@@ -194,11 +194,11 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
       {/* ── Menu ────────────────────────────────────────────────────────────── */}
       {view === 'menu' && (
         <div className="flex-1 flex flex-col overflow-hidden bg-black">
-          {/* Menu header — no site Header, just title + back */}
-          <div className="shrink-0 px-6 py-5 flex items-center gap-4">
+          {/* Menu header — no site Header, title centered, back button left */}
+          <div className="shrink-0 px-6 py-5 relative flex items-center justify-center">
             <button
               onClick={() => setView('landing')}
-              className="font-georgia-pro text-sm text-white/40 hover:text-white transition-colors"
+              className="absolute left-6 font-georgia-pro text-sm text-white/40 hover:text-white transition-colors"
             >
               ← Back
             </button>
@@ -280,6 +280,15 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                       <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap">
                         <MessageContent content={msg.content} />
                       </div>
+                      {zipProposal && i === messages.length - 1 && (
+                        <button
+                          onClick={downloadZip}
+                          disabled={zipping}
+                          className="mt-2 flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+                        >
+                          {zipping ? 'Building…' : '⬇ Download Starter Kit'}
+                        </button>
+                      )}
                     </div>
                   )}
                   {msg.role === 'user' && (
@@ -307,17 +316,6 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
           {/* Input */}
           <div className="shrink-0 border-t border-gray-100 px-4 py-4">
             <div className="max-w-2xl mx-auto">
-              {zipProposal && (
-                <div className="mb-3">
-                  <button
-                    onClick={downloadZip}
-                    disabled={zipping}
-                    className="flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
-                  >
-                    {zipping ? 'Building…' : '⬇ Download Starter Kit'}
-                  </button>
-                </div>
-              )}
               <ChatInput
                 inputRef={inputRef}
                 value={input}
