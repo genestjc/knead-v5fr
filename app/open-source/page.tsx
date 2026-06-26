@@ -126,7 +126,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white">
-      {view !== 'menu' && <Header />
+      {view !== 'menu' && <Header />}
 
       {/* ── Landing ─────────────────────────────────────────────────────────── */}
       {view === 'landing' && (
