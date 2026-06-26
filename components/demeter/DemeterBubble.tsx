@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
 import { X, Send, Loader2, Copy, Check, Volume2, Square } from 'lucide-react';
 
 interface Message {
@@ -96,7 +95,6 @@ function ShareCard({ text, slug }: { text: string; slug?: string }) {
 }
 
 export function DemeterBubble({ slug }: DemeterBubbleProps) {
-  const account = useActiveAccount();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -229,9 +227,6 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
       setLoading(false);
     }
   }
-
-  // Don't render anything if not signed in
-  if (!account) return null;
 
   return (
     <div ref={wrapperRef}>
