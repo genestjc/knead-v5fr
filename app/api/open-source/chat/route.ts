@@ -106,14 +106,19 @@ async function checkAndIncrementUsage(
 // ---------- GitHub source fetching ----------
 
 async function rawFetch(repo: string, branch: string, path: string): Promise<string> {
-  const url = `https://raw.githubusercontent.com/${repo}/${branch}/${path}`;
-  const res = await fetch(url, {
-    headers: process.env.GITHUB_TOKEN
-      ? { Authorization: `token ${process.env.GITHUB_TOKEN}` }
-      : {},
-    next: { revalidate: 3600 },
-  });
-  if (!res.ok) return null as unknown as string;
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.raw+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+
+  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
+  const res = await fetch(url, { headers, next: { revalidate: 3600 } });
+
+  if (!res.ok) {
+    console.error(`[github] ${res.status} fetching ${repo}/${branch}/${path}`);
+    return null as unknown as string;
+  }
   const text = await res.text();
   return text.length > 8000 ? text.slice(0, 8000) + '\n// ... (truncated)' : text;
 }
@@ -122,7 +127,8 @@ async function fetchSourceFile(path: string): Promise<string> {
   try {
     const text = await rawFetch(GITHUB_REPO, GITHUB_BRANCH, path);
     return text ?? `// File not found: ${path}`;
-  } catch {
+  } catch (e) {
+    console.error(`[github] exception fetching ${path}:`, e);
     return `// Could not fetch ${path}`;
   }
 }
