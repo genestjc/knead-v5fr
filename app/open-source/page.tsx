@@ -287,7 +287,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
                     <div className="max-w-[85%] min-w-0">
-                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap break-words overflow-hidden">
+                      <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
                         <MessageContent content={msg.content} />
                       </div>
                       {zipProposal && i === messages.length - 1 && (
@@ -302,7 +302,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                     </div>
                   )}
                   {msg.role === 'user' && (
-                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm font-georgia-pro max-w-[85%] min-w-0 whitespace-pre-wrap break-words overflow-hidden">
+                    <div className="bg-black text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm font-georgia-pro max-w-[85%] min-w-0 whitespace-pre-wrap overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
                       {msg.content}
                     </div>
                   )}
@@ -368,10 +368,19 @@ function FlipTile({ recipe, index, onOrder }: {
 
   return (
     <div
-      className="relative border-r border-b border-white/10 cursor-pointer overflow-hidden"
-      style={{ perspective: '1000px', minHeight: '220px' }}
+      className="relative border-r border-b border-white/10 cursor-pointer"
+      style={{ perspective: '1000px' }}
       onClick={() => setFlipped((v) => !v)}
     >
+      {/* Invisible spacer — sized to the larger of front/back so the tile always fits */}
+      <div aria-hidden className="invisible p-6 flex flex-col gap-3">
+        <p className="text-xs">{String(index + 1).padStart(2, '0')}</p>
+        <p className="font-adonis text-2xl md:text-3xl leading-tight">{recipe.title}</p>
+        <p className="font-georgia-pro text-sm leading-relaxed">{recipe.description}</p>
+        <p className="text-xs">Build this →</p>
+      </div>
+
+      {/* Animated card — absolutely fills the spacer-sized container */}
       <div
         style={{
           transition: 'transform 0.55s cubic-bezier(0.4,0.2,0.2,1)',
