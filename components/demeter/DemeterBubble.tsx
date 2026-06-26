@@ -212,9 +212,9 @@ export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
           body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: slug, checkOnly: true }),
         });
         const result = await res.json();
-        const hasArticleAccess = result.alreadyRead || (result.reads ?? 0) < 3;
+        const hasArticleAccess = result.alreadyRead;
         if (!hasArticleAccess) {
-          setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: "You've used your 3 free articles this month. Upgrade to Knead Monthly for unlimited access." }]);
+          setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: "Unlock this article first to chat with Demeter about it. Upgrade to Knead Monthly for unlimited access." }]);
           setInput('');
           resetTextareaHeight();
           return;
