@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useActiveAccount } from 'thirdweb/react';
+import { useMembership } from '@/components/membership-provider';
 import { X, Send, Loader2, Copy, Check, Volume2, Square } from 'lucide-react';
 
 interface Message {
@@ -10,6 +12,7 @@ interface Message {
 
 interface DemeterBubbleProps {
   slug?: string;
+  isPremiumPost?: boolean;
 }
 
 /** Split Demeter's reply into the answer, a shareable social post, and suggested follow-ups */
@@ -94,7 +97,9 @@ function ShareCard({ text, slug }: { text: string; slug?: string }) {
   );
 }
 
-export function DemeterBubble({ slug }: DemeterBubbleProps) {
+export function DemeterBubble({ slug, isPremiumPost }: DemeterBubbleProps) {
+  const account = useActiveAccount();
+  const { membershipType } = useMembership();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -190,6 +195,34 @@ export function DemeterBubble({ slug }: DemeterBubbleProps) {
 
   async function send(text: string) {
     if (!text.trim() || loading) return;
+
+    if (!account) {
+      setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: 'Sign in to chat with Demeter.' }]);
+      setInput('');
+      resetTextareaHeight();
+      return;
+    }
+
+    // Premium articles: premium members always pass; freemium check their monthly read access
+    if (isPremiumPost && membershipType !== 'premium') {
+      try {
+        const res = await fetch('/api/track-article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_address: account.address.toLowerCase(), story_slug: slug, checkOnly: true }),
+        });
+        const result = await res.json();
+        const hasArticleAccess = result.alreadyRead || (result.reads ?? 0) < 3;
+        if (!hasArticleAccess) {
+          setMessages((prev) => [...prev, { role: 'user', content: text.trim() }, { role: 'assistant', content: "You've used your 3 free articles this month. Upgrade to Knead Monthly for unlimited access." }]);
+          setInput('');
+          resetTextareaHeight();
+          return;
+        }
+      } catch {
+        // Fail open — don't block on a network error
+      }
+    }
 
     const userMsg: Message = { role: 'user', content: text.trim() };
     setMessages((prev) => [...prev, userMsg]);
