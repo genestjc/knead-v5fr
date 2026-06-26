@@ -249,7 +249,7 @@ export const RECIPES: BuildRecipe[] = [
     title: 'Scale',
     emoji: '📈',
     description:
-      "Dig through Knead's lean stack for pay-as-you-go solutions. Perfect for independent builders and small teams.",
+      "Dig through Knead's stack for lean solutions. Perfect for independent builders and small teams.",
     tags: ['Supabase', 'Vercel', 'Stripe'],
     sourceFiles: [
       'supabase/migrations/',
