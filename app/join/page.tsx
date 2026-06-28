@@ -329,7 +329,6 @@ export default function JoinPage() {
               <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Unlimited access to stories and chat events.</li>                
                 <li>Unlimted turns in Open Source.</li>
-                <li>Create a chat alias.</li>
                 <li>Participate and comment during chat events.</li>
                 <li>Receive tips + gifts from Contributors in the chat.</li>
                 <li>Submit Demeter proposals in the chat.</li>
