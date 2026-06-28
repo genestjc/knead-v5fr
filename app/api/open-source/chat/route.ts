@@ -28,7 +28,7 @@ async function verifyPremium(walletAddress: string): Promise<boolean> {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
+const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'genestjc/knead-v5fr';
 const GITHUB_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
 
 // Vendor repos — the same packages Knead ships with
