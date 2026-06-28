@@ -301,6 +301,7 @@ export default function JoinPage() {
               <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Read three stories per month.</li>
                 <li>Watch one hour of chat events.</li>
+                <li>Five turns per day in Open Source.</li>
               </ul>
               <p className="font-georgia-pro italic mb-4 text-left">
                 Sign in below to get started
@@ -326,12 +327,12 @@ export default function JoinPage() {
                 <span className="text-base font-adonis text-gray-600">/month</span>
               </p>
               <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
-                <li>Unlimited access to stories and chat events.</li>
+                <li>Unlimited access to stories and chat events.</li>                
+                <li>Unlimted turns in Open Source.</li>
                 <li>Create a chat alias.</li>
                 <li>Participate and comment during chat events.</li>
-                <li>Receive tips from Contributors in the chat.</li>
+                <li>Receive tips + gifts from Contributors in the chat.</li>
                 <li>Submit Demeter proposals in the chat.</li>
-                <li>Receive gifts from Contributors in the chat.</li>
               </ul>
               {isLoading || isVerifying ? (
                 <div className="flex flex-col items-center gap-2">
