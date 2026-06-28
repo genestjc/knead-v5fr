@@ -27,7 +27,13 @@ export function Footer() {
 
           <div className="text-center md:text-left">
             <h3 className="font-adonis text-xl text-gray-400 hover:text-black transition-colors">
-              <Link href="/archive">The Archive</Link>
+              <Link href="/open-source">Open Source</Link>
+            </h3>
+          </div>
+
+          <div className="text-center md:text-left">
+            <h3 className="font-adonis text-xl text-gray-400 hover:text-black transition-colors">
+              <Link href="/archive">Archive</Link>
             </h3>
           </div>
 
