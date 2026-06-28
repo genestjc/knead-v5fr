@@ -46,7 +46,7 @@ export function Menu({ isOpen, onClose }: MenuProps) {
           Open Source
         </Link>
         <Link href="/archive" className="menu-link font-adonis" onClick={onClose}>
-          The Archive
+          Archive
         </Link>
       </nav>
     </div>
