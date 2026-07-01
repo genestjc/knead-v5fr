@@ -4,7 +4,7 @@ import { createThirdwebClient, getContract } from 'thirdweb';
 import { balanceOf } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId } from '@/lib/build-recipes';
+import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, type RecipeId } from '@/lib/build-recipes';
 
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -28,7 +28,7 @@ async function verifyPremium(walletAddress: string): Promise<boolean> {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'genestjc/knead-v5fr';
+const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
 const GITHUB_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
 
 // Vendor repos — the same packages Knead ships with
@@ -294,10 +294,28 @@ function buildSystemPrompt(recipeIds: RecipeId[]): string {
   const selected = RECIPES.filter((r) => recipeIds.includes(r.id));
   const recipeContext =
     selected.length > 0
-      ? `\n\nThe user is interested in building:\n${selected.map((r) => `- ${r.emoji} **${r.title}**: ${r.description}\n  Stack: ${r.stack.join(', ')}\n  Env vars needed: ${r.envVarsNeeded.join(', ')}`).join('\n')}`
+      ? `\n\nThe user is interested in building:\n${selected.map((r) => {
+          const lines = [
+            `- ${r.emoji} **${r.title}**: ${r.description}`,
+            `  Stack: ${r.stack.join(', ')}`,
+            `  Env vars needed: ${r.envVarsNeeded.join(', ')}`,
+            `  Why Knead built this: ${r.why}`,
+            `  Architecture: ${r.architectureNote}`,
+            `  Tradeoffs: ${r.tradeoffs}`,
+          ];
+          if (r.mistakesWeMade?.length) {
+            lines.push(`  Mistakes we made: ${r.mistakesWeMade.join(' / ')}`);
+          }
+          if (r.canonicalFiles?.length) {
+            lines.push(`  Start by reading: ${r.canonicalFiles.join(', ')}`);
+          }
+          return lines.join('\n');
+        }).join('\n\n')}`
       : '';
 
-  return `You are Demeter, Knead's build assistant. You help developers spin up production-ready apps using Knead's open-source stack.
+  return `You are Demeter, Knead's build assistant. You help developers spin up production-ready apps using Knead's open-source stack. When explaining *why* things are built a certain way, draw on the founder context below — speak in that voice, not as a generic AI.
+
+${KNEAD_PHILOSOPHY}
 
 Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), OpenAI GPT-4o (AI features), Tailwind CSS + shadcn/ui.
 
