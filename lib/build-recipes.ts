@@ -369,11 +369,11 @@ export const RECIPES: BuildRecipe[] = [
     mistakesWeMade: [
       'First version used a server-side image generation library. Moving to client-side Canvas eliminated the server cost and made the preview instant.',
     ],
-    customizationNotes: 'Brand fonts are loaded in the useEffect at the top of the component. Replace the font names with your own to rebrand the tool completely. Color constants (CREAM, INK, etc.) are at the top of the file.',
+    customizationNotes: 'This is Knead\'s own branding out of the box — swap it out before shipping. The font-loading useEffect loads "adonis-web" (Knead\'s display font, used for the "K" wordmark and headlines) and "Georgia Pro" (used for kicker, body, and byline). Replace both font family strings with your own brand fonts wherever styledFont() is called, and swap the "K" wordmark character/logo for your own mark. Color constants (CREAM, INK, WHITE, BLACK) at the top of the file define the background/text palette — update those to your brand colors too.',
     canonicalFiles: [
-      'components/admin/socialassetstudio/index.tsx',
+      'components/admin/SocialAssetStudio.tsx',
     ],
-    sourceFiles: ['components/admin/socialassetstudio/index.tsx'],
+    sourceFiles: ['components/admin/SocialAssetStudio.tsx'],
     stack: ['Next.js 14', 'Canvas API', 'Tailwind CSS'],
     envVarsNeeded: [],
   },
