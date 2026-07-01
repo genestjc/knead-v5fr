@@ -1,8 +1,10 @@
 // GitHub API utilities for Demeter
-// All calls go through the GitHub Contents API so token auth works on private repos.
+// All calls go through the GitHub Contents/Search API so token auth works on private repos.
+// Functions accept an explicit repo/branch so they work equally well against
+// Knead's own repo and any vendor SDK repo Demeter needs to explore.
 
-const REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
-const BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
+const DEFAULT_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
+const DEFAULT_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
 const MAX_FILE_BYTES = 10_000;
 
 function headers(): Record<string, string> {
@@ -14,17 +16,17 @@ function headers(): Record<string, string> {
   return h;
 }
 
-// ---------- fetch a single file ----------
+// ---------- fetch a single file (any repo) ----------
 
-export async function fetchFile(path: string): Promise<string | null> {
-  const url = `https://api.github.com/repos/${REPO}/contents/${path}?ref=${BRANCH}`;
+export async function fetchRepoFile(repo: string, branch: string, path: string): Promise<string | null> {
+  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
   try {
     const res = await fetch(url, {
       headers: { ...headers(), Accept: 'application/vnd.github.raw+json' },
       next: { revalidate: 3600 },
     });
     if (!res.ok) {
-      console.error(`[github] ${res.status} fetching ${path}`);
+      console.error(`[github] ${res.status} fetching ${repo}/${branch}/${path}`);
       return null;
     }
     const text = await res.text();
@@ -32,25 +34,30 @@ export async function fetchFile(path: string): Promise<string | null> {
       ? text.slice(0, MAX_FILE_BYTES) + '\n// ... (truncated)'
       : text;
   } catch (e) {
-    console.error(`[github] exception fetching ${path}:`, e);
+    console.error(`[github] exception fetching ${repo}/${path}:`, e);
     return null;
   }
 }
 
-// ---------- list a directory ----------
+export async function fetchFile(path: string): Promise<string | null> {
+  return fetchRepoFile(DEFAULT_REPO, DEFAULT_BRANCH, path);
+}
 
-interface DirEntry {
+// ---------- list a directory (any repo) ----------
+
+export interface DirEntry {
   name: string;
   path: string;
   type: 'file' | 'dir';
 }
 
-export async function listDirectory(dir: string): Promise<DirEntry[] | null> {
-  const url = `https://api.github.com/repos/${REPO}/contents/${dir}?ref=${BRANCH}`;
+export async function listRepoDirectory(repo: string, branch: string, dir: string): Promise<DirEntry[] | null> {
+  const cleanDir = dir.replace(/^\/+|\/+$/g, '');
+  const url = `https://api.github.com/repos/${repo}/contents/${cleanDir}?ref=${branch}`;
   try {
     const res = await fetch(url, { headers: headers(), next: { revalidate: 3600 } });
     if (!res.ok) {
-      console.error(`[github] ${res.status} listing ${dir}`);
+      console.error(`[github] ${res.status} listing ${repo}/${branch}/${cleanDir}`);
       return null;
     }
     const data = await res.json();
@@ -59,33 +66,34 @@ export async function listDirectory(dir: string): Promise<DirEntry[] | null> {
       .filter((e: any) => e.type === 'file' || e.type === 'dir')
       .map((e: any) => ({ name: e.name, path: e.path, type: e.type }));
   } catch (e) {
-    console.error(`[github] exception listing ${dir}:`, e);
+    console.error(`[github] exception listing ${repo}/${dir}:`, e);
     return null;
   }
 }
 
-// ---------- search the repo via GitHub code search API ----------
+export async function listDirectory(dir: string): Promise<DirEntry[] | null> {
+  return listRepoDirectory(DEFAULT_REPO, DEFAULT_BRANCH, dir);
+}
+
+// ---------- search code (any repo) ----------
 
 interface SearchResult {
   path: string;
   url: string;
 }
 
-export async function searchRepo(query: string): Promise<SearchResult[]> {
-  // GitHub code search requires auth for private repos
+async function codeSearch(rawQuery: string, repo: string): Promise<SearchResult[]> {
+  // GitHub code search requires an authenticated request
   if (!process.env.GITHUB_TOKEN) return [];
 
-  const q = encodeURIComponent(`${query} repo:${REPO}`);
+  const q = encodeURIComponent(`${rawQuery} repo:${repo}`);
   const url = `https://api.github.com/search/code?q=${q}&per_page=10`;
   try {
     const res = await fetch(url, {
-      headers: {
-        ...headers(),
-        Accept: 'application/vnd.github+json',
-      },
+      headers: { ...headers(), Accept: 'application/vnd.github+json' },
     });
     if (!res.ok) {
-      console.error(`[github] search ${res.status} for: ${query}`);
+      console.error(`[github] search ${res.status} for "${rawQuery}" in ${repo}`);
       return [];
     }
     const data = await res.json();
@@ -94,43 +102,36 @@ export async function searchRepo(query: string): Promise<SearchResult[]> {
       url: item.html_url,
     }));
   } catch (e) {
-    console.error(`[github] search exception:`, e);
+    console.error(`[github] search exception for ${repo}:`, e);
     return [];
   }
 }
 
-// ---------- search filenames by pattern ----------
+export async function searchRepoCode(repo: string, query: string): Promise<SearchResult[]> {
+  return codeSearch(query, repo);
+}
+
+export async function searchRepo(query: string): Promise<SearchResult[]> {
+  return codeSearch(query, DEFAULT_REPO);
+}
 
 export async function searchFilenames(pattern: string): Promise<SearchResult[]> {
-  if (!process.env.GITHUB_TOKEN) return [];
-
-  const q = encodeURIComponent(`filename:${pattern} repo:${REPO}`);
-  const url = `https://api.github.com/search/code?q=${q}&per_page=10`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        ...headers(),
-        Accept: 'application/vnd.github+json',
-      },
-    });
-    if (!res.ok) {
-      console.error(`[github] filename search ${res.status} for: ${pattern}`);
-      return [];
-    }
-    const data = await res.json();
-    return (data.items ?? []).map((item: any) => ({
-      path: item.path,
-      url: item.html_url,
-    }));
-  } catch (e) {
-    console.error(`[github] filename search exception:`, e);
-    return [];
-  }
+  return codeSearch(`filename:${pattern}`, DEFAULT_REPO);
 }
 
-// ---------- get a vendor file ----------
+export async function searchRepoFilenames(repo: string, pattern: string): Promise<SearchResult[]> {
+  return codeSearch(`filename:${pattern}`, repo);
+}
 
-const VENDOR_REPOS: Record<string, { repo: string; branch: string; description: string }> = {
+// ---------- vendor repos ----------
+
+interface VendorEntry {
+  repo: string;
+  branch: string;
+  description: string;
+}
+
+export const VENDOR_REPOS: Record<string, VendorEntry> = {
   thirdweb:      { repo: 'thirdweb-dev/js',               branch: 'main',   description: 'Thirdweb SDK (wallet auth, NFT, smart contracts)' },
   sanity:        { repo: 'sanity-io/sanity',               branch: 'next',   description: 'Sanity CMS core' },
   'next-sanity': { repo: 'sanity-io/next-sanity',          branch: 'main',   description: 'Sanity Next.js integration' },
@@ -146,31 +147,31 @@ const VENDOR_REPOS: Record<string, { repo: string; branch: string; description: 
   viem:          { repo: 'wevm/viem',                      branch: 'main',   description: 'Viem — low-level Ethereum client' },
 };
 
+function resolveVendor(vendor: string): VendorEntry | null {
+  return VENDOR_REPOS[vendor.toLowerCase()] ?? null;
+}
+
 export async function fetchVendorFile(vendor: string, path: string): Promise<string> {
-  const entry = VENDOR_REPOS[vendor.toLowerCase()];
+  const entry = resolveVendor(vendor);
   if (!entry) {
     const known = Object.keys(VENDOR_REPOS).join(', ');
     return `// Unknown vendor "${vendor}". Known vendors: ${known}`;
   }
-  const url = `https://api.github.com/repos/${entry.repo}/contents/${path}?ref=${entry.branch}`;
-  try {
-    const res = await fetch(url, {
-      headers: { ...headers(), Accept: 'application/vnd.github.raw+json' },
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) {
-      console.error(`[github] vendor ${res.status} fetching ${entry.repo}/${path}`);
-      return `// File not found in ${entry.repo}: ${path}`;
-    }
-    const text = await res.text();
-    const truncated = text.length > MAX_FILE_BYTES
-      ? text.slice(0, MAX_FILE_BYTES) + '\n// ... (truncated)'
-      : text;
-    return `// Source: github.com/${entry.repo} (${entry.description})\n\n${truncated}`;
-  } catch (e) {
-    console.error(`[github] vendor exception for ${entry.repo}/${path}:`, e);
-    return `// Could not fetch from ${entry.repo}`;
+  const text = await fetchRepoFile(entry.repo, entry.branch, path);
+  if (!text) {
+    return `// File not found in ${entry.repo}: ${path}. Try list_vendor_directory or search_vendor_repo to find the right path.`;
   }
+  return `// Source: github.com/${entry.repo} (${entry.description})\n\n${text}`;
 }
 
-export { VENDOR_REPOS };
+export async function listVendorDirectory(vendor: string, dir: string): Promise<DirEntry[] | null> {
+  const entry = resolveVendor(vendor);
+  if (!entry) return null;
+  return listRepoDirectory(entry.repo, entry.branch, dir);
+}
+
+export async function searchVendorRepo(vendor: string, query: string): Promise<SearchResult[]> {
+  const entry = resolveVendor(vendor);
+  if (!entry) return [];
+  return codeSearch(query, entry.repo);
+}
