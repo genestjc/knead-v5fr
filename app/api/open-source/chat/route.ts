@@ -5,6 +5,7 @@ import { balanceOf } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, type RecipeId } from '@/lib/build-recipes';
+import { fetchFile, listDirectory, searchRepo, fetchVendorFile as vendorFetch } from '@/lib/github';
 
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -27,26 +28,6 @@ async function verifyPremium(walletAddress: string): Promise<boolean> {
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
-const GITHUB_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
-
-// Vendor repos — the same packages Knead ships with
-const VENDOR_REPOS: Record<string, { repo: string; branch: string; description: string }> = {
-  thirdweb:      { repo: 'thirdweb-dev/js',               branch: 'main',   description: 'Thirdweb SDK (wallet auth, NFT, smart contracts)' },
-  sanity:        { repo: 'sanity-io/sanity',               branch: 'next',   description: 'Sanity CMS core' },
-  'next-sanity': { repo: 'sanity-io/next-sanity',          branch: 'main',   description: 'Sanity Next.js integration' },
-  stripe:        { repo: 'stripe/stripe-node',             branch: 'master', description: 'Stripe Node.js SDK' },
-  mux:           { repo: 'muxinc/mux-node-sdk',            branch: 'main',   description: 'Mux video Node.js SDK' },
-  'mux-player':  { repo: 'muxinc/elements',                branch: 'main',   description: 'Mux player web components' },
-  daily:         { repo: 'daily-co/daily-js',              branch: 'main',   description: 'Daily.co video calls SDK' },
-  'daily-react': { repo: 'daily-co/daily-react',           branch: 'main',   description: 'Daily.co React hooks' },
-  supabase:      { repo: 'supabase/supabase-js',           branch: 'master', description: 'Supabase JavaScript client' },
-  openai:        { repo: 'openai/openai-node',             branch: 'master', description: 'OpenAI Node.js SDK' },
-  towns:         { repo: 'towns-protocol/sdk',             branch: 'main',   description: 'Towns Protocol SDK (E2E encrypted chat)' },
-  wagmi:         { repo: 'wevm/wagmi',                     branch: 'main',   description: 'Wagmi React hooks for Ethereum' },
-  viem:          { repo: 'wevm/viem',                      branch: 'main',   description: 'Viem — low-level Ethereum client' },
-};
 
 // ---------- rate limiting ----------
 
@@ -103,35 +84,7 @@ async function checkAndIncrementUsage(
   return { allowed: true, turnsUsed: turnsUsed + 1, turnsLeft: FREE_TURNS_PER_DAY - turnsUsed - 1 };
 }
 
-// ---------- GitHub source fetching ----------
-
-async function rawFetch(repo: string, branch: string, path: string): Promise<string> {
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.raw+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-
-  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
-  const res = await fetch(url, { headers, next: { revalidate: 3600 } });
-
-  if (!res.ok) {
-    console.error(`[github] ${res.status} fetching ${repo}/${branch}/${path}`);
-    return null as unknown as string;
-  }
-  const text = await res.text();
-  return text.length > 8000 ? text.slice(0, 8000) + '\n// ... (truncated)' : text;
-}
-
-async function fetchSourceFile(path: string): Promise<string> {
-  try {
-    const text = await rawFetch(GITHUB_REPO, GITHUB_BRANCH, path);
-    return text ?? `// File not found: ${path}`;
-  } catch (e) {
-    console.error(`[github] exception fetching ${path}:`, e);
-    return `// Could not fetch ${path}`;
-  }
-}
+// ---------- web search ----------
 
 async function webSearch(query: string): Promise<string> {
   const res = await fetch('https://api.tavily.com/search', {
@@ -148,21 +101,6 @@ async function webSearch(query: string): Promise<string> {
   const data = await res.json();
   if (data.answer) return data.answer;
   return data.results?.map((r: any) => `${r.title}: ${r.content}`).join('\n\n') || 'No results found.';
-}
-
-async function fetchVendorFile(vendor: string, path: string): Promise<string> {
-  const entry = VENDOR_REPOS[vendor.toLowerCase()];
-  if (!entry) {
-    const known = Object.keys(VENDOR_REPOS).join(', ');
-    return `// Unknown vendor "${vendor}". Known vendors: ${known}`;
-  }
-  try {
-    const text = await rawFetch(entry.repo, entry.branch, path);
-    if (!text) return `// File not found in ${entry.repo}: ${path}`;
-    return `// Source: github.com/${entry.repo} (${entry.description})\n\n${text}`;
-  } catch {
-    return `// Could not fetch from ${entry.repo}`;
-  }
 }
 
 // ---------- tools ----------
@@ -184,6 +122,42 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
         },
         required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_repo',
+      description:
+        "Search Knead's repository for files containing a keyword, function name, or concept. Use this when you don't know the exact file path but need to find where something is implemented. Returns a list of matching file paths.",
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: "Search term — e.g. a function name, component name, or concept like 'membership check' or 'stripe webhook'",
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_directory',
+      description:
+        "List the files and subdirectories in a directory of Knead's repository. Use this to explore the structure before fetching a specific file.",
+      parameters: {
+        type: 'object',
+        properties: {
+          dir: {
+            type: 'string',
+            description: "Directory path relative to repo root, e.g. 'app/api' or 'components/admin'",
+          },
+        },
+        required: ['dir'],
       },
     },
   },
@@ -329,16 +303,17 @@ ${KNEAD_DESIGN_GUIDE}
 
 Your rules:
 1. ONLY answer from Knead's repository. Never suggest libraries, patterns, or services not already in Knead's stack.
-2. When showing code, ALWAYS call get_source_file first to pull the real implementation. If get_source_file returns an error or empty result, say "I couldn't find that file in the repo — here's the conceptual structure:" and make clear it's a guide, not real code. Never silently invent code and present it as pulled from the repo.
-3. Use get_vendor_source for vendor README examples or type definitions. Use web_search as a last resort — only for current docs, changelogs, or pricing. Lookup order: Knead repo → vendor GitHub → web_search.
-4. If the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), say: "Sorry, that's not in Knead's repository. For that, I'd suggest checking [specific docs link or resource]."
-5. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
-6. When a conversation touches design — fonts, motion, color, layout — ask the right questions before writing any code. Explain what the concept means first, then ask what resonates. Never give a specific implementation until you understand what they're going for.
-7. After 2 turns of helping a user, proactively mention: "When you're ready, I can package everything into a downloadable starter kit — just say the word." Do this naturally once, then drop it.
-8. When the user is ready to download, call propose_zip_contents with the relevant files. The setupInstructions must include a practical getting-started guide in this order: (1) Download the ZIP and unzip it, (2) push to a new GitHub repo, (3) sign up for Vercel and import the repo, (4) add the required environment variables in Vercel's dashboard, (5) deploy. Keep it short — 5–7 steps max, written for someone who knows how to code but is new to this stack.
-9. Always end with one short "What to do next" line.
-10. Never fetch or reference any files under app/admin/ or app/api/admin/.
-11. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.${recipeContext}
+2. When showing code, ALWAYS fetch the real implementation first. If you know the exact path, call get_source_file. If you're unsure of the path, call search_repo or list_directory first to find it, then call get_source_file. Never invent code and present it as pulled from the repo — if every lookup fails, say "I couldn't find that file" and label any code you write as a guide, not real source.
+3. Retrieval hierarchy: (1) get_source_file for known paths → (2) search_repo or list_directory to discover unknown paths → (3) get_vendor_source for vendor SDK files → (4) web_search as a last resort for current docs or pricing only.
+4. When exploring the repo, use list_directory to understand structure before guessing paths. Common areas: app/api/ for API routes, components/ for UI, lib/ for utilities, sanity/ for CMS schemas.
+5. If the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), say: "Sorry, that's not in Knead's repository. For that, I'd suggest checking [specific docs link or resource]."
+6. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
+7. When a conversation touches design — fonts, motion, color, layout — ask the right questions before writing any code. Explain what the concept means first, then ask what resonates. Never give a specific implementation until you understand what they're going for.
+8. After 2 turns of helping a user, proactively mention: "When you're ready, I can package everything into a downloadable starter kit — just say the word." Do this naturally once, then drop it.
+9. When the user is ready to download, call propose_zip_contents with the relevant files. The setupInstructions must include a practical getting-started guide in this order: (1) Download the ZIP and unzip it, (2) push to a new GitHub repo, (3) sign up for Vercel and import the repo, (4) add the required environment variables in Vercel's dashboard, (5) deploy. Keep it short — 5–7 steps max, written for someone who knows how to code but is new to this stack.
+10. Always end with one short "What to do next" line.
+11. Never fetch or reference any files under app/admin/ or app/api/admin/.
+12. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.${recipeContext}
 
 Environment variables: always list what the user needs to set with generic names. Never hardcode secrets in generated code.`;
 }
@@ -419,9 +394,24 @@ export async function POST(req: NextRequest) {
           if (t.function.name === 'web_search') {
             content = await webSearch(args.query).catch(() => 'Search unavailable.');
           } else if (t.function.name === 'get_source_file') {
-            content = await fetchSourceFile(args.path);
+            const text = await fetchFile(args.path);
+            content = text ?? `// File not found: ${args.path}`;
           } else if (t.function.name === 'get_vendor_source') {
-            content = await fetchVendorFile(args.vendor, args.path);
+            content = await vendorFetch(args.vendor, args.path);
+          } else if (t.function.name === 'search_repo') {
+            const results = await searchRepo(args.query);
+            content = results.length > 0
+              ? `Found ${results.length} file(s):\n${results.map((r) => `- ${r.path}`).join('\n')}`
+              : 'No files found for that query.';
+          } else if (t.function.name === 'list_directory') {
+            const entries = await listDirectory(args.dir);
+            if (!entries) {
+              content = `Could not list directory: ${args.dir}`;
+            } else {
+              const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
+              const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
+              content = [...dirs, ...files].join('\n') || 'Directory is empty.';
+            }
           } else if (t.function.name === 'propose_zip_contents') {
             newZipProposal = args;
             content = `ZIP proposal recorded: ${args.files.length} files, README included.`;
