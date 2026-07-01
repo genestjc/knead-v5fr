@@ -3,7 +3,7 @@
 // Functions accept an explicit repo/branch so they work equally well against
 // Knead's own repo and any vendor SDK repo Demeter needs to explore.
 
-const DEFAULT_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
+export const KNEAD_REPO = process.env.KNEAD_GITHUB_REPO ?? 'genestjc/knead-v5fr';
 const DEFAULT_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
 const MAX_FILE_BYTES = 10_000;
 
@@ -40,7 +40,7 @@ export async function fetchRepoFile(repo: string, branch: string, path: string):
 }
 
 export async function fetchFile(path: string): Promise<string | null> {
-  return fetchRepoFile(DEFAULT_REPO, DEFAULT_BRANCH, path);
+  return fetchRepoFile(KNEAD_REPO, DEFAULT_BRANCH, path);
 }
 
 // ---------- list a directory (any repo) ----------
@@ -72,7 +72,7 @@ export async function listRepoDirectory(repo: string, branch: string, dir: strin
 }
 
 export async function listDirectory(dir: string): Promise<DirEntry[] | null> {
-  return listRepoDirectory(DEFAULT_REPO, DEFAULT_BRANCH, dir);
+  return listRepoDirectory(KNEAD_REPO, DEFAULT_BRANCH, dir);
 }
 
 // ---------- search code (any repo) ----------
@@ -112,11 +112,11 @@ export async function searchRepoCode(repo: string, query: string): Promise<Searc
 }
 
 export async function searchRepo(query: string): Promise<SearchResult[]> {
-  return codeSearch(query, DEFAULT_REPO);
+  return codeSearch(query, KNEAD_REPO);
 }
 
 export async function searchFilenames(pattern: string): Promise<SearchResult[]> {
-  return codeSearch(`filename:${pattern}`, DEFAULT_REPO);
+  return codeSearch(`filename:${pattern}`, KNEAD_REPO);
 }
 
 export async function searchRepoFilenames(repo: string, pattern: string): Promise<SearchResult[]> {
