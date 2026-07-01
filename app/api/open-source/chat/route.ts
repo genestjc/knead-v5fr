@@ -5,7 +5,14 @@ import { balanceOf } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, type RecipeId } from '@/lib/build-recipes';
-import { fetchFile, listDirectory, searchRepo, fetchVendorFile as vendorFetch } from '@/lib/github';
+import {
+  fetchFile,
+  listDirectory,
+  searchRepo,
+  fetchVendorFile as vendorFetch,
+  listVendorDirectory,
+  searchVendorRepo,
+} from '@/lib/github';
 
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -203,6 +210,52 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'list_vendor_directory',
+      description:
+        "List the files and subdirectories in a directory of a vendor's GitHub repo. Use this when get_vendor_source returns 'File not found' — explore the repo structure to find the correct path instead of guessing again.",
+      parameters: {
+        type: 'object',
+        properties: {
+          vendor: {
+            type: 'string',
+            description:
+              "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
+          },
+          dir: {
+            type: 'string',
+            description: "Directory path relative to the vendor repo root, e.g. 'packages/thirdweb/src/wallets' or '' for the repo root",
+          },
+        },
+        required: ['vendor', 'dir'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_vendor_repo',
+      description:
+        "Search a vendor's GitHub repo for files containing a keyword or concept. Use this when you don't know the exact file path in a vendor SDK — e.g. searching thirdweb for 'embedded wallet' or stripe for 'webhook signature'.",
+      parameters: {
+        type: 'object',
+        properties: {
+          vendor: {
+            type: 'string',
+            description:
+              "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
+          },
+          query: {
+            type: 'string',
+            description: "Search term — e.g. a function name or concept like 'webhook signature' or 'embedded wallet'",
+          },
+        },
+        required: ['vendor', 'query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'propose_zip_contents',
       description:
         'Declare the list of files that should go into the downloadable starter ZIP. Call this once the user has decided what they want to build.',
@@ -306,14 +359,15 @@ Your rules:
 2. When showing code, ALWAYS fetch the real implementation first. If you know the exact path, call get_source_file. If you're unsure of the path, call search_repo or list_directory first to find it, then call get_source_file. Never invent code and present it as pulled from the repo — if every lookup fails, say "I couldn't find that file" and label any code you write as a guide, not real source.
 3. Retrieval hierarchy: (1) get_source_file for known paths → (2) search_repo or list_directory to discover unknown paths → (3) get_vendor_source for vendor SDK files → (4) web_search as a last resort for current docs or pricing only.
 4. When exploring the repo, use list_directory to understand structure before guessing paths. Common areas: app/api/ for API routes, components/ for UI, lib/ for utilities, sanity/ for CMS schemas.
-5. If the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), say: "Sorry, that's not in Knead's repository. For that, I'd suggest checking [specific docs link or resource]."
-6. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
-7. When a conversation touches design — fonts, motion, color, layout — ask the right questions before writing any code. Explain what the concept means first, then ask what resonates. Never give a specific implementation until you understand what they're going for.
-8. After 2 turns of helping a user, proactively mention: "When you're ready, I can package everything into a downloadable starter kit — just say the word." Do this naturally once, then drop it.
-9. When the user is ready to download, call propose_zip_contents with the relevant files. The setupInstructions must include a practical getting-started guide in this order: (1) Download the ZIP and unzip it, (2) push to a new GitHub repo, (3) sign up for Vercel and import the repo, (4) add the required environment variables in Vercel's dashboard, (5) deploy. Keep it short — 5–7 steps max, written for someone who knows how to code but is new to this stack.
-10. Always end with one short "What to do next" line.
-11. Never fetch or reference any files under app/admin/ or app/api/admin/.
-12. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.${recipeContext}
+5. If get_vendor_source returns "File not found," do NOT give up or fall back to web_search immediately — call list_vendor_directory to see the real repo structure, or search_vendor_repo to find the file by keyword. Only use web_search if both of those fail to turn up the file.
+6. If the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), say: "Sorry, that's not in Knead's repository. For that, I'd suggest checking [specific docs link or resource]."
+7. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
+8. When a conversation touches design — fonts, motion, color, layout — ask the right questions before writing any code. Explain what the concept means first, then ask what resonates. Never give a specific implementation until you understand what they're going for.
+9. After 2 turns of helping a user, proactively mention: "When you're ready, I can package everything into a downloadable starter kit — just say the word." Do this naturally once, then drop it.
+10. When the user is ready to download, call propose_zip_contents with the relevant files. The setupInstructions must include a practical getting-started guide in this order: (1) Download the ZIP and unzip it, (2) push to a new GitHub repo, (3) sign up for Vercel and import the repo, (4) add the required environment variables in Vercel's dashboard, (5) deploy. Keep it short — 5–7 steps max, written for someone who knows how to code but is new to this stack.
+11. Always end with one short "What to do next" line.
+12. Never fetch or reference any files under app/admin/ or app/api/admin/.
+13. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.${recipeContext}
 
 Environment variables: always list what the user needs to set with generic names. Never hardcode secrets in generated code.`;
 }
@@ -398,6 +452,20 @@ export async function POST(req: NextRequest) {
             content = text ?? `// File not found: ${args.path}`;
           } else if (t.function.name === 'get_vendor_source') {
             content = await vendorFetch(args.vendor, args.path);
+          } else if (t.function.name === 'list_vendor_directory') {
+            const entries = await listVendorDirectory(args.vendor, args.dir);
+            if (!entries) {
+              content = `Could not list directory "${args.dir}" for vendor "${args.vendor}". Check the vendor key is correct.`;
+            } else {
+              const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
+              const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
+              content = [...dirs, ...files].join('\n') || 'Directory is empty.';
+            }
+          } else if (t.function.name === 'search_vendor_repo') {
+            const results = await searchVendorRepo(args.vendor, args.query);
+            content = results.length > 0
+              ? `Found ${results.length} file(s) in ${args.vendor}:\n${results.map((r) => `- ${r.path}`).join('\n')}`
+              : `No files found for that query in ${args.vendor}.`;
           } else if (t.function.name === 'search_repo') {
             const results = await searchRepo(args.query);
             content = results.length > 0
