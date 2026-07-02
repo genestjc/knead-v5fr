@@ -6,11 +6,13 @@ export function middleware(request: NextRequest) {
   
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' 
-      https://vercel.live 
-      https://va.vercel-scripts.com 
+    script-src 'self' 'unsafe-eval' 'unsafe-inline'
+      https://vercel.live
+      https://va.vercel-scripts.com
       https://js.stripe.com
-      https://c.daily.co;
+      https://c.daily.co
+      https://www.instagram.com
+      https://platform.twitter.com;
     style-src 'self' 'unsafe-inline' 
       https://use.typekit.net 
       https://p.typekit.net;
@@ -62,7 +64,10 @@ export function middleware(request: NextRequest) {
       https://*.daily.co
       https://wallet.coinbase.com
       https://keys.coinbase.com
-      https://*.coinbase.com;
+      https://*.coinbase.com
+      https://www.instagram.com
+      https://platform.twitter.com
+      https://syndication.twitter.com;
     connect-src 'self'
       https://metamask-sdk.api.cx.metamask.io
       https://mm-sdk-analytics.api.cx.metamask.io
@@ -147,7 +152,11 @@ export function middleware(request: NextRequest) {
       https://*.mux.com
       https://raw.githubusercontent.com
       https://api.github.com
-      https://api.tavily.com;
+      https://api.tavily.com
+      https://www.instagram.com
+      https://platform.twitter.com
+      https://syndication.twitter.com
+      https://cdn.syndication.twimg.com;
   `
     .replace(/\n/g, '')
     .replace(/\s{2,}/g, ' ')
