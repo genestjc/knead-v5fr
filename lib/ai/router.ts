@@ -34,6 +34,19 @@ export interface ChatTurn {
 
 export type ToolExecutor = (name: string, args: any) => Promise<string>;
 
+// Cost controls. Tool results (fetched source files can be huge) and client
+// history are the two unbounded inputs; everything else is capped by design.
+const MAX_TOOL_RESULT_CHARS = 12_000;
+const MAX_HISTORY_TURNS = 12;
+
+function truncateToolResult(text: string): string {
+  if (text.length <= MAX_TOOL_RESULT_CHARS) return text;
+  return (
+    text.slice(0, MAX_TOOL_RESULT_CHARS) +
+    '\n\n[Truncated — showing the first 12,000 characters. Call the tool again for a more specific file or section if you need more.]'
+  );
+}
+
 export interface AgentChatOptions {
   system: string;
   history?: ChatTurn[];
@@ -77,21 +90,46 @@ export async function generateText(opts: {
   });
 }
 
-// The Messages API requires the first turn to be from the user, so drop any
-// leading assistant greeting the client may have included in history.
+// Cap history to the recent turns, and drop any leading assistant greeting —
+// the Messages API requires the first turn to be from the user.
 function sanitizeHistory(history: ChatTurn[] = []): ChatTurn[] {
-  const firstUser = history.findIndex((m) => m.role === 'user');
-  return firstUser === -1 ? [] : history.slice(firstUser);
+  const recent = history.slice(-MAX_HISTORY_TURNS);
+  const firstUser = recent.findIndex((m) => m.role === 'user');
+  return firstUser === -1 ? [] : recent.slice(firstUser);
+}
+
+// Mark the last content block of the last message as a cache breakpoint so
+// each round of a tool loop (and each follow-up turn within the 5-minute
+// cache TTL) reads the growing conversation prefix at the cached rate.
+function withCacheBreakpoint(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const last = messages[messages.length - 1];
+  if (!last) return messages;
+  const blocks: Anthropic.ContentBlockParam[] =
+    typeof last.content === 'string' ? [{ type: 'text', text: last.content }] : [...last.content];
+  blocks[blocks.length - 1] = {
+    ...blocks[blocks.length - 1],
+    cache_control: { type: 'ephemeral' },
+  } as Anthropic.ContentBlockParam;
+  return [...messages.slice(0, -1), { ...last, content: blocks }];
 }
 
 async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
   const { system, message, tools = [], executeTool, maxTokens, maxRounds = 5 } = opts;
 
-  const claudeTools: Anthropic.Tool[] = tools.map((t) => ({
+  // Prompt caching: tool schemas and the system prompt are identical on every
+  // round and every turn, so cache them (90% input discount on hits). One
+  // breakpoint after the last tool covers the whole tool block; one after the
+  // system prompt covers both.
+  const claudeTools: Anthropic.Tool[] = tools.map((t, i) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters as Anthropic.Tool.InputSchema,
+    ...(i === tools.length - 1 ? { cache_control: { type: 'ephemeral' as const } } : {}),
   }));
+
+  const cachedSystem: Anthropic.TextBlockParam[] = [
+    { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
+  ];
 
   const messages: Anthropic.MessageParam[] = [
     ...sanitizeHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
@@ -104,8 +142,8 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: maxTokens,
-      system,
-      messages,
+      system: cachedSystem,
+      messages: withCacheBreakpoint(messages),
       ...(claudeTools.length > 0 ? { tools: claudeTools } : {}),
     });
 
@@ -126,8 +164,10 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
       toolUses.map(async (u) => ({
         type: 'tool_result' as const,
         tool_use_id: u.id,
-        content: await executeTool(u.name, u.input ?? {}).catch(
-          (err) => `Tool error: ${err?.message ?? 'unknown'}`,
+        content: truncateToolResult(
+          await executeTool(u.name, u.input ?? {}).catch(
+            (err) => `Tool error: ${err?.message ?? 'unknown'}`,
+          ),
         ),
       })),
     );
@@ -176,8 +216,10 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
       toolCalls.map(async (t) => ({
         role: 'tool' as const,
         tool_call_id: t.id,
-        content: await executeTool(t.function.name, JSON.parse(t.function.arguments || '{}')).catch(
-          (err) => `Tool error: ${err?.message ?? 'unknown'}`,
+        content: truncateToolResult(
+          await executeTool(t.function.name, JSON.parse(t.function.arguments || '{}')).catch(
+            (err) => `Tool error: ${err?.message ?? 'unknown'}`,
+          ),
         ),
       })),
     );
