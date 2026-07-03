@@ -2,10 +2,48 @@
 // All calls go through the GitHub Contents/Search API so token auth works on private repos.
 // Functions accept an explicit repo/branch so they work equally well against
 // Knead's own repo and any vendor SDK repo Demeter needs to explore.
+//
+// Successful responses are cached in Supabase (repo_cache table, 1-hour TTL,
+// migration 010) so repeat lookups skip GitHub entirely — faster tool rounds
+// and immunity to GitHub's rate limits (code search allows ~10 req/min).
+// Cache failures always fall through to a live fetch.
+
+import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 export const KNEAD_REPO = process.env.KNEAD_GITHUB_REPO ?? 'genestjc/knead-v5fr';
 const DEFAULT_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
 const MAX_FILE_BYTES = 10_000;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+// ---------- Supabase-backed cache ----------
+
+async function cacheGet(key: string): Promise<string | null> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from('repo_cache')
+      .select('content, fetched_at')
+      .eq('cache_key', key)
+      .maybeSingle();
+    if (!data) return null;
+    if (Date.now() - new Date(data.fetched_at).getTime() > CACHE_TTL_MS) return null;
+    return data.content;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheSet(key: string, content: string): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin();
+    await supabase.from('repo_cache').upsert(
+      { cache_key: key, content, fetched_at: new Date().toISOString() },
+      { onConflict: 'cache_key' },
+    );
+  } catch (e) {
+    console.error('[github] cache write error:', e);
+  }
+}
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = {
@@ -19,6 +57,10 @@ function headers(): Record<string, string> {
 // ---------- fetch a single file (any repo) ----------
 
 export async function fetchRepoFile(repo: string, branch: string, path: string): Promise<string | null> {
+  const key = `file:${repo}@${branch}:${path}`;
+  const hit = await cacheGet(key);
+  if (hit !== null) return hit;
+
   const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
   try {
     const res = await fetch(url, {
@@ -29,10 +71,12 @@ export async function fetchRepoFile(repo: string, branch: string, path: string):
       console.error(`[github] ${res.status} fetching ${repo}/${branch}/${path}`);
       return null;
     }
-    const text = await res.text();
-    return text.length > MAX_FILE_BYTES
-      ? text.slice(0, MAX_FILE_BYTES) + '\n// ... (truncated)'
-      : text;
+    const raw = await res.text();
+    const text = raw.length > MAX_FILE_BYTES
+      ? raw.slice(0, MAX_FILE_BYTES) + '\n// ... (truncated)'
+      : raw;
+    await cacheSet(key, text);
+    return text;
   } catch (e) {
     console.error(`[github] exception fetching ${repo}/${path}:`, e);
     return null;
@@ -53,6 +97,16 @@ export interface DirEntry {
 
 export async function listRepoDirectory(repo: string, branch: string, dir: string): Promise<DirEntry[] | null> {
   const cleanDir = dir.replace(/^\/+|\/+$/g, '');
+  const key = `dir:${repo}@${branch}:${cleanDir}`;
+  const hit = await cacheGet(key);
+  if (hit !== null) {
+    try {
+      return JSON.parse(hit) as DirEntry[];
+    } catch {
+      // corrupt cache entry — fall through to a live fetch
+    }
+  }
+
   const url = `https://api.github.com/repos/${repo}/contents/${cleanDir}?ref=${branch}`;
   try {
     const res = await fetch(url, { headers: headers(), next: { revalidate: 3600 } });
@@ -62,9 +116,11 @@ export async function listRepoDirectory(repo: string, branch: string, dir: strin
     }
     const data = await res.json();
     if (!Array.isArray(data)) return null;
-    return data
+    const entries: DirEntry[] = data
       .filter((e: any) => e.type === 'file' || e.type === 'dir')
       .map((e: any) => ({ name: e.name, path: e.path, type: e.type }));
+    await cacheSet(key, JSON.stringify(entries));
+    return entries;
   } catch (e) {
     console.error(`[github] exception listing ${repo}/${dir}:`, e);
     return null;
@@ -86,6 +142,19 @@ async function codeSearch(rawQuery: string, repo: string): Promise<SearchResult[
   // GitHub code search requires an authenticated request
   if (!process.env.GITHUB_TOKEN) return [];
 
+  // Search is the most rate-limited GitHub endpoint (~10 req/min), so cache
+  // hits matter most here. Only successful responses are cached — a rate-limit
+  // failure must not be remembered as "no results" for an hour.
+  const cacheKey = `search:${repo}:${rawQuery.toLowerCase()}`;
+  const hit = await cacheGet(cacheKey);
+  if (hit !== null) {
+    try {
+      return JSON.parse(hit) as SearchResult[];
+    } catch {
+      // corrupt cache entry — fall through to a live fetch
+    }
+  }
+
   const q = encodeURIComponent(`${rawQuery} repo:${repo}`);
   const url = `https://api.github.com/search/code?q=${q}&per_page=10`;
   try {
@@ -97,10 +166,12 @@ async function codeSearch(rawQuery: string, repo: string): Promise<SearchResult[
       return [];
     }
     const data = await res.json();
-    return (data.items ?? []).map((item: any) => ({
+    const results: SearchResult[] = (data.items ?? []).map((item: any) => ({
       path: item.path,
       url: item.html_url,
     }));
+    await cacheSet(cacheKey, JSON.stringify(results));
+    return results;
   } catch (e) {
     console.error(`[github] search exception for ${repo}:`, e);
     return [];
@@ -121,6 +192,51 @@ export async function searchFilenames(pattern: string): Promise<SearchResult[]> 
 
 export async function searchRepoFilenames(repo: string, pattern: string): Promise<SearchResult[]> {
   return codeSearch(`filename:${pattern}`, repo);
+}
+
+// ---------- full repo tree (for the system-prompt repository map) ----------
+
+// Excluded from the map: admin surfaces (the assistant must never reference
+// them — see rule 14 in the build-chat system prompt), static assets, and
+// binary/generated files that aren't useful to teach from.
+const TREE_EXCLUDE = /^(app\/admin\/|app\/api\/admin\/|public\/|\.github\/)|\.(png|jpe?g|gif|webp|ico|svg|woff2?|ttf|otf|mp[34]|pdf|lock)$|(^|\/)\.DS_Store$|^package-lock\.json$/;
+const MAX_TREE_CHARS = 30_000;
+
+/**
+ * Full file listing of the Knead repo, newline-separated and sorted, cached
+ * for an hour. Embedded in the build assistant's system prompt so the model
+ * can jump straight to get_source_file with exact paths instead of spending
+ * tool rounds on discovery. Returns '' on failure — callers omit the section.
+ */
+export async function getRepoTree(): Promise<string> {
+  const key = `tree:${KNEAD_REPO}@${DEFAULT_BRANCH}`;
+  const hit = await cacheGet(key);
+  if (hit !== null) return hit;
+
+  const url = `https://api.github.com/repos/${KNEAD_REPO}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
+  try {
+    const res = await fetch(url, { headers: headers(), next: { revalidate: 3600 } });
+    if (!res.ok) {
+      console.error(`[github] ${res.status} fetching tree for ${KNEAD_REPO}`);
+      return '';
+    }
+    const data = await res.json();
+    const paths: string[] = (data.tree ?? [])
+      .filter((e: any) => e.type === 'blob' && !TREE_EXCLUDE.test(e.path))
+      .map((e: any) => e.path)
+      .sort();
+
+    let tree = paths.join('\n');
+    if (tree.length > MAX_TREE_CHARS) {
+      tree = tree.slice(0, MAX_TREE_CHARS);
+      tree = tree.slice(0, tree.lastIndexOf('\n')) + '\n… (map truncated — use search_repo for anything not listed)';
+    }
+    await cacheSet(key, tree);
+    return tree;
+  } catch (e) {
+    console.error(`[github] exception fetching tree for ${KNEAD_REPO}:`, e);
+    return '';
+  }
 }
 
 // ---------- vendor repos ----------
