@@ -23,7 +23,7 @@ import { requestCard, sendUsdc } from '@/lib/agentcard';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = 'gpt-4o';
+const MODEL = 'gpt-5';
 const MAX_TOOL_ROUNDS = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -489,7 +489,8 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
 
     const response = await openai.chat.completions.create({
       model: MODEL,
-      max_tokens: 4096,
+      // GPT-5 is a reasoning model: it takes max_completion_tokens, not max_tokens
+      max_completion_tokens: 4096,
       tools: TOOLS,
       messages,
     });
