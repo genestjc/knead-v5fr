@@ -1,5 +1,9 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+
+// Cache misses run summary generation + TTS back to back — needs more than
+// Vercel's default function duration
+export const maxDuration = 60;
 import { client } from '@/sanity/client';
 import { generateText, openai } from '@/lib/ai/router';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
