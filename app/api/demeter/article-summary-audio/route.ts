@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { client } from '@/sanity/client';
+import { generateText, openai } from '@/lib/ai/router';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
+// Summary text is written by Claude Opus (via lib/ai/router, GPT-5 fallback);
+// narration stays on OpenAI TTS — Anthropic has no text-to-speech.
 const TTS_MODEL = 'gpt-4o-mini-tts';
 const TTS_VOICE = 'nova';
-const SUMMARY_MODEL = 'gpt-4o';
 
 const ARTICLE_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   title,
@@ -46,26 +45,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Summarize into spoken-word copy
-    const completion = await openai.chat.completions.create({
-      model: SUMMARY_MODEL,
-      max_tokens: 320,
-      messages: [
-        {
-          role: 'system',
-          content:
-            "You are Demeter, Knead Magazine's editorial companion — warm, intelligent, never stuffy. " +
-            'Write a spoken-word summary of the article to be read aloud as an audio intro. ' +
-            'Two to three short paragraphs, about 120–160 words. Conversational and natural. ' +
-            'No markdown, no bullet points, no headings, no "in this article" preamble — just begin.',
-        },
-        {
-          role: 'user',
-          content: `Article: "${post.title}"${post.author ? ` by ${post.author}` : ''}\n\n${articleText.slice(0, 8000)}`,
-        },
-      ],
+    const summary = await generateText({
+      system:
+        "You are Demeter, Knead Magazine's editorial companion — warm, intelligent, never stuffy. " +
+        'Write a spoken-word summary of the article to be read aloud as an audio intro. ' +
+        'Two to three short paragraphs, about 120–160 words. Conversational and natural. ' +
+        'No markdown, no bullet points, no headings, no "in this article" preamble — just begin.',
+      prompt: `Article: "${post.title}"${post.author ? ` by ${post.author}` : ''}\n\n${articleText.slice(0, 8000)}`,
+      maxTokens: 320,
+      logTag: 'Demeter/summary',
     });
 
-    const summary = completion.choices[0].message.content?.trim();
     if (!summary) {
       return NextResponse.json({ error: 'Could not generate summary' }, { status: 500 });
     }
