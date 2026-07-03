@@ -228,11 +228,16 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   for (let round = 0; round < maxRounds; round++) {
     const response = await openai.chat.completions.create({
       model: OPENAI_FALLBACK_MODEL,
-      // GPT-5 is a reasoning model: it takes max_completion_tokens, not max_tokens
-      max_completion_tokens: maxTokens,
+      // GPT-5 is a reasoning model: it takes max_completion_tokens (not
+      // max_tokens), and its hidden reasoning tokens draw from that same
+      // budget — without headroom it can spend the whole cap reasoning and
+      // return an empty reply. Low effort keeps these latency-sensitive chat
+      // surfaces fast.
+      max_completion_tokens: Math.max(maxTokens * 3, 4096),
+      reasoning_effort: 'low',
       ...(openaiTools.length > 0 ? { tools: openaiTools } : {}),
       messages,
-    });
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
 
     const assistantMessage = response.choices[0].message;
     messages.push(assistantMessage);
