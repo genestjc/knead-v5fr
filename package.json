@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "fake-indexeddb": "^6.0.0",
     "@coinbase/onchainkit": "^0.38.0",
     "@connectrpc/connect-node": "^2.1.0",
