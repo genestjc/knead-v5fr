@@ -476,9 +476,9 @@ function ModelPicker({ model, onChange, disabled }: {
   const current = MODELS.find((m) => m.id === model) ?? MODELS[0];
 
   return (
-    // h-6 matches the textarea's single-line box so the label centers on the
-    // same line as the placeholder text
-    <div className="relative flex-shrink-0 self-end flex items-center h-6">
+    // h-8 matches the send button's height so the label centers on the
+    // input row's visual midline
+    <div className="relative flex-shrink-0 self-end flex items-center h-8">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
