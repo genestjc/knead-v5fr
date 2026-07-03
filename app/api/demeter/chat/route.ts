@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { createClient } from 'next-sanity';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { runAgentChat, type AgentTool } from '@/lib/ai/router';
 
 const sanity = createClient({
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
@@ -33,56 +31,47 @@ const ARTICLE_SEARCH_QUERY = `*[_type == "post" && (
   excerpt
 }`;
 
-const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+const TOOLS: AgentTool[] = [
   {
-    type: 'function',
-    function: {
-      name: 'web_search',
-      description:
-        'Search the web for current information about people, places, events, or topics mentioned in the article — e.g. upcoming dinners, recent news, social media activity, event dates.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'A focused search query.' },
-        },
-        required: ['query'],
+    name: 'web_search',
+    description:
+      'Search the web for current information about people, places, events, or topics mentioned in the article — e.g. upcoming dinners, recent news, social media activity, event dates.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'A focused search query.' },
       },
+      required: ['query'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'search_articles',
-      description:
-        "Search Knead's published stories by keyword, subject name, or topic. Use this whenever someone asks about a specific story, person, or subject — e.g. 'Tell me about the Joey Khamis story' or 'Do you have anything about vintage fashion?'. Returns titles, authors, slugs, and excerpts.",
-      parameters: {
-        type: 'object',
-        properties: {
-          keyword: {
-            type: 'string',
-            description: 'A name, subject, or topic to search for.',
-          },
+    name: 'search_articles',
+    description:
+      "Search Knead's published stories by keyword, subject name, or topic. Use this whenever someone asks about a specific story, person, or subject — e.g. 'Tell me about the Joey Khamis story' or 'Do you have anything about vintage fashion?'. Returns titles, authors, slugs, and excerpts.",
+    parameters: {
+      type: 'object',
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'A name, subject, or topic to search for.',
         },
-        required: ['keyword'],
       },
+      required: ['keyword'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'get_article',
-      description:
-        "Fetch the full text of a specific Knead story by its slug. Use this after search_articles returns a match and the user wants to know more about that story.",
-      parameters: {
-        type: 'object',
-        properties: {
-          slug: {
-            type: 'string',
-            description: 'The story slug from search_articles results.',
-          },
+    name: 'get_article',
+    description:
+      "Fetch the full text of a specific Knead story by its slug. Use this after search_articles returns a match and the user wants to know more about that story.",
+    parameters: {
+      type: 'object',
+      properties: {
+        slug: {
+          type: 'string',
+          description: 'The story slug from search_articles results.',
         },
-        required: ['slug'],
       },
+      required: ['slug'],
     },
   },
 ];
@@ -257,57 +246,32 @@ You might also ask:
 • [question one]
 • [question two]`;
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: systemPrompt },
-    ...history.map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
-  ];
-
   try {
-    let reply = '';
-
-    for (let round = 0; round < 5; round++) {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 1024,
-        tools: TOOLS,
-        messages,
-      });
-
-      const assistantMessage = response.choices[0].message;
-      messages.push(assistantMessage);
-
-      const toolCalls = assistantMessage.tool_calls ?? [];
-      if (toolCalls.length === 0) {
-        reply = assistantMessage.content ?? '';
-        break;
-      }
-
-      const toolResults = await Promise.all(
-        toolCalls.map(async (t) => {
-          const args = JSON.parse(t.function.arguments || '{}');
-          let content = 'Unknown tool.';
-          if (t.function.name === 'web_search') {
-            content = await webSearch(args.query).catch(() => 'Search unavailable.');
-          } else if (t.function.name === 'search_articles') {
-            content = await searchArticles(args.keyword);
-          } else if (t.function.name === 'get_article') {
-            content = await getArticle(args.slug);
-          }
-          return {
-            role: 'tool' as const,
-            tool_call_id: t.id,
-            content,
-          };
-        }),
-      );
-
-      messages.push(...toolResults);
-    }
+    const reply = await runAgentChat({
+      system: systemPrompt,
+      history,
+      message,
+      tools: TOOLS,
+      executeTool: async (name, args) => {
+        if (name === 'web_search') {
+          return webSearch(args.query).catch(() => 'Search unavailable.');
+        }
+        if (name === 'search_articles') {
+          return searchArticles(args.keyword);
+        }
+        if (name === 'get_article') {
+          return getArticle(args.slug);
+        }
+        return 'Unknown tool.';
+      },
+      maxTokens: 1024,
+      maxRounds: 5,
+      logTag: 'Demeter',
+    });
 
     return NextResponse.json({ reply, articleTitle });
   } catch (err: any) {
-    console.error('[Demeter] OpenAI error:', err.message);
+    console.error('[Demeter] AI error:', err.message);
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 });
   }
 }
