@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { createThirdwebClient, getContract } from 'thirdweb';
 import { balanceOf } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
@@ -14,6 +13,7 @@ import {
   searchVendorRepo,
   KNEAD_REPO,
 } from '@/lib/github';
+import { runAgentChat, type AgentTool } from '@/lib/ai/router';
 
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -34,8 +34,6 @@ async function verifyPremium(walletAddress: string): Promise<boolean> {
     return false;
   }
 }
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ---------- rate limiting ----------
 
@@ -113,175 +111,151 @@ async function webSearch(query: string): Promise<string> {
 
 // ---------- tools ----------
 
-const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+const TOOLS: AgentTool[] = [
   {
-    type: 'function',
-    function: {
-      name: 'get_source_file',
-      description:
-        "Fetch the source code of a file from Knead's open-source repository. Use this to show the user real implementation code for features they want to build.",
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description:
-              "Relative file path in the Knead repo, e.g. 'app/api/check-membership/route.ts'",
-          },
+    name: 'get_source_file',
+    description:
+      "Fetch the source code of a file from Knead's open-source repository. Use this to show the user real implementation code for features they want to build.",
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description:
+            "Relative file path in the Knead repo, e.g. 'app/api/check-membership/route.ts'",
         },
-        required: ['path'],
       },
+      required: ['path'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'search_repo',
-      description:
-        "Search Knead's repository for files containing a keyword, function name, or concept. Use this when you don't know the exact file path but need to find where something is implemented. Returns a list of matching file paths.",
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: "Search term — e.g. a function name, component name, or concept like 'membership check' or 'stripe webhook'",
-          },
+    name: 'search_repo',
+    description:
+      "Search Knead's repository for files containing a keyword, function name, or concept. Use this when you don't know the exact file path but need to find where something is implemented. Returns a list of matching file paths.",
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: "Search term — e.g. a function name, component name, or concept like 'membership check' or 'stripe webhook'",
         },
-        required: ['query'],
       },
+      required: ['query'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'list_directory',
-      description:
-        "List the files and subdirectories in a directory of Knead's repository. Use this to explore the structure before fetching a specific file.",
-      parameters: {
-        type: 'object',
-        properties: {
-          dir: {
-            type: 'string',
-            description: "Directory path relative to repo root, e.g. 'app/api' or 'components/admin'",
-          },
+    name: 'list_directory',
+    description:
+      "List the files and subdirectories in a directory of Knead's repository. Use this to explore the structure before fetching a specific file.",
+    parameters: {
+      type: 'object',
+      properties: {
+        dir: {
+          type: 'string',
+          description: "Directory path relative to repo root, e.g. 'app/api' or 'components/admin'",
         },
-        required: ['dir'],
       },
+      required: ['dir'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'web_search',
-      description:
-        "Search the web via Tavily for current documentation, changelogs, or answers about Knead's vendors (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol). Only use for questions that can't be answered from the repo or vendor GitHub source.",
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'A focused search query.' },
-        },
-        required: ['query'],
+    name: 'web_search',
+    description:
+      "Search the web via Tavily for current documentation, changelogs, or answers about Knead's vendors (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol). Only use for questions that can't be answered from the repo or vendor GitHub source.",
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'A focused search query.' },
       },
+      required: ['query'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'get_vendor_source',
-      description:
-        "Fetch a file from one of Knead's vendor GitHub repos (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol, Wagmi, Viem). Use this to show users official SDK source or README examples for a feature they're building.",
-      parameters: {
-        type: 'object',
-        properties: {
-          vendor: {
-            type: 'string',
-            description:
-              "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
-          },
-          path: {
-            type: 'string',
-            description:
-              "File path within the vendor repo, e.g. 'README.md' or 'packages/thirdweb/src/wallets/README.md'",
-          },
+    name: 'get_vendor_source',
+    description:
+      "Fetch a file from one of Knead's vendor GitHub repos (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol, Wagmi, Viem). Use this to show users official SDK source or README examples for a feature they're building.",
+    parameters: {
+      type: 'object',
+      properties: {
+        vendor: {
+          type: 'string',
+          description:
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
         },
-        required: ['vendor', 'path'],
+        path: {
+          type: 'string',
+          description:
+            "File path within the vendor repo, e.g. 'README.md' or 'packages/thirdweb/src/wallets/README.md'",
+        },
       },
+      required: ['vendor', 'path'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'list_vendor_directory',
-      description:
-        "List the files and subdirectories in a directory of a vendor's GitHub repo. Use this when get_vendor_source returns 'File not found' — explore the repo structure to find the correct path instead of guessing again.",
-      parameters: {
-        type: 'object',
-        properties: {
-          vendor: {
-            type: 'string',
-            description:
-              "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
-          },
-          dir: {
-            type: 'string',
-            description: "Directory path relative to the vendor repo root, e.g. 'packages/thirdweb/src/wallets' or '' for the repo root",
-          },
+    name: 'list_vendor_directory',
+    description:
+      "List the files and subdirectories in a directory of a vendor's GitHub repo. Use this when get_vendor_source returns 'File not found' — explore the repo structure to find the correct path instead of guessing again.",
+    parameters: {
+      type: 'object',
+      properties: {
+        vendor: {
+          type: 'string',
+          description:
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
         },
-        required: ['vendor', 'dir'],
+        dir: {
+          type: 'string',
+          description: "Directory path relative to the vendor repo root, e.g. 'packages/thirdweb/src/wallets' or '' for the repo root",
+        },
       },
+      required: ['vendor', 'dir'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'search_vendor_repo',
-      description:
-        "Search a vendor's GitHub repo for files containing a keyword or concept. Use this when you don't know the exact file path in a vendor SDK — e.g. searching thirdweb for 'embedded wallet' or stripe for 'webhook signature'.",
-      parameters: {
-        type: 'object',
-        properties: {
-          vendor: {
-            type: 'string',
-            description:
-              "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
-          },
-          query: {
-            type: 'string',
-            description: "Search term — e.g. a function name or concept like 'webhook signature' or 'embedded wallet'",
-          },
+    name: 'search_vendor_repo',
+    description:
+      "Search a vendor's GitHub repo for files containing a keyword or concept. Use this when you don't know the exact file path in a vendor SDK — e.g. searching thirdweb for 'embedded wallet' or stripe for 'webhook signature'.",
+    parameters: {
+      type: 'object',
+      properties: {
+        vendor: {
+          type: 'string',
+          description:
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
         },
-        required: ['vendor', 'query'],
+        query: {
+          type: 'string',
+          description: "Search term — e.g. a function name or concept like 'webhook signature' or 'embedded wallet'",
+        },
       },
+      required: ['vendor', 'query'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'propose_zip_contents',
-      description:
-        'Declare the list of files that should go into the downloadable starter ZIP. Call this once the user has decided what they want to build.',
-      parameters: {
-        type: 'object',
-        properties: {
-          files: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                path: { type: 'string', description: 'File path in the ZIP (e.g. app/api/check-membership/route.ts)' },
-                source: { type: 'string', enum: ['repo', 'generated'], description: "'repo' = pull from Knead's GitHub; 'generated' = text you write below" },
-                content: { type: 'string', description: 'Required when source is generated — the file content to write' },
-              },
-              required: ['path', 'source'],
+    name: 'propose_zip_contents',
+    description:
+      'Declare the list of files that should go into the downloadable starter ZIP. Call this once the user has decided what they want to build.',
+    parameters: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'File path in the ZIP (e.g. app/api/check-membership/route.ts)' },
+              source: { type: 'string', enum: ['repo', 'generated'], description: "'repo' = pull from Knead's GitHub; 'generated' = text you write below" },
+              content: { type: 'string', description: 'Required when source is generated — the file content to write' },
             },
-          },
-          setupInstructions: {
-            type: 'string',
-            description: 'Markdown-formatted getting-started guide to include as README.md in the ZIP. Always cover: 1) unzip, 2) push to GitHub, 3) sign up for Vercel + import repo, 4) add env vars in Vercel dashboard (list each one with a placeholder value), 5) deploy. 5–7 steps max.',
+            required: ['path', 'source'],
           },
         },
-        required: ['files', 'setupInstructions'],
+        setupInstructions: {
+          type: 'string',
+          description: 'Markdown-formatted getting-started guide to include as README.md in the ZIP. Always cover: 1) unzip, 2) push to GitHub, 3) sign up for Vercel + import repo, 4) add env vars in Vercel dashboard (list each one with a placeholder value), 5) deploy. 5–7 steps max.',
+        },
       },
+      required: ['files', 'setupInstructions'],
     },
   },
 ];
@@ -348,7 +322,7 @@ ${KNEAD_PHILOSOPHY}
 
 Knead's repository is ${KNEAD_REPO} on GitHub. This is the ONLY valid repo — there is no "knead-co/knead", no "kneadmag/knead", no other name. Never write a github.com link or file path that didn't come back verbatim from a get_source_file, search_repo, list_directory, get_vendor_source, list_vendor_directory, or search_vendor_repo tool call. If you have not called one of those tools in this turn, you have no basis for any link or path — do not write one. Guessing a URL and presenting it as real is a critical failure.
 
-Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), OpenAI GPT-4o (AI features), Tailwind CSS + shadcn/ui.
+Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), Anthropic Claude Opus + OpenAI GPT-5 (AI features — Claude for editorial text and the build assistant, GPT-5 for the community-chat agent, fallback, TTS, and moderation), Tailwind CSS + shadcn/ui.
 
 Knead's smart contracts (deployed on Base mainnet):
 - Membership contract (ERC1155 — freemium + premium NFT tiers): 0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85 — https://basescan.org/address/0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85#code
@@ -420,83 +394,66 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(recipeIds as RecipeId[]);
 
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message },
-    ];
-
-    let reply = '';
     let newZipProposal = zipProposal ?? null;
 
-    for (let round = 0; round < 5; round++) {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 1500,
-        tools: TOOLS,
-        messages,
-      });
-
-      const assistantMsg = response.choices[0].message;
-      messages.push(assistantMsg);
-
-      const toolCalls = assistantMsg.tool_calls ?? [];
-      if (toolCalls.length === 0) {
-        reply = assistantMsg.content ?? '';
-        break;
+    const executeTool = async (name: string, args: any): Promise<string> => {
+      if (name === 'web_search') {
+        return webSearch(args.query).catch(() => 'Search unavailable.');
       }
+      if (name === 'get_source_file') {
+        const text = await fetchFile(args.path);
+        return text ?? `// File not found: ${args.path}`;
+      }
+      if (name === 'get_vendor_source') {
+        return vendorFetch(args.vendor, args.path);
+      }
+      if (name === 'list_vendor_directory') {
+        const entries = await listVendorDirectory(args.vendor, args.dir);
+        if (!entries) {
+          return `Could not list directory "${args.dir}" for vendor "${args.vendor}". Check the vendor key is correct.`;
+        }
+        const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
+        const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
+        return [...dirs, ...files].join('\n') || 'Directory is empty.';
+      }
+      if (name === 'search_vendor_repo') {
+        const results = await searchVendorRepo(args.vendor, args.query);
+        return results.length > 0
+          ? `Found ${results.length} file(s) in ${args.vendor}:\n${results.map((r) => `- ${r.path}`).join('\n')}`
+          : `No files found for that query in ${args.vendor}.`;
+      }
+      if (name === 'search_repo') {
+        const results = await searchRepo(args.query);
+        return results.length > 0
+          ? `Found ${results.length} file(s):\n${results.map((r) => `- ${r.path}`).join('\n')}`
+          : 'No files found for that query.';
+      }
+      if (name === 'list_directory') {
+        const entries = await listDirectory(args.dir);
+        if (!entries) {
+          return `Could not list directory: ${args.dir}`;
+        }
+        const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
+        const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
+        return [...dirs, ...files].join('\n') || 'Directory is empty.';
+      }
+      if (name === 'propose_zip_contents') {
+        newZipProposal = args;
+        return `ZIP proposal recorded: ${args.files.length} files, README included.`;
+      }
+      return 'Unknown tool.';
+    };
 
-      const results = await Promise.all(
-        toolCalls.map(async (t) => {
-          const args = JSON.parse(t.function.arguments || '{}');
-          let content = 'Unknown tool.';
-
-          if (t.function.name === 'web_search') {
-            content = await webSearch(args.query).catch(() => 'Search unavailable.');
-          } else if (t.function.name === 'get_source_file') {
-            const text = await fetchFile(args.path);
-            content = text ?? `// File not found: ${args.path}`;
-          } else if (t.function.name === 'get_vendor_source') {
-            content = await vendorFetch(args.vendor, args.path);
-          } else if (t.function.name === 'list_vendor_directory') {
-            const entries = await listVendorDirectory(args.vendor, args.dir);
-            if (!entries) {
-              content = `Could not list directory "${args.dir}" for vendor "${args.vendor}". Check the vendor key is correct.`;
-            } else {
-              const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
-              const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
-              content = [...dirs, ...files].join('\n') || 'Directory is empty.';
-            }
-          } else if (t.function.name === 'search_vendor_repo') {
-            const results = await searchVendorRepo(args.vendor, args.query);
-            content = results.length > 0
-              ? `Found ${results.length} file(s) in ${args.vendor}:\n${results.map((r) => `- ${r.path}`).join('\n')}`
-              : `No files found for that query in ${args.vendor}.`;
-          } else if (t.function.name === 'search_repo') {
-            const results = await searchRepo(args.query);
-            content = results.length > 0
-              ? `Found ${results.length} file(s):\n${results.map((r) => `- ${r.path}`).join('\n')}`
-              : 'No files found for that query.';
-          } else if (t.function.name === 'list_directory') {
-            const entries = await listDirectory(args.dir);
-            if (!entries) {
-              content = `Could not list directory: ${args.dir}`;
-            } else {
-              const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
-              const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
-              content = [...dirs, ...files].join('\n') || 'Directory is empty.';
-            }
-          } else if (t.function.name === 'propose_zip_contents') {
-            newZipProposal = args;
-            content = `ZIP proposal recorded: ${args.files.length} files, README included.`;
-          }
-
-          return { role: 'tool' as const, tool_call_id: t.id, content };
-        }),
-      );
-
-      messages.push(...results);
-    }
+    const reply = await runAgentChat({
+      system: systemPrompt,
+      history,
+      message,
+      tools: TOOLS,
+      executeTool,
+      maxTokens: 1500,
+      maxRounds: 5,
+      logTag: 'build/chat',
+    });
 
     return NextResponse.json({ reply, turnsLeft, zipProposal: newZipProposal });
   } catch (err: any) {
