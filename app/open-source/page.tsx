@@ -11,6 +11,15 @@ interface Message {
   content: string;
 }
 
+// User-selectable models for the build chat. Sonnet 5 is the default; the
+// unpicked provider serves as the automatic fallback server-side.
+const MODELS = [
+  { id: 'sonnet-5', label: 'Sonnet 5', full: 'Claude Sonnet 5' },
+  { id: 'gpt-5', label: 'GPT-5', full: 'OpenAI GPT-5' },
+] as const;
+type ModelId = (typeof MODELS)[number]['id'];
+const MODEL_STORAGE_KEY = 'knead-build-model';
+
 interface ZipProposal {
   files: { path: string; source: 'repo' | 'generated'; content?: string }[];
   setupInstructions: string;
@@ -36,12 +45,28 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [model, setModel] = useState<ModelId>('sonnet-5');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // Restore the visitor's last model choice (post-mount to avoid SSR mismatch)
+  useEffect(() => {
+    const saved = window.localStorage.getItem(MODEL_STORAGE_KEY);
+    if (MODELS.some((m) => m.id === saved)) setModel(saved as ModelId);
+  }, []);
+
+  const changeModel = (m: ModelId) => {
+    setModel(m);
+    try {
+      window.localStorage.setItem(MODEL_STORAGE_KEY, m);
+    } catch {
+      // private browsing — the choice just won't persist
+    }
+  };
 
   const toggleRecipe = (id: RecipeId) => {
     setSelectedRecipes((prev) =>
@@ -69,6 +94,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
           recipeIds: selectedRecipes,
           walletAddress,
           zipProposal,
+          model,
         }),
       });
 
@@ -159,6 +185,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
               loading={loading}
               disabled={rateLimited}
               placeholder="Describe what you want to build from Knead's stack…"
+              model={model}
+              onModelChange={changeModel}
             />
 
             {/* Suggestion pills */}
@@ -337,6 +365,8 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
                 loading={loading}
                 disabled={rateLimited}
                 placeholder={rateLimited ? (walletAddress ? 'Daily limit reached — upgrade for unlimited builds' : 'Please sign in to continue') : 'Ask a follow-up…'}
+                model={model}
+                onModelChange={changeModel}
               />
               {rateLimited && walletAddress && (
                 <p className="text-center text-xs font-georgia-pro text-gray-400 mt-2">
@@ -437,16 +467,68 @@ function FlipTile({ recipe, index, onOrder, selected, onSelect }: {
   );
 }
 
+// ─── Model picker ─────────────────────────────────────────────────────────────
+
+function ModelPicker({ model, onChange, disabled }: {
+  model: ModelId; onChange: (m: ModelId) => void; disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = MODELS.find((m) => m.id === model) ?? MODELS[0];
+
+  return (
+    <div className="relative flex-shrink-0 self-end">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        className="flex items-center gap-1 text-xs font-georgia-pro text-gray-400 hover:text-black transition-colors pb-0.5 disabled:opacity-50"
+        aria-label={`Model: ${current.full}`}
+      >
+        {current.label}
+        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" className={`transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="M1 1l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          {/* click-away backdrop */}
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-3 z-20 w-44 bg-white border border-gray-200 rounded-xl shadow-sm py-1">
+            {MODELS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => { onChange(m.id); setOpen(false); }}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-georgia-pro text-gray-600 hover:bg-gray-50 hover:text-black transition-colors"
+              >
+                {m.full}
+                {m.id === model && (
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                    <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Chat input ───────────────────────────────────────────────────────────────
 
-function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, disabled, placeholder }: {
+function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, disabled, placeholder, model, onModelChange }: {
   inputRef: React.RefObject<HTMLTextAreaElement>;
   value: string; onChange: (v: string) => void; onSubmit: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   loading: boolean; disabled: boolean; placeholder: string;
+  model: ModelId; onModelChange: (m: ModelId) => void;
 }) {
   return (
-    <div className="flex items-end gap-2 border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-gray-400 transition-colors bg-white">
+    <div className="flex items-end gap-3 border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-gray-400 transition-colors bg-white">
+      <ModelPicker model={model} onChange={onModelChange} disabled={disabled || loading} />
       <textarea
         ref={inputRef}
         rows={1}
