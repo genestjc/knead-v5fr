@@ -11,6 +11,7 @@ import {
   fetchVendorFile as vendorFetch,
   listVendorDirectory,
   searchVendorRepo,
+  getRepoTree,
   KNEAD_REPO,
 } from '@/lib/github';
 import { runAgentChat, CLAUDE_SONNET, type AgentTool } from '@/lib/ai/router';
@@ -298,7 +299,7 @@ YOUR APPROACH
 
 // ---------- system prompt ----------
 
-function buildSystemPrompt(recipeIds: RecipeId[]): string {
+function buildSystemPrompt(recipeIds: RecipeId[], repoTree: string): string {
   const selected = RECIPES.filter((r) => recipeIds.includes(r.id));
   const recipeContext =
     selected.length > 0
@@ -334,14 +335,20 @@ Knead's smart contracts (deployed on Base mainnet):
 - Contributors contract (contributor NFT + allowance tracking): 0x310c62deF61b3543ddf90C2aD3866dAFBf5303c1 — https://basescan.org/address/0x310c62deF61b3543ddf90C2aD3866dAFBf5303c1
 - Rewards contract (token rewards distribution): 0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa — https://basescan.org/address/0xe0c1EeBc42553C2a814905E5f73e5Fde2c52D8Fa#code
 When asked about membership, NFTs, or contracts, reference these addresses and link to Basescan so builders can fork or inspect them directly.
+${repoTree ? `
+REPOSITORY MAP — the complete, current file tree of ${KNEAD_REPO}. Go STRAIGHT to get_source_file with an exact path from this map; do not spend tool calls on search_repo or list_directory for anything already listed here. A path not in this map does not exist — never invent one.
 
+<repository_map>
+${repoTree}
+</repository_map>
+` : ''}
 ${KNEAD_DESIGN_GUIDE}
 
 Your rules:
 1. ONLY answer from Knead's repository. Never suggest libraries, patterns, or services not already in Knead's stack.
 2. When showing code, ALWAYS fetch the real implementation first via get_source_file. If you're unsure of the path, call search_repo or list_directory first to find it, then call get_source_file. Never invent code and present it as pulled from the repo — if every lookup fails, say "I couldn't find that file" and label any code you write as a guide, not real source.
-3. Retrieval hierarchy: (1) get_source_file for known paths → (2) search_repo or list_directory to discover unknown paths → (3) get_vendor_source for vendor SDK files → (4) web_search as a last resort for current docs or pricing only.
-4. When exploring the repo, use list_directory to understand structure before guessing paths. Common areas: app/api/ for API routes, components/ for UI, lib/ for utilities, sanity/ for CMS schemas.
+3. Retrieval hierarchy: (1) get_source_file with an exact path from the REPOSITORY MAP → (2) search_repo or list_directory only for things the map doesn't cover → (3) get_vendor_source for vendor SDK files → (4) web_search as a last resort for current docs or pricing only.
+4. Common areas: app/api/ for API routes, components/ for UI, lib/ for utilities, sanity/ for CMS schemas.
 5. If get_vendor_source returns "File not found," do NOT give up or fall back to web_search immediately — call list_vendor_directory to see the real repo structure, or search_vendor_repo to find the file by keyword. Only use web_search if both of those fail to turn up the file.
 6. If the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), say: "Sorry, that's not in Knead's repository. For that, I'd suggest checking [specific docs link or resource]."
 7. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
@@ -404,7 +411,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const systemPrompt = buildSystemPrompt(recipeIds as RecipeId[]);
+    // Cached in Supabase for an hour; '' on failure (map section is omitted
+    // and the model falls back to search/list discovery)
+    const repoTree = await getRepoTree();
+
+    const systemPrompt = buildSystemPrompt(recipeIds as RecipeId[], repoTree);
 
     let newZipProposal = zipProposal ?? null;
 
