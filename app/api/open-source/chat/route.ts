@@ -154,6 +154,16 @@ async function touchProfile(
   if (error) console.error('[build/chat] profile touch error:', error.message);
 }
 
+// Shown for signed-in visitors Demeter has no skill read on yet — a new
+// wallet, or a returning one that never answered. Two friendly questions
+// early on give the profile its baseline.
+const NEW_BUILDER_INTAKE = `
+NEW BUILDER INTAKE — this person is signed in, but you don't yet know their experience level. Within your first reply or two — once you know roughly what they want to build, never as your cold opening line, and only if the conversation so far doesn't already answer it — ask two quick, friendly questions in one short message:
+1. How much coding experience they have. Make "none at all" feel like a great answer — most Knead builders start there.
+2. What they already have set up — a code editor, a GitHub account, a Vercel account — or nothing yet, which is also completely fine.
+Frame it as tailoring the walkthrough ("so I can pitch this exactly right for you"), never as a test or a signup form. When they answer, silently save it with update_builder_profile (skill_level, plus notes on what they have set up), then let it steer everything after: nothing set up → offer the GETTING SET UP walkthrough before diving into code; experienced → move faster, translate less, skip the hand-holding.
+`;
+
 function buildProfileContext(profile: BuilderProfile | null, isNewConversation: boolean): string {
   if (!profile) return '';
   const days = Math.floor((Date.now() - new Date(profile.last_seen_at).getTime()) / 86_400_000);
@@ -574,10 +584,13 @@ export async function POST(req: NextRequest) {
     ]);
     if (profileWallet) await touchProfile(profileWallet, isNewConversation, profile);
 
+    // Signed in but no skill read yet (new wallet, or returning without one)
+    const needsIntake = Boolean(profileWallet) && !profile?.skill_level;
+
     const systemPrompt = buildSystemPrompt(
       recipeIds as RecipeId[],
       repoTree,
-      buildProfileContext(profile, isNewConversation),
+      buildProfileContext(profile, isNewConversation) + (needsIntake ? NEW_BUILDER_INTAKE : ''),
     );
 
     let newZipProposal = zipProposal ?? null;
