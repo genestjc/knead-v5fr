@@ -88,7 +88,10 @@ export async function runAgentChat(opts: AgentChatOptions): Promise<string> {
       : [runClaudeLoop, runOpenAILoop];
 
   try {
-    return await primary(opts);
+    const reply = await primary(opts);
+    if (reply) return reply;
+    console.error(`[${opts.logTag}] primary provider returned empty; trying the other provider`);
+    return await secondary(opts);
   } catch (err: any) {
     console.error(
       `[${opts.logTag}] ${opts.preferredProvider === 'openai' ? 'OpenAI' : 'Claude'} error (${err?.message}); falling back to the other provider`,
@@ -167,16 +170,25 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
     { role: 'user' as const, content: message },
   ];
 
+  // Chat surfaces are latency-sensitive, so thinking stays off. This must be
+  // explicit: Sonnet 5 runs adaptive thinking by default when the field is
+  // omitted, and thinking tokens draw from max_tokens — a tight budget can
+  // come back as all thinking and no visible text.
+  const thinking = { type: 'disabled' as const };
+
   let reply = '';
+  let stopReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
     const response = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
+      thinking,
       system: cachedSystem,
       messages: withCacheBreakpoint(messages),
       ...(claudeTools.length > 0 ? { tools: claudeTools } : {}),
     });
+    stopReason = response.stop_reason;
 
     messages.push({ role: 'assistant', content: response.content });
 
@@ -206,6 +218,29 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
     messages.push({ role: 'user', content: results });
   }
 
+  // Rounds exhausted mid-tool-use (last message is pending tool results):
+  // make one final call without tools to force a text answer.
+  if (!reply && messages[messages.length - 1]?.role === 'user') {
+    console.error(
+      `[${opts.logTag}] Claude gave no text (stop_reason=${stopReason}); forcing a final answer`,
+    );
+    const final = await anthropic.messages.create({
+      model,
+      max_tokens: maxTokens,
+      thinking,
+      system: cachedSystem,
+      messages,
+    });
+    reply = final.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+  }
+
+  if (!reply) {
+    console.error(`[${opts.logTag}] Claude reply empty (stop_reason=${stopReason})`);
+  }
   return reply;
 }
 
@@ -224,6 +259,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   ];
 
   let reply = '';
+  let finishReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
     const response = await openai.chat.completions.create({
@@ -238,6 +274,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
       ...(openaiTools.length > 0 ? { tools: openaiTools } : {}),
       messages,
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    finishReason = response.choices[0].finish_reason;
 
     const assistantMessage = response.choices[0].message;
     messages.push(assistantMessage);
@@ -263,5 +300,22 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
     messages.push(...results);
   }
 
+  // Rounds exhausted mid-tool-use: one final call without tools forces text
+  if (!reply && messages[messages.length - 1]?.role === 'tool') {
+    console.error(
+      `[${opts.logTag}] GPT-5 gave no text (finish_reason=${finishReason}); forcing a final answer`,
+    );
+    const final = await openai.chat.completions.create({
+      model: OPENAI_FALLBACK_MODEL,
+      max_completion_tokens: Math.max(maxTokens * 3, 4096),
+      reasoning_effort: 'low',
+      messages,
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    reply = final.choices[0].message.content?.trim() ?? '';
+  }
+
+  if (!reply) {
+    console.error(`[${opts.logTag}] GPT-5 reply empty (finish_reason=${finishReason})`);
+  }
   return reply;
 }
