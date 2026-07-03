@@ -42,6 +42,8 @@ export interface ChatTurn {
 
 export type ToolExecutor = (name: string, args: any) => Promise<string>;
 
+export type Provider = 'claude' | 'openai';
+
 // Cost controls. Tool results (fetched source files can be huge) and client
 // history are the two unbounded inputs; everything else is capped by design.
 const MAX_TOOL_RESULT_CHARS = 12_000;
@@ -65,22 +67,33 @@ export interface AgentChatOptions {
   maxRounds?: number;
   /** Claude model for this surface. Defaults to Opus. */
   model?: string;
+  /**
+   * Which provider to try first; the other one is the automatic fallback.
+   * Defaults to Claude. The open-source chat passes this through from the
+   * user-facing model picker.
+   */
+  preferredProvider?: Provider;
   /** Prefix for error logs, e.g. 'Demeter' or 'build/chat'. */
   logTag: string;
 }
 
 /**
- * Run a (possibly tool-using) chat turn on Claude Opus, falling back to
- * OpenAI GPT-5 if the Claude call fails. Returns the assistant's final text.
+ * Run a (possibly tool-using) chat turn on the preferred provider, falling
+ * back to the other one if the call fails. Returns the assistant's final text.
  */
 export async function runAgentChat(opts: AgentChatOptions): Promise<string> {
+  const [primary, secondary] =
+    opts.preferredProvider === 'openai'
+      ? [runOpenAILoop, runClaudeLoop]
+      : [runClaudeLoop, runOpenAILoop];
+
   try {
-    return await runClaudeLoop(opts);
+    return await primary(opts);
   } catch (err: any) {
     console.error(
-      `[${opts.logTag}] Claude error (${err?.message}); falling back to ${OPENAI_FALLBACK_MODEL}`,
+      `[${opts.logTag}] ${opts.preferredProvider === 'openai' ? 'OpenAI' : 'Claude'} error (${err?.message}); falling back to the other provider`,
     );
-    return runOpenAILoop(opts);
+    return secondary(opts);
   }
 }
 
