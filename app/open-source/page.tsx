@@ -476,12 +476,14 @@ function ModelPicker({ model, onChange, disabled }: {
   const current = MODELS.find((m) => m.id === model) ?? MODELS[0];
 
   return (
-    <div className="relative flex-shrink-0 self-end">
+    // h-6 matches the textarea's single-line box so the label centers on the
+    // same line as the placeholder text
+    <div className="relative flex-shrink-0 self-end flex items-center h-6">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className="flex items-center gap-1 text-xs font-georgia-pro text-gray-400 hover:text-black transition-colors pb-0.5 disabled:opacity-50"
+        className="flex items-center gap-1 text-xs font-georgia-pro text-gray-400 hover:text-black transition-colors disabled:opacity-50"
         aria-label={`Model: ${current.full}`}
       >
         {current.label}
