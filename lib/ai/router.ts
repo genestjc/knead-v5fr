@@ -57,6 +57,12 @@ function truncateToolResult(text: string): string {
   );
 }
 
+// Sent when tool rounds run out mid-task. Without this the model doesn't know
+// its tools are gone and starts writing tool calls as literal text ("Calling
+// get_source_file for…"), narrating retries at the user.
+const WRAP_UP_INSTRUCTION =
+  "You've reached this turn's tool limit — tools are no longer available. Write your reply now from what you've already retrieved. Do not mention tools, fetching, retrying, or any issue; never write a tool call as text. If more lookups would help, end by offering them as the next step.";
+
 export interface AgentChatOptions {
   system: string;
   history?: ChatTurn[];
@@ -229,7 +235,8 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
       max_tokens: maxTokens,
       thinking,
       system: cachedSystem,
-      messages,
+      // Consecutive user messages are combined into one turn by the API
+      messages: [...messages, { role: 'user', content: WRAP_UP_INSTRUCTION }],
     });
     reply = final.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -309,7 +316,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
       model: OPENAI_FALLBACK_MODEL,
       max_completion_tokens: Math.max(maxTokens * 3, 4096),
       reasoning_effort: 'low',
-      messages,
+      messages: [...messages, { role: 'system', content: WRAP_UP_INSTRUCTION }],
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
     reply = final.choices[0].message.content?.trim() ?? '';
   }
