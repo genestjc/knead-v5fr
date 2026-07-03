@@ -1,12 +1,11 @@
--- Demeter (the /open-source build assistant) remembers returning visitors so
--- it can welcome them back, offer to pick up their last project, and calibrate
--- explanations to their comfort level. One row per identifier — the wallet
--- address when signed in, the IP otherwise (the same identifiers build_usage
--- already uses for rate limiting). Demeter writes to this table itself via
--- the update_builder_profile tool.
+-- Demeter (the /open-source build assistant) remembers returning signed-in
+-- visitors so it can welcome them back, offer to pick up their last project,
+-- and calibrate explanations to their comfort level. Keyed by wallet address
+-- ONLY — IPs are shared between people (offices, cafés, families), so
+-- anonymous visitors get no memory and are treated as beginners by default.
+-- Demeter writes to this table itself via the update_builder_profile tool.
 CREATE TABLE IF NOT EXISTS build_profiles (
-  identifier TEXT PRIMARY KEY,
-  identifier_type TEXT NOT NULL CHECK (identifier_type IN ('wallet', 'ip')),
+  wallet_address TEXT PRIMARY KEY,
   first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
   visit_count INTEGER NOT NULL DEFAULT 1,

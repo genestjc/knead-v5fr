@@ -103,10 +103,11 @@ async function checkAndIncrementUsage(
 }
 
 // ---------- builder profiles (returning-visitor memory) ----------
+// Keyed by wallet address ONLY. IPs are shared between people, so anonymous
+// visitors get no memory and fall back to the beginner-by-default voice.
 
 interface BuilderProfile {
-  identifier: string;
-  identifier_type: string;
+  wallet_address: string;
   first_seen_at: string;
   last_seen_at: string;
   visit_count: number;
@@ -115,12 +116,12 @@ interface BuilderProfile {
   notes: string | null;
 }
 
-async function getProfile(identifier: string): Promise<BuilderProfile | null> {
+async function getProfile(walletAddress: string): Promise<BuilderProfile | null> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('build_profiles')
     .select('*')
-    .eq('identifier', identifier)
+    .eq('wallet_address', walletAddress)
     .maybeSingle();
   if (error) {
     console.error('[build/chat] profile lookup error:', error.message);
@@ -130,8 +131,7 @@ async function getProfile(identifier: string): Promise<BuilderProfile | null> {
 }
 
 async function touchProfile(
-  identifier: string,
-  identifierType: string,
+  walletAddress: string,
   isNewConversation: boolean,
   existing: BuilderProfile | null,
 ): Promise<void> {
@@ -140,7 +140,7 @@ async function touchProfile(
     // First visit — upsert so a race between parallel first requests is harmless
     const { error } = await supabase
       .from('build_profiles')
-      .upsert({ identifier, identifier_type: identifierType }, { onConflict: 'identifier' });
+      .upsert({ wallet_address: walletAddress }, { onConflict: 'wallet_address' });
     if (error) console.error('[build/chat] profile create error:', error.message);
     return;
   }
@@ -150,32 +150,23 @@ async function touchProfile(
       last_seen_at: new Date().toISOString(),
       visit_count: isNewConversation ? existing.visit_count + 1 : existing.visit_count,
     })
-    .eq('identifier', identifier);
+    .eq('wallet_address', walletAddress);
   if (error) console.error('[build/chat] profile touch error:', error.message);
 }
 
-function buildProfileContext(
-  profile: BuilderProfile | null,
-  identifierType: 'wallet' | 'ip',
-  isNewConversation: boolean,
-): string {
+function buildProfileContext(profile: BuilderProfile | null, isNewConversation: boolean): string {
   if (!profile) return '';
   const days = Math.floor((Date.now() - new Date(profile.last_seen_at).getTime()) / 86_400_000);
   const lastSeen = days <= 0 ? 'earlier today' : days === 1 ? 'yesterday' : `${days} days ago`;
   const lines = [
-    `RETURNING VISITOR — you have memory of this person from past visits (last here ${lastSeen}; ${profile.visit_count} visit${profile.visit_count === 1 ? '' : 's'} so far):`,
+    `RETURNING VISITOR — this person is signed in and you have memory of them from past visits (last here ${lastSeen}; ${profile.visit_count} visit${profile.visit_count === 1 ? '' : 's'} so far):`,
   ];
   if (profile.last_project) lines.push(`- What they were building last time: ${profile.last_project}`);
   if (profile.skill_level) lines.push(`- Comfort level with code so far: ${profile.skill_level}`);
   if (profile.notes) lines.push(`- Notes from past sessions: ${profile.notes}`);
   lines.push(
-    identifierType === 'wallet'
-      ? '- They are signed in, so this memory is reliably theirs.'
-      : '- They are recognized only by network address, which can be shared between people. A light "welcome back" is fine, but confirm before assuming — e.g. "Were you the one building X last time?" — and never present the memory as certain fact.',
-  );
-  lines.push(
     isNewConversation
-      ? 'This is the first message of a fresh conversation: open with a warm welcome back, and if you know what they were building, offer to pick up where they left off. Never mention wallet addresses, IPs, profiles, or tracking — just talk like a friend who remembers them.'
+      ? 'This is the first message of a fresh conversation: open with a warm welcome back, and if you know what they were building, offer to pick up where they left off. Never mention wallet addresses, profiles, or tracking — just talk like a friend who remembers them.'
       : 'Use this memory quietly to calibrate your explanations — do not re-welcome them mid-conversation.',
   );
   return `\n${lines.join('\n')}\n`;
@@ -485,7 +476,7 @@ Your rules:
 15. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.
 16. Your tool calls are invisible to the user — never narrate or announce them. No "Fetching…", "Calling get_source_file…", "Retrying…", "Let me pull up…", and never write a tool call out as text. Retrieve silently, then teach from what you found. If a lookup fails after a couple of attempts, say plainly "I couldn't find that file" and move on.
 17. You have a hard budget of 5 tool rounds per reply — plan for 1-2. Fetch only the single most relevant file (two at most), and when you do need more than one, request them together in ONE round (parallel tool calls), never one per round. Anything else the user might want next, offer as a follow-up instead of fetching now. Do not spend your last round on a fetch you won't have room to explain.
-18. Memory: whenever you learn what this person is building — and whenever your read on their comfort level with code sharpens or changes — silently call update_builder_profile so their next visit picks up where they left off. Bundle it into a round where you're already calling other tools when you can. Never tell them you're taking notes, and never mention wallets, IPs, or profiles. If they ask how you remembered something, say you remember what they were working on and offer to forget it if they'd like (then call update_builder_profile with forget: true).${recipeContext}
+18. Memory: whenever you learn what this person is building — and whenever your read on their comfort level with code sharpens or changes — silently call update_builder_profile so their next visit picks up where they left off. Memory only persists for signed-in visitors; if the tool says nothing was saved, carry on without ever mentioning it. Bundle it into a round where you're already calling other tools when you can. Never tell them you're taking notes, and never mention wallets, IPs, or profiles. If they ask how you remembered something, say you remember what they were working on and offer to forget it if they'd like (then call update_builder_profile with forget: true).${recipeContext}
 
 Environment variables: always list what the user needs to set with generic names. Never hardcode secrets in generated code.`;
 }
@@ -538,14 +529,19 @@ export async function POST(req: NextRequest) {
 
     // Cached in Supabase for an hour; '' on failure (map section is omitted
     // and the model falls back to search/list discovery)
+    // Memory is wallet-only — anonymous visitors get the beginner-by-default voice
     const isNewConversation = history.length === 0;
-    const [repoTree, profile] = await Promise.all([getRepoTree(), getProfile(identifier)]);
-    await touchProfile(identifier, identifierType, isNewConversation, profile);
+    const profileWallet = identifierType === 'wallet' ? identifier : null;
+    const [repoTree, profile] = await Promise.all([
+      getRepoTree(),
+      profileWallet ? getProfile(profileWallet) : Promise.resolve(null),
+    ]);
+    if (profileWallet) await touchProfile(profileWallet, isNewConversation, profile);
 
     const systemPrompt = buildSystemPrompt(
       recipeIds as RecipeId[],
       repoTree,
-      buildProfileContext(profile, identifierType, isNewConversation),
+      buildProfileContext(profile, isNewConversation),
     );
 
     let newZipProposal = zipProposal ?? null;
@@ -592,6 +588,9 @@ export async function POST(req: NextRequest) {
         return [...dirs, ...files].join('\n') || 'Directory is empty.';
       }
       if (name === 'update_builder_profile') {
+        if (identifierType !== 'wallet') {
+          return 'This visitor is not signed in, so nothing was saved. Continue normally and never mention it.';
+        }
         const supabase = getSupabaseAdmin();
         const updates: Record<string, string | null> = {};
         if (args.forget === true) {
@@ -607,8 +606,8 @@ export async function POST(req: NextRequest) {
         }
         if (Object.keys(updates).length === 0) return 'Nothing to save.';
         const { error } = await supabase.from('build_profiles').upsert(
-          { identifier, identifier_type: identifierType, last_seen_at: new Date().toISOString(), ...updates },
-          { onConflict: 'identifier' },
+          { wallet_address: identifier, last_seen_at: new Date().toISOString(), ...updates },
+          { onConflict: 'wallet_address' },
         );
         if (error) {
           console.error('[build/chat] profile save error:', error.message);
