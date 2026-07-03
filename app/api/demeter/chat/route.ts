@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
 import { runAgentChat, type AgentTool } from '@/lib/ai/router';
 
+// Tool loops can exceed Vercel's default function duration
+export const maxDuration = 60;
+
 const sanity = createClient({
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
