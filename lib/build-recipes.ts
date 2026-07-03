@@ -189,8 +189,8 @@ export const RECIPES: BuildRecipe[] = [
     description: 'Install an agent on your page for community management or to help summarize editorial content. Built with ChatGPT, Claude, Alchemy, and Tavily.',
     tags: ['OpenAI', 'Claude', 'Tavily'],
     why: 'Demeter — the agent you\'re talking to right now — is the proof of concept. An agent that knows your content, your stack, and your community\'s context is qualitatively different from a generic chatbot. This is what the open internet looks like: knowledge freely accessible through agents that carry the author\'s perspective.',
-    architectureNote: 'The agent is built on OpenAI GPT-4o with tool use for web search (Tavily) and file fetching (GitHub API). The system prompt is where the personality and knowledge live — it\'s the most important file in the whole feature. Claude is used for longer-form tasks where extended thinking helps.',
-    tradeoffs: 'GPT-4o is used over Claude Sonnet for cost reasons at the per-turn level ($2.50/$10 per million tokens vs $3/$15). For agents that run longer sessions, that delta compounds.',
+    architectureNote: 'The agent routes by strength: Claude Opus handles the editorial surfaces — article summaries, the reader-facing Demeter bubble, and this build assistant — with tool use for web search (Tavily), Sanity content, and file fetching (GitHub API). OpenAI GPT-5 runs the community-chat agent and steps in automatically as a fallback whenever a Claude call fails; OpenAI also handles text-to-speech and moderation. The provider-neutral tool loop lives in lib/ai/router.ts, and the system prompt is where the personality and knowledge live — it\'s the most important file in the whole feature.',
+    tradeoffs: 'Two providers means two API keys and two bills, but each model works its strongest lane — Claude for prose and code walkthroughs, GPT-5 for the transactional chat agent — and either can cover for the other during an outage.',
     mistakesWeMade: [
       'First version had no rate limiting. A single user could exhaust the monthly API budget in an afternoon.',
       'Tried to make the agent answer everything. Constraining it to only answer from the repository made it dramatically more useful and trustworthy.',
@@ -208,8 +208,8 @@ export const RECIPES: BuildRecipe[] = [
       'components/demeter/DemeterBubble.tsx',
       'server/agent-runner.ts',
     ],
-    stack: ['Next.js 14', 'OpenAI GPT-4o', 'Anthropic Claude', 'Tavily', 'Alchemy'],
-    envVarsNeeded: ['OPENAI_API_KEY', 'TAVILY_API_KEY'],
+    stack: ['Next.js 14', 'Anthropic Claude Opus', 'OpenAI GPT-5', 'Tavily', 'Alchemy'],
+    envVarsNeeded: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'],
   },
   {
     id: 'streaming',
