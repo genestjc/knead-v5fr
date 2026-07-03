@@ -1,12 +1,19 @@
 /**
  * Shared AI clients + provider routing for Knead.
  *
- * Routing:
- * - Claude Opus (claude-opus-4-8) — editorial text: article summaries, the
- *   Demeter reader bubble, and the open-source build assistant.
+ * Routing — each surface runs on the model whose strengths match it:
+ * - Claude Opus (claude-opus-4-8) — editorial voice and judgment: article
+ *   summaries and the Demeter reader bubble. Low volume, quality-first.
+ * - Claude Sonnet 5 (claude-sonnet-5) — the open-source build assistant.
+ *   High volume and retrieval-grounded (answers come from fetched repo
+ *   files), where Sonnet is near-Opus on coding at ~60% of the price and
+ *   noticeably faster.
  * - OpenAI GPT-5 (gpt-5) — the Towns community-chat agent, and the automatic
  *   fallback whenever a Claude call fails.
  * - OpenAI also keeps TTS (gpt-4o-mini-tts) and the free Moderation API.
+ *
+ * The prompt cache is per-model, so keep each surface pinned to one model
+ * rather than switching per request.
  *
  * Tools are declared once in a provider-neutral shape and mapped to each
  * SDK's format, so the fallback path supports the same tool set.
@@ -14,7 +21,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
-export const CLAUDE_MODEL = 'claude-opus-4-8';
+export const CLAUDE_OPUS = 'claude-opus-4-8';
+export const CLAUDE_SONNET = 'claude-sonnet-5';
 export const OPENAI_FALLBACK_MODEL = 'gpt-5';
 
 export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -55,6 +63,8 @@ export interface AgentChatOptions {
   executeTool?: ToolExecutor;
   maxTokens: number;
   maxRounds?: number;
+  /** Claude model for this surface. Defaults to Opus. */
+  model?: string;
   /** Prefix for error logs, e.g. 'Demeter' or 'build/chat'. */
   logTag: string;
 }
@@ -114,7 +124,15 @@ function withCacheBreakpoint(messages: Anthropic.MessageParam[]): Anthropic.Mess
 }
 
 async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
-  const { system, message, tools = [], executeTool, maxTokens, maxRounds = 5 } = opts;
+  const {
+    system,
+    message,
+    tools = [],
+    executeTool,
+    maxTokens,
+    maxRounds = 5,
+    model = CLAUDE_OPUS,
+  } = opts;
 
   // Prompt caching: tool schemas and the system prompt are identical on every
   // round and every turn, so cache them (90% input discount on hits). One
@@ -140,7 +158,7 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
 
   for (let round = 0; round < maxRounds; round++) {
     const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
+      model,
       max_tokens: maxTokens,
       system: cachedSystem,
       messages: withCacheBreakpoint(messages),
