@@ -15,6 +15,11 @@ import {
 } from '@/lib/github';
 import { runAgentChat, CLAUDE_SONNET, type AgentTool } from '@/lib/ai/router';
 
+// A multi-round tool loop can take well over Vercel's default function
+// duration; without this the function is killed mid-request and the client
+// spinner hangs forever.
+export const maxDuration = 60;
+
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
 });
@@ -466,7 +471,15 @@ export async function POST(req: NextRequest) {
       logTag: `build/chat:${pickedModel}`,
     });
 
-    return NextResponse.json({ reply, turnsLeft, zipProposal: newZipProposal, model: pickedModel });
+    return NextResponse.json({
+      // Never return an empty reply — the UI would show nothing and look hung
+      reply:
+        reply ||
+        'Sorry — I hit a snag generating that response. Try again, or switch models from the picker.',
+      turnsLeft,
+      zipProposal: newZipProposal,
+      model: pickedModel,
+    });
   } catch (err: any) {
     console.error('[build/chat] error:', err.message);
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 });
