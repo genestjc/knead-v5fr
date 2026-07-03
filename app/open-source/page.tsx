@@ -544,8 +544,10 @@ function ChatInput({ inputRef, value, onChange, onSubmit, onKeyDown, loading, di
         onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
         placeholder={placeholder}
         disabled={disabled || loading}
-        className="flex-1 resize-none outline-none text-sm font-georgia-pro text-black placeholder-gray-300 bg-transparent leading-relaxed disabled:opacity-50"
-        style={{ minHeight: '24px', maxHeight: '160px' }}
+        // py-1 + 32px min-height centers the single-line text on the same
+        // midline as the model picker and send button (both 32px tall)
+        className="flex-1 resize-none outline-none text-sm font-georgia-pro text-black placeholder-gray-300 bg-transparent leading-relaxed disabled:opacity-50 py-1"
+        style={{ minHeight: '32px', maxHeight: '160px' }}
       />
       <button
         onClick={onSubmit}
