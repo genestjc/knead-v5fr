@@ -367,13 +367,19 @@ export async function POST(req: NextRequest) {
       recipeIds = [],
       walletAddress,
       zipProposal,
+      model,
     } = body as {
       message: string;
       history: { role: 'user' | 'assistant'; content: string }[];
       recipeIds: RecipeId[];
       walletAddress?: string;
       zipProposal?: { files: { path: string; source: string; content?: string }[]; setupInstructions: string } | null;
+      model?: string;
     };
+
+    // User-facing model picker — strict allowlist, never pass a client string
+    // to the API. Anything unrecognized falls back to the default (Sonnet 5).
+    const pickedModel: 'sonnet-5' | 'gpt-5' = model === 'gpt-5' ? 'gpt-5' : 'sonnet-5';
 
     // Verify premium server-side — never trust the client
     const isPremium = walletAddress ? await verifyPremium(walletAddress) : false;
@@ -453,12 +459,14 @@ export async function POST(req: NextRequest) {
       maxTokens: 1500,
       maxRounds: 5,
       // Sonnet 5: this surface is high-volume and grounded in fetched repo
-      // files — near-Opus coding quality, faster, ~60% of the price
+      // files — near-Opus coding quality, faster, ~60% of the price. Users
+      // can pick GPT-5 instead; the unpicked provider is the fallback.
       model: CLAUDE_SONNET,
-      logTag: 'build/chat',
+      preferredProvider: pickedModel === 'gpt-5' ? 'openai' : 'claude',
+      logTag: `build/chat:${pickedModel}`,
     });
 
-    return NextResponse.json({ reply, turnsLeft, zipProposal: newZipProposal });
+    return NextResponse.json({ reply, turnsLeft, zipProposal: newZipProposal, model: pickedModel });
   } catch (err: any) {
     console.error('[build/chat] error:', err.message);
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 });
