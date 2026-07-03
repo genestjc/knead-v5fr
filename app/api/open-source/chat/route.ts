@@ -13,7 +13,7 @@ import {
   searchVendorRepo,
   KNEAD_REPO,
 } from '@/lib/github';
-import { runAgentChat, type AgentTool } from '@/lib/ai/router';
+import { runAgentChat, CLAUDE_SONNET, type AgentTool } from '@/lib/ai/router';
 
 const thirdwebClient = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID!,
@@ -322,7 +322,7 @@ ${KNEAD_PHILOSOPHY}
 
 Knead's repository is ${KNEAD_REPO} on GitHub. This is the ONLY valid repo — there is no "knead-co/knead", no "kneadmag/knead", no other name. Never write a github.com link or file path that didn't come back verbatim from a get_source_file, search_repo, list_directory, get_vendor_source, list_vendor_directory, or search_vendor_repo tool call. If you have not called one of those tools in this turn, you have no basis for any link or path — do not write one. Guessing a URL and presenting it as real is a critical failure.
 
-Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), Anthropic Claude Opus + OpenAI GPT-5 (AI features — Claude for editorial text and the build assistant, GPT-5 for the community-chat agent, fallback, TTS, and moderation), Tailwind CSS + shadcn/ui.
+Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), Anthropic Claude + OpenAI (AI features, routed by strength — Claude Opus for editorial text, Claude Sonnet for this build assistant, OpenAI GPT-5 for the community-chat agent and as fallback, OpenAI for TTS and moderation), Tailwind CSS + shadcn/ui.
 
 Knead's smart contracts (deployed on Base mainnet):
 - Membership contract (ERC1155 — freemium + premium NFT tiers): 0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85 — https://basescan.org/address/0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85#code
@@ -452,6 +452,9 @@ export async function POST(req: NextRequest) {
       executeTool,
       maxTokens: 1500,
       maxRounds: 5,
+      // Sonnet 5: this surface is high-volume and grounded in fetched repo
+      // files — near-Opus coding quality, faster, ~60% of the price
+      model: CLAUDE_SONNET,
       logTag: 'build/chat',
     });
 
