@@ -6,6 +6,7 @@ import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { verifyWalletRequest } from "@/lib/auth/verify-wallet-request";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
 import { logger } from "@/lib/logger";
 
@@ -23,9 +24,12 @@ export async function POST(req: NextRequest) {
 
   // Rate limit by IP: a signature only proves control of *one* wallet, but an
   // attacker can generate many keypairs. Capping mints per IP bounds how fast
-  // the server wallet's gas can be drained by Sybil onboarding.
+  // the server wallet's gas can be drained by Sybil onboarding. Set generously
+  // so shared networks (offices, events, mobile NAT) onboarding many real users
+  // at once aren't blocked; override via env without a redeploy.
+  const onboardLimit = Number(process.env.ONBOARD_RATE_LIMIT_PER_HOUR ?? '20');
   const { success: withinLimit } = await rateLimit("onboard", getClientIp(req), {
-    limit: 5,
+    limit: onboardLimit,
     windowSeconds: 3600,
   });
   if (!withinLimit) {
@@ -166,7 +170,11 @@ export async function POST(req: NextRequest) {
     
     // Mint freemium token
     logger.log(`🪙 Preparing to mint freemium token to ${walletAddress}`);
-    
+
+    // Fire-and-forget: warn us (once/hour) if the server wallet's gas is running
+    // low. Doesn't block or fail the mint.
+    void alertIfServerWalletLow();
+
     try {
       const transaction = prepareContractCall({
         contract,
