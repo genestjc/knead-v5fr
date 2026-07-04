@@ -561,15 +561,17 @@ function ContributorList({ contributors, onRevokeSuccess }: { contributors: Cont
 
 // Main ContributorManager Component
 export function ContributorManager({ adminAddress }: { adminAddress: string }) {
+  const account = useActiveAccount();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [contributorStats, setContributorStats] = useState<ContributorStats[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   const fetchContributors = useCallback(async () => {
+    if (!account) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/admin/contributors?adminAddress=${adminAddress}`);
+      const response = await adminFetch('/api/admin/contributors', account);
       const data = await response.json();
       if (data.success) {
         setContributors(data.data);
@@ -581,12 +583,13 @@ export function ContributorManager({ adminAddress }: { adminAddress: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [adminAddress]);
+  }, [account]);
 
   const fetchContributorStats = useCallback(async () => {
+    if (!account) return;
     setIsLoadingStats(true);
     try {
-      const response = await fetch('/api/admin/contributors/stats');
+      const response = await adminFetch('/api/admin/contributors/stats', account);
       const data = await response.json();
       if (data.success) {
         setContributorStats(data.data);
@@ -598,7 +601,7 @@ export function ContributorManager({ adminAddress }: { adminAddress: string }) {
     } finally {
       setIsLoadingStats(false);
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
     fetchContributors();
