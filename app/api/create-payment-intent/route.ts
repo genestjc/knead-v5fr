@@ -26,19 +26,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 1: Create or retrieve customer
-    let customer:  Stripe.Customer;
-    
-    const existingCustomers = await stripe.customers.list({
-      limit: 100,
-    });
-    
-    const existingCustomer = existingCustomers.data.find(
-      (c) => c.metadata?.walletAddress === walletAddress
-    );
+    // Step 1: Create or retrieve customer.
+    //
+    // Previously this listed the first 100 customers and scanned them in memory,
+    // which silently breaks once the account passes 100 customers: existing
+    // customers stop being found, so every checkout creates a *duplicate*
+    // customer + subscription. Use Stripe's search API, which queries the whole
+    // account by metadata regardless of size.
+    let customer: Stripe.Customer;
 
-    if (existingCustomer) {
-      customer = existingCustomer;
+    const found = await stripe.customers.search({
+      query: `metadata['walletAddress']:'${walletAddress}'`,
+      limit: 1,
+    });
+
+    if (found.data.length > 0) {
+      customer = found.data[0];
     } else {
       customer = await stripe.customers.create({
         metadata: {
