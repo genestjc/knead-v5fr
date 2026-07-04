@@ -12,6 +12,7 @@ import {
   client,
   serverWallet,
 } from "../../../thirdweb-server-wallet";
+import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
 import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +54,13 @@ async function mintPremiumNFT(
     return { alreadyHasToken: true };
   }
 
+  // Fire-and-forget low-gas alert (never blocks the mint).
+  void alertIfServerWalletLow();
+
   // Prepare and send mint transaction
   const transaction = prepareContractCall({
     contract,
-    method: 
+    method:
       "function mint(address to, uint256 id, uint256 amount)",
     params: [walletAddress, PAID_TOKEN_ID, 1n],
     gasLimit: 300000n,
@@ -115,6 +119,9 @@ async function burnPremiumNFT(
       message: "No premium token to burn" 
     };
   }
+
+  // Fire-and-forget low-gas alert (never blocks the burn).
+  void alertIfServerWalletLow();
 
   // Prepare and send burn transaction
   const transaction = prepareContractCall({
