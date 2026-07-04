@@ -164,6 +164,17 @@ NEW BUILDER INTAKE — this person is signed in, but you don't yet know their ex
 Frame it as tailoring the walkthrough ("so I can pitch this exactly right for you"), never as a test or a signup form. The intake must be the ONLY question in its message — don't bundle design questions or next-file choices into the same ask; hold those until they've answered. When they answer, silently save it with update_builder_profile (skill_level, plus notes on what they have set up), then let it steer everything after: nothing set up → offer the GETTING SET UP walkthrough before diving into code; experienced → move faster, translate less, skip the hand-holding.
 `;
 
+// Injected on the first message of a conversation with a visitor we have no
+// memory of (returning wallet visitors get the welcome-back version instead,
+// via buildProfileContext).
+const FIRST_MESSAGE_WELCOME = `
+FIRST REPLY OF A NEW CONVERSATION — this is the very first thing this visitor will hear from you. Open by welcoming them, not by analyzing code:
+- Greet them warmly and introduce yourself in a line: you're Demeter, Knead built everything here in the open, and your job is to help them build it for themselves.
+- React to what they want to build with genuine enthusiasm — it's a real thing that could be live on the internet soon, and they should feel that.
+- THEN ease into substance: one idea, plainly explained, and a single question to get the conversation going (per your one-question rule).
+Keep the welcome to two or three warm sentences — an open door, not a speech. Never open a first reply with file contents, code analysis, or "here's what's happening in this file" as if you were already mid-conversation.
+`;
+
 function buildProfileContext(profile: BuilderProfile | null, isNewConversation: boolean): string {
   if (!profile) return '';
   const days = Math.floor((Date.now() - new Date(profile.last_seen_at).getTime()) / 86_400_000);
@@ -590,7 +601,11 @@ export async function POST(req: NextRequest) {
     const systemPrompt = buildSystemPrompt(
       recipeIds as RecipeId[],
       repoTree,
-      buildProfileContext(profile, isNewConversation) + (needsIntake ? NEW_BUILDER_INTAKE : ''),
+      buildProfileContext(profile, isNewConversation) +
+        (needsIntake ? NEW_BUILDER_INTAKE : '') +
+        // First-timers (and anonymous visitors, who are always unknown) get a
+        // warm introduction; returning wallet visitors get welcome-back instead
+        (isNewConversation && !profile ? FIRST_MESSAGE_WELCOME : ''),
     );
 
     let newZipProposal = zipProposal ?? null;
