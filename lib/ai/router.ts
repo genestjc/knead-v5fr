@@ -182,7 +182,11 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
   // come back as all thinking and no visible text.
   const thinking = { type: 'disabled' as const };
 
-  let reply = '';
+  // Collect text from EVERY round, not just the last one. The model often
+  // writes user-facing text (a greeting, a question) in the same round as a
+  // tool call, then adds only a short closing line after the result comes
+  // back — overwriting per round shipped just the closer and dropped the rest.
+  const textParts: string[] = [];
   let stopReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
@@ -198,11 +202,12 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
 
     messages.push({ role: 'assistant', content: response.content });
 
-    reply = response.content
+    const roundText = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
       .trim();
+    if (roundText) textParts.push(roundText);
 
     const toolUses = response.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
@@ -226,7 +231,7 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
 
   // Rounds exhausted mid-tool-use (last message is pending tool results):
   // make one final call without tools to force a text answer.
-  if (!reply && messages[messages.length - 1]?.role === 'user') {
+  if (textParts.length === 0 && messages[messages.length - 1]?.role === 'user') {
     console.error(
       `[${opts.logTag}] Claude gave no text (stop_reason=${stopReason}); forcing a final answer`,
     );
@@ -238,13 +243,15 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
       // Consecutive user messages are combined into one turn by the API
       messages: [...messages, { role: 'user', content: WRAP_UP_INSTRUCTION }],
     });
-    reply = final.content
+    const finalText = final.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
       .trim();
+    if (finalText) textParts.push(finalText);
   }
 
+  const reply = textParts.join('\n\n');
   if (!reply) {
     console.error(`[${opts.logTag}] Claude reply empty (stop_reason=${stopReason})`);
   }
@@ -265,7 +272,9 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
     { role: 'user', content: message },
   ];
 
-  let reply = '';
+  // Same as the Claude loop: keep text from every round, since text sent
+  // alongside tool calls is part of the reply too.
+  const textParts: string[] = [];
   let finishReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
@@ -286,11 +295,11 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
     const assistantMessage = response.choices[0].message;
     messages.push(assistantMessage);
 
+    const roundText = assistantMessage.content?.trim();
+    if (roundText) textParts.push(roundText);
+
     const toolCalls = assistantMessage.tool_calls ?? [];
-    if (toolCalls.length === 0 || !executeTool) {
-      reply = assistantMessage.content?.trim() ?? '';
-      break;
-    }
+    if (toolCalls.length === 0 || !executeTool) break;
 
     const results = await Promise.all(
       toolCalls.map(async (t) => ({
@@ -308,7 +317,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   }
 
   // Rounds exhausted mid-tool-use: one final call without tools forces text
-  if (!reply && messages[messages.length - 1]?.role === 'tool') {
+  if (textParts.length === 0 && messages[messages.length - 1]?.role === 'tool') {
     console.error(
       `[${opts.logTag}] GPT-5 gave no text (finish_reason=${finishReason}); forcing a final answer`,
     );
@@ -318,9 +327,11 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
       reasoning_effort: 'low',
       messages: [...messages, { role: 'system', content: WRAP_UP_INSTRUCTION }],
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
-    reply = final.choices[0].message.content?.trim() ?? '';
+    const finalText = final.choices[0].message.content?.trim();
+    if (finalText) textParts.push(finalText);
   }
 
+  const reply = textParts.join('\n\n');
   if (!reply) {
     console.error(`[${opts.logTag}] GPT-5 reply empty (finish_reason=${finishReason})`);
   }
