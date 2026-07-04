@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, User } from 'lucide-react';
+import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 
 interface MemberSettingsModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ export function MemberSettingsModal({
   userId,
   onSaved,
 }: MemberSettingsModalProps) {
+  const account = useActiveAccount();
   const [alias, setAlias] = useState(currentAlias || '');
   const [bio, setBio] = useState(currentBio || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -37,12 +40,16 @@ export function MemberSettingsModal({
   }, [isOpen, currentAlias, currentBio]);
 
   const handleSave = async () => {
+    if (!account) {
+      toast({ title: 'Wallet not connected', description: 'Reconnect your wallet and try again.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       const finalAlias = alias.trim() || null;
       const finalBio = bio.trim() || null;
 
-      const response = await fetch('/api/contributor/update-profile', {
+      const response = await walletFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
