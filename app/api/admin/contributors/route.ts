@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
 import type { ApiResponse } from '@/types/chat';
 
@@ -14,6 +15,15 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   try {
+    // Admin-only: this exposes the full roster of privileged wallets.
+    const auth = await verifyAdminRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: auth.error ?? 'Unauthorized' },
+        { status: auth.status ?? 401 }
+      );
+    }
+
     const supabase = createSupabaseAdmin();
 
     // ✅ Fetch all contributors directly from Supabase
