@@ -3,7 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, User, Check } from 'lucide-react';
+import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 
 interface ContributorWelcomeModalProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ export function ContributorWelcomeModal({
   currentBio,
   onSaved,
 }: ContributorWelcomeModalProps) {
+  const account = useActiveAccount();
   const [alias, setAlias] = useState(currentAlias || '');
   const [bio, setBio] = useState(currentBio || '');
   const [email, setEmail] = useState('');
@@ -94,6 +97,15 @@ export function ContributorWelcomeModal({
       toast({
         title: 'Email required',
         description: 'Please provide a valid email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!account) {
+      toast({
+        title: 'Wallet not connected',
+        description: 'Reconnect your wallet and try again.',
         variant: 'destructive',
       });
       return;
@@ -168,7 +180,7 @@ export function ContributorWelcomeModal({
       const finalAvatar = avatarUrl || null;
       const finalBio = bio.trim() || null;
 
-      const response = await fetch('/api/contributor/update-profile', {
+      const response = await walletFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
