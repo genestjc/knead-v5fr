@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check } from 'lucide-react';
+import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
+import { walletFetch } from '@/lib/auth/wallet-fetch';
 
 interface MemberWelcomeModalProps {
   isOpen: boolean;
@@ -13,15 +15,21 @@ interface MemberWelcomeModalProps {
 }
 
 export function MemberWelcomeModal({ isOpen, onClose, userAddress, userId }: MemberWelcomeModalProps) {
+  const account = useActiveAccount();
   const { toast } = useToast();
   const [alias, setAlias] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
     if (!alias.trim()) { onClose(); return; }
+    if (!account) {
+      toast({ title: 'Wallet not connected', description: 'Reconnect your wallet and try again.', variant: 'destructive' });
+      onClose();
+      return;
+    }
     setIsSaving(true);
     try {
-      await fetch('/api/contributor/update-profile', {
+      await walletFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, userAddress, alias: alias.trim() }),
