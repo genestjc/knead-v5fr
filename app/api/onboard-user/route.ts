@@ -4,6 +4,8 @@ import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { verifyWalletRequest } from "@/lib/auth/verify-wallet-request";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
 import { logger } from "@/lib/logger";
 
@@ -18,8 +20,35 @@ const mintingAddresses = new Set<string>();
 
 export async function POST(req: NextRequest) {
   logger.log("🔍 onboard-user API called");
+
+  // Rate limit by IP: a signature only proves control of *one* wallet, but an
+  // attacker can generate many keypairs. Capping mints per IP bounds how fast
+  // the server wallet's gas can be drained by Sybil onboarding.
+  const { success: withinLimit } = await rateLimit("onboard", getClientIp(req), {
+    limit: 5,
+    windowSeconds: 3600,
+  });
+  if (!withinLimit) {
+    return NextResponse.json(
+      { error: "Too many onboarding attempts. Please try again later.", success: false },
+      { status: 429 },
+    );
+  }
+
+  // Authenticate: minting a freemium NFT costs real gas from the server wallet,
+  // so the caller must prove (via wallet signature) they control the address
+  // being onboarded. This blocks scripted mints to thousands of arbitrary
+  // addresses that would drain the server wallet's gas.
+  const auth = await verifyWalletRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.error ?? "Unauthorized", success: false },
+      { status: auth.status ?? 401 },
+    );
+  }
+
   const { walletAddress } = await req.json();
-  
+
   if (!walletAddress) {
     logger.error("❌ Missing wallet address in request");
     return NextResponse.json(
@@ -29,6 +58,15 @@ export async function POST(req: NextRequest) {
   }
 
   const normalizedAddress = walletAddress.toLowerCase();
+
+  // You may only onboard the wallet you signed with.
+  if (normalizedAddress !== auth.address) {
+    return NextResponse.json(
+      { error: "Wallet address does not match the authenticated signer", success: false },
+      { status: 403 },
+    );
+  }
+
   logger.log(`👤 Processing onboarding for wallet: ${normalizedAddress}`);
 
   // ✅ NEW: Check if already minting for this address
