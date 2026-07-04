@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
 import { runAgentChat, type AgentTool } from '@/lib/ai/router';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Tool loops can exceed Vercel's default function duration
 export const maxDuration = 60;
@@ -155,6 +156,16 @@ function portableTextToPlain(blocks: any[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Public endpoint that spends LLM + web-search budget on every call. Rate
+  // limit per IP to blunt cost-DoS abuse.
+  const { success } = await rateLimit('demeter-chat', getClientIp(req), {
+    limit: 20,
+    windowSeconds: 60,
+  });
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body?.message) {
     return NextResponse.json({ error: 'Missing message' }, { status: 400 });
