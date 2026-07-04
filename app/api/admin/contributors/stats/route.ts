@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllContributors } from '@/lib/blockchain/allocate-allowances';
 import { getContributorStats } from '@/lib/blockchain/contract-reads';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,16 @@ const CONTRIBUTOR_TYPE_LABELS: Record<number, string> = {
  *
  * Fetch on-chain stats for all contributors.
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyAdminRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json(
+        { success: false, error: auth.error ?? 'Unauthorized' },
+        { status: auth.status ?? 401 }
+      );
+    }
+
     const addresses = await getAllContributors();
 
     if (addresses.length === 0) {
