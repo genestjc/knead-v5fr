@@ -10,6 +10,7 @@ import {
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { createClient } from "@supabase/supabase-js";
+import { verifyWalletRequest } from "@/lib/auth/verify-wallet-request";
 import {
   client,
   serverWallet,
@@ -33,6 +34,17 @@ const PREMIUM_TOKEN_ID = 1n; // Use bigint for consistency
 
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate: cancelling a subscription (and burning the membership NFT)
+    // is a sensitive action. Require a wallet signature so someone who merely
+    // knows a subscription ID can't cancel another member's plan.
+    const auth = await verifyWalletRequest(req);
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.error ?? "Unauthorized" },
+        { status: auth.status ?? 401 },
+      );
+    }
+
     const { user_address, email, subscriptionId } =
       await req.json();
 
@@ -40,6 +52,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing user_address or subscriptionId" },
         { status: 400 },
+      );
+    }
+
+    // You may only cancel your own membership.
+    if (user_address.toLowerCase() !== auth.address) {
+      return NextResponse.json(
+        { error: "Wallet address does not match the authenticated signer" },
+        { status: 403 },
       );
     }
 
@@ -58,16 +78,26 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Check if this subscription belongs to this wallet address
-      const walletInMetadata =
+      // Confirm this subscription actually belongs to the authenticated wallet.
+      // Prefer Stripe metadata; fall back to our own subscriptions table. If we
+      // can't positively confirm ownership, refuse — never default to allowing
+      // the cancel (the old behaviour let a subscription with no wallet metadata
+      // be cancelled by anyone who knew its ID).
+      let ownerWallet =
         subscription.metadata?.wallet_address ||
-        subscription.metadata?.walletAddress;
+        subscription.metadata?.walletAddress ||
+        null;
 
-      if (
-        walletInMetadata &&
-        walletInMetadata.toLowerCase() !==
-          user_address.toLowerCase()
-      ) {
+      if (!ownerWallet) {
+        const { data: subRow } = await supabase
+          .from("subscriptions")
+          .select("wallet_address")
+          .eq("subscription_id", subscriptionId)
+          .single();
+        ownerWallet = subRow?.wallet_address ?? null;
+      }
+
+      if (!ownerWallet || ownerWallet.toLowerCase() !== user_address.toLowerCase()) {
         return NextResponse.json(
           {
             error:
