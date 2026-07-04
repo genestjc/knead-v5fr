@@ -4,6 +4,7 @@ import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
 import { logger } from "@/lib/logger";
 
@@ -106,6 +107,9 @@ export async function POST(req: NextRequest) {
       logger.error("Error checking token balance:", error);
       // Continue with mint attempt anyway
     }
+
+    // Fire-and-forget low-gas alert (never blocks the mint).
+    void alertIfServerWalletLow();
 
     // Prepare the mint transaction with explicit gas parameters
     logger.log("Preparing mint transaction...");
