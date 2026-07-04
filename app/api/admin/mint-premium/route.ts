@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../../thirdweb-server-wallet";
+import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
 import kneadMembershipABI from "../../../abi/kneadMembershipABI.json";
 import { logger } from "@/lib/logger";
 
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest) {
       abi: kneadMembershipABI,
     });
     
+    // Fire-and-forget low-gas alert (never blocks the mint).
+    void alertIfServerWalletLow();
+
     // Prepare mint transaction
     logger.log(`Preparing to mint premium NFT to ${wallet_address}`);
     const transaction = prepareContractCall({
