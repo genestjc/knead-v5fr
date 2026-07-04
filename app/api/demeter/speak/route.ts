@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -12,6 +13,15 @@ const TTS_VOICE = 'nova';
 const MAX_CHARS = 4000;
 
 export async function POST(req: NextRequest) {
+  // Uncached TTS — each call costs money. Rate limit per IP.
+  const { success } = await rateLimit('demeter-speak', getClientIp(req), {
+    limit: 20,
+    windowSeconds: 60,
+  });
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
 
