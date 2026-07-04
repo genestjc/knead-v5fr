@@ -36,6 +36,87 @@ function isBlockedIp(ip: string): boolean {
   return true; // unknown format — refuse rather than risk it
 }
 
+const MAX_REDIRECTS = 5;
+const FETCH_TIMEOUT_MS = 5000;
+
+/**
+ * Validate a single URL hop: only http(s), and its hostname must not resolve to
+ * an internal/private address. Returns an error tuple, or null when allowed.
+ */
+async function checkUrlAllowed(
+  target: URL,
+): Promise<{ status: number; error: string } | null> {
+  if (!['http:', 'https:'].includes(target.protocol)) {
+    return { status: 400, error: 'Invalid protocol' };
+  }
+  try {
+    const results = await lookup(target.hostname, { all: true });
+    if (results.length === 0 || results.some((r) => isBlockedIp(r.address))) {
+      return { status: 400, error: 'Blocked host' };
+    }
+  } catch {
+    return { status: 400, error: 'Could not resolve host' };
+  }
+  return null;
+}
+
+/**
+ * Fetch `startUrl`, following up to MAX_REDIRECTS redirects while re-validating
+ * every hop against the SSRF blocklist. Following redirects manually (instead of
+ * refusing them outright) means shortened / www / http→https links still resolve
+ * to a real preview, yet a 3xx pointing at an internal host is still blocked.
+ */
+async function fetchWithRedirectGuard(
+  startUrl: string,
+): Promise<{ response?: Response; error?: { status: number; error: string } }> {
+  let current: URL;
+  try {
+    current = new URL(startUrl);
+  } catch {
+    return { error: { status: 400, error: 'Invalid URL' } };
+  }
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const blocked = await checkUrlAllowed(current);
+    if (blocked) return { error: blocked };
+
+    let response: Response;
+    try {
+      response = await fetch(current.toString(), {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Knead/1.0; +https://kneadmag.com)',
+          Accept: 'text/html',
+        },
+        // Handle redirects ourselves so each hop is re-validated before we follow it.
+        redirect: 'manual',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch {
+      return { error: { status: 502, error: 'Failed to fetch preview' } };
+    }
+
+    // 3xx → resolve the next hop (relative redirects allowed) and loop, which
+    // re-runs the private-IP check on the new target before any request is made.
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) {
+        return { error: { status: 502, error: 'Redirect without location' } };
+      }
+      try {
+        current = new URL(location, current);
+      } catch {
+        return { error: { status: 400, error: 'Invalid redirect target' } };
+      }
+      continue;
+    }
+
+    if (!response.ok) return { error: { status: 502, error: 'Failed to fetch' } };
+    return { response };
+  }
+
+  return { error: { status: 502, error: 'Too many redirects' } };
+}
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
 
@@ -50,38 +131,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
 
-  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-    return NextResponse.json({ error: 'Invalid protocol' }, { status: 400 });
-  }
-
-  // Resolve the hostname and reject any internal/private target. Handles both
-  // literal-IP hosts and DNS names that point at internal ranges.
-  try {
-    const results = await lookup(parsedUrl.hostname, { all: true });
-    if (results.length === 0 || results.some((r) => isBlockedIp(r.address))) {
-      return NextResponse.json({ error: 'Blocked host' }, { status: 400 });
-    }
-  } catch {
-    return NextResponse.json({ error: 'Could not resolve host' }, { status: 400 });
+  const { response, error } = await fetchWithRedirectGuard(url);
+  if (error) {
+    return NextResponse.json({ error: error.error }, { status: error.status });
   }
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Knead/1.0; +https://kneadmag.com)',
-        'Accept': 'text/html',
-      },
-      // Do not follow redirects: a 3xx to an internal host would otherwise
-      // bypass the DNS check above.
-      redirect: 'manual',
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch' }, { status: 502 });
-    }
-
-    const html = await response.text();
+    const html = await response!.text();
 
     const getMetaContent = (patterns: RegExp[]): string | null => {
       for (const pattern of patterns) {
