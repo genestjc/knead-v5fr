@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +22,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyMemberRequest(req);
+    if (!auth.ok || !auth.address) {
+      return NextResponse.json(
+        { success: false, error: auth.error || 'Missing wallet authentication' },
+        { status: auth.status || 401 }
+      );
+    }
+
     const { paymentIntentId, walletAddress } = await req.json();
 
     // Validate required fields
@@ -31,6 +41,32 @@ export async function POST(req: NextRequest) {
           error: 'Missing paymentIntentId or walletAddress' 
         },
         { status: 400 }
+      );
+    }
+
+    const requestWallet = walletAddress.toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(requestWallet)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid wallet address' },
+        { status: 400 }
+      );
+    }
+
+    if (requestWallet !== auth.address) {
+      return NextResponse.json(
+        { success: false, error: 'Authenticated wallet does not match payment wallet' },
+        { status: 403 }
+      );
+    }
+
+    const limit = await rateLimit('verify-payment', auth.address, {
+      limit: 20,
+      windowSeconds: 60 * 60,
+    });
+    if (!limit.success) {
+      return NextResponse.json(
+        { success: false, error: 'Too many payment verification attempts. Please try again later.' },
+        { status: 429 }
       );
     }
 
@@ -104,7 +140,6 @@ export async function POST(req: NextRequest) {
 
     // Step 4: Verify wallet address matches subscription metadata
     const subscriptionWallet = subscription.metadata?.walletAddress?.toLowerCase();
-    const requestWallet = walletAddress.toLowerCase();
 
     if (subscriptionWallet !== requestWallet) {
       console.error(
