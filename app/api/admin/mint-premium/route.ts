@@ -3,7 +3,7 @@ import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../../thirdweb-server-wallet";
 import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
-import kneadMembershipABI from "../../../abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 import { logger } from "@/lib/logger";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as string;
