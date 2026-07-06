@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useActiveWallet } from 'thirdweb/react';
 import type { Account } from 'thirdweb/wallets';
 import { Header } from '@/components/header';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
@@ -22,6 +22,10 @@ const MODELS = [
 type ModelId = (typeof MODELS)[number]['id'];
 const MODEL_STORAGE_KEY = 'knead-build-model';
 
+type WalletWithAuthToken = {
+  getAuthToken?: () => string | null | Promise<string | null>;
+};
+
 interface ZipProposal {
   files: { path: string; source: 'repo' | 'generated'; content?: string }[];
   setupInstructions: string;
@@ -29,14 +33,15 @@ interface ZipProposal {
 
 export default function OpenSourcePage() {
   const account = useActiveAccount();
-  return <BuildUI account={account} />;
+  const wallet = useActiveWallet() as WalletWithAuthToken | undefined;
+  return <BuildUI account={account} wallet={wallet} />;
 }
 
 // ─── Build UI ─────────────────────────────────────────────────────────────────
 
 type View = 'landing' | 'menu' | 'chat';
 
-function BuildUI({ account }: { account?: Account }) {
+function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAuthToken }) {
   const walletAddress = account?.address;
   const [view, setView] = useState<View>('landing');
   const [selectedRecipes, setSelectedRecipes] = useState<RecipeId[]>([]);
@@ -101,7 +106,7 @@ function BuildUI({ account }: { account?: Account }) {
         }),
       };
       const res = account
-        ? await memberFetch('/api/open-source/chat', account, request)
+        ? await memberFetch('/api/open-source/chat', account, request, wallet)
         : await fetch('/api/open-source/chat', request);
 
       if (res.status === 429) {
@@ -116,11 +121,21 @@ function BuildUI({ account }: { account?: Account }) {
       }
 
       const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Please reconnect your wallet and try again.');
+        }
+        throw new Error(data.message || data.error || 'The build assistant could not respond.');
+      }
       if (data.reply) setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
       if (typeof data.turnsLeft === 'number') setTurnsLeft(data.turnsLeft);
       if (data.zipProposal) setZipProposal(data.zipProposal);
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Something went wrong. Please try again.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
     } finally {
       setLoading(false);
     }
@@ -136,7 +151,7 @@ function BuildUI({ account }: { account?: Account }) {
         body: JSON.stringify(zipProposal),
       };
       const res = account
-        ? await memberFetch('/api/open-source/zip', account, request)
+        ? await memberFetch('/api/open-source/zip', account, request, wallet)
         : await fetch('/api/open-source/zip', request);
       if (!res.ok) throw new Error();
       const blob = await res.blob();
