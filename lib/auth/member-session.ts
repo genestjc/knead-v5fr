@@ -124,30 +124,39 @@ export async function verifyThirdwebInAppAuthToken(
   const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
   if (!clientId) throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not configured');
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer embedded-wallet-token:${token}`,
-    'Content-Type': 'application/json',
-    'x-thirdweb-client-id': clientId,
-    'x-client-id': clientId,
-  };
-  if (process.env.THIRDWEB_SECRET_KEY) {
-    headers['x-secret-key'] = process.env.THIRDWEB_SECRET_KEY;
+  const authHeaders = [`Bearer ${token}`, `Bearer embedded-wallet-token:${token}`];
+  let data: unknown = null;
+  let lastStatus: number | null = null;
+
+  for (const authorization of authHeaders) {
+    const headers: Record<string, string> = {
+      Authorization: authorization,
+      'Content-Type': 'application/json',
+      'x-thirdweb-client-id': clientId,
+      'x-client-id': clientId,
+    };
+    if (process.env.THIRDWEB_SECRET_KEY) {
+      headers['x-secret-key'] = process.env.THIRDWEB_SECRET_KEY;
+    }
+
+    const response = await fetch(
+      process.env.THIRDWEB_IN_APP_ACCOUNTS_URL ||
+        'https://embedded-wallet.thirdweb.com/api/2024-05-05/accounts',
+      { headers, method: 'GET' },
+    );
+
+    lastStatus = response.status;
+    if (response.ok) {
+      data = await response.json();
+      break;
+    }
   }
 
-  const response = await fetch(
-    process.env.THIRDWEB_IN_APP_ACCOUNTS_URL ||
-      'https://embedded-wallet.thirdweb.com/api/2024-05-05/accounts',
-    { headers, method: 'GET' },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Thirdweb auth token rejected (${response.status})`);
+  if (!data) {
+    throw new Error(`Thirdweb auth token rejected (${lastStatus ?? 'unknown'})`);
   }
 
-  const data = (await response.json()) as { wallets?: Array<{ address?: string }> };
-  const addresses = (data.wallets ?? [])
-    .map((wallet) => wallet.address?.toLowerCase())
-    .filter((address): address is string => Boolean(address && /^0x[a-f0-9]{40}$/.test(address)));
+  const addresses = collectAddresses(data);
 
   const expected = expectedAddress?.toLowerCase();
   if (expected && addresses.length > 0 && !addresses.includes(expected)) {
@@ -157,6 +166,30 @@ export async function verifyThirdwebInAppAuthToken(
   if (!address) throw new Error('Thirdweb auth token did not resolve to a wallet');
 
   return address;
+}
+
+function collectAddresses(value: unknown, seen = new Set<unknown>()): string[] {
+  if (!value || seen.has(value)) return [];
+
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    return /^0x[a-f0-9]{40}$/.test(normalized) ? [normalized] : [];
+  }
+
+  if (typeof value !== 'object') return [];
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return [...new Set(value.flatMap((item) => collectAddresses(item, seen)))];
+  }
+
+  return [
+    ...new Set(
+      Object.values(value as Record<string, unknown>).flatMap((item) =>
+        collectAddresses(item, seen),
+      ),
+    ),
+  ];
 }
 
 function hasWalletAuthHeaders(req: NextRequest): boolean {
