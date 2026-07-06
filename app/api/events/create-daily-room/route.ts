@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,14 @@ interface CreateDailyRoomResponse {
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: auth.error },
+        { status: auth.status }
+      );
+    }
+
     const body: CreateDailyRoomRequest = await req.json();
     const { eventId, eventTitle } = body;
 
