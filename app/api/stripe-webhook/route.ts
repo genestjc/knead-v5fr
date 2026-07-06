@@ -13,7 +13,7 @@ import {
   serverWallet,
 } from "../../../thirdweb-server-wallet";
 import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
