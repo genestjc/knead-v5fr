@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * 1. Fetch all contributor NFT holders
  * 2. Claim Engine's accumulated earnings
  * 3. Calculate weighted distribution
- * 4. Send $TOWNS to each contributor
+ * 4. Send $USDC to each contributor
  */
 export async function POST(req: NextRequest) {
   try {
@@ -57,11 +57,9 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/cron/distribute-pool
  * 
- * Health check for cron endpoint
+ * Vercel cron invokes GET requests, with the same Authorization header when
+ * CRON_SECRET is configured.
  */
 export async function GET(req: NextRequest) {
-  return NextResponse.json({
-    status: 'ready',
-    message: 'Cron endpoint is configured. Use POST with Bearer token to trigger distribution.',
-  });
+  return POST(req);
 }
