@@ -39,6 +39,15 @@ function getNextSundayDate(): string {
   return nextSunday.toUTCString();
 }
 
+const WALLET_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+
+type AdminActionResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  transactionHash?: string;
+};
+
 // Minting Form Component
 function AddContributorForm({ onMintSuccess }: { onMintSuccess: () => void }) {
   const account = useActiveAccount();
@@ -322,6 +331,172 @@ function WeeklyAllowanceManager({ onStatsRefreshed }: { onStatsRefreshed?: () =>
       {allocationResult && (
         <div className={`mt-4 p-3 rounded-md ${isError ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
           <p className="text-sm break-words">{allocationResult}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Manual Allowance Allocator
+function ManualAllowanceAllocator({ onStatsRefreshed }: { onStatsRefreshed?: () => void }) {
+  const account = useActiveAccount();
+  const [contributorAddress, setContributorAddress] = useState('');
+  const [weeklyBudget, setWeeklyBudget] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
+  const [txHashes, setTxHashes] = useState<{ budget?: string; allowance?: string } | null>(null);
+
+  async function readActionResponse(response: Response): Promise<AdminActionResponse> {
+    return response.json().catch(() => ({}));
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!account) {
+      setIsError(true);
+      setStatusMessage('❌ Connect your admin wallet first');
+      return;
+    }
+
+    const address = contributorAddress.trim();
+    if (!WALLET_ADDRESS_PATTERN.test(address)) {
+      setIsError(true);
+      setStatusMessage('❌ Enter a valid wallet address');
+      return;
+    }
+
+    const budgetText = weeklyBudget.trim();
+    const budget = budgetText ? Number(budgetText) : null;
+    if (budget !== null && (!Number.isFinite(budget) || budget <= 0)) {
+      setIsError(true);
+      setStatusMessage('❌ Weekly budget must be a positive number');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatusMessage(null);
+    setIsError(false);
+    setTxHashes(null);
+
+    try {
+      let budgetTx: string | undefined;
+
+      if (budget !== null) {
+        const budgetResponse = await adminFetch('/api/admin/contributors/update-budget', account, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contributorAddress: address, newBudget: budget }),
+        });
+        const budgetData = await readActionResponse(budgetResponse);
+        if (!budgetResponse.ok || !budgetData.success) {
+          throw new Error(budgetData.error || 'Failed to update weekly budget');
+        }
+        budgetTx = budgetData.transactionHash;
+      }
+
+      const allowanceResponse = await adminFetch('/api/admin/allocate-allowances', account, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contributorAddresses: [address] }),
+      });
+      const allowanceData = await readActionResponse(allowanceResponse);
+      if (!allowanceResponse.ok || !allowanceData.success) {
+        throw new Error(allowanceData.error || 'Failed to allocate allowance');
+      }
+
+      setTxHashes({ budget: budgetTx, allowance: allowanceData.transactionHash });
+      setStatusMessage(
+        budget === null
+          ? '✅ Allowance allocated.'
+          : `✅ Budget updated to $${budget.toFixed(2)} and allowance allocated.`,
+      );
+      setContributorAddress('');
+      setWeeklyBudget('');
+      onStatsRefreshed?.();
+    } catch (error) {
+      setIsError(true);
+      setStatusMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mt-8">
+      <h3 className="font-adonis text-2xl mb-4">Add Allowance</h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="allowanceAddress" className="block text-sm font-medium text-gray-700">
+            Contributor Wallet Address
+          </label>
+          <input
+            id="allowanceAddress"
+            type="text"
+            value={contributorAddress}
+            onChange={(e) => setContributorAddress(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
+            placeholder="0x..."
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="allowanceBudget" className="block text-sm font-medium text-gray-700">
+            Weekly Budget (USDC, optional)
+          </label>
+          <div className="relative mt-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              id="allowanceBudget"
+              type="number"
+              value={weeklyBudget}
+              onChange={(e) => setWeeklyBudget(e.target.value)}
+              className="block w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
+              placeholder="Current budget"
+              min="0.01"
+              step="0.01"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-2 px-4 bg-black text-white font-semibold rounded-md hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {isSubmitting ? 'Allocating...' : weeklyBudget.trim() ? 'Update Budget + Allocate' : 'Allocate Allowance'}
+        </button>
+      </form>
+
+      {statusMessage && (
+        <div className={`mt-4 p-3 rounded-md ${isError ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+          <p className="text-sm break-words">{statusMessage}</p>
+          {txHashes && (
+            <div className="mt-2 space-y-1 text-xs">
+              {txHashes.budget && (
+                <a
+                  href={`https://basescan.org/tx/${txHashes.budget}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-blue-600 underline truncate"
+                >
+                  Budget tx: {txHashes.budget.slice(0, 10)}... ↗
+                </a>
+              )}
+              {txHashes.allowance && (
+                <a
+                  href={`https://basescan.org/tx/${txHashes.allowance}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-blue-600 underline truncate"
+                >
+                  Allowance tx: {txHashes.allowance.slice(0, 10)}... ↗
+                </a>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -614,6 +789,7 @@ export function ContributorManager({ adminAddress }: { adminAddress: string }) {
       <ContributorPoolWidget />
       <AddContributorForm onMintSuccess={fetchContributors} />
       <WeeklyAllowanceManager onStatsRefreshed={fetchContributorStats} />
+      <ManualAllowanceAllocator onStatsRefreshed={fetchContributorStats} />
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mt-8">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-adonis text-2xl">📊 Contributor Stats (On-Chain)</h3>
