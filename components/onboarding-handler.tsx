@@ -1,19 +1,29 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { useActiveAccount } from "thirdweb/react"
+import { useEffect } from "react"
+import { useActiveAccount, useActiveWallet } from "thirdweb/react"
 import { memberFetch } from "@/lib/auth/member-fetch"
 
 // Track which addresses we've already onboarded (prevents infinite loop)
 const onboardedAddresses = new Set<string>();
 
+type WalletWithAuthToken = {
+  id?: string;
+  getAuthToken?: () => string | null | Promise<string | null>;
+};
+
 export function OnboardingHandler() {
   const activeAccount = useActiveAccount()
+  const activeWallet = useActiveWallet() as WalletWithAuthToken | undefined
 
   useEffect(() => {
     // Only run once per unique address
     if (!activeAccount?.address) {
       console.log("[onboard] No active account yet");
+      return;
+    }
+    if (!activeWallet) {
+      console.log("[onboard] No active wallet yet");
       return;
     }
     
@@ -38,7 +48,7 @@ export function OnboardingHandler() {
       body: JSON.stringify({
         walletAddress: activeAccount.address,
       }),
-    })
+    }, activeWallet)
     .then(response => {
       console.log("[onboard] API response status:", response.status);
       if (!response.ok) {
@@ -67,7 +77,7 @@ export function OnboardingHandler() {
     .finally(() => {
       console.log("[onboard] Onboarding complete");
     });
-  }, [activeAccount?.address]);
+  }, [activeAccount, activeAccount?.address, activeWallet]);
 
   // This component doesn't render anything
   return null;
