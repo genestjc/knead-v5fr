@@ -1,6 +1,6 @@
-import { getBalance } from 'thirdweb';
-import { base } from 'thirdweb/chains';
-import { client, SERVER_WALLET_ADDRESS } from '@/thirdweb-server-wallet';
+import { createPublicClient, formatEther, http, isAddress } from 'viem';
+import { base } from 'viem/chains';
+import { SERVER_WALLET_ADDRESS } from '@/thirdweb-server-wallet';
 import { sendEmail } from '@/lib/sendEmail';
 import { rateLimit } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
@@ -24,21 +24,25 @@ import { logger } from '@/lib/logger';
 const MIN_GAS_ETH = Number(process.env.SERVER_WALLET_MIN_GAS_ETH ?? '0.005');
 const WEI_PER_ETH = 10n ** 18n;
 const MIN_GAS_WEI = BigInt(Math.floor(MIN_GAS_ETH * 1e6)) * (WEI_PER_ETH / 1_000_000n);
+const basePublicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
+});
 
 export async function alertIfServerWalletLow(): Promise<void> {
   try {
-    if (!SERVER_WALLET_ADDRESS) return;
+    if (!SERVER_WALLET_ADDRESS || !isAddress(SERVER_WALLET_ADDRESS)) return;
 
-    const balance = await getBalance({
-      client,
+    const balanceWei = await basePublicClient.getBalance({
       address: SERVER_WALLET_ADDRESS,
-      chain: base,
     });
+    const displayValue = formatEther(balanceWei);
+    const symbol = 'ETH';
 
-    if (balance.value >= MIN_GAS_WEI) return; // healthy — nothing to do
+    if (balanceWei >= MIN_GAS_WEI) return; // healthy — nothing to do
 
     logger.warn(
-      `⚠️ Server wallet gas low: ${balance.displayValue} ${balance.symbol} (threshold ${MIN_GAS_ETH} ETH)`,
+      `⚠️ Server wallet gas low: ${displayValue} ${symbol} (threshold ${MIN_GAS_ETH} ETH)`,
       { wallet: SERVER_WALLET_ADDRESS },
     );
 
@@ -61,13 +65,13 @@ export async function alertIfServerWalletLow(): Promise<void> {
 
     await sendEmail({
       to: alertTo,
-      subject: `⚠️ Knead server wallet low on gas (${balance.displayValue} ${balance.symbol})`,
+      subject: `⚠️ Knead server wallet low on gas (${displayValue} ${symbol})`,
       html: `
         <div style="font-family: sans-serif; line-height: 1.5;">
           <h2>Server wallet is low on gas</h2>
           <p>The Engine server wallet that pays for minting and burning is below the alert threshold.</p>
           <table style="border-collapse: collapse;">
-            <tr><td style="padding:4px 12px 4px 0;"><strong>Balance</strong></td><td>${balance.displayValue} ${balance.symbol}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0;"><strong>Balance</strong></td><td>${displayValue} ${symbol}</td></tr>
             <tr><td style="padding:4px 12px 4px 0;"><strong>Threshold</strong></td><td>${MIN_GAS_ETH} ETH</td></tr>
             <tr><td style="padding:4px 12px 4px 0;"><strong>Wallet</strong></td><td><code>${SERVER_WALLET_ADDRESS}</code></td></tr>
             <tr><td style="padding:4px 12px 4px 0;"><strong>Network</strong></td><td>Base</td></tr>
