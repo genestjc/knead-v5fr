@@ -9,8 +9,18 @@ const onboardedAddresses = new Set<string>();
 
 type WalletWithAuthToken = {
   id?: string;
+  walletId?: string;
   getAuthToken?: () => string | null | Promise<string | null>;
 };
+
+function isInAppWallet(wallet?: WalletWithAuthToken): boolean {
+  return (
+    wallet?.id === "inApp" ||
+    wallet?.id === "embedded" ||
+    wallet?.walletId === "inApp" ||
+    wallet?.walletId === "embedded"
+  );
+}
 
 export function OnboardingHandler() {
   const activeAccount = useActiveAccount()
@@ -34,6 +44,12 @@ export function OnboardingHandler() {
       console.log(`[onboard] Skipping - already onboarded ${address}`);
       return;
     }
+
+    if (!isInAppWallet(activeWallet)) {
+      console.log("[onboard] Skipping passive onboarding for external wallet");
+      onboardedAddresses.add(address);
+      return;
+    }
     
     // Mark as onboarding
     onboardedAddresses.add(address);
@@ -48,15 +64,20 @@ export function OnboardingHandler() {
       body: JSON.stringify({
         walletAddress: activeAccount.address,
       }),
-    }, activeWallet)
+    }, activeWallet, { allowSignatureFallback: false })
     .then(response => {
       console.log("[onboard] API response status:", response.status);
+      if (response.status === 401) {
+        console.log("[onboard] Waiting for silent embedded-wallet session");
+        return null;
+      }
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`);
       }
       return response.json();
     })
     .then(data => {
+      if (!data) return;
       console.log("[onboard] Response:", data);
       
       if (data.transactionHash) {
