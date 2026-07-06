@@ -4,6 +4,8 @@ import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 
 export const dynamic = 'force-dynamic';
 
+const WALLET_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+
 /**
  * POST /api/admin/allocate-allowances
  *
@@ -25,6 +27,17 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(contributorAddresses) || contributorAddresses.length === 0) {
       console.log('📋 No addresses provided – fetching all on-chain contributors...');
       contributorAddresses = await getAllContributors();
+    } else {
+      const hasInvalidAddress = contributorAddresses.some(
+        (address) => typeof address !== 'string' || !WALLET_ADDRESS_PATTERN.test(address),
+      );
+      if (hasInvalidAddress) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid contributor wallet address' },
+          { status: 400 },
+        );
+      }
+      contributorAddresses = [...new Set(contributorAddresses.map((address) => address.toLowerCase()))];
     }
 
     if (contributorAddresses.length === 0) {
@@ -44,10 +57,10 @@ export async function POST(req: NextRequest) {
       message: `Weekly allowances allocated to ${result.count} contributor(s).`,
       count: result.count,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Allocate allowances error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to allocate allowances' },
+      { error: error instanceof Error ? error.message : 'Failed to allocate allowances' },
       { status: 500 }
     );
   }
