@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "@/components/thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
-import { walletFetch } from "@/lib/auth/wallet-fetch";
+import { memberFetch } from "@/lib/auth/member-fetch";
 import Link from "next/link";
 
 export default function CancelMembership() {
@@ -48,7 +48,7 @@ export default function CancelMembership() {
         throw new Error(subscriptionData.error || "No active subscription found");
       }
 
-      const response = await walletFetch("/api/cancel-membership", account, {
+      const response = await memberFetch("/api/cancel-membership", account, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
