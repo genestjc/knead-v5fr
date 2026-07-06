@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
+import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
+import { isOpenSourceRequestAuthorized } from '@/lib/open-source-auth';
 
 const deflateRaw = promisify(zlib.deflateRaw);
 
@@ -11,6 +13,57 @@ interface ZipFile {
   path: string;
   source: 'repo' | 'generated';
   content?: string;
+}
+
+const MAX_REPO_FILES = 20;
+const MAX_GENERATED_FILES = 10;
+const MAX_REPO_FILE_BYTES = 500_000;
+const MAX_GENERATED_FILE_BYTES = 200_000;
+
+const BLOCKED_REPO_PREFIXES = [
+  'app/admin/',
+  'app/api/admin/',
+  'app/api/agent/',
+  'lib/admin/',
+];
+
+const BLOCKED_REPO_FILES = new Set([
+  'lib/agent.ts',
+  'lib/agentcard.ts',
+  'lib/thirdweb-server-wallet.ts',
+  'vercel.json',
+]);
+
+function normalizeZipPath(path: unknown): string | null {
+  if (typeof path !== 'string') return null;
+  const normalized = path.trim().replace(/^\/+/, '');
+  if (!normalized || normalized.length > 220) return null;
+  if (normalized.includes('\0') || normalized.includes('\\') || normalized.includes('..')) return null;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalized)) return null;
+  if (normalized.endsWith('/')) return null;
+  if (!/^[A-Za-z0-9._@/-]+$/.test(normalized)) return null;
+  return normalized;
+}
+
+function isEnvFile(path: string): boolean {
+  const basename = path.split('/').pop() ?? '';
+  return basename.startsWith('.env') && basename !== '.env.example';
+}
+
+function isBlockedRepoPath(path: string): boolean {
+  return (
+    isEnvFile(path) ||
+    BLOCKED_REPO_FILES.has(path) ||
+    BLOCKED_REPO_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+async function hasZipAccess(req: NextRequest): Promise<boolean> {
+  if (isOpenSourceRequestAuthorized(req)) return true;
+  const session = readMemberSession(req);
+  if (session.ok) return true;
+  const auth = await verifyMemberRequest(req);
+  return Boolean(auth.ok);
 }
 
 // ---------- minimal ZIP builder (no external deps) ----------
@@ -127,7 +180,15 @@ async function fetchRepoFile(path: string): Promise<string> {
         : {},
     });
     if (!res.ok) return `// File not found in repo: ${path}\n`;
-    return await res.text();
+    const contentLength = Number(res.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_REPO_FILE_BYTES) {
+      return `// File too large to include in starter kit: ${path}\n`;
+    }
+    const text = await res.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_REPO_FILE_BYTES) {
+      return `// File too large to include in starter kit: ${path}\n`;
+    }
+    return text;
   } catch {
     return `// Could not fetch ${path}\n`;
   }
@@ -182,6 +243,13 @@ NEXT_PUBLIC_BASE_RPC_URL=https://mainnet.base.org
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await hasZipAccess(req))) {
+      return NextResponse.json(
+        { error: 'Connect your wallet or unlock the open-source builder before downloading a ZIP' },
+        { status: 401 },
+      );
+    }
+
     const body = await req.json().catch(() => null);
     if (!body?.files || !Array.isArray(body.files)) {
       return NextResponse.json({ error: 'Missing files array' }, { status: 400 });
@@ -195,8 +263,31 @@ export async function POST(req: NextRequest) {
     // Fetch repo files in parallel (max 20 to keep response fast)
     const resolvedFiles: { name: string; content: Buffer }[] = [];
 
-    const repoFiles = files.filter((f) => f.source === 'repo').slice(0, 20);
-    const generatedFiles = files.filter((f) => f.source === 'generated').slice(0, 10);
+    const repoFiles: ZipFile[] = [];
+    const generatedFiles: ZipFile[] = [];
+
+    for (const file of files) {
+      const path = normalizeZipPath(file?.path);
+      if (!path) {
+        return NextResponse.json({ error: 'Invalid file path in ZIP request' }, { status: 400 });
+      }
+
+      if (file.source === 'repo') {
+        if (isBlockedRepoPath(path)) {
+          return NextResponse.json({ error: `File is not exportable: ${path}` }, { status: 400 });
+        }
+        if (repoFiles.length < MAX_REPO_FILES) repoFiles.push({ ...file, path });
+        continue;
+      }
+
+      if (file.source === 'generated') {
+        const content = file.content ?? '';
+        if (isEnvFile(path) || Buffer.byteLength(content, 'utf8') > MAX_GENERATED_FILE_BYTES) {
+          return NextResponse.json({ error: `Generated file is not exportable: ${path}` }, { status: 400 });
+        }
+        if (generatedFiles.length < MAX_GENERATED_FILES) generatedFiles.push({ ...file, path, content });
+      }
+    }
 
     const repoContents = await Promise.all(repoFiles.map((f) => fetchRepoFile(f.path)));
 
