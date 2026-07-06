@@ -15,7 +15,7 @@ import {
   client,
   serverWallet,
 } from "../../../thirdweb-server-wallet";
-import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-04-10",
