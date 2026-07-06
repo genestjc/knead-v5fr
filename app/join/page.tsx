@@ -21,6 +21,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { useToast } from "@/hooks/use-toast";
+import { memberFetch } from "@/lib/auth/member-fetch";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
@@ -143,7 +144,7 @@ export default function JoinPage() {
     setIsLoadingIntent(true);
 
     try {
-      const response = await fetch("/api/create-payment-intent", {
+      const response = await memberFetch("/api/create-payment-intent", account, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -195,7 +196,7 @@ export default function JoinPage() {
       console.log('[join] Verifying payment:', paymentIntentId);
 
       // Verify payment server-side
-      const response = await fetch('/api/verify-payment', {
+      const response = await memberFetch('/api/verify-payment', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
