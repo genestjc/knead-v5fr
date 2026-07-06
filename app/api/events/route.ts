@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
 import { createOnChainEvent, EventType } from '@/lib/blockchain/event-management';
 import { formatAddressForDisplay } from '@/lib/utils/transformers';
+import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
 import type { ApiResponse } from '@/types/chat';
 
 const DEFAULT_RSVP_CAP = 999999;
@@ -100,6 +101,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAdminRequest(req, { requireMaster: true });
+    if (!auth.ok) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: auth.error },
+        { status: auth.status }
+      );
+    }
+
     const body = await req.json();
     const {
       title,
