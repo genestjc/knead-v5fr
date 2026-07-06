@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +9,15 @@ export async function POST(req: NextRequest) {
   console.log('🎫 [generate-token] REQUEST RECEIVED');
 
   try {
+    let verifiedAddress: string | null = null;
+    const session = readMemberSession(req);
+    if (session.ok && session.address) {
+      verifiedAddress = session.address;
+    } else if (req.headers.get('x-wallet-address')) {
+      const auth = await verifyMemberRequest(req);
+      verifiedAddress = auth.ok ? auth.address! : null;
+    }
+
     let body;
     try {
       body = await req.json();
@@ -21,13 +30,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { roomName } = body;
+    const { roomName, requireAuth } = body;
 
     if (!roomName) {
       console.error('❌ [generate-token] Missing required field: roomName');
       return NextResponse.json(
         { success: false, error: 'Missing required field: roomName' },
         { status: 400 }
+      );
+    }
+
+    if (requireAuth === true && !verifiedAddress) {
+      return NextResponse.json(
+        { success: false, error: 'Missing member authentication' },
+        { status: 401 }
       );
     }
 
@@ -69,21 +85,18 @@ export async function POST(req: NextRequest) {
     }
     const guestAddresses: string[] = (event.guest_addresses ?? []).map((a: string) => a.toLowerCase());
 
-    // Broadcast rights (is_owner) require a *verified* wallet signature whose
-    // recovered address is the event host or an admin-listed guest. Viewers do
-    // NOT need to sign — watching is the open free tier, so a missing/invalid
-    // signature simply yields a locked-down viewer token (no popup for the
-    // watching majority). A forged or unsigned request can never escalate to
-    // broadcaster, because the role is decided solely from the recovered address.
-    const auth = await verifyWalletRequest(req);
-    const verifiedAddress = auth.ok ? auth.address! : null;
-
+    // Broadcast rights (is_owner) require an authenticated member whose address
+    // is the event host or an admin-listed guest. Viewers do NOT need auth;
+    // watching is the open free tier, so a missing/invalid session simply yields
+    // a locked-down viewer token. A forged or unsigned request can never
+    // escalate to broadcaster, because the role is decided solely from the
+    // authenticated address.
     const isHost = !!hostAddress && verifiedAddress === hostAddress;
     const isGuest = !!verifiedAddress && guestAddresses.includes(verifiedAddress);
     const isActualViewer = !isHost && !isGuest;
     const role = isHost ? 'HOST' : isGuest ? 'GUEST' : 'VIEWER';
 
-    // user_name: prefer the verified (signed) address; viewers may pass an
+    // user_name: prefer the authenticated address; viewers may pass an
     // unverified, display-only walletAddress for a friendlier label in the call.
     const userName =
       verifiedAddress ||
