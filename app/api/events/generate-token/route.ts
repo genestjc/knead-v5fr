@@ -10,12 +10,14 @@ export async function POST(req: NextRequest) {
 
   try {
     let verifiedAddress: string | null = null;
-    const session = readMemberSession(req);
-    if (session.ok && session.address) {
-      verifiedAddress = session.address;
-    } else if (req.headers.get('x-wallet-address')) {
+    if (req.headers.get('x-wallet-address')) {
       const auth = await verifyMemberRequest(req);
       verifiedAddress = auth.ok ? auth.address! : null;
+    } else {
+      const session = readMemberSession(req);
+      if (session.ok && session.address) {
+        verifiedAddress = session.address;
+      }
     }
 
     let body;
