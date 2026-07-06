@@ -6,6 +6,7 @@ import {
   WALLET_AUTH_MAX_AGE_MS,
   buildWalletAuthMessage,
 } from './wallet-message';
+import { canonicalRequestPath, requestBodyHash } from './request-binding';
 
 // Public Base client used only to verify signatures (EOA off-chain recovery,
 // with on-chain ERC-1271/6492 fallback for smart-account wallets).
@@ -41,9 +42,12 @@ export async function verifyWalletRequest(
 ): Promise<WalletAuthResult> {
   const address = req.headers.get(WALLET_AUTH_HEADERS.address)?.toLowerCase();
   const timestamp = req.headers.get(WALLET_AUTH_HEADERS.timestamp);
+  const method = req.headers.get(WALLET_AUTH_HEADERS.method);
+  const path = req.headers.get(WALLET_AUTH_HEADERS.path);
+  const bodyHash = req.headers.get(WALLET_AUTH_HEADERS.bodyHash);
   const signature = req.headers.get(WALLET_AUTH_HEADERS.signature);
 
-  if (!address || !timestamp || !signature) {
+  if (!address || !timestamp || !method || !path || !bodyHash || !signature) {
     return { ok: false, error: 'Missing wallet authentication', status: 401 };
   }
 
@@ -56,11 +60,26 @@ export async function verifyWalletRequest(
     return { ok: false, error: 'Expired or invalid request timestamp', status: 401 };
   }
 
+  const expectedMethod = req.method.toUpperCase();
+  const expectedPath = canonicalRequestPath(req.nextUrl);
+  if (method.toUpperCase() !== expectedMethod || path !== expectedPath) {
+    return { ok: false, error: 'Wallet signature request mismatch', status: 401 };
+  }
+
+  const expectedBodyHash = await requestBodyHash(req);
+  if (bodyHash !== expectedBodyHash) {
+    return { ok: false, error: 'Wallet signature body mismatch', status: 401 };
+  }
+
   let validSignature = false;
   try {
     validSignature = await publicClient.verifyMessage({
       address: address as `0x${string}`,
-      message: buildWalletAuthMessage(address, timestamp),
+      message: buildWalletAuthMessage(address, timestamp, {
+        method: expectedMethod,
+        path: expectedPath,
+        bodyHash: expectedBodyHash,
+      }),
       signature: signature as `0x${string}`,
     });
   } catch {
