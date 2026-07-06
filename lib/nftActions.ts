@@ -1,13 +1,17 @@
 import { getContract, prepareContractCall, Engine } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
-import kneadMembershipABI from "../app/abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 import { client, serverWallet } from "../thirdweb-server-wallet";
 import { logger } from "./logger";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PREMIUM_TOKEN_ID = 1;
 const FREEMIUM_TOKEN_ID = 0;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export async function mintPremiumNFT(walletAddress: string) {
   try {
@@ -53,9 +57,10 @@ export async function mintPremiumNFT(walletAddress: string) {
     
     logger.log(`Premium NFT minted successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
-  } catch (error: any) {
+  } catch (error) {
+    const message = getErrorMessage(error);
     logger.error("Error minting premium NFT:", error);
-    throw new Error(`Failed to mint premium NFT: ${error.message}`);
+    throw new Error(`Failed to mint premium NFT: ${message}`);
   }
 }
 
@@ -103,9 +108,10 @@ export async function burnPremiumNFT(walletAddress: string) {
     
     logger.log(`Premium NFT burned successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
-  } catch (error: any) {
+  } catch (error) {
+    const message = getErrorMessage(error);
     logger.error("Error burning premium NFT:", error);
-    throw new Error(`Failed to burn premium NFT: ${error.message}`);
+    throw new Error(`Failed to burn premium NFT: ${message}`);
   }
 }
 
@@ -153,8 +159,9 @@ export async function mintFreemiumNFT(walletAddress: string) {
     
     logger.log(`Freemium NFT minted successfully: ${transactionHash}`);
     return { success: true, transactionHash, transactionId };
-  } catch (error: any) {
+  } catch (error) {
+    const message = getErrorMessage(error);
     logger.error("Error minting freemium NFT:", error);
-    throw new Error(`Failed to mint freemium NFT: ${error.message}`);
+    throw new Error(`Failed to mint freemium NFT: ${message}`);
   }
 }
