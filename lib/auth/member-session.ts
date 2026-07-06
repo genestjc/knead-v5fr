@@ -1,7 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
-import { WALLET_AUTH_HEADERS } from './wallet-message';
-import { verifyWalletRequest, type WalletAuthResult } from './verify-wallet-request';
+import {
+  hasWalletAuthHeaders,
+  verifyWalletRequest,
+  type WalletAuthResult,
+} from './verify-wallet-request';
 
 export const MEMBER_SESSION_COOKIE = 'knead_member_session';
 export const MEMBER_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -196,24 +199,21 @@ function collectAddresses(value: unknown, seen = new Set<unknown>()): string[] {
   ];
 }
 
-function hasWalletAuthHeaders(req: NextRequest): boolean {
-  return Boolean(req.headers.get(WALLET_AUTH_HEADERS.address));
-}
-
 export async function verifyMemberRequest(req: NextRequest): Promise<MemberAuthResult> {
-  const session = readMemberSession(req);
-  if (session.ok) return session;
+  if (hasWalletAuthHeaders(req)) {
+    const walletAuth: WalletAuthResult = await verifyWalletRequest(req);
+    if (!walletAuth.ok || !walletAuth.address) {
+      return {
+        ok: false,
+        error: walletAuth.error,
+        status: walletAuth.status,
+      };
+    }
 
-  if (!hasWalletAuthHeaders(req)) return session;
-
-  const walletAuth: WalletAuthResult = await verifyWalletRequest(req);
-  if (!walletAuth.ok || !walletAuth.address) {
-    return {
-      ok: false,
-      error: walletAuth.error,
-      status: walletAuth.status,
-    };
+    return { ok: true, address: walletAuth.address, provider: 'wallet' };
   }
 
-  return { ok: true, address: walletAuth.address, provider: 'wallet' };
+  const session = readMemberSession(req);
+  if (session.ok) return session;
+  return session;
 }
