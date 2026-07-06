@@ -541,15 +541,17 @@ export async function POST(req: NextRequest) {
   try {
     let verifiedWalletAddress: string | undefined;
 
-    const session = readMemberSession(req);
-    if (session.ok && session.address) {
-      verifiedWalletAddress = session.address;
-    } else if (req.headers.get('x-wallet-address')) {
+    if (req.headers.get('x-wallet-address')) {
       const auth = await verifyMemberRequest(req);
       if (!auth.ok || !auth.address) {
         return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
       }
       verifiedWalletAddress = auth.address;
+    } else {
+      const session = readMemberSession(req);
+      if (session.ok && session.address) {
+        verifiedWalletAddress = session.address;
+      }
     }
 
     const body = await req.json().catch(() => null);
