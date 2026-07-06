@@ -7,7 +7,7 @@ import { EventsEmailSignup } from '@/components/chat/EventsEmailSignup';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { useToast } from '@/hooks/use-toast';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { memberFetch } from '@/lib/auth/member-fetch';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -28,7 +28,7 @@ export function WelcomeModal({ isOpen, onClose, userId }: WelcomeModalProps) {
     if (!account?.address || !alias.trim()) return;
     setIsSaving(true);
     try {
-      await walletFetch('/api/contributor/update-profile', account, {
+      await memberFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
