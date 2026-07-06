@@ -60,10 +60,6 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/reset-budgets",
-      "schedule": "0 0 * * 1"
-    },
-    {
       "path": "/api/cron/distribute-pool",
       "schedule": "0 0 * * 0"
     },
