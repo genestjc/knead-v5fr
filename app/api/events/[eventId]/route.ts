@@ -11,10 +11,10 @@ export const revalidate = 0;
 // ============================================
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const { id: eventId } = await context.params;
+    const { eventId } = await context.params;
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[PATCH /api/admin/events] Invalid eventId:', eventId);
@@ -103,10 +103,10 @@ export async function PATCH(
 // ============================================
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const { id: eventId } = await context.params;
+    const { eventId } = await context.params;
     
     if (!eventId || eventId === 'undefined' || eventId === 'null') {
       console.error('[DELETE /api/admin/events] Invalid eventId:', eventId);
