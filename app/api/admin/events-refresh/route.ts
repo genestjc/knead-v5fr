@@ -6,6 +6,12 @@ import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
 
+type EventParticipant = {
+  id: string;
+  address: string;
+  alias: string | null;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await verifyAdminRequest(req, { requireMaster: true });
@@ -62,7 +68,7 @@ export async function GET(req: NextRequest) {
           host = hostData;
         }
 
-        let guests = [];
+        let guests: EventParticipant[] = [];
         if (event.guest_ids && Array.isArray(event.guest_ids) && event.guest_ids.length > 0) {
           const { data: guestData } = await supabase
             .from('chat_users')
