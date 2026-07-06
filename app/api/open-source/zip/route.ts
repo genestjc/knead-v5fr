@@ -60,6 +60,10 @@ function isBlockedRepoPath(path: string): boolean {
 
 async function hasZipAccess(req: NextRequest): Promise<boolean> {
   if (isOpenSourceRequestAuthorized(req)) return true;
+  if (req.headers.get('x-wallet-address')) {
+    const auth = await verifyMemberRequest(req);
+    return Boolean(auth.ok);
+  }
   const session = readMemberSession(req);
   if (session.ok) return true;
   const auth = await verifyMemberRequest(req);
