@@ -3,6 +3,7 @@ import { runAgent } from '@/lib/agent';
 import { getWalletAgentRole } from '@/lib/agent/role-gate';
 import { postToTownsChannel } from '@/lib/towns/agent-listener';
 import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
     if (!command) return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     const { allowed, role } = await getWalletAgentRole(senderAddress);
     if (!allowed) return NextResponse.json({ error: 'Forbidden: Admin or Contributor role required' }, { status: 403 });
+    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden: Admin role required for agent purchases' }, { status: 403 });
+    const limit = await rateLimit('agent-execute-purchase', senderAddress, { limit: 10, windowSeconds: 60 * 60 });
+    if (!limit.success) return NextResponse.json({ error: 'Too many agent purchase requests. Please slow down.' }, { status: 429 });
     const result = await runAgent({ command, senderAddress, channelId, proposalId }, postToTownsChannel);
     return NextResponse.json({ success: result.success, role, result });
   } catch (err: unknown) {
