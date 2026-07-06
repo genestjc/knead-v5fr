@@ -91,3 +91,7 @@ export async function verifyWalletRequest(
 
   return { ok: true, address };
 }
+
+export function hasWalletAuthHeaders(req: NextRequest): boolean {
+  return Boolean(req.headers.get(WALLET_AUTH_HEADERS.address));
+}
