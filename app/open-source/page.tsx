@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import type { Account } from 'thirdweb/wallets';
 import { Header } from '@/components/header';
 import { RECIPES, FREE_TURNS_PER_DAY, type RecipeId, type BuildRecipe } from '@/lib/build-recipes';
 import { PaywallModal } from '@/components/PaywallModal';
+import { memberFetch } from '@/lib/auth/member-fetch';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,14 +29,15 @@ interface ZipProposal {
 
 export default function OpenSourcePage() {
   const account = useActiveAccount();
-  return <BuildUI walletAddress={account?.address} />;
+  return <BuildUI account={account} />;
 }
 
 // ─── Build UI ─────────────────────────────────────────────────────────────────
 
 type View = 'landing' | 'menu' | 'chat';
 
-function BuildUI({ walletAddress }: { walletAddress?: string }) {
+function BuildUI({ account }: { account?: Account }) {
+  const walletAddress = account?.address;
   const [view, setView] = useState<View>('landing');
   const [selectedRecipes, setSelectedRecipes] = useState<RecipeId[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,7 +88,7 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/open-source/chat', {
+      const request: RequestInit = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,7 +99,10 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
           zipProposal,
           model,
         }),
-      });
+      };
+      const res = account
+        ? await memberFetch('/api/open-source/chat', account, request)
+        : await fetch('/api/open-source/chat', request);
 
       if (res.status === 429) {
         setRateLimited(true);
@@ -124,11 +130,14 @@ function BuildUI({ walletAddress }: { walletAddress?: string }) {
     if (!zipProposal) return;
     setZipping(true);
     try {
-      const res = await fetch('/api/open-source/zip', {
+      const request: RequestInit = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(zipProposal),
-      });
+      };
+      const res = account
+        ? await memberFetch('/api/open-source/zip', account, request)
+        : await fetch('/api/open-source/zip', request);
       if (!res.ok) throw new Error();
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
