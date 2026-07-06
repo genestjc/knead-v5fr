@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  createOpenSourceAuthCookieValue,
+  isOpenSourceRequestAuthorized,
+  OPEN_SOURCE_AUTH_COOKIE,
+  OPEN_SOURCE_AUTH_MAX_AGE_SECONDS,
+} from '@/lib/open-source-auth';
 
 export async function GET(req: NextRequest) {
-  const auth = req.cookies.get('os_auth');
-  if (auth?.value === 'true') return NextResponse.json({ ok: true });
+  if (isOpenSourceRequestAuthorized(req)) return NextResponse.json({ ok: true });
   return NextResponse.json({ ok: false }, { status: 401 });
 }
 
@@ -20,11 +25,11 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set('os_auth', 'true', {
+  res.cookies.set(OPEN_SOURCE_AUTH_COOKIE, createOpenSourceAuthCookieValue(), {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: OPEN_SOURCE_AUTH_MAX_AGE_SECONDS,
     secure: process.env.NODE_ENV === 'production',
   });
   return res;
