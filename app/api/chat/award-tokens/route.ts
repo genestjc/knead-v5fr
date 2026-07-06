@@ -3,7 +3,7 @@ import { isContributor } from '@/lib/blockchain/contributor-nft';
 import { awardTownsViaEngine } from '@/lib/blockchain/award-rewards-engine';
 import { getUserTownsBalance } from '@/lib/blockchain/towns-utils';
 import { isParticipantRegistered, registerParticipant } from '@/lib/blockchain/register-participant';
-import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic';
  * POST /api/chat/award-tokens
  *
  * Award tokens via Engine wallet (Engine signs the on-chain tx; the *caller*
- * must prove wallet ownership via signature).
+ * must prove wallet ownership via their Knead member session.
  *
  * This endpoint:
- * 1. Verifies the caller's wallet signature (the contributor)
+ * 1. Verifies the caller's wallet/session ownership (the contributor)
  * 2. Verifies contributor has NFT permission
  * 3. Auto-registers participant if needed
  * 4. Awards tokens via Engine wallet (80/20 split)
@@ -22,10 +22,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    // The contributor is the *recovered* signer, never a client-supplied field.
+    // The contributor is the authenticated member, never a client-supplied field.
     // Previously `contributorAddress` came from the body, so anyone could paste
     // a real contributor's (public) address and drain the Engine wallet.
-    const auth = await verifyWalletRequest(req);
+    const auth = await verifyMemberRequest(req);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
