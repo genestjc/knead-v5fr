@@ -30,7 +30,7 @@ import { useContributorPermissions } from '@/hooks/use-contributor-permissions';
 import { useChatPermissions } from '@/hooks/use-chat-permissions';
 import { getUserRole } from '@/lib/blockchain/check-nft-ownership';
 import { createSupabaseClient } from '@/lib/supabase/chat-client';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { memberFetch } from '@/lib/auth/member-fetch';
 import { uploadToIPFS, isImageFile } from '@/lib/thirdweb/storage';
 import { Paperclip, X, Reply } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -264,7 +264,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
   const [activeEvent, setActiveEvent] = useState<ChatEvent | null>(null);
   const [dailyToken, setDailyToken] = useState<string | null>(null);
   // Tracks the `${room}:${role}` we've already fetched a Daily token for, so the
-  // signed token request fires once per (room, role) instead of on every 30s
+  // authenticated token request fires once per (room, role) instead of on every 30s
   // poll — but still refetches if the admin promotes this user to guest/host
   // mid-event (their role key changes).
   const dailyTokenKeyRef = useRef<string | null>(null);
@@ -346,7 +346,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
     setIsLoadingIntent(true);
 
     try {
-      const response = await fetch('/api/create-payment-intent', {
+      const response = await memberFetch('/api/create-payment-intent', activeAccount, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -398,7 +398,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
       console.log('[chat] Verifying payment:', paymentIntentId);
 
       // Verify payment server-side
-      const response = await fetch('/api/verify-payment', {
+      const response = await memberFetch('/api/verify-payment', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -892,7 +892,7 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
 
         // Compute our role client-side ONLY to decide whether to (re)fetch a
         // token — it is never trusted for access. The server independently
-        // re-derives the real role from the verified signature + event record.
+        // re-derives the real role from the authenticated member + event record.
         // We refetch when the room changes or when our role changes (e.g. an
         // admin pastes our address to promote us to guest mid-event), but NOT on
         // every 30s poll — so a user isn't repeatedly prompted to sign.
@@ -906,15 +906,15 @@ function ConnectedChatInner({ currentUser, spaceId, defaultChannelId }: Connecte
         const tokenKey = `${event.dailyRoomName}:${myRole}`;
         if (dailyTokenKeyRef.current === tokenKey) return;
 
-        // Only broadcasters (host/guest) sign — that's the gate that matters.
-        // Viewers fetch an unsigned, locked-down token so the watching majority
-        // (including external wallets) never sees a signature prompt.
+        // Broadcasters use the member session gate. Viewers fetch an unsigned,
+        // locked-down token so the watching majority never sees a signature
+        // prompt.
         const isBroadcaster = myRole === 'host' || myRole === 'guest';
         const tokenResponse = isBroadcaster
-          ? await walletFetch('/api/events/generate-token', activeAccount!, {
+          ? await memberFetch('/api/events/generate-token', activeAccount!, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roomName: event.dailyRoomName }),
+              body: JSON.stringify({ roomName: event.dailyRoomName, requireAuth: true }),
             })
           : await fetch('/api/events/generate-token', {
               method: 'POST',
