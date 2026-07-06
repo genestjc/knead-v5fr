@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
+import { rateLimit } from '@/lib/rate-limit';
 import type { ApiResponse } from '@/types/chat';
 
 export const dynamic = 'force-dynamic';
@@ -7,6 +9,13 @@ export const dynamic = 'force-dynamic';
 // Configuration constants
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const FILE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
 
 /**
  * POST /api/contributor/upload-avatar
@@ -15,6 +24,25 @@ const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif',
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyMemberRequest(req);
+    if (!auth.ok || !auth.address) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: auth.error || 'Missing wallet authentication' },
+        { status: auth.status || 401 }
+      );
+    }
+
+    const limit = await rateLimit('contributor-avatar-upload', auth.address, {
+      limit: 10,
+      windowSeconds: 60 * 60,
+    });
+    if (!limit.success) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Too many avatar uploads. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const userAddress = formData.get('userAddress') as string | null;
@@ -30,6 +58,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'User address is required' },
         { status: 400 }
+      );
+    }
+
+    const normalizedUserAddress = userAddress.toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(normalizedUserAddress)) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Invalid user address' },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedUserAddress !== auth.address) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Authenticated wallet does not match uploaded profile' },
+        { status: 403 }
       );
     }
 
@@ -52,8 +95,8 @@ export async function POST(req: NextRequest) {
     const supabase = createSupabaseAdmin();
 
     // Create unique filename
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const fileName = `${userAddress.toLowerCase()}-${Date.now()}.${fileExt}`;
+    const fileExt = FILE_EXTENSIONS[file.type] ?? 'png';
+    const fileName = `${normalizedUserAddress}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 
     // Convert File to ArrayBuffer then to Buffer for upload
