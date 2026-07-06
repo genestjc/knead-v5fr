@@ -8,19 +8,21 @@ import { inAppWallet, createWallet } from "thirdweb/wallets";
  * silent reconnect targets the exact wallet the user originally connected
  * (e.g. the MetaMask extension), instead of dropping them back to sign-in.
  */
+export const kneadInAppWallet = inAppWallet({
+  auth: {
+    options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
+    mode: "redirect",
+    redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
+  },
+  hidePrivateKeyExport: false,
+  executionMode: {
+    mode: "EIP7702",
+    sponsorGas: true,
+  },
+});
+
 export const wallets = [
-  inAppWallet({
-    auth: {
-      options: ["email", "google", "apple", "coinbase", "passkey", "phone", "discord", "telegram", "farcaster", "x"],
-      mode: "redirect",
-      redirectUrl: typeof window !== "undefined" ? window.location.href : undefined,
-    },
-    hidePrivateKeyExport: false,
-    executionMode: {
-      mode: "EIP7702",
-      sponsorGas: true,
-    },
-  }),
+  kneadInAppWallet,
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),
   createWallet("me.rainbow"),
