@@ -1,7 +1,8 @@
-import { createThirdwebClient, Engine, getBalance as getNativeBalance } from "thirdweb";
+import { createThirdwebClient, Engine, isAddress, toEther } from "thirdweb";
 import { getContract } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
+import { eth_getBalance, getRpcClient } from "thirdweb/rpc";
 
 // Validate required environment variables
 if (!process.env.THIRDWEB_SECRET_KEY) {
@@ -27,7 +28,7 @@ export const serverWallet = Engine.serverWallet({
 });
 
 // Export wallet address as constant
-export const SERVER_WALLET_ADDRESS = process.env.ENGINE_SERVER_WALLET_ADDRESS;
+export const SERVER_WALLET_ADDRESS = process.env.ENGINE_SERVER_WALLET_ADDRESS!;
 
 // Use contract address from env var
 const ERC1155_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
@@ -39,16 +40,15 @@ const ERC1155_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 
     if (process.env.NODE_ENV !== "production") {
       // 1. Check native token balance (for gas)
-      const nativeBalance = await getNativeBalance({
-        client,
-        address: SERVER_WALLET_ADDRESS,
-        chain: base,
-      });
-      console.log(
-        `💰 Server wallet native balance: ${nativeBalance.displayValue} ${nativeBalance.symbol}`,
-      );
-      if (nativeBalance.value < 5_000_000_000_000_000n) {
-        console.warn("⚠️ WARNING: Server wallet has low balance for gas fees");
+      if (isAddress(SERVER_WALLET_ADDRESS)) {
+        const rpcRequest = getRpcClient({ client, chain: base });
+        const nativeBalanceWei = await eth_getBalance(rpcRequest, {
+          address: SERVER_WALLET_ADDRESS,
+        });
+        console.log(`💰 Server wallet native balance: ${toEther(nativeBalanceWei)} ETH`);
+        if (nativeBalanceWei < 5_000_000_000_000_000n) {
+          console.warn("⚠️ WARNING: Server wallet has low balance for gas fees");
+        }
       }
 
       // 2. Check ERC1155 token balances
