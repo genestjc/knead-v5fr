@@ -2,15 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { WALLET_AUTH_HEADERS } from '@/lib/auth/wallet-message';
 import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
 import {
+  clearSiweNonceCookie,
+  createSiweChallenge,
   clearMemberSessionCookie,
   readMemberSession,
   setMemberSessionCookie,
+  setSiweNonceCookie,
   verifyThirdwebInAppAuthToken,
+  verifySiweMemberMessage,
 } from '@/lib/auth/member-session';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get('challenge') === 'siwe') {
+    const walletAddress = req.nextUrl.searchParams.get('walletAddress');
+    if (!walletAddress) {
+      return NextResponse.json(
+        { success: false, error: 'Missing walletAddress' },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const challenge = createSiweChallenge(req, walletAddress);
+      const res = NextResponse.json({
+        success: true,
+        address: challenge.address,
+        message: challenge.message,
+        nonce: challenge.nonce,
+        expiresAt: challenge.expiresAt,
+      });
+      setSiweNonceCookie(res, challenge);
+      return res;
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: error instanceof Error ? error.message : 'Failed to create SIWE challenge' },
+        { status: 400 },
+      );
+    }
+  }
+
   const session = readMemberSession(req);
   if (!session.ok) {
     return NextResponse.json({ success: false, error: session.error }, { status: session.status ?? 401 });
@@ -36,13 +68,24 @@ export async function POST(req: NextRequest) {
       typeof body.thirdwebAuthToken === 'string' && body.thirdwebAuthToken.length > 0
         ? body.thirdwebAuthToken
         : undefined;
+    const siweMessage =
+      typeof body.siweMessage === 'string' && body.siweMessage.length > 0
+        ? body.siweMessage
+        : undefined;
+    const siweSignature =
+      typeof body.siweSignature === 'string' && body.siweSignature.length > 0
+        ? body.siweSignature
+        : undefined;
 
     let address: string;
-    let provider: 'thirdweb' | 'wallet';
+    let provider: 'thirdweb' | 'wallet' | 'siwe';
 
     if (thirdwebAuthToken) {
       address = await verifyThirdwebInAppAuthToken(thirdwebAuthToken, walletAddress);
       provider = 'thirdweb';
+    } else if (siweMessage && siweSignature) {
+      address = await verifySiweMemberMessage(req, siweMessage, siweSignature, walletAddress);
+      provider = 'siwe';
     } else if (signedWalletAddress) {
       if (walletAddress && walletAddress !== signedWalletAddress) {
         return NextResponse.json(
@@ -58,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     const res = NextResponse.json({ success: true, address, provider });
     setMemberSessionCookie(res, address, provider);
+    clearSiweNonceCookie(res);
     return res;
   } catch (error) {
     return NextResponse.json(
@@ -70,6 +114,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const res = NextResponse.json({ success: true });
   clearMemberSessionCookie(res);
+  clearSiweNonceCookie(res);
   return res;
 }
-
