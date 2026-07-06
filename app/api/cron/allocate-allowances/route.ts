@@ -65,11 +65,9 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/cron/allocate-allowances
  *
- * Health check for the cron endpoint.
+ * Vercel cron invokes GET requests, with the same Authorization header when
+ * CRON_SECRET is configured.
  */
-export async function GET(_req: NextRequest) {
-  return NextResponse.json({
-    status: 'ready',
-    message: 'Cron endpoint is configured. Use POST with Bearer token to trigger allocation.',
-  });
+export async function GET(req: NextRequest) {
+  return POST(req);
 }
