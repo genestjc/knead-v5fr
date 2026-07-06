@@ -21,7 +21,7 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
 const PAID_TOKEN_ID = 1; // Premium token ID
 
 // Import ABI
-import kneadMembershipABI from "@/app/abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 
 export async function POST(req: NextRequest) {
   try {
