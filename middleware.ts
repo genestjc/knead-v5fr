@@ -39,6 +39,7 @@ export function middleware(request: NextRequest) {
       https://*.cdninstagram.com
       https://*.fbcdn.net
       https://pbs.twimg.com
+      https://i.imgur.com
       https://fonts.gstatic.com;
     font-src 'self' data:
       https://use.typekit.net 
@@ -156,6 +157,7 @@ export function middleware(request: NextRequest) {
       https://www.instagram.com
       https://platform.twitter.com
       https://syndication.twitter.com
+      https://i.imgur.com
       https://cdn.syndication.twimg.com;
   `
     .replace(/\n/g, '')
