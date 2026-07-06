@@ -6,6 +6,15 @@ import type { ApiResponse } from '@/types/chat';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+type EventStatusUpdateResponse = ApiResponse<null> & {
+  needsPermissionUpdate: boolean;
+  roleUpdate?: {
+    spaceId: string | undefined;
+    roleId: number;
+    permissions: string[];
+  };
+};
+
 // ============================================
 // PATCH - Update event status
 // ============================================
@@ -77,7 +86,7 @@ export async function PATCH(
     // ✅ NEW: Return permission update instructions for client
     const needsPermissionUpdate = status === 'live' || status === 'ended';
 
-    return NextResponse.json<ApiResponse<any>>({
+    return NextResponse.json<EventStatusUpdateResponse>({
       success: true,
       message: 'Event status updated',
       needsPermissionUpdate,
