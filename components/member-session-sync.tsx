@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useActiveAccount, useActiveWallet } from 'thirdweb/react';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { createMemberSession } from '@/lib/auth/member-fetch';
 
 type WalletWithAuthToken = {
   getAuthToken?: () => string | null | Promise<string | null>;
@@ -30,22 +30,8 @@ export function MemberSessionSync() {
       if (syncedAddress.current === address) return;
 
       try {
-        const thirdwebAuthToken =
-          typeof wallet?.getAuthToken === 'function' ? await wallet.getAuthToken() : null;
-        const request: RequestInit = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: address,
-            thirdwebAuthToken: thirdwebAuthToken || undefined,
-          }),
-        };
-
-        const response = thirdwebAuthToken
-          ? await fetch('/api/auth/member-session', request)
-          : await walletFetch('/api/auth/member-session', activeAccount, request);
-
-        if (!cancelled && response.ok) {
+        const sessionReady = await createMemberSession(activeAccount, wallet);
+        if (!cancelled && sessionReady) {
           syncedAddress.current = address;
         }
       } catch (error) {
