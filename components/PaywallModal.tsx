@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { X } from 'lucide-react';
+import { memberFetch } from '@/lib/auth/member-fetch';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -85,7 +86,7 @@ export function PaywallModal({
     if (!account?.address) return;
     setIsLoadingIntent(true);
     try {
-      const res = await fetch('/api/create-payment-intent', {
+      const res = await memberFetch('/api/create-payment-intent', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: account.address, amount: 500 }),
@@ -101,7 +102,7 @@ export function PaywallModal({
     if (!account?.address) return;
     setIsVerifying(true);
     try {
-      const res = await fetch('/api/verify-payment', {
+      const res = await memberFetch('/api/verify-payment', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentIntentId, walletAddress: account.address }),
