@@ -15,6 +15,7 @@ import {
   KNEAD_REPO,
 } from '@/lib/github';
 import { runAgentChat, CLAUDE_SONNET, type AgentTool } from '@/lib/ai/router';
+import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 
 // A multi-round tool loop can take well over Vercel's default function
 // duration; without this the function is killed mid-request and the client
@@ -45,13 +46,9 @@ async function verifyPremium(walletAddress: string): Promise<boolean> {
 
 async function getIdentifier(
   req: NextRequest,
-  walletAddress?: string,
+  verifiedWalletAddress?: string,
 ): Promise<{ id: string; type: 'wallet' | 'ip' }> {
-  // The frontend sends the wallet in the body; the header is a fallback for
-  // other clients. Without the body check, signed-in users were still being
-  // identified (and rate-limited) by IP.
-  const wallet = walletAddress || req.headers.get('x-wallet-address');
-  if (wallet) return { id: wallet.toLowerCase(), type: 'wallet' };
+  if (verifiedWalletAddress) return { id: verifiedWalletAddress.toLowerCase(), type: 'wallet' };
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
     req.headers.get('x-real-ip') ??
@@ -542,6 +539,19 @@ Environment variables: always list what the user needs to set with generic names
 
 export async function POST(req: NextRequest) {
   try {
+    let verifiedWalletAddress: string | undefined;
+
+    const session = readMemberSession(req);
+    if (session.ok && session.address) {
+      verifiedWalletAddress = session.address;
+    } else if (req.headers.get('x-wallet-address')) {
+      const auth = await verifyMemberRequest(req);
+      if (!auth.ok || !auth.address) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
+      }
+      verifiedWalletAddress = auth.address;
+    }
+
     const body = await req.json().catch(() => null);
     if (!body?.message) {
       return NextResponse.json({ error: 'Missing message' }, { status: 400 });
@@ -567,11 +577,20 @@ export async function POST(req: NextRequest) {
     // to the API. Anything unrecognized falls back to the default (Sonnet 5).
     const pickedModel: 'sonnet-5' | 'gpt-5' = model === 'gpt-5' ? 'gpt-5' : 'sonnet-5';
 
-    // Verify premium server-side — never trust the client
-    const isPremium = walletAddress ? await verifyPremium(walletAddress) : false;
+    if (walletAddress) {
+      if (!verifiedWalletAddress) {
+        return NextResponse.json({ error: 'Missing wallet authentication' }, { status: 401 });
+      }
+      if (walletAddress.toLowerCase() !== verifiedWalletAddress) {
+        return NextResponse.json({ error: 'Wallet claim does not match authenticated member' }, { status: 403 });
+      }
+    }
+
+    // Verify premium server-side against the authenticated wallet only.
+    const isPremium = verifiedWalletAddress ? await verifyPremium(verifiedWalletAddress) : false;
 
     // Rate limit
-    const { id: identifier, type: identifierType } = await getIdentifier(req, walletAddress);
+    const { id: identifier, type: identifierType } = await getIdentifier(req, verifiedWalletAddress);
     const { allowed, turnsLeft } = await checkAndIncrementUsage(identifier, identifierType, isPremium);
 
     if (!allowed) {
