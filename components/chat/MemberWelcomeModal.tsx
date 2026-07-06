@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check } from 'lucide-react';
 import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { memberFetch } from '@/lib/auth/member-fetch';
 
 interface MemberWelcomeModalProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export function MemberWelcomeModal({ isOpen, onClose, userAddress, userId }: Mem
     }
     setIsSaving(true);
     try {
-      await walletFetch('/api/contributor/update-profile', account, {
+      await memberFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, userAddress, alias: alias.trim() }),
