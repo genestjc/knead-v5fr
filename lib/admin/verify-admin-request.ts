@@ -7,6 +7,7 @@ import {
   ADMIN_AUTH_MAX_AGE_MS,
   buildAdminAuthMessage,
 } from './message';
+import { canonicalRequestPath, requestBodyHash } from '@/lib/auth/request-binding';
 
 const DEFAULT_ADMIN_ROLES = ['master-admin', 'admin', 'moderator'];
 
@@ -53,9 +54,12 @@ export async function verifyAdminRequest(
 ): Promise<AdminAuthResult> {
   const address = req.headers.get(ADMIN_AUTH_HEADERS.address)?.toLowerCase();
   const timestamp = req.headers.get(ADMIN_AUTH_HEADERS.timestamp);
+  const method = req.headers.get(ADMIN_AUTH_HEADERS.method);
+  const path = req.headers.get(ADMIN_AUTH_HEADERS.path);
+  const bodyHash = req.headers.get(ADMIN_AUTH_HEADERS.bodyHash);
   const signature = req.headers.get(ADMIN_AUTH_HEADERS.signature);
 
-  if (!address || !timestamp || !signature) {
+  if (!address || !timestamp || !method || !path || !bodyHash || !signature) {
     return { ok: false, error: 'Missing admin authentication', status: 401 };
   }
 
@@ -68,11 +72,26 @@ export async function verifyAdminRequest(
     return { ok: false, error: 'Expired or invalid request timestamp', status: 401 };
   }
 
+  const expectedMethod = req.method.toUpperCase();
+  const expectedPath = canonicalRequestPath(req.nextUrl);
+  if (method.toUpperCase() !== expectedMethod || path !== expectedPath) {
+    return { ok: false, error: 'Admin signature request mismatch', status: 401 };
+  }
+
+  const expectedBodyHash = await requestBodyHash(req);
+  if (bodyHash !== expectedBodyHash) {
+    return { ok: false, error: 'Admin signature body mismatch', status: 401 };
+  }
+
   let validSignature = false;
   try {
     validSignature = await publicClient.verifyMessage({
       address: address as `0x${string}`,
-      message: buildAdminAuthMessage(address, timestamp),
+      message: buildAdminAuthMessage(address, timestamp, {
+        method: expectedMethod,
+        path: expectedPath,
+        bodyHash: expectedBodyHash,
+      }),
       signature: signature as `0x${string}`,
     });
   } catch {
