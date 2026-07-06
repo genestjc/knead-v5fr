@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/chat-client';
-import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
 import type { ApiResponse } from '@/types/chat';
 
 export async function POST(req: NextRequest) {
   try {
-    // Authenticate: the caller must prove (via wallet signature) that they
-    // control the address whose profile they are editing. Without this, anyone
-    // could overwrite any user's alias/avatar/bio by supplying their address.
-    const auth = await verifyWalletRequest(req);
+    // Authenticate: the caller must prove they control the address whose profile
+    // they are editing. Without this, anyone could overwrite any user's
+    // alias/avatar/bio by supplying their address.
+    const auth = await verifyMemberRequest(req);
     if (!auth.ok) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: auth.error ?? 'Unauthorized' },
@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Authorization: you may only edit your own profile. The verified (recovered)
-    // signer address must match the profile address — never trust the body alone.
+    // Authorization: you may only edit your own profile. The authenticated
+    // address must match the profile address; never trust the body alone.
     if (userAddress.toLowerCase() !== auth.address) {
       return NextResponse.json<ApiResponse<null>>(
         { success: false, error: 'You can only edit your own profile' },
