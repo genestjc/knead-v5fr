@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ message: 'Done', count: results.length, results });
 }
 
-export async function GET() {
-  return NextResponse.json({ status: 'ready', message: 'Use POST with Bearer CRON_SECRET to trigger.' });
+export async function GET(req: NextRequest) {
+  return POST(req);
 }
