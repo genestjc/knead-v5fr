@@ -1,5 +1,10 @@
 import type { Account } from 'thirdweb/wallets';
 import { ADMIN_AUTH_HEADERS, buildAdminAuthMessage } from './message';
+import {
+  canonicalRequestPath,
+  requestBodyHash,
+  type SignedRequestContext,
+} from '@/lib/auth/request-binding';
 
 /**
  * One signature is reused for this long so admins aren't prompted on every
@@ -8,7 +13,23 @@ import { ADMIN_AUTH_HEADERS, buildAdminAuthMessage } from './message';
  */
 const REUSE_WINDOW_MS = 4 * 60 * 1000;
 
-let cached: { address: string; headers: Record<string, string>; expiresAt: number } | null = null;
+let cached: {
+  address: string;
+  requestKey: string;
+  headers: Record<string, string>;
+  expiresAt: number;
+} | null = null;
+
+function requestKey(request: SignedRequestContext): string {
+  return `${request.method.toUpperCase()} ${request.path} ${request.bodyHash}`;
+}
+
+function resolveRequestInput(input: RequestInfo | URL): RequestInfo | URL {
+  if (typeof input === 'string' && input.startsWith('/')) {
+    return new URL(input, window.location.origin).toString();
+  }
+  return input;
+}
 
 /**
  * Prompts the connected wallet to sign the canonical admin-auth message and
@@ -21,26 +42,37 @@ let cached: { address: string; headers: Record<string, string>; expiresAt: numbe
  */
 export async function buildAdminAuthHeaders(
   account: Account,
+  request: SignedRequestContext,
   opts: { forceFresh?: boolean } = {},
 ): Promise<Record<string, string>> {
   const address = account.address.toLowerCase();
   const now = Date.now();
+  const key = requestKey(request);
 
-  if (!opts.forceFresh && cached && cached.address === address && cached.expiresAt > now) {
+  if (
+    !opts.forceFresh &&
+    cached &&
+    cached.address === address &&
+    cached.requestKey === key &&
+    cached.expiresAt > now
+  ) {
     return cached.headers;
   }
 
   const timestamp = now.toString();
   const signature = await account.signMessage({
-    message: buildAdminAuthMessage(address, timestamp),
+    message: buildAdminAuthMessage(address, timestamp, request),
   });
   const headers = {
     [ADMIN_AUTH_HEADERS.address]: address,
     [ADMIN_AUTH_HEADERS.timestamp]: timestamp,
+    [ADMIN_AUTH_HEADERS.method]: request.method.toUpperCase(),
+    [ADMIN_AUTH_HEADERS.path]: request.path,
+    [ADMIN_AUTH_HEADERS.bodyHash]: request.bodyHash,
     [ADMIN_AUTH_HEADERS.signature]: signature,
   };
 
-  cached = { address, headers, expiresAt: now + REUSE_WINDOW_MS };
+  cached = { address, requestKey: key, headers, expiresAt: now + REUSE_WINDOW_MS };
   return headers;
 }
 
@@ -61,13 +93,18 @@ export function clearAdminAuthCache(): void {
  *   });
  */
 export async function adminFetch(
-  input: string,
+  input: RequestInfo | URL,
   account: Account,
   init: RequestInit = {},
 ): Promise<Response> {
-  const authHeaders = await buildAdminAuthHeaders(account);
-  return fetch(input, {
-    ...init,
-    headers: { ...(init.headers ?? {}), ...authHeaders },
-  });
+  const unsignedRequest = new Request(resolveRequestInput(input), init);
+  const requestContext: SignedRequestContext = {
+    method: unsignedRequest.method.toUpperCase(),
+    path: canonicalRequestPath(unsignedRequest.url),
+    bodyHash: await requestBodyHash(unsignedRequest),
+  };
+  const authHeaders = await buildAdminAuthHeaders(account, requestContext);
+  const headers = new Headers(unsignedRequest.headers);
+  for (const [key, value] of Object.entries(authHeaders)) headers.set(key, value);
+  return fetch(new Request(unsignedRequest, { headers }));
 }
