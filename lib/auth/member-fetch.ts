@@ -3,6 +3,7 @@ import { walletFetch } from './wallet-fetch';
 
 type WalletWithAuthToken = {
   id?: string;
+  walletId?: string;
   getAuthToken?: () => string | null | Promise<string | null>;
 };
 
@@ -11,7 +12,12 @@ type ThirdwebSessionResult =
   | { ok: false; attempted: boolean };
 
 function isInAppWallet(wallet?: WalletWithAuthToken): boolean {
-  return wallet?.id === 'inApp' || wallet?.id === 'embedded';
+  return (
+    wallet?.id === 'inApp' ||
+    wallet?.id === 'embedded' ||
+    wallet?.walletId === 'inApp' ||
+    wallet?.walletId === 'embedded'
+  );
 }
 
 function getStoredThirdwebAuthCookie(): string | null {
@@ -26,10 +32,10 @@ function getStoredThirdwebAuthCookie(): string | null {
 }
 
 async function getThirdwebAuthToken(wallet?: WalletWithAuthToken): Promise<string | null> {
+  if (!isInAppWallet(wallet)) return null;
+
   const storedCookie = getStoredThirdwebAuthCookie();
   if (storedCookie) return storedCookie;
-
-  if (!isInAppWallet(wallet)) return null;
 
   if (typeof wallet?.getAuthToken === 'function') {
     try {
@@ -83,6 +89,21 @@ export async function createMemberSession(
   return createSignedMemberSession(account);
 }
 
+async function shouldRefreshMemberSession(response: Response): Promise<boolean> {
+  if (response.status === 401) return true;
+  if (response.status !== 403) return false;
+
+  const data = await response.clone().json().catch(() => null);
+  const message =
+    typeof data?.error === 'string'
+      ? data.error
+      : typeof data?.message === 'string'
+        ? data.message
+        : '';
+
+  return /authenticated member|authenticated signer|wallet claim/i.test(message);
+}
+
 export async function memberFetch(
   input: RequestInfo | URL,
   account: Account | undefined,
@@ -94,7 +115,14 @@ export async function memberFetch(
     credentials: 'include',
   });
 
-  if (first.status !== 401 || !account) return first;
+  if (!account || !(await shouldRefreshMemberSession(first))) return first;
+
+  if (first.status === 403) {
+    await fetch('/api/auth/member-session', {
+      method: 'DELETE',
+      credentials: 'include',
+    }).catch(() => {});
+  }
 
   const sessionReady = await createMemberSession(account, wallet, {
     allowSignatureFallback: true,
