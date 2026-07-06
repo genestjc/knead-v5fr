@@ -9,9 +9,13 @@
 
 import { useState } from 'react';
 import { useSendReaction } from '@towns-protocol/react-sdk';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useActiveWallet } from 'thirdweb/react';
 import { toast } from 'sonner';
 import { memberFetch } from '@/lib/auth/member-fetch';
+
+type WalletWithAuthToken = {
+  getAuthToken?: () => string | null | Promise<string | null>;
+};
 
 interface UseAwardOnReactionResult {
   awardTokensOnLike: (
@@ -33,6 +37,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
   const [isReacting, setIsReacting] = useState(false);
   const { sendReaction } = useSendReaction(streamId);
   const activeAccount = useActiveAccount();
+  const activeWallet = useActiveWallet() as WalletWithAuthToken | undefined;
 
   async function awardTokensOnLike(
     messageId: string,
@@ -108,7 +113,7 @@ export function useAwardOnReaction(streamId: string): UseAwardOnReactionResult {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
-      });
+      }, activeWallet);
 
       console.log('📥 [BLOCKCHAIN] Response status:', response.status);
       const data = await response.json();
