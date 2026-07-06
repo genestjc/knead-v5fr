@@ -5,7 +5,7 @@ import { useDm, useSendMessage, useTimeline, useMyMember, useRedact } from '@tow
 import { RiverTimelineEvent } from '@towns-protocol/sdk';
 import { useActiveAccount } from 'thirdweb/react';
 import { uploadToIPFS } from '@/lib/thirdweb/storage';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { memberFetch } from '@/lib/auth/member-fetch';
 import { FileMessageDisplay } from './FileMessageDisplay';
 import { DailyDmVideoCall } from './DailyDmVideoCall';
 import { Paperclip, ArrowRight, Video, MoreVertical } from 'lucide-react';
@@ -274,9 +274,9 @@ export function DirectMessageInterface({
     }
     setLoadingVideo(true);
     try {
-      // walletFetch attaches the signed proof; the server verifies the caller
-      // is a participant before creating the room / issuing an owner token.
-      const roomResponse = await walletFetch('/api/dm/create-video-room', activeAccount, {
+      // The member session proves the caller; the server verifies they are a
+      // participant before creating the room / issuing an owner token.
+      const roomResponse = await memberFetch('/api/dm/create-video-room', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId1: currentUserId, userId2: dmId }),
@@ -289,7 +289,7 @@ export function DirectMessageInterface({
       const inviteMessage = `${VIDEO_CALL_INVITE_PREFIX}(${roomUrl})`;
       await sendMessage(inviteMessage);
 
-      const tokenResponse = await walletFetch('/api/dm/generate-dm-token', activeAccount, {
+      const tokenResponse = await memberFetch('/api/dm/generate-dm-token', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName }),
@@ -320,7 +320,7 @@ export function DirectMessageInterface({
     }
     setLoadingVideo(true);
     try {
-      const tokenResponse = await walletFetch('/api/dm/generate-dm-token', activeAccount, {
+      const tokenResponse = await memberFetch('/api/dm/generate-dm-token', activeAccount, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName: incomingCallRoomName }),
