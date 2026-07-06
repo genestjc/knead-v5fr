@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isContributor } from '@/lib/blockchain/check-nft-ownership';
-import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +16,8 @@ export async function POST(
   { params }: { params: { userId: string } }
 ) {
   try {
-    // Moderator is the *recovered* signer, never a client-supplied query param.
-    const auth = await verifyWalletRequest(req);
+    // Moderator is the authenticated member, never a client-supplied query param.
+    const auth = await verifyMemberRequest(req);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
