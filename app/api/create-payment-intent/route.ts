@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { verifyMemberRequest } from "@/lib/auth/member-session";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +11,53 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyMemberRequest(req);
+    if (!auth.ok || !auth.address) {
+      return NextResponse.json(
+        { error: auth.error || "Missing wallet authentication" },
+        { status: auth.status || 401 },
+      );
+    }
+
     const { walletAddress, amount } = await req.json();
 
     if (!walletAddress) {
       return NextResponse.json(
         { error: "Missing wallet address" },
         { status: 400 },
+      );
+    }
+
+    const normalizedWalletAddress = walletAddress.toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(normalizedWalletAddress)) {
+      return NextResponse.json(
+        { error: "Invalid wallet address" },
+        { status: 400 },
+      );
+    }
+
+    if (normalizedWalletAddress !== auth.address) {
+      return NextResponse.json(
+        { error: "Authenticated wallet does not match payment wallet" },
+        { status: 403 },
+      );
+    }
+
+    if (amount !== undefined && amount !== 500) {
+      return NextResponse.json(
+        { error: "Invalid payment amount" },
+        { status: 400 },
+      );
+    }
+
+    const limit = await rateLimit("create-payment-intent", auth.address, {
+      limit: 5,
+      windowSeconds: 60 * 60,
+    });
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: "Too many payment attempts. Please try again later." },
+        { status: 429 },
       );
     }
 
@@ -36,7 +79,7 @@ export async function POST(req: NextRequest) {
     let customer: Stripe.Customer;
 
     const found = await stripe.customers.search({
-      query: `metadata['walletAddress']:'${walletAddress}'`,
+      query: `metadata['walletAddress']:'${normalizedWalletAddress}'`,
       limit: 1,
     });
 
@@ -45,7 +88,7 @@ export async function POST(req: NextRequest) {
     } else {
       customer = await stripe.customers.create({
         metadata: {
-          walletAddress:  walletAddress,
+          walletAddress:  normalizedWalletAddress,
         },
       });
     }
@@ -65,7 +108,7 @@ export async function POST(req: NextRequest) {
       },
       expand: ["latest_invoice"], // ← Only expand the invoice
       metadata: {
-        walletAddress:  walletAddress,
+        walletAddress:  normalizedWalletAddress,
       },
     });
 
