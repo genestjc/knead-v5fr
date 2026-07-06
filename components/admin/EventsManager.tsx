@@ -536,7 +536,12 @@ export function EventsManager({ adminAddress }: EventsManagerProps) {
         coverImageUrl: formData.coverImageUrl || null,
       };
 
-      const response = await fetch('/api/events', {
+      if (!account) {
+        setError('Connect your admin wallet to create events');
+        return;
+      }
+
+      const response = await adminFetch('/api/events', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
