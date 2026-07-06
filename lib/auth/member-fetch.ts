@@ -26,10 +26,10 @@ function getStoredThirdwebAuthCookie(): string | null {
 }
 
 async function getThirdwebAuthToken(wallet?: WalletWithAuthToken): Promise<string | null> {
-  if (!isInAppWallet(wallet)) return null;
-
   const storedCookie = getStoredThirdwebAuthCookie();
   if (storedCookie) return storedCookie;
+
+  if (!isInAppWallet(wallet)) return null;
 
   if (typeof wallet?.getAuthToken === 'function') {
     try {
@@ -78,7 +78,7 @@ export async function createMemberSession(
 ): Promise<boolean> {
   const thirdwebSession = await createThirdwebMemberSession(account, wallet);
   if (thirdwebSession.ok) return true;
-  if (opts.allowSignatureFallback === false) return false;
+  if (opts.allowSignatureFallback === false || isInAppWallet(wallet)) return false;
 
   return createSignedMemberSession(account);
 }
