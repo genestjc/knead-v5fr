@@ -10,7 +10,7 @@ import {
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import { createClient } from "@supabase/supabase-js";
-import { verifyWalletRequest } from "@/lib/auth/verify-wallet-request";
+import { verifyMemberRequest } from "@/lib/auth/member-session";
 import {
   client,
   serverWallet,
@@ -35,9 +35,9 @@ const PREMIUM_TOKEN_ID = 1n; // Use bigint for consistency
 export async function POST(req: NextRequest) {
   try {
     // Authenticate: cancelling a subscription (and burning the membership NFT)
-    // is a sensitive action. Require a wallet signature so someone who merely
-    // knows a subscription ID can't cancel another member's plan.
-    const auth = await verifyWalletRequest(req);
+    // is a sensitive action. Require member auth so someone who merely knows a
+    // subscription ID can't cancel another member's plan.
+    const auth = await verifyMemberRequest(req);
     if (!auth.ok) {
       return NextResponse.json(
         { error: auth.error ?? "Unauthorized" },
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // You may only cancel your own membership.
     if (user_address.toLowerCase() !== auth.address) {
       return NextResponse.json(
-        { error: "Wallet address does not match the authenticated signer" },
+        { error: "Wallet address does not match the authenticated member" },
         { status: 403 },
       );
     }
