@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, User, Check, Settings } from 'lucide-react';
 import { useActiveAccount } from 'thirdweb/react';
 import { useToast } from '@/hooks/use-toast';
-import { walletFetch } from '@/lib/auth/wallet-fetch';
+import { memberFetch } from '@/lib/auth/member-fetch';
 
 interface ContributorSettingsModalProps {
   isOpen: boolean;
@@ -98,7 +98,7 @@ export function ContributorSettingsModal({
           formData.append('file', avatarFile);
           formData.append('userAddress', userAddress);
 
-          const uploadResponse = await fetch('/api/contributor/upload-avatar', {
+          const uploadResponse = await memberFetch('/api/contributor/upload-avatar', account, {
             method: 'POST',
             body: formData,
           });
@@ -131,7 +131,7 @@ export function ContributorSettingsModal({
       const finalAvatar = avatarUrl || null;
       const finalBio = bio.trim() || null;
 
-      const response = await walletFetch('/api/contributor/update-profile', account, {
+      const response = await memberFetch('/api/contributor/update-profile', account, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
