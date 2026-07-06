@@ -1,7 +1,7 @@
 import { getContract } from 'thirdweb';
 import { base } from 'thirdweb/chains';
 import { client } from '@/thirdweb-client';
-import kneadMembershipABI from '@/app/abi/kneadMembershipABI.json';
+import { kneadMembershipABI } from '@/lib/contracts/knead-membership-abi';
 
 /**
  * Contract cache for memoization
