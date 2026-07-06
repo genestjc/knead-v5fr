@@ -5,7 +5,7 @@ import {
 } from "thirdweb";
 import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
-import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
+import { kneadMembershipABI } from "@/lib/contracts/knead-membership-abi";
 import { createClient } from "@supabase/supabase-js";
 import { client, serverWallet } from "../../../thirdweb-server-wallet";
 import { verifyAdminRequest } from "@/lib/admin/verify-admin-request";
