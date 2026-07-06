@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useActiveAccount } from "thirdweb/react"
-import { walletFetch } from "@/lib/auth/wallet-fetch"
+import { memberFetch } from "@/lib/auth/member-fetch"
 
 // Track which addresses we've already onboarded (prevents infinite loop)
 const onboardedAddresses = new Set<string>();
@@ -30,7 +30,7 @@ export function OnboardingHandler() {
     
     console.log("[onboard] Starting onboarding for:", address);
     
-    walletFetch("/api/onboard-user", activeAccount, {
+    memberFetch("/api/onboard-user", activeAccount, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
