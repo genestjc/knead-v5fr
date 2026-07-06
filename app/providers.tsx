@@ -16,6 +16,7 @@ import { wagmiConfig } from '@/config/wagmi';
 import { useState } from 'react';
 import { client, activeChain } from '@/thirdweb-client';
 import { wallets } from '@/lib/wallets';
+import { MemberSessionSync } from '@/components/member-session-sync';
 
 // Loaded dynamically (client-only) so that lru-cache v11's top-level await in its
 // ESM bundle does NOT cascade through the Towns SDK import chain and turn
@@ -52,6 +53,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 fails with "Chain is required for EIP-7702 execution" and breaks the
                 Google/email redirect login. */}
             <AutoConnect client={client} wallets={wallets} chain={activeChain} timeout={15000} />
+            <MemberSessionSync />
             <TownsSyncProvider>
               <ThemeProvider
                 attribute="class"
