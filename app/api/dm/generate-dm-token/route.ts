@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { verifyMemberRequest } from '@/lib/auth/member-session';
 import { isContributor } from '@/lib/blockchain/check-nft-ownership';
 
 export const dynamic = 'force-dynamic';
@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    // The caller is the *recovered* signer — used as the Daily user_name.
+    // The caller is the authenticated member — used as the Daily user_name.
     // Previously walletAddress was client-supplied and is_owner was always true,
     // so anyone could mint an owner token for any room by posting a wallet
     // address they don't control.
-    const auth = await verifyWalletRequest(req);
+    const auth = await verifyMemberRequest(req);
     if (!auth.ok) {
       return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
