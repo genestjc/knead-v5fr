@@ -30,7 +30,9 @@ export function MemberSessionSync() {
       if (syncedAddress.current === address) return;
 
       try {
-        const sessionReady = await createMemberSession(activeAccount, wallet);
+        const sessionReady = await createMemberSession(activeAccount, wallet, {
+          allowSignatureFallback: false,
+        });
         if (!cancelled && sessionReady) {
           syncedAddress.current = address;
         }
