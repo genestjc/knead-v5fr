@@ -3,6 +3,7 @@ import { runAgent } from '@/lib/agent';
 import { getWalletAgentRole } from '@/lib/agent/role-gate';
 import { postToTownsChannel } from '@/lib/towns/agent-listener';
 import { verifyWalletRequest } from '@/lib/auth/verify-wallet-request';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
     if (!recipientAddress || !productHandle) return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     const { allowed, role } = await getWalletAgentRole(senderAddress);
     if (!allowed) return NextResponse.json({ error: 'Forbidden: Admin or Contributor role required' }, { status: 403 });
+    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden: Admin role required for merch fulfillment' }, { status: 403 });
+    const limit = await rateLimit('agent-fulfill-merch', senderAddress, { limit: 10, windowSeconds: 60 * 60 });
+    if (!limit.success) return NextResponse.json({ error: 'Too many merch fulfillment requests. Please slow down.' }, { status: 429 });
     const command = `Fulfill a ${productHandle} order (quantity: ${quantity}) for member ${recipientAddress}. ${shippingAddress ? `Shipping address: ${JSON.stringify(shippingAddress)}.` : 'Look up their shipping address using their wallet address.'} Request a virtual card, complete the Shopify checkout, and post a completion report in the Towns chat.`;
     const result = await runAgent({ command, senderAddress, channelId }, postToTownsChannel);
     return NextResponse.json({ success: result.success, role, result });
