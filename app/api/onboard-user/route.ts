@@ -4,7 +4,7 @@ import { balanceOf } from "thirdweb/extensions/erc1155";
 import { base } from "thirdweb/chains";
 import kneadMembershipABI from "../../abi/kneadMembershipABI.json";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { verifyWalletRequest } from "@/lib/auth/verify-wallet-request";
+import { verifyMemberRequest } from "@/lib/auth/member-session";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { alertIfServerWalletLow } from "@/lib/blockchain/server-wallet-balance";
 import { client, serverWallet, SERVER_WALLET_ADDRESS } from "../../../thirdweb-server-wallet";
@@ -22,7 +22,7 @@ const mintingAddresses = new Set<string>();
 export async function POST(req: NextRequest) {
   logger.log("🔍 onboard-user API called");
 
-  // Rate limit by IP: a signature only proves control of *one* wallet, but an
+  // Rate limit by IP: wallet/session auth only proves control of *one* wallet, but an
   // attacker can generate many keypairs. Capping mints per IP bounds how fast
   // the server wallet's gas can be drained by Sybil onboarding. Set generously
   // so shared networks (offices, events, mobile NAT) onboarding many real users
@@ -40,10 +40,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Authenticate: minting a freemium NFT costs real gas from the server wallet,
-  // so the caller must prove (via wallet signature) they control the address
+  // so the caller must prove they control the address
   // being onboarded. This blocks scripted mints to thousands of arbitrary
   // addresses that would drain the server wallet's gas.
-  const auth = await verifyWalletRequest(req);
+  const auth = await verifyMemberRequest(req);
   if (!auth.ok) {
     return NextResponse.json(
       { error: auth.error ?? "Unauthorized", success: false },
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const normalizedAddress = walletAddress.toLowerCase();
 
-  // You may only onboard the wallet you signed with.
+  // You may only onboard the wallet you authenticated with.
   if (normalizedAddress !== auth.address) {
     return NextResponse.json(
       { error: "Wallet address does not match the authenticated signer", success: false },
