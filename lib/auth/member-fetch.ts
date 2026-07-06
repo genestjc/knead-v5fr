@@ -1,5 +1,4 @@
 import type { Account } from 'thirdweb/wallets';
-import { walletFetch } from './wallet-fetch';
 
 type WalletWithAuthToken = {
   id?: string;
@@ -10,6 +9,13 @@ type WalletWithAuthToken = {
 type ThirdwebSessionResult =
   | { ok: true; attempted: true }
   | { ok: false; attempted: boolean };
+
+let pendingSession:
+  | {
+      address: string;
+      promise: Promise<boolean>;
+    }
+  | null = null;
 
 function isInAppWallet(wallet?: WalletWithAuthToken): boolean {
   return (
@@ -68,24 +74,35 @@ async function createThirdwebMemberSession(
   return { ok: response.ok, attempted: true };
 }
 
-async function createSignedMemberSession(account: Account): Promise<boolean> {
-  const response = await walletFetch('/api/auth/member-session', account, {
+async function createSiweMemberSession(account: Account): Promise<boolean> {
+  const challengeResponse = await fetch(
+    `/api/auth/member-session?challenge=siwe&walletAddress=${encodeURIComponent(account.address)}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+    },
+  );
+  if (!challengeResponse.ok) return false;
+
+  const challenge = await challengeResponse.json().catch(() => null);
+  if (!challenge?.message || typeof challenge.message !== 'string') return false;
+
+  const signature = await account.signMessage({ message: challenge.message });
+
+  const response = await fetch('/api/auth/member-session', {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress: account.address }),
+    body: JSON.stringify({
+      walletAddress: account.address,
+      siweMessage: challenge.message,
+      siweSignature: signature,
+    }),
   });
   return response.ok;
 }
 
-async function tryCreateSignedMemberSession(account: Account): Promise<boolean> {
-  try {
-    return await createSignedMemberSession(account);
-  } catch {
-    return false;
-  }
-}
-
-export async function createMemberSession(
+async function createMemberSessionUncached(
   account: Account,
   wallet?: WalletWithAuthToken,
   opts: { allowSignatureFallback?: boolean } = {},
@@ -94,7 +111,31 @@ export async function createMemberSession(
   if (thirdwebSession.ok) return true;
   if (opts.allowSignatureFallback === false || isInAppWallet(wallet)) return false;
 
-  return createSignedMemberSession(account);
+  return createSiweMemberSession(account);
+}
+
+export async function createMemberSession(
+  account: Account,
+  wallet?: WalletWithAuthToken,
+  opts: { allowSignatureFallback?: boolean } = {},
+): Promise<boolean> {
+  if (opts.allowSignatureFallback === false) {
+    return createMemberSessionUncached(account, wallet, opts);
+  }
+
+  const address = account.address.toLowerCase();
+  if (pendingSession?.address === address) {
+    return pendingSession.promise;
+  }
+
+  const promise = createMemberSessionUncached(account, wallet, opts).finally(() => {
+    if (pendingSession?.promise === promise) {
+      pendingSession = null;
+    }
+  });
+
+  pendingSession = { address, promise };
+  return promise;
 }
 
 async function shouldRefreshMemberSession(response: Response): Promise<boolean> {
@@ -117,6 +158,7 @@ export async function memberFetch(
   account: Account | undefined,
   init: RequestInit = {},
   wallet?: WalletWithAuthToken,
+  opts: { allowSignatureFallback?: boolean } = {},
 ): Promise<Response> {
   const first = await fetch(input, {
     ...init,
@@ -132,20 +174,8 @@ export async function memberFetch(
     }).catch(() => {});
   }
 
-  if (!isInAppWallet(wallet)) {
-    const sessionReady = await tryCreateSignedMemberSession(account);
-    if (sessionReady) {
-      return fetch(input, {
-        ...init,
-        credentials: 'include',
-      });
-    }
-
-    return walletFetch(input, account, init);
-  }
-
   const sessionReady = await createMemberSession(account, wallet, {
-    allowSignatureFallback: true,
+    allowSignatureFallback: opts.allowSignatureFallback ?? true,
   });
   if (!sessionReady) return first;
 
