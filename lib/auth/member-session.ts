@@ -124,7 +124,11 @@ export async function verifyThirdwebInAppAuthToken(
   const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
   if (!clientId) throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not configured');
 
-  const authHeaders = [`Bearer ${token}`, `Bearer embedded-wallet-token:${token}`];
+  const authHeaders = [
+    `Bearer iaw-auth-token:${token}`,
+    `Bearer embedded-wallet-token:${token}`,
+    `Bearer ${token}`,
+  ];
   let data: unknown = null;
   let lastStatus: number | null = null;
 
