@@ -2,7 +2,7 @@
  * Towns Protocol Agent Listener
  *
  * Connects to the Knead Towns Space as a bot, listens for messages in the
- * configured agent channel, role-gates each sender, then routes eligible
+ * configured agent channel, admin-gates each sender, then routes eligible
  * commands to the Claude agent.
  *
  * Also exports postToTownsChannel() which the agent itself calls to report back.
@@ -109,7 +109,7 @@ async function handleMessage(event: TownsMessageEvent): Promise<void> {
   if (!isAgentCommand(event.content)) return;          // not a command
 
   const { allowed, role } = await getWalletAgentRole(event.senderId);
-  if (!allowed) {
+  if (!allowed || role !== 'admin') {
     // Silently ignore — don't expose role-gate details in public chat
     return;
   }
