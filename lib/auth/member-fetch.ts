@@ -77,6 +77,14 @@ async function createSignedMemberSession(account: Account): Promise<boolean> {
   return response.ok;
 }
 
+async function tryCreateSignedMemberSession(account: Account): Promise<boolean> {
+  try {
+    return await createSignedMemberSession(account);
+  } catch {
+    return false;
+  }
+}
+
 export async function createMemberSession(
   account: Account,
   wallet?: WalletWithAuthToken,
@@ -122,6 +130,18 @@ export async function memberFetch(
       method: 'DELETE',
       credentials: 'include',
     }).catch(() => {});
+  }
+
+  if (!isInAppWallet(wallet)) {
+    const sessionReady = await tryCreateSignedMemberSession(account);
+    if (sessionReady) {
+      return fetch(input, {
+        ...init,
+        credentials: 'include',
+      });
+    }
+
+    return walletFetch(input, account, init);
   }
 
   const sessionReady = await createMemberSession(account, wallet, {
