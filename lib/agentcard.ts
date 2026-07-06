@@ -4,6 +4,8 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 const CLI = process.env.AGENTCARD_CLI_PATH || 'agentcard';
 const EXEC_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_CARD_USD = 100;
+const DEFAULT_MAX_USDC_TRANSFER = 100;
 
 export interface CardDetails {
   pan: string;
@@ -31,7 +33,26 @@ function run(args: string[], timeoutMs = EXEC_TIMEOUT_MS): Promise<string> {
   return execFileAsync(CLI, args, { timeout: timeoutMs }).then(({ stdout }) => stdout);
 }
 
+function readPositiveLimit(envName: string, fallback: number): number {
+  const raw = process.env[envName];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function assertPositiveAmount(amount: number, label: string): void {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${label} must be a positive number`);
+  }
+}
+
 export async function requestCard(amountUsd: number): Promise<CardDetails> {
+  assertPositiveAmount(amountUsd, 'Card amount');
+  const maxAmount = readPositiveLimit('AGENTCARD_MAX_CARD_USD', DEFAULT_MAX_CARD_USD);
+  if (amountUsd > maxAmount) {
+    throw new Error(`Card amount exceeds the configured $${maxAmount.toFixed(2)} limit`);
+  }
+
   const stdout = await run(['request', 'new', '--amount', amountUsd.toFixed(2)]);
   const card: CardDetails = {
     pan: extract(stdout, 'PAN', 'Card Number', 'Number', 'Card'),
@@ -44,6 +65,15 @@ export async function requestCard(amountUsd: number): Promise<CardDetails> {
 }
 
 export async function sendUsdc(to: string, amountUsdc: number): Promise<UsdcTransferResult> {
+  assertPositiveAmount(amountUsdc, 'USDC amount');
+  if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
+    throw new Error('Recipient must be a valid EVM address');
+  }
+  const maxAmount = readPositiveLimit('AGENTCARD_MAX_USDC_TRANSFER', DEFAULT_MAX_USDC_TRANSFER);
+  if (amountUsdc > maxAmount) {
+    throw new Error(`USDC transfer exceeds the configured ${maxAmount.toFixed(6)} USDC limit`);
+  }
+
   const stdout = await run(['wallet', 'send', '--to', to, '--amount', amountUsdc.toFixed(6)], 90_000);
   const txMatch = stdout.match(/0x[a-fA-F0-9]{64}/);
   return { txHash: txMatch ? txMatch[0] : '', amount: amountUsdc.toFixed(6), to };
