@@ -27,10 +27,10 @@ const stripePromise = loadStripe(
 
 function PaywallShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative -mt-12 pt-20 md:-mt-14 md:pt-24">
+    <div className="relative -mt-12 pt-16 md:-mt-14 md:pt-20">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-white/0 via-white/90 to-white"
+        className="pointer-events-none absolute inset-x-0 -top-28 h-64 bg-gradient-to-b from-white/0 via-white/75 via-45% to-white to-70%"
       />
       <div className="relative z-10 bg-white p-8 rounded-lg border border-gray-200 shadow-[0_18px_60px_rgba(15,23,42,0.08)] max-w-xl mx-auto text-center">
         {children}
