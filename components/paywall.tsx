@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { ThirdWebConnectButton } from "./thirdweb-connect-button";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,20 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
 );
 
+function PaywallShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative -mt-12 pt-20 md:-mt-14 md:pt-24">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-white/0 via-white/90 to-white"
+      />
+      <div className="relative z-10 bg-white p-8 rounded-lg border border-gray-200 shadow-[0_18px_60px_rgba(15,23,42,0.08)] max-w-xl mx-auto text-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function PaymentForm({
   onSuccess,
 }: {
@@ -35,7 +49,7 @@ function PaymentForm({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
     if (!stripe || !elements) {
@@ -125,9 +139,9 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const {  } = useToast();
+  const { toast } = useToast();
   const { membershipType, refreshMembership } = useMembership();
-  
+
   // Track payment verification state
   const [paymentVerified, setPaymentVerified] = useState(false);
 
@@ -277,7 +291,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
   // Show verifying state
   if (isVerifying) {
     return (
-      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+      <PaywallShell>
         <h2 className="font-adonis text-2xl mb-4">
           Verifying your payment...
         </h2>
@@ -287,41 +301,41 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
         <p className="font-georgia-pro text-gray-700">
           Just a moment while we confirm your membership...
         </p>
-      </div>
+      </PaywallShell>
     );
   }
 
   // Not signed in
   if (!account?.address) {
     return (
-      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+      <PaywallShell>
         <h2 className="font-adonis text-2xl mb-4">
           This story is for members only
         </h2>
-        
+
         <div className="my-6 flex justify-center">
           <ThirdWebConnectButton />
         </div>
-        
+
         <p className="font-georgia-pro text-gray-700 mt-4">
           Not a member? Sign in to create an account.
         </p>
-      </div>
+      </PaywallShell>
     );
   }
 
   // Signed in with freemium but hit article limit
   return (
     <>
-      <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm max-w-xl mx-auto text-center">
+      <PaywallShell>
         <h2 className="font-adonis text-2xl mb-4">
           You&apos;ve reached your story limit for the month.
         </h2>
-        
+
         <p className="font-georgia-pro italic text-gray-700 mt-4 mb-6">
           Want unlimited access?
         </p>
-        
+
         <button
           onClick={handleOpenPaymentModal}
           disabled={isLoadingIntent}
@@ -339,7 +353,7 @@ export default function Paywall({ articleCount = 3 }: PaywallProps) {
             "Subscribe to Knead Monthly"
           )}
         </button>
-      </div>
+      </PaywallShell>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent>
