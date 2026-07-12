@@ -8,12 +8,15 @@
  *   High volume and retrieval-grounded (answers come from fetched repo
  *   files), where Sonnet is near-Opus on coding at ~60% of the price and
  *   noticeably faster.
- * - OpenAI GPT-5.6 Luna (gpt-5.6-luna) — the Towns community-chat agent, and
- *   the automatic fallback whenever a Claude call fails. Luna is the budget
- *   tier of the 5.6 family — cheaper than the outgoing gpt-5 ($1/$6 vs
- *   $1.25/$10 per M tokens; gpt-5 shuts down Dec 11, 2026) and two
- *   generations newer. The payments agent in lib/agent.ts runs the mid tier
- *   (Terra) because it moves real money.
+ * - OpenAI GPT-5.6 — the automatic fallback whenever a Claude call fails,
+ *   tiered to match the surface it covers (route on the value of the
+ *   decision, not the provider): Opus editorial surfaces fall back to Sol
+ *   (flagship), the Sonnet build assistant to Terra (balanced), and
+ *   high-volume chat to Luna, the default — the budget tier, cheaper than
+ *   the outgoing gpt-5 ($1/$6 vs $1.25/$10 per M tokens; gpt-5 shuts down
+ *   Dec 11, 2026). Fallback traffic only exists during Claude outages, so
+ *   the pricier tiers cost nothing in normal operation. The payments agent
+ *   in lib/agent.ts runs Terra as its primary because it moves real money.
  * - OpenAI also keeps TTS (gpt-4o-mini-tts — the GPT-Live voice models that
  *   shipped alongside 5.6 have no developer API yet) and the free
  *   Moderation API.
@@ -29,6 +32,8 @@ import OpenAI from 'openai';
 
 export const CLAUDE_OPUS = 'claude-opus-4-8';
 export const CLAUDE_SONNET = 'claude-sonnet-5';
+export const OPENAI_SOL = 'gpt-5.6-sol';
+export const OPENAI_TERRA = 'gpt-5.6-terra';
 export const OPENAI_FALLBACK_MODEL = 'gpt-5.6-luna';
 
 export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -80,6 +85,13 @@ export interface AgentChatOptions {
   /** Claude model for this surface. Defaults to Opus. */
   model?: string;
   /**
+   * OpenAI model for this surface — the fallback tier, or the primary when
+   * preferredProvider is 'openai'. Defaults to Luna. Match it to the
+   * surface's Claude tier so quality holds through an outage: Opus surfaces
+   * pass OPENAI_SOL, Sonnet surfaces OPENAI_TERRA.
+   */
+  openaiModel?: string;
+  /**
    * Which provider to try first; the other one is the automatic fallback.
    * Defaults to Claude. The open-source chat passes this through from the
    * user-facing model picker.
@@ -118,12 +130,15 @@ export async function generateText(opts: {
   prompt: string;
   maxTokens: number;
   logTag: string;
+  /** OpenAI fallback tier for this surface — see AgentChatOptions.openaiModel. */
+  openaiModel?: string;
 }): Promise<string> {
   return runAgentChat({
     system: opts.system,
     message: opts.prompt,
     maxTokens: opts.maxTokens,
     maxRounds: 1,
+    openaiModel: opts.openaiModel,
     logTag: opts.logTag,
   });
 }
@@ -265,7 +280,15 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
 }
 
 async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
-  const { system, message, tools = [], executeTool, maxTokens, maxRounds = 5 } = opts;
+  const {
+    system,
+    message,
+    tools = [],
+    executeTool,
+    maxTokens,
+    maxRounds = 5,
+    openaiModel = OPENAI_FALLBACK_MODEL,
+  } = opts;
 
   const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = tools.map((t) => ({
     type: 'function',
@@ -285,7 +308,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
 
   for (let round = 0; round < maxRounds; round++) {
     const response = await openai.chat.completions.create({
-      model: OPENAI_FALLBACK_MODEL,
+      model: openaiModel,
       // GPT-5.6 is a reasoning model: it takes max_completion_tokens (not
       // max_tokens), and reasoning tokens draw from that same budget, so keep
       // headroom. Effort must be 'none' here: on the 5.6 family, Chat
@@ -335,7 +358,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
       `[${opts.logTag}] GPT-5.6 gave no text (finish_reason=${finishReason}); forcing a final answer`,
     );
     const final = await openai.chat.completions.create({
-      model: OPENAI_FALLBACK_MODEL,
+      model: openaiModel,
       max_completion_tokens: Math.max(maxTokens * 3, 4096),
       reasoning_effort: 'none',
       messages: [...messages, { role: 'system', content: WRAP_UP_INSTRUCTION }],

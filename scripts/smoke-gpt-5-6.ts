@@ -21,9 +21,11 @@ import OpenAI from 'openai';
  * Requires OPENAI_API_KEY. Costs a fraction of a cent.
  */
 
-// Keep in sync with OPENAI_FALLBACK_MODEL in lib/ai/router.ts and MODEL in
+// Keep in sync with the tier constants in lib/ai/router.ts and MODEL in
 // lib/agent.ts. Not imported from there because the router module constructs
 // an Anthropic client at import time, which needs ANTHROPIC_API_KEY.
+// Sol (the Opus-surface fallback tier) shares the family API shape with
+// these two; the Luna check covers the tool-loop mechanics for all tiers.
 const LUNA = 'gpt-5.6-luna';
 const TERRA = 'gpt-5.6-terra';
 
@@ -236,10 +238,15 @@ async function checkEffortConstraint() {
       "call SUCCEEDED — OpenAI lifted the restriction; the router's reasoning_effort could return to 'low'",
     );
   } catch (err: any) {
-    if (err?.status === 400) {
-      pass(name, `still rejected as expected (400: ${String(err?.message).slice(0, 120)})`);
+    const msg = String(err?.message ?? '');
+    // Assert the SPECIFIC rejection, not just any 400 — a malformed request
+    // or model-config problem is also a 400 and must not count as proof.
+    if (err?.status === 400 && /reasoning[_\s]?effort/i.test(msg) && /not supported/i.test(msg)) {
+      pass(name, `rejected with the expected constraint error (${msg.slice(0, 120)})`);
+    } else if (err?.status === 400) {
+      fail(name, `400, but NOT the reasoning_effort constraint — investigate: ${msg.slice(0, 200)}`);
     } else {
-      fail(name, `unexpected error (${err?.status}): ${err?.message}`);
+      fail(name, `unexpected error (${err?.status}): ${msg.slice(0, 200)}`);
     }
   }
 }
