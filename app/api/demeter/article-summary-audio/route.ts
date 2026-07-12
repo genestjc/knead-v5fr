@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Vercel's default function duration
 export const maxDuration = 60;
 import { client } from '@/sanity/client';
-import { generateText, openai } from '@/lib/ai/router';
+import { generateText, openai, OPENAI_SOL } from '@/lib/ai/router';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 // Summary text is written by Claude Opus (via lib/ai/router, GPT-5.6 fallback);
@@ -151,6 +151,8 @@ export async function POST(req: NextRequest) {
         'No markdown, no bullet points, no headings, no "in this article" preamble — just begin.',
       prompt: `Article: "${post.title}"${post.author ? ` by ${post.author}` : ''}\n\n${articleText.slice(0, 8000)}`,
       maxTokens: 320,
+      // Editorial surface: Opus primary, Sol (not budget Luna) if Claude fails
+      openaiModel: OPENAI_SOL,
       logTag: 'Demeter/summary',
     });
 

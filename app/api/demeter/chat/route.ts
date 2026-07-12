@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
-import { runAgentChat, type AgentTool } from '@/lib/ai/router';
+import { runAgentChat, OPENAI_SOL, type AgentTool } from '@/lib/ai/router';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Tool loops can exceed Vercel's default function duration
@@ -280,6 +280,10 @@ You might also ask:
       },
       maxTokens: 1024,
       maxRounds: 5,
+      // Editorial voice runs Opus; if Claude fails, fall back to OpenAI's
+      // flagship tier rather than the budget default — this traffic only
+      // exists during an outage, so the premium costs nothing normally.
+      openaiModel: OPENAI_SOL,
       logTag: 'Demeter',
     });
 

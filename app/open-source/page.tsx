@@ -18,8 +18,8 @@ interface Message {
 const MODELS = [
   { id: 'sonnet-5', label: 'Sonnet 5', full: 'Claude Sonnet 5' },
   // id stays 'gpt-5' — it's the wire value the chat route allowlists; the
-  // actual OpenAI model behind it (GPT-5.6 Luna) lives in lib/ai/router.ts.
-  { id: 'gpt-5', label: 'GPT-5.6', full: 'OpenAI GPT-5.6 Luna' },
+  // actual OpenAI model behind it (GPT-5.6 Terra) is set in the chat route.
+  { id: 'gpt-5', label: 'GPT-5.6', full: 'OpenAI GPT-5.6 Terra' },
 ] as const;
 type ModelId = (typeof MODELS)[number]['id'];
 const MODEL_STORAGE_KEY = 'knead-build-model';

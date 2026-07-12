@@ -14,7 +14,7 @@ import {
   getRepoTree,
   KNEAD_REPO,
 } from '@/lib/github';
-import { runAgentChat, CLAUDE_SONNET, type AgentTool } from '@/lib/ai/router';
+import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA, type AgentTool } from '@/lib/ai/router';
 import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 
 // A multi-round tool loop can take well over Vercel's default function
@@ -718,7 +718,10 @@ export async function POST(req: NextRequest) {
       // Sonnet 5: this surface is high-volume and grounded in fetched repo
       // files — near-Opus coding quality, faster, ~60% of the price. Users
       // can pick GPT-5.6 instead; the unpicked provider is the fallback.
+      // The OpenAI side runs Terra (the balanced tier) so build reasoning
+      // holds Sonnet-class quality whether picked or covering an outage.
       model: CLAUDE_SONNET,
+      openaiModel: OPENAI_TERRA,
       preferredProvider: pickedModel === 'gpt-5' ? 'openai' : 'claude',
       logTag: `build/chat:${pickedModel}`,
     });
