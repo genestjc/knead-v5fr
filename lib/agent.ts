@@ -23,7 +23,10 @@ import { requestCard, sendUsdc } from '@/lib/agentcard';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = 'gpt-5';
+// Terra — the mid tier of the GPT-5.6 family ($2.50/$15 per M tokens,
+// GPT-5.5-competitive at half its price). This agent authorizes cards and
+// sends USDC, so it gets a stronger tier than the chat surfaces (Luna).
+const MODEL = 'gpt-5.6-terra';
 const MAX_TOOL_ROUNDS = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -489,7 +492,10 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
 
     const response = await openai.chat.completions.create({
       model: MODEL,
-      // GPT-5 is a reasoning model: it takes max_completion_tokens, not max_tokens
+      // GPT-5.6 is a reasoning model: it takes max_completion_tokens, not
+      // max_tokens. reasoning_effort stays unset — the default (medium) suits
+      // an agent that moves real money, and Chat Completions rejects function
+      // tools combined with an explicit effort level on the 5.6 family.
       max_completion_tokens: 4096,
       tools: TOOLS,
       messages,
@@ -499,7 +505,12 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
     const assistantMessage = response.choices[0].message;
     messages.push(assistantMessage);
 
-    const toolCalls = assistantMessage.tool_calls ?? [];
+    // SDK v6 types tool_calls as function-or-custom tool calls; we only
+    // declare function tools, so narrow before reading .function.
+    const toolCalls = (assistantMessage.tool_calls ?? []).filter(
+      (t): t is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
+        t.type === 'function',
+    );
 
     // Check stop condition — no tool calls means the agent is done
     if (toolCalls.length === 0) {

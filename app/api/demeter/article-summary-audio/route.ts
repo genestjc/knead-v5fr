@@ -8,8 +8,9 @@ import { client } from '@/sanity/client';
 import { generateText, openai } from '@/lib/ai/router';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-// Summary text is written by Claude Opus (via lib/ai/router, GPT-5 fallback);
-// narration stays on OpenAI TTS — Anthropic has no text-to-speech.
+// Summary text is written by Claude Opus (via lib/ai/router, GPT-5.6 fallback);
+// narration stays on OpenAI TTS — Anthropic has no text-to-speech, and the
+// GPT-Live voice models OpenAI shipped alongside 5.6 have no developer API yet.
 const TTS_MODEL = 'gpt-4o-mini-tts';
 const TTS_VOICE = 'nova';
 
