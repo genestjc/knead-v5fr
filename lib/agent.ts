@@ -51,146 +51,143 @@ export interface AgentResult {
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
-const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+// Responses API tool format (flat, not nested under `function`). strict is
+// off: these schemas use optional properties, which strict mode disallows.
+const TOOLS: OpenAI.Responses.Tool[] = [
   {
     type: 'function',
-    function: {
-      name: 'request_virtual_card',
-      description:
-        'Request a one-time virtual credit card from AgentCard for a given USD amount. ' +
-        'Returns PAN, CVV, expiry, and billing ZIP. Use this before any Shopify checkout.',
-      parameters: {
-        type: 'object',
-        properties: {
-          amount_usd: {
-            type: 'number',
-            description: 'Total charge amount in USD (e.g. 29.99).',
-          },
-          purpose: {
-            type: 'string',
-            description: 'Brief description of what this card will be used for (for audit trail).',
-          },
+    strict: false,
+    name: 'request_virtual_card',
+    description:
+      'Request a one-time virtual credit card from AgentCard for a given USD amount. ' +
+      'Returns PAN, CVV, expiry, and billing ZIP. Use this before any Shopify checkout.',
+    parameters: {
+      type: 'object',
+      properties: {
+        amount_usd: {
+          type: 'number',
+          description: 'Total charge amount in USD (e.g. 29.99).',
         },
-        required: ['amount_usd', 'purpose'],
+        purpose: {
+          type: 'string',
+          description: 'Brief description of what this card will be used for (for audit trail).',
+        },
       },
+      required: ['amount_usd', 'purpose'],
     },
   },
   {
     type: 'function',
-    function: {
-      name: 'send_usdc_payment',
-      description:
-        'Send USDC directly to a contributor\'s wallet address on Base L2 for labor payments. ' +
-        'Uses the AgentCard wallet — do NOT use this for merch or magazine purchases.',
-      parameters: {
-        type: 'object',
-        properties: {
-          to_address: {
-            type: 'string',
-            description: 'Recipient\'s 0x wallet address on Base.',
-          },
-          amount_usdc: {
-            type: 'number',
-            description: 'Amount in USDC (e.g. 50.00).',
-          },
-          memo: {
-            type: 'string',
-            description: 'Human-readable memo describing the payment purpose.',
-          },
+    strict: false,
+    name: 'send_usdc_payment',
+    description:
+      'Send USDC directly to a contributor\'s wallet address on Base L2 for labor payments. ' +
+      'Uses the AgentCard wallet — do NOT use this for merch or magazine purchases.',
+    parameters: {
+      type: 'object',
+      properties: {
+        to_address: {
+          type: 'string',
+          description: 'Recipient\'s 0x wallet address on Base.',
         },
-        required: ['to_address', 'amount_usdc', 'memo'],
+        amount_usdc: {
+          type: 'number',
+          description: 'Amount in USDC (e.g. 50.00).',
+        },
+        memo: {
+          type: 'string',
+          description: 'Human-readable memo describing the payment purpose.',
+        },
       },
+      required: ['to_address', 'amount_usdc', 'memo'],
     },
   },
   {
     type: 'function',
-    function: {
-      name: 'shopify_checkout',
-      description:
-        'Purchase a Shopify product on behalf of a member using a virtual card. ' +
-        'Call request_virtual_card first to get card details. ' +
-        'Use product_handle "knead-magazine" for the print magazine.',
-      parameters: {
-        type: 'object',
-        properties: {
-          product_handle: {
-            type: 'string',
-            description: 'Shopify product handle (slug) to purchase.',
-          },
-          quantity: {
-            type: 'number',
-            description: 'Number of units to order.',
-          },
-          recipient_name: {
-            type: 'string',
-            description: 'Full name for shipping label.',
-          },
-          shipping_address: {
-            type: 'object',
-            description: 'Shipping address for physical delivery.',
-            properties: {
-              address1: { type: 'string' },
-              city: { type: 'string' },
-              province: { type: 'string', description: 'State/province abbreviation' },
-              zip: { type: 'string' },
-              country: { type: 'string', description: 'Two-letter country code, e.g. US' },
-            },
-            required: ['address1', 'city', 'province', 'zip', 'country'],
-          },
-          card: {
-            type: 'object',
-            description: 'Virtual card details from request_virtual_card.',
-            properties: {
-              pan: { type: 'string' },
-              cvv: { type: 'string' },
-              expiry: { type: 'string', description: 'MM/YYYY or MM/YY' },
-              billing_zip: { type: 'string' },
-            },
-            required: ['pan', 'cvv', 'expiry', 'billing_zip'],
-          },
+    strict: false,
+    name: 'shopify_checkout',
+    description:
+      'Purchase a Shopify product on behalf of a member using a virtual card. ' +
+      'Call request_virtual_card first to get card details. ' +
+      'Use product_handle "knead-magazine" for the print magazine.',
+    parameters: {
+      type: 'object',
+      properties: {
+        product_handle: {
+          type: 'string',
+          description: 'Shopify product handle (slug) to purchase.',
         },
-        required: ['product_handle', 'quantity', 'recipient_name', 'shipping_address', 'card'],
+        quantity: {
+          type: 'number',
+          description: 'Number of units to order.',
+        },
+        recipient_name: {
+          type: 'string',
+          description: 'Full name for shipping label.',
+        },
+        shipping_address: {
+          type: 'object',
+          description: 'Shipping address for physical delivery.',
+          properties: {
+            address1: { type: 'string' },
+            city: { type: 'string' },
+            province: { type: 'string', description: 'State/province abbreviation' },
+            zip: { type: 'string' },
+            country: { type: 'string', description: 'Two-letter country code, e.g. US' },
+          },
+          required: ['address1', 'city', 'province', 'zip', 'country'],
+        },
+        card: {
+          type: 'object',
+          description: 'Virtual card details from request_virtual_card.',
+          properties: {
+            pan: { type: 'string' },
+            cvv: { type: 'string' },
+            expiry: { type: 'string', description: 'MM/YYYY or MM/YY' },
+            billing_zip: { type: 'string' },
+          },
+          required: ['pan', 'cvv', 'expiry', 'billing_zip'],
+        },
       },
+      required: ['product_handle', 'quantity', 'recipient_name', 'shipping_address', 'card'],
     },
   },
   {
     type: 'function',
-    function: {
-      name: 'post_towns_message',
-      description: 'Post a status update or completion report to the Towns chat channel.',
-      parameters: {
-        type: 'object',
-        properties: {
-          message: {
-            type: 'string',
-            description: 'Message text to post in the channel.',
-          },
-          channel_id: {
-            type: 'string',
-            description: 'Towns channel ID. Omit to use the default agent channel.',
-          },
+    strict: false,
+    name: 'post_towns_message',
+    description: 'Post a status update or completion report to the Towns chat channel.',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: 'Message text to post in the channel.',
         },
-        required: ['message'],
+        channel_id: {
+          type: 'string',
+          description: 'Towns channel ID. Omit to use the default agent channel.',
+        },
       },
+      required: ['message'],
     },
   },
   {
     type: 'function',
-    function: {
-      name: 'lookup_member',
-      description:
-        'Look up a Knead member by wallet address or alias to retrieve their profile, ' +
-        'including their wallet address and any stored shipping address.',
-      parameters: {
-        type: 'object',
-        properties: {
-          identifier: {
-            type: 'string',
-            description: '0x wallet address or display alias.',
-          },
+    strict: false,
+    name: 'lookup_member',
+    description:
+      'Look up a Knead member by wallet address or alias to retrieve their profile, ' +
+      'including their wallet address and any stored shipping address.',
+    parameters: {
+      type: 'object',
+      properties: {
+        identifier: {
+          type: 'string',
+          description: '0x wallet address or display alias.',
         },
-        required: ['identifier'],
       },
+      required: ['identifier'],
     },
   },
 ];
@@ -478,8 +475,21 @@ Rules:
 The command was issued by wallet: ${command.senderAddress}
 ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: ${command.proposalId})` : ''}`;
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: systemPrompt },
+  // Responses API, not Chat Completions: on the 5.6 family, Chat Completions
+  // rejects function tools whenever the effective reasoning effort isn't
+  // 'none' — even with the field unset, since the default is medium (seen
+  // live: "400 Function tools with reasoning_effort are not supported for
+  // gpt-5.6-terra in /v1/chat/completions"). Responses supports tools +
+  // reasoning together, and a money-moving agent should keep its reasoning.
+  //
+  // The loop is stateless (store: false) so payment commands and virtual
+  // card details aren't retained on OpenAI's servers. That means WE carry
+  // the conversation: every reasoning, function_call, and message item from
+  // each response is replayed in the next request (dropping reasoning items
+  // breaks the model's chain of thought between tool steps), with encrypted
+  // reasoning content requested so those items survive the round trip, and
+  // each tool result linked to its originating call via call_id.
+  const inputItems: OpenAI.Responses.ResponseInputItem[] = [
     { role: 'user', content: command.command },
   ];
 
@@ -490,31 +500,37 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
 
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: MODEL,
-      // GPT-5.6 is a reasoning model: it takes max_completion_tokens, not
-      // max_tokens. reasoning_effort stays unset — the default (medium) suits
-      // an agent that moves real money, and Chat Completions rejects function
-      // tools combined with an explicit effort level on the 5.6 family.
-      max_completion_tokens: 4096,
+      // Reasoning tokens draw from this budget; medium effort needs headroom
+      max_output_tokens: 8192,
+      // Not inherited between requests — sent on every round
+      instructions: systemPrompt,
       tools: TOOLS,
-      messages,
+      input: inputItems,
+      store: false,
+      include: ['reasoning.encrypted_content'],
     });
 
-    // Append assistant turn
-    const assistantMessage = response.choices[0].message;
-    messages.push(assistantMessage);
+    // Replay the assistant's items in the next round (see note above)
+    const replayable = response.output.filter(
+      (
+        item,
+      ): item is
+        | OpenAI.Responses.ResponseOutputMessage
+        | OpenAI.Responses.ResponseReasoningItem
+        | OpenAI.Responses.ResponseFunctionToolCall =>
+        item.type === 'message' || item.type === 'reasoning' || item.type === 'function_call',
+    );
+    inputItems.push(...replayable);
 
-    // SDK v6 types tool_calls as function-or-custom tool calls; we only
-    // declare function tools, so narrow before reading .function.
-    const toolCalls = (assistantMessage.tool_calls ?? []).filter(
-      (t): t is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
-        t.type === 'function',
+    const functionCalls = response.output.filter(
+      (item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === 'function_call',
     );
 
     // Check stop condition — no tool calls means the agent is done
-    if (toolCalls.length === 0) {
-      const summary = assistantMessage.content || 'Agent completed.';
+    if (functionCalls.length === 0) {
+      const summary = response.output_text || 'Agent completed.';
       return {
         success: errors.length === 0,
         summary,
@@ -524,28 +540,20 @@ ${command.proposalId ? `This is an autonomous proposal execution (proposal ID: $
     }
 
     // Execute all tool calls in this turn
-    for (const call of toolCalls) {
+    for (const call of functionCalls) {
       let result: string;
-      const input = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
+      const input = JSON.parse(call.arguments || '{}') as Record<string, unknown>;
 
       try {
-        result = await handleTool(
-          call.function.name,
-          input,
-          { defaultChannelId, postMessage },
-        );
-        actionsCompleted.push(`${call.function.name}(${JSON.stringify(input)})`);
+        result = await handleTool(call.name, input, { defaultChannelId, postMessage });
+        actionsCompleted.push(`${call.name}(${JSON.stringify(input)})`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         result = `Error: ${msg}`;
-        errors.push(`${call.function.name}: ${msg}`);
+        errors.push(`${call.name}: ${msg}`);
       }
 
-      messages.push({
-        role: 'tool',
-        tool_call_id: call.id,
-        content: result,
-      });
+      inputItems.push({ type: 'function_call_output', call_id: call.call_id, output: result });
     }
   }
 

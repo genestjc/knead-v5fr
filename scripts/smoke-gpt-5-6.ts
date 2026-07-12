@@ -9,13 +9,20 @@ import OpenAI from 'openai';
  *
  *   1. Luna — the router's chat loop shape: function tool + reasoning_effort
  *      'none' → tool result → final text. (lib/ai/router.ts runOpenAILoop)
- *   2. Terra — the payments agent's shape: tool selection against the real
- *      payment tool schemas with MOCKED results. Nothing is purchased, no
- *      USDC moves, no cards are issued. (lib/agent.ts runAgent)
+ *   2. Terra — the payments agent's shape: the Responses API's stateless
+ *      tool loop (store: false, encrypted reasoning replayed, tool results
+ *      linked by call_id) against the real payment tool schemas with MOCKED
+ *      results. Nothing is purchased, no USDC moves, no cards are issued.
+ *      (lib/agent.ts runAgent — Responses, not Chat Completions, because
+ *      Chat Completions rejects tools at any effective reasoning effort
+ *      other than 'none' on the 5.6 family.)
  *   3. Constraint probe — confirms Chat Completions still rejects function
  *      tools combined with reasoning_effort 'low' on the 5.6 family, which
- *      is why the router uses 'none'. If this ever starts succeeding, the
- *      constraint was lifted and the router could go back to 'low'.
+ *      is why the router uses 'none' and the payments agent uses the
+ *      Responses API (confirmed live: the Towns agent hit this exact 400 on
+ *      gpt-5.6-terra even with the field UNSET — the default effort counts).
+ *      If this ever starts succeeding, the constraint was lifted and the
+ *      router could go back to 'low'.
  *
  * Usage: npx tsx scripts/smoke-gpt-5-6.ts
  * Requires OPENAI_API_KEY. Costs a fraction of a cent.
@@ -119,93 +126,103 @@ async function checkLunaToolLoop() {
 // ── 2. Terra: payments-agent tool selection (mocked, no side effects) ───────
 
 async function checkTerraToolSelection() {
-  const name = 'Terra payment tool selection';
+  const name = 'Terra payment tool loop (Responses API)';
   // Trimmed copies of the schemas in lib/agent.ts — enough for the model to
   // choose between a direct USDC transfer and the card/checkout path.
-  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  const tools: OpenAI.Responses.Tool[] = [
     {
       type: 'function',
-      function: {
-        name: 'request_virtual_card',
-        description: 'Request a one-time virtual card for a USD amount. Use before any Shopify checkout.',
-        parameters: {
-          type: 'object',
-          properties: { amount_usd: { type: 'number' }, purpose: { type: 'string' } },
-          required: ['amount_usd', 'purpose'],
-        },
+      strict: false,
+      name: 'request_virtual_card',
+      description: 'Request a one-time virtual card for a USD amount. Use before any Shopify checkout.',
+      parameters: {
+        type: 'object',
+        properties: { amount_usd: { type: 'number' }, purpose: { type: 'string' } },
+        required: ['amount_usd', 'purpose'],
       },
     },
     {
       type: 'function',
-      function: {
-        name: 'send_usdc_payment',
-        description:
-          'Send USDC directly to a contributor wallet on Base L2 for labor payments. ' +
-          'Do NOT use for merch or magazine purchases.',
-        parameters: {
-          type: 'object',
-          properties: {
-            to_address: { type: 'string' },
-            amount_usdc: { type: 'number' },
-            memo: { type: 'string' },
-          },
-          required: ['to_address', 'amount_usdc', 'memo'],
+      strict: false,
+      name: 'send_usdc_payment',
+      description:
+        'Send USDC directly to a contributor wallet on Base L2 for labor payments. ' +
+        'Do NOT use for merch or magazine purchases.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to_address: { type: 'string' },
+          amount_usdc: { type: 'number' },
+          memo: { type: 'string' },
         },
+        required: ['to_address', 'amount_usdc', 'memo'],
       },
     },
     {
       type: 'function',
-      function: {
-        name: 'lookup_member',
-        description: 'Look up a Knead member by wallet address or alias.',
-        parameters: {
-          type: 'object',
-          properties: { identifier: { type: 'string' } },
-          required: ['identifier'],
-        },
+      strict: false,
+      name: 'lookup_member',
+      description: 'Look up a Knead member by wallet address or alias.',
+      parameters: {
+        type: 'object',
+        properties: { identifier: { type: 'string' } },
+        required: ['identifier'],
       },
     },
   ];
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    {
-      role: 'system',
-      content:
-        'You are Demeter, the payments agent. For labor payments use send_usdc_payment ' +
-        'directly — never a virtual card. Look up members you do not have an address for.',
-    },
-    { role: 'user', content: 'Pay contributor "mika" 25 USDC for copy editing this issue.' },
-  ];
+  const instructions =
+    'You are Demeter, the payments agent. For labor payments use send_usdc_payment ' +
+    'directly — never a virtual card. Look up members you do not have an address for.';
 
-  // Same params as runAgent in lib/agent.ts: no reasoning_effort (default)
   const mockResults: Record<string, string> = {
     lookup_member: JSON.stringify({ found: true, address: '0x1111111111111111111111111111111111111111', alias: 'mika' }),
     send_usdc_payment: JSON.stringify({ txHash: '0xmocked', amount: 25 }),
   };
 
+  // Same stateless loop as lib/agent.ts runAgent: store false, reasoning +
+  // function_call items replayed each round, results linked via call_id.
+  const inputItems: OpenAI.Responses.ResponseInputItem[] = [
+    { role: 'user', content: 'Pay contributor "mika" 25 USDC for copy editing this issue.' },
+  ];
+
   const toolsUsed: string[] = [];
   for (let round = 0; round < 5; round++) {
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: TERRA,
-      max_completion_tokens: 4096,
+      max_output_tokens: 8192,
+      instructions,
       tools,
-      messages,
+      input: inputItems,
+      store: false,
+      include: ['reasoning.encrypted_content'],
     });
-    const message = response.choices[0].message;
-    messages.push(message);
 
-    const calls = functionCalls(message);
+    const replayable = response.output.filter(
+      (
+        item,
+      ): item is
+        | OpenAI.Responses.ResponseOutputMessage
+        | OpenAI.Responses.ResponseReasoningItem
+        | OpenAI.Responses.ResponseFunctionToolCall =>
+        item.type === 'message' || item.type === 'reasoning' || item.type === 'function_call',
+    );
+    inputItems.push(...replayable);
+
+    const calls = response.output.filter(
+      (item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === 'function_call',
+    );
     if (calls.length === 0) break;
 
     for (const call of calls) {
-      toolsUsed.push(call.function.name);
-      if (!(call.function.name in mockResults)) {
-        return fail(name, `picked the wrong tool for a labor payment: ${call.function.name}`);
+      toolsUsed.push(call.name);
+      if (!(call.name in mockResults)) {
+        return fail(name, `picked the wrong tool for a labor payment: ${call.name}`);
       }
-      messages.push({
-        role: 'tool',
-        tool_call_id: call.id,
-        content: mockResults[call.function.name],
+      inputItems.push({
+        type: 'function_call_output',
+        call_id: call.call_id,
+        output: mockResults[call.name],
       });
     }
   }
