@@ -10,9 +10,10 @@
  *   noticeably faster.
  * - OpenAI GPT-5.6 Luna (gpt-5.6-luna) — the Towns community-chat agent, and
  *   the automatic fallback whenever a Claude call fails. Luna is the budget
- *   tier of the 5.6 family — cheaper than the retired gpt-5 ($1/$6 vs
- *   $1.25/$10 per M tokens) and two generations newer. The payments agent in
- *   lib/agent.ts runs the mid tier (Terra) because it moves real money.
+ *   tier of the 5.6 family — cheaper than the outgoing gpt-5 ($1/$6 vs
+ *   $1.25/$10 per M tokens; gpt-5 shuts down Dec 11, 2026) and two
+ *   generations newer. The payments agent in lib/agent.ts runs the mid tier
+ *   (Terra) because it moves real money.
  * - OpenAI also keeps TTS (gpt-4o-mini-tts — the GPT-Live voice models that
  *   shipped alongside 5.6 have no developer API yet) and the free
  *   Moderation API.
