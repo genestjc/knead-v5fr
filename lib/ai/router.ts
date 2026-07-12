@@ -8,9 +8,14 @@
  *   High volume and retrieval-grounded (answers come from fetched repo
  *   files), where Sonnet is near-Opus on coding at ~60% of the price and
  *   noticeably faster.
- * - OpenAI GPT-5 (gpt-5) — the Towns community-chat agent, and the automatic
- *   fallback whenever a Claude call fails.
- * - OpenAI also keeps TTS (gpt-4o-mini-tts) and the free Moderation API.
+ * - OpenAI GPT-5.6 Luna (gpt-5.6-luna) — the Towns community-chat agent, and
+ *   the automatic fallback whenever a Claude call fails. Luna is the budget
+ *   tier of the 5.6 family — cheaper than the retired gpt-5 ($1/$6 vs
+ *   $1.25/$10 per M tokens) and two generations newer. The payments agent in
+ *   lib/agent.ts runs the mid tier (Terra) because it moves real money.
+ * - OpenAI also keeps TTS (gpt-4o-mini-tts — the GPT-Live voice models that
+ *   shipped alongside 5.6 have no developer API yet) and the free
+ *   Moderation API.
  *
  * The prompt cache is per-model, so keep each surface pinned to one model
  * rather than switching per request.
@@ -23,7 +28,7 @@ import OpenAI from 'openai';
 
 export const CLAUDE_OPUS = 'claude-opus-4-8';
 export const CLAUDE_SONNET = 'claude-sonnet-5';
-export const OPENAI_FALLBACK_MODEL = 'gpt-5';
+export const OPENAI_FALLBACK_MODEL = 'gpt-5.6-luna';
 
 export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -106,7 +111,7 @@ export async function runAgentChat(opts: AgentChatOptions): Promise<string> {
   }
 }
 
-/** One-shot text generation (no tools) with the same Claude→GPT-5 fallback. */
+/** One-shot text generation (no tools) with the same Claude→GPT-5.6 fallback. */
 export async function generateText(opts: {
   system: string;
   prompt: string;
@@ -280,13 +285,15 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   for (let round = 0; round < maxRounds; round++) {
     const response = await openai.chat.completions.create({
       model: OPENAI_FALLBACK_MODEL,
-      // GPT-5 is a reasoning model: it takes max_completion_tokens (not
-      // max_tokens), and its hidden reasoning tokens draw from that same
-      // budget — without headroom it can spend the whole cap reasoning and
-      // return an empty reply. Low effort keeps these latency-sensitive chat
-      // surfaces fast.
+      // GPT-5.6 is a reasoning model: it takes max_completion_tokens (not
+      // max_tokens), and reasoning tokens draw from that same budget, so keep
+      // headroom. Effort must be 'none' here: on the 5.6 family, Chat
+      // Completions rejects function tools combined with any other
+      // reasoning_effort ("… not supported … use /v1/responses"). That
+      // matches the Claude loop anyway — chat surfaces are latency-sensitive,
+      // so thinking stays off.
       max_completion_tokens: Math.max(maxTokens * 3, 4096),
-      reasoning_effort: 'low',
+      reasoning_effort: 'none',
       ...(openaiTools.length > 0 ? { tools: openaiTools } : {}),
       messages,
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
@@ -298,7 +305,12 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
     const roundText = assistantMessage.content?.trim();
     if (roundText) textParts.push(roundText);
 
-    const toolCalls = assistantMessage.tool_calls ?? [];
+    // SDK v6 types tool_calls as function-or-custom tool calls; we only
+    // declare function tools, so narrow before reading .function.
+    const toolCalls = (assistantMessage.tool_calls ?? []).filter(
+      (t): t is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
+        t.type === 'function',
+    );
     if (toolCalls.length === 0 || !executeTool) break;
 
     const results = await Promise.all(
@@ -319,12 +331,12 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   // Rounds exhausted mid-tool-use: one final call without tools forces text
   if (textParts.length === 0 && messages[messages.length - 1]?.role === 'tool') {
     console.error(
-      `[${opts.logTag}] GPT-5 gave no text (finish_reason=${finishReason}); forcing a final answer`,
+      `[${opts.logTag}] GPT-5.6 gave no text (finish_reason=${finishReason}); forcing a final answer`,
     );
     const final = await openai.chat.completions.create({
       model: OPENAI_FALLBACK_MODEL,
       max_completion_tokens: Math.max(maxTokens * 3, 4096),
-      reasoning_effort: 'low',
+      reasoning_effort: 'none',
       messages: [...messages, { role: 'system', content: WRAP_UP_INSTRUCTION }],
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
     const finalText = final.choices[0].message.content?.trim();
@@ -333,7 +345,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
 
   const reply = textParts.join('\n\n');
   if (!reply) {
-    console.error(`[${opts.logTag}] GPT-5 reply empty (finish_reason=${finishReason})`);
+    console.error(`[${opts.logTag}] GPT-5.6 reply empty (finish_reason=${finishReason})`);
   }
   return reply;
 }

@@ -223,7 +223,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Anthropic (Claude — editorial text + build assistant) — https://console.anthropic.com/settings/keys
 ANTHROPIC_API_KEY=
 
-# OpenAI (GPT-5 chat agent + fallback, TTS, moderation) — https://platform.openai.com/api-keys
+# OpenAI (GPT-5.6 chat agent + fallback, TTS, moderation) — https://platform.openai.com/api-keys
 OPENAI_API_KEY=
 
 # Mux — https://dashboard.mux.com/settings/access-tokens

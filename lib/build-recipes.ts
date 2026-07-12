@@ -189,8 +189,8 @@ export const RECIPES: BuildRecipe[] = [
     description: 'Install an agent on your page for community management or to help summarize editorial content. Built with ChatGPT, Claude, Alchemy, and Tavily.',
     tags: ['OpenAI', 'Claude', 'Tavily'],
     why: 'Demeter — the agent you\'re talking to right now — is the proof of concept. An agent that knows your content, your stack, and your community\'s context is qualitatively different from a generic chatbot. This is what the open internet looks like: knowledge freely accessible through agents that carry the author\'s perspective.',
-    architectureNote: 'The agent routes by strength, per surface: Claude Opus handles the editorial surfaces (article summaries, the reader-facing Demeter bubble), Claude Sonnet handles this build assistant (high-volume, retrieval-grounded coding chat — near-Opus quality at a fraction of the cost), with tool use for web search (Tavily), Sanity content, and file fetching (GitHub API). OpenAI GPT-5 runs the community-chat agent and steps in automatically as a fallback whenever a Claude call fails; OpenAI also handles text-to-speech and moderation. The provider-neutral tool loop lives in lib/ai/router.ts, and the system prompt is where the personality and knowledge live — it\'s the most important file in the whole feature.',
-    tradeoffs: 'Two providers means two API keys and two bills, but each model works its strongest lane — Opus for prose and judgment, Sonnet for grounded code walkthroughs, GPT-5 for the transactional chat agent — and either provider can cover for the other during an outage.',
+    architectureNote: 'The agent routes by strength, per surface: Claude Opus handles the editorial surfaces (article summaries, the reader-facing Demeter bubble), Claude Sonnet handles this build assistant (high-volume, retrieval-grounded coding chat — near-Opus quality at a fraction of the cost), with tool use for web search (Tavily), Sanity content, and file fetching (GitHub API). OpenAI GPT-5.6 runs the community-chat agent (Luna tier; the payments agent runs Terra) and steps in automatically as a fallback whenever a Claude call fails; OpenAI also handles text-to-speech and moderation. The provider-neutral tool loop lives in lib/ai/router.ts, and the system prompt is where the personality and knowledge live — it\'s the most important file in the whole feature.',
+    tradeoffs: 'Two providers means two API keys and two bills, but each model works its strongest lane — Opus for prose and judgment, Sonnet for grounded code walkthroughs, GPT-5.6 for the transactional chat agent — and either provider can cover for the other during an outage.',
     mistakesWeMade: [
       'First version had no rate limiting. A single user could exhaust the monthly API budget in an afternoon.',
       'Tried to make the agent answer everything. Constraining it to only answer from the repository made it dramatically more useful and trustworthy.',
@@ -208,7 +208,7 @@ export const RECIPES: BuildRecipe[] = [
       'components/demeter/DemeterBubble.tsx',
       'server/agent-runner.ts',
     ],
-    stack: ['Next.js 14', 'Anthropic Claude Opus + Sonnet', 'OpenAI GPT-5', 'Tavily', 'Alchemy'],
+    stack: ['Next.js 14', 'Anthropic Claude Opus + Sonnet', 'OpenAI GPT-5.6', 'Tavily', 'Alchemy'],
     envVarsNeeded: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'],
   },
   {

@@ -717,7 +717,7 @@ export async function POST(req: NextRequest) {
       maxRounds: 5,
       // Sonnet 5: this surface is high-volume and grounded in fetched repo
       // files — near-Opus coding quality, faster, ~60% of the price. Users
-      // can pick GPT-5 instead; the unpicked provider is the fallback.
+      // can pick GPT-5.6 instead; the unpicked provider is the fallback.
       model: CLAUDE_SONNET,
       preferredProvider: pickedModel === 'gpt-5' ? 'openai' : 'claude',
       logTag: `build/chat:${pickedModel}`,
