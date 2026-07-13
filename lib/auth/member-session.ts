@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { SiweMessage } from 'siwe';
+import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import {
   hasWalletAuthHeaders,
@@ -44,9 +45,14 @@ export interface SiweChallenge {
   expiresAt: string;
 }
 
-const siweProvider = new ethers.providers.JsonRpcProvider(
-  process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org',
-);
+// Verifies SIWE signatures the same way verify-wallet-request does: viem
+// handles EOA recovery offline plus the on-chain ERC-1271/ERC-6492 fallback
+// needed for smart-account wallets (e.g. Coinbase Smart Wallet in the Base
+// App), which the `siwe` library's own verify() cannot validate.
+const siwePublicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
+});
 
 function getSessionSecret(): string | null {
   return (
@@ -255,6 +261,10 @@ export async function verifySiweMemberMessage(
     throw new Error('SIWE wallet does not match requested session wallet');
   }
 
+  if (siwe.domain !== requestDomain(req)) {
+    throw new Error('SIWE domain does not match request');
+  }
+
   if (new URL(siwe.uri).origin !== requestOrigin(req)) {
     throw new Error('SIWE URI does not match request');
   }
@@ -276,16 +286,19 @@ export async function verifySiweMemberMessage(
     throw new Error('Invalid or expired SIWE nonce');
   }
 
-  const result = await siwe.verify(
-    {
-      signature,
-      domain: requestDomain(req),
-      nonce: nonce.nonce,
-      time: new Date(now).toISOString(),
-    },
-    { provider: siweProvider, suppressExceptions: true },
-  );
-  if (!result.success) throw new Error('Invalid SIWE signature');
+  let validSignature = false;
+  try {
+    validSignature = await siwePublicClient.verifyMessage({
+      address: siwe.address as `0x${string}`,
+      // Verify against the exact string the wallet signed, not a re-serialized
+      // form of the parsed message.
+      message,
+      signature: signature as `0x${string}`,
+    });
+  } catch {
+    validSignature = false;
+  }
+  if (!validSignature) throw new Error('Invalid SIWE signature');
 
   return messageAddress;
 }
