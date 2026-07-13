@@ -302,7 +302,7 @@ export default function JoinPage() {
               <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Read three stories per month.</li>
                 <li>Watch one hour of chat events.</li>
-                <li>Five turns per day in Open Source.</li>
+                <li>Fifteen turns per day in Open Source.</li>
               </ul>
               <p className="font-georgia-pro italic mb-4 text-left">
                 Sign in below to get started

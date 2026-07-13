@@ -439,5 +439,5 @@ export const RECIPES: BuildRecipe[] = [
   },
 ];
 
-export const FREE_TURNS_PER_DAY = 5;
+export const FREE_TURNS_PER_DAY = 15;
 export const FREE_MAX_SESSIONS_PER_DAY = 1;
