@@ -13,13 +13,13 @@ interface Message {
   content: string;
 }
 
-// User-selectable models for the build chat. Sonnet 5 is the default; the
+// User-selectable models for the build chat. GPT-5.6 is the default; the
 // unpicked provider serves as the automatic fallback server-side.
 const MODELS = [
-  { id: 'sonnet-5', label: 'Sonnet 5', full: 'Claude Sonnet 5' },
   // id stays 'gpt-5' — it's the wire value the chat route allowlists; the
   // actual OpenAI model behind it (GPT-5.6 Terra) is set in the chat route.
   { id: 'gpt-5', label: 'GPT-5.6', full: 'OpenAI GPT-5.6 Terra' },
+  { id: 'sonnet-5', label: 'Sonnet 5', full: 'Claude Sonnet 5' },
 ] as const;
 type ModelId = (typeof MODELS)[number]['id'];
 const MODEL_STORAGE_KEY = 'knead-build-model';
@@ -55,7 +55,7 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
   const [zipping, setZipping] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [model, setModel] = useState<ModelId>('sonnet-5');
+  const [model, setModel] = useState<ModelId>('gpt-5');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 

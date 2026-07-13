@@ -576,8 +576,8 @@ export async function POST(req: NextRequest) {
     };
 
     // User-facing model picker — strict allowlist, never pass a client string
-    // to the API. Anything unrecognized falls back to the default (Sonnet 5).
-    const pickedModel: 'sonnet-5' | 'gpt-5' = model === 'gpt-5' ? 'gpt-5' : 'sonnet-5';
+    // to the API. Anything unrecognized falls back to the default (GPT-5.6).
+    const pickedModel: 'sonnet-5' | 'gpt-5' = model === 'sonnet-5' ? 'sonnet-5' : 'gpt-5';
 
     if (walletAddress) {
       if (!verifiedWalletAddress) {
@@ -715,11 +715,11 @@ export async function POST(req: NextRequest) {
       executeTool,
       maxTokens: 1500,
       maxRounds: 5,
-      // Sonnet 5: this surface is high-volume and grounded in fetched repo
-      // files — near-Opus coding quality, faster, ~60% of the price. Users
-      // can pick GPT-5.6 instead; the unpicked provider is the fallback.
-      // The OpenAI side runs Terra (the balanced tier) so build reasoning
-      // holds Sonnet-class quality whether picked or covering an outage.
+      // GPT-5.6 Terra is the default; users can pick Sonnet 5 instead, and
+      // the unpicked provider is the fallback. Terra is OpenAI's balanced
+      // tier and Sonnet 5 holds near-Opus coding quality at ~60% of the
+      // price, so build reasoning stays Sonnet-class whether a provider is
+      // picked or covering an outage.
       model: CLAUDE_SONNET,
       openaiModel: OPENAI_TERRA,
       preferredProvider: pickedModel === 'gpt-5' ? 'openai' : 'claude',
