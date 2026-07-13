@@ -259,6 +259,7 @@ export const VENDOR_REPOS: Record<string, VendorEntry> = {
   supabase:      { repo: 'supabase/supabase-js',           branch: 'master', description: 'Supabase JavaScript client' },
   openai:        { repo: 'openai/openai-node',             branch: 'master', description: 'OpenAI Node.js SDK' },
   towns:         { repo: 'towns-protocol/sdk',             branch: 'main',   description: 'Towns Protocol SDK (E2E encrypted chat)' },
+  'key-sharer':  { repo: 'genestjc/server',                branch: 'main',   description: "Knead's headless key-sharer bot for Towns encrypted chat (always-on Render service)" },
   wagmi:         { repo: 'wevm/wagmi',                     branch: 'main',   description: 'Wagmi React hooks for Ethereum' },
   viem:          { repo: 'wevm/viem',                      branch: 'main',   description: 'Viem — low-level Ethereum client' },
 };

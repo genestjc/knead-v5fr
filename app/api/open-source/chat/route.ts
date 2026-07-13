@@ -3,7 +3,7 @@ import { createThirdwebClient, getContract } from 'thirdweb';
 import { balanceOf } from 'thirdweb/extensions/erc1155';
 import { base } from 'thirdweb/chains';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, type RecipeId } from '@/lib/build-recipes';
+import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, KEY_SHARER_GUIDE, type RecipeId } from '@/lib/build-recipes';
 import {
   fetchFile,
   listDirectory,
@@ -273,14 +273,14 @@ const TOOLS: AgentTool[] = [
   {
     name: 'get_vendor_source',
     description:
-      "Fetch a file from one of Knead's vendor GitHub repos (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol, Wagmi, Viem). Use this to show users official SDK source or README examples for a feature they're building.",
+      "Fetch a file from one of Knead's vendor GitHub repos (Thirdweb, Sanity, Stripe, Mux, Daily.co, Supabase, OpenAI, Towns Protocol, Wagmi, Viem) or from Knead's own headless key-sharer bot repo (vendor key 'key-sharer' — the always-on Render service for Towns encrypted chat). Use this to show users official SDK source, README examples, or real key-sharer code for a feature they're building.",
     parameters: {
       type: 'object',
       properties: {
         vendor: {
           type: 'string',
           description:
-            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | key-sharer | wagmi | viem",
         },
         path: {
           type: 'string',
@@ -301,7 +301,7 @@ const TOOLS: AgentTool[] = [
         vendor: {
           type: 'string',
           description:
-            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | key-sharer | wagmi | viem",
         },
         dir: {
           type: 'string',
@@ -321,7 +321,7 @@ const TOOLS: AgentTool[] = [
         vendor: {
           type: 'string',
           description:
-            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | wagmi | viem",
+            "Vendor key: thirdweb | sanity | next-sanity | stripe | mux | mux-player | daily | daily-react | supabase | openai | towns | key-sharer | wagmi | viem",
         },
         query: {
           type: 'string',
@@ -494,7 +494,7 @@ ${KNEAD_PHILOSOPHY}
 
 Knead's repository is ${KNEAD_REPO} on GitHub. This is the ONLY valid repo — there is no "knead-co/knead", no "kneadmag/knead", no other name. Never write a github.com link or file path that didn't come back verbatim from a get_source_file, search_repo, list_directory, get_vendor_source, list_vendor_directory, or search_vendor_repo tool call. If you have not called one of those tools in this turn, you have no basis for any link or path — do not write one. Guessing a URL and presenting it as real is a critical failure.
 
-Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs), Supabase (Postgres database), Anthropic Claude + OpenAI (AI features, routed by strength — Claude Opus for editorial text, Claude Sonnet for this build assistant, OpenAI GPT-5 for the community-chat agent and as fallback, OpenAI for TTS and moderation), Tailwind CSS + shadcn/ui.
+Knead's stack: Next.js 14, Thirdweb (wallet auth + NFT membership on Base), Sanity (CMS), Stripe (subscriptions + one-time payments), Daily.co (live video streaming + video calls), Towns Protocol (E2E encrypted community chat + DMs, kept readable for new members by an always-on headless key-sharer bot on Render — see THE HEADLESS KEY SHARER section), Supabase (Postgres database), Anthropic Claude + OpenAI (AI features, routed by strength — Claude Opus for editorial text, Claude Sonnet for this build assistant, OpenAI GPT-5 for the community-chat agent and as fallback, OpenAI for TTS and moderation), Tailwind CSS + shadcn/ui.
 
 Knead's smart contracts (deployed on Base mainnet):
 - Membership contract (ERC1155 — freemium + premium NFT tiers): 0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85 — https://basescan.org/address/0xFD678ED8A0ED853D5399da9585D46AEa44cbCe85#code
@@ -511,6 +511,7 @@ ${repoTree}
 ${KNEAD_DESIGN_GUIDE}
 ${KNEAD_DEBUGGING_GUIDE}
 ${KNEAD_SETUP_GUIDE}
+${KEY_SHARER_GUIDE}
 ${profileContext}
 Your rules:
 1. Knead's repository is your source of truth: every piece of real code you show comes from it, and you never recommend replacing parts of Knead's stack with outside libraries or services. When someone asks about a tool outside the stack, follow rule 6 — teach, don't deflect.
