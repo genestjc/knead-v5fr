@@ -22,6 +22,43 @@ The open source model was the most surprising thing built at Knead — a simple 
 
 `;
 
+// ─── Key Sharer Guide ─────────────────────────────────────────────────────────
+// Injected into Demeter's system prompt so the build assistant can walk anyone
+// through deploying their own always-on key sharer for Towns encrypted chat.
+// The real deployable code lives in the key-sharer repo (vendor key: "key-sharer").
+
+export const KEY_SHARER_GUIDE = `
+THE HEADLESS KEY SHARER — how Knead keeps its encrypted group chat readable, and how a builder deploys their own. This is required knowledge for anyone building the End-To-End Encrypted Chat or Messaging recipes. Knead's production key sharer is open source in its own repo — fetch its real code with the vendor tools using vendor key "key-sharer" (start with README.md, then app/page.tsx and keep-alive.ts).
+
+WHAT IT IS, IN PLAIN TERMS
+Towns group chats are end-to-end encrypted: messages are locked with session keys (rotating secret codes) that exist only on members' devices — not on any server. When a new person joins the chat (or someone signs in on a new phone), their device has none of those keys, so every message looks like unreadable ciphertext. Their device sends out a KeySolicitation — a polite "can someone share the keys?" — and only a member who is ONLINE at that moment can answer with a KeyFulfillment. If nobody's online, the new member sits in a chat they can't read.
+
+A key sharer is a bot member of the space whose only job is to be that always-online member. It holds the full history of session keys, receives each new key as messages are sent, and automatically answers KeySolicitations the instant they arrive.
+
+WHY IT MUST ALWAYS BE ON
+It's not an API that answers requests — it's a persistent presence in the room, like a friend who never closes the tab. Every minute it's offline is a window where new users join a chat they can't read, and returning users on fresh devices see nothing but "unable to decrypt." That's why it runs on Render (which hosts long-lived, always-on processes) and not Vercel (whose serverless functions live for seconds). On Render, use a paid Starter instance — free instances spin down after 15 minutes of inactivity, and a spun-down key sharer defeats the purpose.
+
+HOW KNEAD'S IMPLEMENTATION WORKS (the "headless server" pattern)
+Two processes, both in the key-sharer repo:
+1. The bot page (app/page.tsx) — a Next.js page running the Towns React SDK in a real browser. It derives a wallet from a private key (ThirdWeb's privateKeyAccount), connects to Towns, joins the space and channel, pages back through history to collect every session key, then lets the SDK's continuous sync auto-fulfill KeySolicitations. Keys persist in the browser's IndexedDB.
+2. The keep-alive worker (keep-alive.ts) — a Node process that launches headless Chromium (Puppeteer), opens the bot page once, and health-checks it every 90 seconds, reloading only on a crash. Chromium's profile points at a Render persistent disk (/var/data) so the key store survives restarts.
+Why a browser at all? The Towns React SDK is a browser client — its sync agent, encryption, and storage assume one. Running the real page in headless Chromium reuses the exact key-sharing path the Towns app itself uses. (Knead's main repo also has a browserless Node variant at server/key-sharer.ts using connectTowns.)
+
+GETTING THE BOT A WALLET (exporting a private key)
+The bot needs its own wallet — a dedicated one, never a personal wallet, because the private key lives in server config. Two ways to get one:
+- ThirdWeb Embedded (In-App) Wallet: sign up for the builder's own app with a fresh email/Google account, open the wallet details modal from the ConnectButton, choose Manage → Export private key, confirm the warning, and copy the 0x… hex string. If export isn't visible, it's enabled in the ThirdWeb dashboard under the project's In-App Wallet configuration.
+- Third-party wallet: create a new account in MetaMask (Account details → Show private key), Coinbase Wallet, or Rabby — or generate one from the command line with ethers' Wallet.createRandom().
+Then make the bot a member: the bot joins with skipMintMembership, so sign in to app.towns.com with the bot wallet once and join the space before deploying. Keep only dust-level funds on this wallet.
+
+DEPLOYING ON RENDER (the shape of it — full detail in the repo README)
+1. Web Service from the repo — build "npm install && npm run build", start "npm start", Starter instance. Env vars (generic names): KEY_SHARER_WALLET_KEY, SPACE_ID, CHANNEL_ID, THIRDWEB_CLIENT_ID, BASE_RPC_URL.
+2. Background Worker from the same repo — start "npm run keep-alive", with a 1 GB persistent disk mounted at /var/data, and KEYSHARER_URL pointing at the web service.
+3. Verify by joining the space from a brand-new account — history should decrypt within seconds.
+SECURITY CAVEAT to always mention: in this pattern the private key is compiled into the page's JavaScript (that's how it reaches the browser where the SDK needs it), so anyone who loads the page URL can read it. The service URL must be treated as a secret, the wallet must be dedicated and near-empty, and builders wanting stronger isolation should add Render's HTTP basic auth or use the browserless Node variant that keeps the key server-side.
+
+When someone asks about the key sharer, teach it conversationally per your normal rules — don't dump this whole guide in one message.
+`;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RecipeId =
@@ -274,13 +311,13 @@ export const RECIPES: BuildRecipe[] = [
     description: 'Create a group chat that\'s secure. Built with Towns Protocol.',
     tags: ['Towns Protocol', 'Thirdweb'],
     why: 'Group chat should be private by default, not private as a premium feature. Towns Protocol gives you Slack-like channels where even the server operator cannot read messages. This is the infrastructure the open internet needs.',
-    architectureNote: 'Towns handles encryption and message delivery. Knead\'s role is authentication: the key-sharer server verifies wallet ownership and issues channel access. Once a user has access, all message encryption/decryption happens client-side in the Towns SDK.',
+    architectureNote: 'Towns handles encryption and message delivery. Knead\'s role is authentication: the key-sharer server verifies wallet ownership and issues channel access. Once a user has access, all message encryption/decryption happens client-side in the Towns SDK. One extra piece is essential: an always-on headless key-sharer bot (deployed on Render, open-sourced in its own repo — vendor key "key-sharer") that holds the chat\'s session keys and hands them to new members the moment they join, so nobody ever stares at undecryptable messages.',
     tradeoffs: 'Towns Protocol is an early-stage decentralized network. Node availability has been inconsistent — messages have been lost during infrastructure changes without notice from the Towns team. Build with the assumption that the underlying protocol may change.',
     mistakesWeMade: [
       'We were fully dependent on Towns Protocol nodes with no fallback. When Towns removed nodes and support staff without announcement, we lost messages and had to rebuild functionality. If rebuilding today, we would build an abstraction layer so the chat protocol can be swapped without touching product code.',
       'Assumed protocol stability too early. Treat any third-party protocol dependency as you would a vendor that might disappear.',
     ],
-    customizationNotes: 'Space ID and default channel ID are environment variables — you create these in the Towns dashboard and point your app at them. The key-sharer server (server/key-sharer.ts) is the only piece you need to customize for your own access rules.',
+    customizationNotes: 'Space ID and default channel ID are environment variables — you create these in the Towns dashboard and point your app at them. The key-sharer server (server/key-sharer.ts) is the only piece you need to customize for your own access rules. For production, deploy the standalone headless key-sharer (its own repo, vendor key "key-sharer") on Render as an always-on service — the README there walks through exporting a dedicated bot wallet from ThirdWeb and the two-service Render setup.',
     canonicalFiles: [
       'app/chat/chat-client.tsx',
       'server/key-sharer.ts',
@@ -314,7 +351,7 @@ export const RECIPES: BuildRecipe[] = [
     mistakesWeMade: [
       'Same Towns Protocol dependency issues as group chat. The lesson applies here doubly — private messages disappearing is worse than group messages disappearing.',
     ],
-    customizationNotes: 'DM room creation logic is in app/api/dm/generate-dm-token/route.ts. If you want video calls inside DMs, that\'s a separate, optional addition — see the Video Calls recipe for the Daily.co pattern to layer on top.',
+    customizationNotes: 'DM room creation logic is in app/api/dm/generate-dm-token/route.ts. If you want video calls inside DMs, that\'s a separate, optional addition — see the Video Calls recipe for the Daily.co pattern to layer on top. Like group chat, DMs need the always-on headless key-sharer (vendor key "key-sharer") running on Render so a recipient who joins later can still decrypt the conversation.',
     canonicalFiles: [
       'app/api/dm/generate-dm-token/route.ts',
     ],
