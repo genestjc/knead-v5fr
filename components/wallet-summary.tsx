@@ -607,11 +607,13 @@ export function WalletSummary({
       console.log("✅ Authentication cleared - redirecting...");
 
       setTimeout(() => {
-        window.location.href = "/?nocache=" + new Date().getTime();
+        window.location.href =
+          window.location.pathname + "?nocache=" + new Date().getTime();
       }, 500);
     } catch (error) {
       console.error("Failed to sign out:", error);
-      window.location.href = "/?forcereload=" + new Date().getTime();
+      window.location.href =
+        window.location.pathname + "?forcereload=" + new Date().getTime();
     }
   };
 
