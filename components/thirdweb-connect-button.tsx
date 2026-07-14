@@ -1,9 +1,11 @@
 "use client"
 
+import { useMemo } from "react"
+import { usePathname } from "next/navigation"
 import { ConnectButton } from "thirdweb/react"
 import { client } from "@/thirdweb-client"
 import { base } from "thirdweb/chains"
-import { wallets } from "@/lib/wallets"
+import { createKneadWallets } from "@/lib/wallets"
 
 interface ThirdWebConnectButtonProps {
   className?: string
@@ -16,6 +18,12 @@ export function ThirdWebConnectButton({
   theme = "light",
   size = "compact",
 }: ThirdWebConnectButtonProps) {
+  // Rebuilt on navigation so the in-app wallet's OAuth redirectUrl points at
+  // the page the user is signing in from (e.g. a paywalled story), not the
+  // page the app was first loaded on.
+  const pathname = usePathname()
+  const wallets = useMemo(() => createKneadWallets(), [pathname])
+
   return (
     <div className={className}>
       <ConnectButton
