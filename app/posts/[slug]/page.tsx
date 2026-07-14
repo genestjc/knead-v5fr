@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation"
-import Link from "next/link"
 import type { SanityDocument } from "next-sanity"
 import { client } from "../../../sanity/client"
 import { urlFor } from "../../../lib/sanity"
@@ -12,6 +11,7 @@ import { PortableTextRenderer } from "../../../components/portable-text-renderer
 import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
 import { ArticleListenButton } from "../../../components/demeter/ArticleListenButton"
 import { FreeArticleCTA } from "../../../components/free-article-cta"
+import { BackToStoriesLink } from "../../../components/back-to-stories-link"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -214,12 +214,7 @@ export default async function PostPage({ params }: PostPageProps) {
                 )}
               </div>
               <div className="mt-12 pt-8 border-t border-gray-100">
-                <Link href="/" className="inline-flex items-center font-georgia-pro text-gray-600 hover:text-gray-900 transition-colors group">
-                  <svg className="w-4 h-4 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to all stories
-                </Link>
+                <BackToStoriesLink />
               </div>
             </div>
           </article>
