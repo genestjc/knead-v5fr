@@ -221,7 +221,7 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
                 { id: 'paywalled-blog', label: 'Paywalled Content' },
                 { id: 'streaming', label: 'Streaming' },
                 { id: 'e2e-chat', label: 'End-To-End Encrypted Chat' },
-                { id: 'asset-builder', label: 'Agentic Assistance' },
+                { id: 'agentic-assistance', label: 'Agentic Assistance' },
               ] as { id: RecipeId; label: string }[]).map(({ id, label }) => {
                 const r = RECIPES.find((x) => x.id === id)!;
                 return (
