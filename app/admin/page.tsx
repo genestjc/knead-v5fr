@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useActiveAccount, useActiveWalletConnectionStatus, ConnectButton } from 'thirdweb/react';
 import { base } from 'thirdweb/chains';
 import { client } from '@/thirdweb-client';
-import { wallets } from '@/lib/wallets';
+import { createKneadWallets } from '@/lib/wallets';
 import { EventsManager } from '@/components/admin/EventsManager';
 import { ContributorManager } from '@/components/admin/ContributorManager';
 import { UserManager } from '@/components/admin/UserManager';
@@ -35,6 +35,10 @@ export default function AdminPage() {
   }, [connectionStatus]);
 
   const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements' | 'proposals' | 'social'>('events');
+
+  // Built on mount so the in-app wallet's OAuth redirectUrl returns to /admin
+  // after a social sign-in, not the page the app was first loaded on.
+  const [wallets] = useState(() => createKneadWallets());
 
   const MASTER_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_MASTER_ADMIN_WALLET || '';
 
