@@ -197,6 +197,49 @@ export default {
       },
     },
     {
+      name: "audioQA",
+      type: "object",
+      title: "Q&A (Audio Answer)",
+      fields: [
+        {
+          name: "question",
+          type: "text",
+          title: "Question",
+          rows: 2,
+          validation: (Rule) => Rule.required(),
+        },
+        {
+          name: "audioFile",
+          type: "file",
+          title: "Audio Answer",
+          description: "Upload the voice recording answering this question",
+          options: {
+            accept: "audio/*",
+          },
+          validation: (Rule) => Rule.required(),
+        },
+        {
+          name: "answeredBy",
+          type: "string",
+          title: "Answered By (optional)",
+        },
+      ],
+      preview: {
+        select: {
+          question: "question",
+          answeredBy: "answeredBy",
+        },
+        prepare(selection) {
+          const { question, answeredBy } = selection
+          return {
+            title: question || "Q&A (Audio Answer)",
+            subtitle: answeredBy ? `Answered by ${answeredBy}` : "Audio answer",
+            media: () => "🎙️",
+          }
+        },
+      },
+    },
+    {
       name: "pullQuote",
       type: "object",
       title: "Pull Quote",

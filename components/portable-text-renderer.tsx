@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect } from "react";
 import { PortableText } from "@portabletext/react"
 import Image from "next/image"
-import { urlFor } from "../lib/sanity"
+import { urlFor, fileUrlFor } from "../lib/sanity"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -97,6 +97,30 @@ const TwitterEmbed = ({ value }: { value: { url: string; caption?: string } }) =
     );
 };
 
+const AudioQA = ({ value }: { value: { question: string; audioFile?: any; answeredBy?: string } }) => {
+    const audioUrl = fileUrlFor(value.audioFile);
+    return (
+        <div className="my-10 animate-fade-in-up animation-delay-200">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 md:p-8 shadow-sm">
+                <p className="font-adonis text-xl md:text-2xl text-gray-900 leading-snug mb-4">
+                    <span className="mr-2" aria-hidden="true">🎙️</span>{value.question}
+                </p>
+                {audioUrl ? (
+                    <audio controls preload="metadata" className="w-full" src={audioUrl}>
+                        Your browser does not support the audio element.{" "}
+                        <a href={audioUrl} className="text-blue-600 underline">Download the recording</a>
+                    </audio>
+                ) : (
+                    <p className="text-sm text-gray-500 font-georgia-pro italic">Audio answer unavailable</p>
+                )}
+                {value.answeredBy && (
+                    <p className="mt-3 text-sm text-gray-600 font-georgia-pro italic">Answered by {value.answeredBy}</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // Other components (PullQuote, CodeBlock, CustomImage) are unchanged...
 const PullQuote = ({ value }: { value: { text: string; author?: string } }) => <div className="my-12 animate-fade-in-up animation-delay-100"><blockquote className="relative"><div className="text-center"><svg className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-3 w-8 h-8 text-gray-400 animate-fade-in animation-delay-200" fill="currentColor" viewBox="0 0 32 32"><path d="M9.352 4C4.456 7.456 1 13.12 1 19.36c0 5.088 3.072 8.064 6.624 8.064 3.36 0 5.856-2.688 5.856-5.856 0-3.168-2.208-5.472-5.088-5.472-.576 0-1.344.096-1.536.192.48-3.264 3.552-7.104 6.624-9.024L9.352 4zm16.512 0c-4.8 3.456-8.256 9.12-8.256 15.36 0 5.088 3.072 8.064 6.624 8.064 3.264 0 5.856-2.688 5.856-5.856 0-3.168-2.304-5.472-5.184-5.472-.576 0-1.248.096-1.44.192.48-3.264 3.456-7.104 6.528-9.024L25.864 4z" /></svg><p className="font-adonis text-2xl md:text-3xl text-gray-900 leading-relaxed px-8 animate-fade-in-up animation-delay-300">{value.text}</p>{value.author && <cite className="block mt-4 font-georgia-pro text-gray-600 not-italic animate-fade-in animation-delay-400">— {value.author}</cite>}</div></blockquote></div>;
 const CodeBlock = ({ value }: { value: { language?: string; code: string; filename?: string } }) => <div className="my-8 animate-fade-in-up animation-delay-200">{value.filename && <div className="bg-gray-800 text-gray-300 px-4 py-2 text-sm font-mono rounded-t-lg border-b border-gray-700 animate-fade-in animation-delay-300">{value.filename}</div>}<SyntaxHighlighter language={value.language || "text"} style={tomorrow} className={`${value.filename ? "rounded-t-none" : ""} rounded-lg animate-fade-in-up animation-delay-400`} showLineNumbers>{value.code}</SyntaxHighlighter></div>;
@@ -113,6 +137,7 @@ const components = {
     youtube: YouTubeEmbed,
     instagram: InstagramEmbed,
     twitter: TwitterEmbed,
+    audioQA: AudioQA,
     pullQuote: PullQuote,
     code: CodeBlock,
   },
