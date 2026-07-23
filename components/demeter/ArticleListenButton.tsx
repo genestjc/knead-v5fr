@@ -92,7 +92,8 @@ export function ArticleListenButton({
     };
   }, [isPremium, account?.address, membershipType, membershipLoading, slug]);
 
-  async function buildAudio(): Promise<HTMLAudioElement> {
+  // Populate the (already-unlocked) audio element with the generated summary.
+  async function loadSummaryInto(audio: HTMLAudioElement): Promise<void> {
     const res = await fetch('/api/demeter/article-summary-audio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -103,7 +104,6 @@ export function ArticleListenButton({
     const url = URL.createObjectURL(await res.blob());
     urlRef.current = url;
 
-    const audio = new Audio(url);
     audio.ontimeupdate = () => {
       if (audio.duration) setProgress(audio.currentTime / audio.duration);
     };
@@ -112,8 +112,7 @@ export function ArticleListenButton({
       setProgress(0);
       setStatus('paused');
     };
-    audioRef.current = audio;
-    return audio;
+    audio.src = url;
   }
 
   async function toggle() {
@@ -129,13 +128,30 @@ export function ArticleListenButton({
         setStatus('playing');
         return;
       }
+
+      // First play. Instagram's in-app browser (iOS WKWebView) only allows
+      // playback that starts inside the tap's brief user-activation window.
+      // Generating the summary (Opus + TTS on a cache miss) easily outlasts
+      // that window, so a play() issued *after* the fetch gets blocked. Fix:
+      // create the element and start it playing synchronously on this tap —
+      // "unlocking" it — then swap the real audio in once the fetch resolves.
+      const audio = new Audio();
+      audioRef.current = audio;
+      audio.play().catch(() => {}); // unlock within the user gesture; empty src is fine
+      audio.pause();
+
       setStatus('loading');
-      const audio = await buildAudio();
+      await loadSummaryInto(audio);
       await audio.play();
       setStatus('playing');
     } catch {
       setError(true);
       setStatus('idle');
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
+      audioRef.current = null;
     }
   }
 
