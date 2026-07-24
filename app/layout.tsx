@@ -1,5 +1,5 @@
 import type React from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -23,6 +23,17 @@ export const metadata: Metadata = {
     description: "Nourishment for the creative spirit.",
   },
   generator: 'v0.dev'
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // `resizes-content` shrinks the *layout* viewport when the on-screen keyboard
+  // opens (Chromium 108+), so `position: fixed` UI — like Demeter's chat panel —
+  // stays above the keyboard instead of being covered. This is what fixes the
+  // hidden chat input in Instagram's Android in-app browser. iOS ignores it and
+  // is handled by the VisualViewport logic in DemeterBubble.
+  interactiveWidget: "resizes-content",
 }
 
 export default function RootLayout({

@@ -107,14 +107,15 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Keeps the chat panel above the on-screen keyboard. Mobile browsers shrink
-  // the *visual* viewport when the keyboard opens but leave the *layout*
-  // viewport (and `position: fixed`) unchanged, so a bottom-anchored panel ends
-  // up behind the keyboard — worst in Instagram's in-app browser, which doesn't
-  // resize layout at all. Nudging `bottom` isn't enough: iOS drags fixed
-  // elements around during the keyboard animation. Instead we pin the panel by
-  // `top`, computed from VisualViewport, and re-pin on every resize/scroll so it
-  // stays glued just above the keyboard. Null = no keyboard, use resting CSS.
+  // Keeps the chat panel above the on-screen keyboard. Two platforms, two
+  // behaviours:
+  //   • Android (Instagram's Chromium in-app browser): the layout viewport is
+  //     resized by `interactive-widget=resizes-content` (set in app/layout),
+  //     so the resting `bottom-24` position already clears the keyboard and the
+  //     computed keyboard height here is ~0 — this effect no-ops.
+  //   • iOS (WKWebView): the layout viewport does NOT resize, so a fixed panel
+  //     stays behind the keyboard. We pin it by `top`, computed from the
+  //     VisualViewport, and re-pin on every resize/scroll. Null = no keyboard.
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -206,7 +207,8 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     const GAP = 12;
     const update = () => {
       // Keyboard height = layout viewport minus the still-visible visual
-      // viewport. A small threshold ignores browser-chrome jitter.
+      // viewport. A small threshold ignores browser-chrome jitter. On Android
+      // (resizes-content) this stays ~0, so the panel keeps its resting position.
       const keyboard = window.innerHeight - vv.height - vv.offsetTop;
       if (keyboard < 80) {
         setPanelStyle(null); // no keyboard: fall back to resting CSS position
