@@ -107,17 +107,21 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Keeps the chat panel above the on-screen keyboard. Two platforms, two
-  // behaviours:
-  //   • Android (Instagram's Chromium in-app browser): the layout viewport is
-  //     resized by `interactive-widget=resizes-content` (set in app/layout),
-  //     so the resting `bottom-24` position already clears the keyboard and the
-  //     computed keyboard height here is ~0 — this effect no-ops.
-  //   • iOS (WKWebView): the layout viewport does NOT resize, so a fixed panel
-  //     stays behind the keyboard. We pin it by `top`, computed from the
-  //     VisualViewport, and re-pin on every resize/scroll. Null = no keyboard.
+  // Keeps the chat panel above the on-screen keyboard. Different environments
+  // expose the keyboard differently, so we react to whichever signal exists:
+  //   1. Browser reports the keyboard via VisualViewport (real Safari/Chrome,
+  //      iOS WKWebView): pin the panel's bottom just above it — precise.
+  //   2. Layout viewport resizes (Android + interactive-widget=resizes-content):
+  //      the resting bottom position already clears the keyboard — do nothing.
+  //   3. Neither happens (Instagram's Android in-app WebView overlays the
+  //      keyboard without resizing anything or firing VisualViewport): fall back
+  //      to the input's own focus event and lift the panel into the top of the
+  //      screen, where it clears a keyboard that occupies the bottom ~half.
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Viewport height captured while the keyboard is closed, to detect case 2.
+  const baseHeightRef = useRef(0);
 
   useEffect(() => {
     if (!isPremiumPost) { setCanUse(true); return; }
@@ -200,35 +204,57 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   }
 
   // Pin the panel above the on-screen keyboard (see panelStyle note). Re-runs on
-  // message/loading changes too so the panel re-pins as its height grows.
+  // focus/message/loading changes so it re-pins as state and panel height change.
   useEffect(() => {
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    if (!open || !vv) return;
+    if (typeof window === 'undefined' || !open) return;
+    const vv = window.visualViewport;
     const GAP = 12;
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     const update = () => {
-      // Keyboard height = layout viewport minus the still-visible visual
-      // viewport. A small threshold ignores browser-chrome jitter. On Android
-      // (resizes-content) this stays ~0, so the panel keeps its resting position.
-      const keyboard = window.innerHeight - vv.height - vv.offsetTop;
-      if (keyboard < 80) {
-        setPanelStyle(null); // no keyboard: fall back to resting CSS position
+      // Case 1: the browser reports the keyboard via VisualViewport. Pin the
+      // panel's bottom edge just above it — precise.
+      if (vv) {
+        const keyboard = window.innerHeight - vv.height - vv.offsetTop;
+        if (keyboard > 80) {
+          const maxHeight = Math.max(200, vv.height - GAP * 2);
+          const height = Math.min(panelRef.current?.offsetHeight ?? maxHeight, maxHeight);
+          setPanelStyle({ top: vv.offsetTop + vv.height - GAP - height, bottom: 'auto', maxHeight });
+          return;
+        }
+      }
+      // Case 2: the layout viewport itself shrank (Android resizes-content), so
+      // the resting bottom position already clears the keyboard — do nothing.
+      const layoutResized = baseHeightRef.current > 0 && window.innerHeight < baseHeightRef.current - 100;
+      if (layoutResized) {
+        setPanelStyle(null);
         return;
       }
-      const maxHeight = Math.max(200, vv.height - GAP * 2);
-      const height = Math.min(panelRef.current?.offsetHeight ?? maxHeight, maxHeight);
-      // Place the panel's bottom edge GAP above the top of the keyboard.
-      const top = vv.offsetTop + vv.height - GAP - height;
-      setPanelStyle({ top, bottom: 'auto', maxHeight });
+      // Case 3: keyboard is up (input focused) but nothing resized or reported it
+      // — Instagram's Android in-app browser. Lift the panel into the top of the
+      // screen so its input clears a keyboard covering the bottom ~half.
+      if (inputFocused && isTouch) {
+        setPanelStyle({ top: GAP, bottom: 'auto', maxHeight: Math.round(window.innerHeight * 0.42) });
+        return;
+      }
+      setPanelStyle(null); // no keyboard: resting CSS position
     };
+
     update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
     return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-      setPanelStyle(null);
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
     };
-  }, [open, messages.length, loading]);
+  }, [open, inputFocused, messages.length, loading]);
+
+  // Capture the keyboard-closed viewport height when the panel opens, so the
+  // effect above can tell whether the layout viewport later shrank (case 2).
+  useEffect(() => {
+    if (open && typeof window !== 'undefined') baseHeightRef.current = window.innerHeight;
+    else setPanelStyle(null);
+  }, [open]);
 
   // Stop narration when the panel closes or the component unmounts
   useEffect(() => {
@@ -420,6 +446,8 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
                   send(input);
                 }
               }}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               placeholder="Ask about this story…"
               disabled={loading}
               className="flex-1 text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black disabled:opacity-50 resize-none overflow-y-auto"
