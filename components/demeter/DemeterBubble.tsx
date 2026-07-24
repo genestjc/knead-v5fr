@@ -107,13 +107,16 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // On-screen-keyboard height. Mobile browsers shrink the visual viewport when
-  // the keyboard opens but leave `position: fixed` pinned to the (unchanged)
-  // layout viewport, so the input ends up hidden behind the keyboard — most
-  // noticeably in Instagram's in-app browser, which doesn't auto-resize layout.
-  // We track the keyboard height via VisualViewport and lift the panel by it.
-  const [kbInset, setKbInset] = useState(0);
-  const [vvHeight, setVvHeight] = useState<number | null>(null);
+  // Keeps the chat panel above the on-screen keyboard. Mobile browsers shrink
+  // the *visual* viewport when the keyboard opens but leave the *layout*
+  // viewport (and `position: fixed`) unchanged, so a bottom-anchored panel ends
+  // up behind the keyboard — worst in Instagram's in-app browser, which doesn't
+  // resize layout at all. Nudging `bottom` isn't enough: iOS drags fixed
+  // elements around during the keyboard animation. Instead we pin the panel by
+  // `top`, computed from VisualViewport, and re-pin on every resize/scroll so it
+  // stays glued just above the keyboard. Null = no keyboard, use resting CSS.
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isPremiumPost) { setCanUse(true); return; }
@@ -195,16 +198,25 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     }
   }
 
-  // Track the on-screen keyboard so the panel stays above it (see kbInset note)
+  // Pin the panel above the on-screen keyboard (see panelStyle note). Re-runs on
+  // message/loading changes too so the panel re-pins as its height grows.
   useEffect(() => {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!open || !vv) return;
+    const GAP = 12;
     const update = () => {
-      // Keyboard height = the slice of the layout viewport the visual viewport
-      // no longer covers. Clamp to avoid tiny negatives from rounding.
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKbInset(inset);
-      setVvHeight(vv.height);
+      // Keyboard height = layout viewport minus the still-visible visual
+      // viewport. A small threshold ignores browser-chrome jitter.
+      const keyboard = window.innerHeight - vv.height - vv.offsetTop;
+      if (keyboard < 80) {
+        setPanelStyle(null); // no keyboard: fall back to resting CSS position
+        return;
+      }
+      const maxHeight = Math.max(200, vv.height - GAP * 2);
+      const height = Math.min(panelRef.current?.offsetHeight ?? maxHeight, maxHeight);
+      // Place the panel's bottom edge GAP above the top of the keyboard.
+      const top = vv.offsetTop + vv.height - GAP - height;
+      setPanelStyle({ top, bottom: 'auto', maxHeight });
     };
     update();
     vv.addEventListener('resize', update);
@@ -212,10 +224,9 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     return () => {
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
-      setKbInset(0);
-      setVvHeight(null);
+      setPanelStyle(null);
     };
-  }, [open]);
+  }, [open, messages.length, loading]);
 
   // Stop narration when the panel closes or the component unmounts
   useEffect(() => {
@@ -298,16 +309,9 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
       {/* Chat panel */}
       {open && (
         <div
+          ref={panelRef}
           className="fixed bottom-24 right-6 z-50 w-[360px] max-w-[calc(100vw-3rem)] max-h-[520px] flex flex-col bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
-          style={
-            kbInset > 0
-              ? {
-                  // Lift above the keyboard and shrink to the visible viewport
-                  bottom: kbInset + 16,
-                  maxHeight: vvHeight ? Math.max(200, vvHeight - 32) : undefined,
-                }
-              : undefined
-          }
+          style={panelStyle ?? undefined}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
