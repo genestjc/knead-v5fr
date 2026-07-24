@@ -107,6 +107,14 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // On-screen-keyboard height. Mobile browsers shrink the visual viewport when
+  // the keyboard opens but leave `position: fixed` pinned to the (unchanged)
+  // layout viewport, so the input ends up hidden behind the keyboard — most
+  // noticeably in Instagram's in-app browser, which doesn't auto-resize layout.
+  // We track the keyboard height via VisualViewport and lift the panel by it.
+  const [kbInset, setKbInset] = useState(0);
+  const [vvHeight, setVvHeight] = useState<number | null>(null);
+
   useEffect(() => {
     if (!isPremiumPost) { setCanUse(true); return; }
     if (membershipType === 'premium') { setCanUse(true); return; }
@@ -148,6 +156,15 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     stopAudio(); // stop any other reply that's playing
     setAudioLoadingIdx(idx);
 
+    // Instagram's in-app browser (iOS WKWebView) only permits playback that
+    // begins inside the tap's user-activation window; the TTS fetch outlasts
+    // it, so a play() after the fetch is blocked. Create + unlock the element
+    // synchronously on this tap, then attach the fetched audio afterwards.
+    const audio = new Audio();
+    audioRef.current = audio;
+    audio.play().catch(() => {}); // unlock within the user gesture
+    audio.pause();
+
     try {
       const res = await fetch('/api/demeter/speak', {
         method: 'POST',
@@ -156,9 +173,10 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
       });
       if (!res.ok) throw new Error('TTS failed');
 
+      // A newer tap may have replaced/stopped this element while we waited
+      if (audioRef.current !== audio) return;
+
       const url = URL.createObjectURL(await res.blob());
-      const audio = new Audio(url);
-      audioRef.current = audio;
       const cleanup = () => {
         URL.revokeObjectURL(url);
         if (audioRef.current === audio) audioRef.current = null;
@@ -167,6 +185,7 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
       audio.onended = cleanup;
       audio.onerror = cleanup;
 
+      audio.src = url;
       await audio.play();
       setSpeakingIdx(idx);
     } catch {
@@ -175,6 +194,28 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
       setAudioLoadingIdx(null);
     }
   }
+
+  // Track the on-screen keyboard so the panel stays above it (see kbInset note)
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!open || !vv) return;
+    const update = () => {
+      // Keyboard height = the slice of the layout viewport the visual viewport
+      // no longer covers. Clamp to avoid tiny negatives from rounding.
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbInset(inset);
+      setVvHeight(vv.height);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      setKbInset(0);
+      setVvHeight(null);
+    };
+  }, [open]);
 
   // Stop narration when the panel closes or the component unmounts
   useEffect(() => {
@@ -256,7 +297,18 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     <div ref={wrapperRef}>
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[520px] flex flex-col bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden">
+        <div
+          className="fixed bottom-24 right-6 z-50 w-[360px] max-w-[calc(100vw-3rem)] max-h-[520px] flex flex-col bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
+          style={
+            kbInset > 0
+              ? {
+                  // Lift above the keyboard and shrink to the visible viewport
+                  bottom: kbInset + 16,
+                  maxHeight: vvHeight ? Math.max(200, vvHeight - 32) : undefined,
+                }
+              : undefined
+          }
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-black text-white shrink-0">
             <div className="flex items-center gap-2">
