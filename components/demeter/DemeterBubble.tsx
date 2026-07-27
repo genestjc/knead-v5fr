@@ -115,8 +115,8 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
   //      the resting bottom position already clears the keyboard — do nothing.
   //   3. Neither happens (Instagram's Android in-app WebView overlays the
   //      keyboard without resizing anything or firing VisualViewport): fall back
-  //      to the input's own focus event and lift the panel into the top of the
-  //      screen, where it clears a keyboard that occupies the bottom ~half.
+  //      to the input's own focus event and lift the panel so its bottom sits
+  //      just above an assumed keyboard covering the bottom ~half.
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -230,11 +230,18 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
         setPanelStyle(null);
         return;
       }
-      // Case 3: keyboard is up (input focused) but nothing resized or reported it
-      // — Instagram's Android in-app browser. Lift the panel into the top of the
-      // screen so its input clears a keyboard covering the bottom ~half.
+      // Case 3: keyboard is up (input focused) but nothing resized or reported
+      // it — Instagram's Android in-app browser. We can't measure the keyboard,
+      // so assume it covers the bottom ~half and anchor the panel's BOTTOM just
+      // above that line. Anchoring by bottom (not top) keeps the panel sitting
+      // right over the keyboard instead of floating up near the screen's top.
       if (inputFocused && isTouch) {
-        setPanelStyle({ top: GAP, bottom: 'auto', maxHeight: Math.round(window.innerHeight * 0.42) });
+        const assumedKeyboard = Math.round(window.innerHeight * 0.48);
+        setPanelStyle({
+          top: 'auto',
+          bottom: assumedKeyboard + GAP,
+          maxHeight: Math.max(200, window.innerHeight - assumedKeyboard - GAP * 2),
+        });
         return;
       }
       setPanelStyle(null); // no keyboard: resting CSS position
