@@ -8,13 +8,47 @@ interface ScrollFadeWrapperProps {
   children: React.ReactNode
 }
 
+// Fraction of the remaining distance the effects travel each frame. Lower values
+// make the cards lag further behind the real scroll position and take longer to
+// settle, which is what reads as weight.
+const SCROLL_DAMPING = 0.075
+
 export function ScrollFadeWrapper({ children }: ScrollFadeWrapperProps) {
   const [scrollY, setScrollY] = useState(0)
 
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY)
+    // Trail the real scroll position instead of matching it, so the stories carry
+    // momentum into and out of a scroll rather than snapping to it.
+    let damped = window.scrollY
+    let frame: number | null = null
+
+    setScrollY(damped)
+
+    const tick = () => {
+      const target = window.scrollY
+      damped += (target - damped) * SCROLL_DAMPING
+
+      // Once we're within a sub-pixel of the target, land on it and let the loop
+      // idle until the next scroll rather than animating forever.
+      if (Math.abs(target - damped) < 0.1) {
+        setScrollY(target)
+        frame = null
+        return
+      }
+
+      setScrollY(damped)
+      frame = requestAnimationFrame(tick)
+    }
+
+    const handleScroll = () => {
+      if (frame === null) frame = requestAnimationFrame(tick)
+    }
+
     window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      if (frame !== null) cancelAnimationFrame(frame)
+    }
   }, [])
 
   // Calculate opacity based on scroll position
@@ -46,9 +80,9 @@ export function ScrollFadeWrapper({ children }: ScrollFadeWrapperProps) {
 
   // Enhanced floating transform with more breathing feeling
   const getFloatTransform = (index: number) => {
-    // Enhanced floating speeds and amounts for more breathing effect
-    const floatSpeed = 0.08 + index * 0.015 // Slightly slower for more graceful movement
-    const floatAmount = 6 + index * 1.2 // Increased float distance for more presence
+    // Slow, wide drift - a heavier body swings further and less often
+    const floatSpeed = 0.06 + index * 0.011
+    const floatAmount = 8 + index * 1.6
 
     // Add a secondary wave for more complex breathing motion
     const secondaryFloat = Math.sin(scrollY * floatSpeed * 0.007) * (floatAmount * 0.3)
@@ -60,7 +94,7 @@ export function ScrollFadeWrapper({ children }: ScrollFadeWrapperProps) {
     const combinedFloat = primaryFloat + secondaryFloat
 
     // Add subtle scale breathing effect
-    const scaleAmount = 1 + Math.sin(scrollY * floatSpeed * 0.008) * 0.008 // Very subtle scale breathing
+    const scaleAmount = 1 + Math.sin(scrollY * floatSpeed * 0.008) * 0.01 // Very subtle scale breathing
 
     return `translateY(${combinedFloat}px) scale(${scaleAmount})`
   }
@@ -74,7 +108,9 @@ export function ScrollFadeWrapper({ children }: ScrollFadeWrapperProps) {
       // Apply enhanced floating to all stories
       const floatTransform = getFloatTransform(index)
       ;(element as HTMLElement).style.transform = floatTransform
-      ;(element as HTMLElement).style.transition = "opacity 0.4s ease-out, transform 0.15s ease-out" // Slightly slower transform for smoother breathing
+      // The damped scroll value already smooths the motion, so a transform
+      // transition on top of it would only blur the settle.
+      ;(element as HTMLElement).style.transition = "opacity 0.4s ease-out"
       ;(element as HTMLElement).style.transformOrigin = "center center" // Ensure scale happens from center
 
       // Skip opacity changes for Blvck Svm - let CSS animation handle it
