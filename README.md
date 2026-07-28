@@ -82,7 +82,8 @@ paywall with free-article allowance.
 **Community** — end-to-end encrypted group chat on Towns Protocol, direct messages, live
 video events via Daily, reactions, announcements, and on-chain governance proposals.
 Because Towns keys live only on member devices, a **headless key sharer** runs as an
-always-on bot member so new joiners can decrypt history (`server/key-sharer.ts`).
+always-on bot member so new joiners can decrypt history. It's deployed from its own repo;
+`server/key-sharer.ts` is an earlier browserless variant kept for reference.
 
 **Contributor economy** — contributor NFTs, weighted USDC pool distribution, allowances, and
 proposal-triggered payouts, driven by three Vercel crons (`vercel.json`) behind `CRON_SECRET`.
