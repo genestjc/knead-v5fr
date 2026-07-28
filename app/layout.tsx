@@ -22,7 +22,6 @@ export const metadata: Metadata = {
     title: "Knead",
     description: "Nourishment for the creative spirit.",
   },
-  generator: 'v0.dev'
 }
 
 export const viewport: Viewport = {

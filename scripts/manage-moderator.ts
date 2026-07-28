@@ -31,7 +31,7 @@ const ROLES_ABI = [
 async function main() {
   const targetWallet = process.argv[2];
   
-  if (!targetWallet || !ethers.isAddress(targetWallet)) {
+  if (!targetWallet || !ethers.utils.isAddress(targetWallet)) {
     console.error('❌ Please provide a valid wallet address');
     console.log('Usage: npx tsx scripts/manage-moderator.ts <wallet-address>');
     process.exit(1);
@@ -47,7 +47,7 @@ async function main() {
     process.exit(1);
   }
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
   const wallet = new ethers.Wallet(privateKey, provider);
   const rolesContract = new ethers.Contract(spaceAddress, ROLES_ABI, wallet);
 
@@ -58,7 +58,7 @@ async function main() {
   console.log(`👤 Target wallet: ${targetWallet}`);
   console.log(`🔐 From wallet: ${wallet.address}\n`);
 
-  const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+  const abiCoder = ethers.utils.defaultAbiCoder;
   const encodedUsers = abiCoder.encode(['address[]'], [[targetWallet]]);
 
   const roleId = 3; // Moderator role
