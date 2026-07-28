@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       card: {
         last4: card.pan.slice(-4),
         expiry: card.expiry,
-        billingZip: card.billing_zip,
+        billingZip: card.billingZip,
       },
     });
   } catch (err: unknown) {

@@ -67,7 +67,7 @@ const ERC1155_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS!;
           tokenId,
         });
         console.log(
-          `🪙 ERC1155 Token ID ${tokenId} balance: ${erc1155Balance.value}`,
+          `🪙 ERC1155 Token ID ${tokenId} balance: ${erc1155Balance}`,
         );
       }
     }

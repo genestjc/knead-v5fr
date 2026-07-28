@@ -133,9 +133,10 @@ Being straight about the state of things:
 - **No automated test suite.** `scripts/smoke-gpt-5-6.ts` is the only validation harness. This
   is the biggest gap.
 - **No CI.** Checks are run locally before merge.
-- **~168 TypeScript errors**, so `next.config.mjs` currently sets `ignoreBuildErrors` to keep
-  deploys unblocked. Roughly a third clear with a `target: ES2020` bump; the rest are mostly
-  thirdweb transaction generics and Stripe API version drift. Being paid down.
+- **~91 TypeScript errors**, so `next.config.mjs` currently sets `ignoreBuildErrors` to keep
+  deploys unblocked. What's left is concentrated and understood: ~31 are thirdweb v5
+  transaction generics (`PreparedTransaction`, `gasLimit`), 4 are a Stripe `apiVersion` pin,
+  and most of the rest are strict-null gaps around env vars and CMS fields. Being paid down.
 - Several components have grown too large (`app/chat/connected-chat.tsx` is the worst offender)
   and want decomposition.
 - File naming is inconsistent between kebab-case and PascalCase at the `components/` root.

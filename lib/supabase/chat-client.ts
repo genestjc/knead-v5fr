@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import type { ChatUser, UserPermissions, ActionType, EventType, ParticipantTier } from '@/types/chat';
-import { getTierFromPoints } from '@/lib/chat/config';
 import { getSupabaseAdmin } from './server';
 import { logger } from '../logger';
 import { formatAddressForDisplay } from '../utils/transformers';
