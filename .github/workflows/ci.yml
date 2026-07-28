@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typecheck:
+    name: Typecheck (ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      # The build still sets ignoreBuildErrors while pre-existing type debt is
+      # paid down, so a plain `tsc --noEmit` would fail on day one and get
+      # ignored. Instead we ratchet: the error count may fall, never rise.
+      # Lower BASELINE whenever you clear errors — that's the point.
+      - name: Typecheck
+        env:
+          BASELINE: 83
+        run: |
+          npx tsc --noEmit 2>&1 | tee tsc.log || true
+          COUNT=$(grep -cE 'error TS' tsc.log || true)
+          echo "TypeScript errors: $COUNT (baseline $BASELINE)"
+          if [ "$COUNT" -gt "$BASELINE" ]; then
+            echo "::error::Type errors rose from $BASELINE to $COUNT."
+            echo "New errors are most likely among these:"
+            grep -E 'error TS' tsc.log | head -40
+            exit 1
+          fi
+          if [ "$COUNT" -lt "$BASELINE" ]; then
+            echo "::notice::Errors dropped to $COUNT — lower BASELINE in .github/workflows/ci.yml to lock the win in."
+          fi
+
+      # Unresolved imports and undefined identifiers crash at runtime rather
+      # than failing the build, and TypeScript's import elision can hide them
+      # until someone actually uses the symbol. Never let a new one in.
+      #
+      # Scoped to code that ships in the bundle. server/ and scripts/ are
+      # standalone processes run by hand, where a bad import fails loudly for
+      # the operator instead of silently for a user. server/key-sharer.ts is a
+      # known-stale reference artifact the build assistant surfaces.
+      - name: Fail on unresolved imports
+        run: |
+          if grep -E "error TS(2304|2307|2305|2724)" tsc.log \
+             | grep -vE '^(server|scripts)/'; then
+            echo "::error::Unresolved import or undefined identifier in shipped code — these crash at runtime."
+            exit 1
+          fi
+          echo "No unresolved imports in shipped code."
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      # Route handlers validate their env at module load, so page-data
+      # collection needs every key present. Derive throwaway values from the
+      # committed .env.example so this never drifts as variables are added.
+      - name: Synthesize a placeholder env
+        run: |
+          awk -F= '/^[A-Z_]+=/ {
+            k=$1; v=substr($0, index($0,"=")+1)
+            if (v=="") {
+              if (k ~ /_URL$/)            v="https://example.com"
+              else if (k ~ /ADDRESS|WALLET/) v="0x0000000000000000000000000000000000000000"
+              else if (k ~ /PRIVATE_KEY/) v="0x0000000000000000000000000000000000000000000000000000000000000001"
+              else                        v="placeholder"
+            }
+            print k"="v
+          }' .env.example > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co" >> .env.local
+          echo "UPSTASH_REDIS_REST_URL=" >> .env.local
+
+      - run: npm run build

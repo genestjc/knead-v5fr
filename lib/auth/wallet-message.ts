@@ -1,3 +1,5 @@
+import type { SignedRequestContext } from '@/lib/auth/request-binding';
+
 /**
  * Canonical message any wallet signs to prove control of its private key for a
  * privileged (non-admin) API call — contributor tipping, agent commands, DAO
@@ -11,13 +13,20 @@
  * *authorization* (NFT / role / event membership) on top of the recovered
  * address.
  */
-export function buildWalletAuthMessage(address: string, timestamp: string): string {
+export function buildWalletAuthMessage(
+  address: string,
+  timestamp: string,
+  request: SignedRequestContext,
+): string {
   return [
     'Knead Wallet Authentication',
     '',
-    'Sign this message to authorize this action. This signature cannot be reused after it expires.',
+    'Sign this message to authorize this exact request. This signature cannot be reused for a different action.',
     `Address: ${address.toLowerCase()}`,
     `Timestamp: ${timestamp}`,
+    `Method: ${request.method.toUpperCase()}`,
+    `Path: ${request.path}`,
+    `Body SHA-256: ${request.bodyHash}`,
   ].join('\n');
 }
 
@@ -25,6 +34,9 @@ export function buildWalletAuthMessage(address: string, timestamp: string): stri
 export const WALLET_AUTH_HEADERS = {
   address: 'x-wallet-address',
   timestamp: 'x-wallet-timestamp',
+  method: 'x-wallet-method',
+  path: 'x-wallet-path',
+  bodyHash: 'x-wallet-body-sha256',
   signature: 'x-wallet-signature',
 } as const;
 

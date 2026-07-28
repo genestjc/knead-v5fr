@@ -130,13 +130,15 @@ scripts/        operational + validation scripts
 
 Being straight about the state of things:
 
-- **No automated test suite.** `scripts/smoke-gpt-5-6.ts` is the only validation harness. This
-  is the biggest gap.
-- **No CI.** Checks are run locally before merge.
-- **~91 TypeScript errors**, so `next.config.mjs` currently sets `ignoreBuildErrors` to keep
+- **No automated test suite.** CI (below) runs a typecheck and a build, but nothing asserts
+  behaviour. `scripts/smoke-gpt-5-6.ts` is the only behavioural harness and it's run by hand.
+  This is the biggest remaining gap; `lib/ai/router.ts` is where it would pay off first.
+- **~83 TypeScript errors**, so `next.config.mjs` still sets `ignoreBuildErrors` to keep
   deploys unblocked. What's left is concentrated and understood: ~31 are thirdweb v5
   transaction generics (`PreparedTransaction`, `gasLimit`), 4 are a Stripe `apiVersion` pin,
-  and most of the rest are strict-null gaps around env vars and CMS fields. Being paid down.
+  and most of the rest are strict-null gaps around env vars and CMS fields.
+  CI ratchets the count so it can only fall, and fails outright on any unresolved import in
+  shipped code — the class of defect that survives compilation and crashes at runtime.
 - Several components have grown too large (`app/chat/connected-chat.tsx` is the worst offender)
   and want decomposition.
 - File naming is inconsistent between kebab-case and PascalCase at the `components/` root.
