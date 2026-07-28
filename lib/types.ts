@@ -16,15 +16,3 @@ export interface Post {
   author: Author
   isPremium?: boolean
 }
-
-export interface ShopifyProduct {
-  id: string
-  title: string
-  description: string
-  handle: string
-  price: string
-  currency: string
-  image: string
-  imageAlt: string
-  images?: Array<{ url: string; altText: string }> // For product detail page
-}
