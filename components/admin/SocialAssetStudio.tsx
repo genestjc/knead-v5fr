@@ -19,6 +19,26 @@ const INK = '#141414';
 const WHITE = '#ffffff';
 const BLACK = '#000000';
 
+/** All formats export at 1080px wide; type sizes are authored against that width. */
+const BASE_WIDTH = 1080;
+
+type TypeKey = 'kicker' | 'headline' | 'body' | 'byline';
+
+/** Default type sizes in export pixels, plus the range each slider allows. */
+const TYPE_SIZES: Record<TypeKey, { label: string; default: number; min: number; max: number }> = {
+  kicker: { label: 'Kicker', default: 28, min: 14, max: 64 },
+  headline: { label: 'Headline', default: 81, min: 32, max: 180 },
+  body: { label: 'Body copy', default: 35, min: 18, max: 110 },
+  byline: { label: 'Byline', default: 30, min: 14, max: 72 },
+};
+
+const DEFAULT_TYPE_SIZES = {
+  kicker: TYPE_SIZES.kicker.default,
+  headline: TYPE_SIZES.headline.default,
+  body: TYPE_SIZES.body.default,
+  byline: TYPE_SIZES.byline.default,
+};
+
 type Style = { bold: boolean; italic: boolean; underline: boolean };
 type Run = { text: string; style: Style };
 
@@ -202,8 +222,10 @@ export function SocialAssetStudio() {
   const [posY, setPosY] = useState(0.5);
   const [zoom, setZoom] = useState(1);
   const [imagePan, setImagePan] = useState(50);
+  const [typeSizes, setTypeSizes] = useState<Record<TypeKey, number>>(DEFAULT_TYPE_SIZES);
   const [showWordmark, setShowWordmark] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
+  const [overflowing, setOverflowing] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -301,13 +323,14 @@ export function SocialAssetStudio() {
         wordmarkBottom = topSafe + kSize + W * 0.03;
       }
 
-      // Measure the text block
-      const kickerSize = W * 0.026;
-      const headlineSize = W * 0.075;
+      // Measure the text block — sizes are authored at 1080px wide and scale with the format
+      const typeScale = W / BASE_WIDTH;
+      const kickerSize = typeSizes.kicker * typeScale;
+      const headlineSize = typeSizes.headline * typeScale;
       const headlineLine = headlineSize * 1.12;
-      const bodySize = W * 0.032;
+      const bodySize = typeSizes.body * typeScale;
       const bodyLine = bodySize * 1.3;
-      const bylineSize = W * 0.028;
+      const bylineSize = typeSizes.byline * typeScale;
 
       const headlineFamily = '"adonis-web", serif';
       const bodyFamily = '"Georgia Pro", Georgia, serif';
@@ -335,14 +358,21 @@ export function SocialAssetStudio() {
           Math.max(0, bodyParas.length - 1) * bodyPara;
       if (byline) blockHeight += W * 0.035 + bylineSize;
 
+      // Space the text block may occupy without hitting the wordmark or safe areas
+      const blockTop = showWordmark ? wordmarkBottom : topSafe;
+      const blockAvailable = H - bottomSafe - blockTop;
+      setOverflowing(blockHeight > blockAvailable);
+
       let y: number;
       if (textPosition === 'bottom') {
         y = H - bottomSafe - blockHeight;
       } else if (textPosition === 'top') {
-        y = wordmarkBottom;
+        y = blockTop;
       } else {
         y = (H - blockHeight) / 2;
       }
+      // Never let an oversized block ride up over the wordmark or off the top
+      y = Math.max(y, blockTop);
 
       // Kicker
       ctx.textAlign = 'left';
@@ -418,6 +448,7 @@ export function SocialAssetStudio() {
       headline,
       bodyText,
       byline,
+      typeSizes,
       showWordmark,
     ],
   );
@@ -447,6 +478,9 @@ export function SocialAssetStudio() {
   }
 
   const { w: exportW, h: exportH } = FORMATS[format];
+  const sizesChanged = (Object.keys(TYPE_SIZES) as TypeKey[]).some(
+    (k) => typeSizes[k] !== DEFAULT_TYPE_SIZES[k],
+  );
 
   return (
     <div className="grid gap-8 lg:grid-cols-[380px_1fr] items-start">
@@ -555,6 +589,54 @@ export function SocialAssetStudio() {
               className="w-full text-sm font-georgia-pro bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black"
             />
           </div>
+        </div>
+
+        {/* Type sizes */}
+        <div>
+          <div className="flex items-baseline justify-between mb-2">
+            <span className="font-georgia-pro text-xs uppercase tracking-wide text-gray-500">
+              Type sizes
+            </span>
+            <button
+              onClick={() => setTypeSizes(DEFAULT_TYPE_SIZES)}
+              disabled={!sizesChanged}
+              className="font-georgia-pro text-[11px] text-gray-400 hover:text-black transition disabled:opacity-40 disabled:hover:text-gray-400"
+            >
+              Reset
+            </button>
+          </div>
+          <div className="space-y-3">
+            {(Object.keys(TYPE_SIZES) as TypeKey[]).map((key) => {
+              const { label, min, max } = TYPE_SIZES[key];
+              return (
+                <div key={key}>
+                  <label className="flex justify-between font-georgia-pro text-xs text-gray-500 mb-1">
+                    <span>{label}</span>
+                    <span className="tabular-nums">{typeSizes[key]}px</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    value={typeSizes[key]}
+                    onChange={(e) =>
+                      setTypeSizes((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                    }
+                    className="w-full accent-black"
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {overflowing ? (
+            <p className="mt-2 font-georgia-pro text-[11px] text-amber-600">
+              Text is taller than the frame — reduce a size or trim the copy.
+            </p>
+          ) : (
+            <p className="mt-2 font-georgia-pro text-[11px] text-gray-400">
+              Sizes are in export pixels on the {BASE_WIDTH}px-wide canvas.
+            </p>
+          )}
         </div>
 
         {/* Layout controls */}
