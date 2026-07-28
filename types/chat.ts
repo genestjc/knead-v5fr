@@ -187,19 +187,6 @@ export interface PaginatedResponse<T> {
   total?: number;
 }
 
-export interface ModerationResult {
-  flagged: boolean;
-  score: number;
-  categories: {
-    hate: number;
-    harassment: number;
-    selfHarm: number;
-    sexual: number;
-    violence: number;
-  };
-  message?: string;
-}
-
 // Simplified permissions returned by /api/chat/permissions
 export interface SimpleChatPermissions {
   canView: boolean;
