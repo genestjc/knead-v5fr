@@ -22,6 +22,20 @@ const BLACK = '#000000';
 /** All formats export at 1080px wide; type sizes are authored against that width. */
 const BASE_WIDTH = 1080;
 
+const ADONIS = 'adonis-web';
+const GEORGIA = 'Georgia Pro';
+
+/**
+ * Every weight/style combination the renderer can emit. `styledFont` draws bold
+ * as 700 and italic from the inline markup, so all four combinations of each
+ * brand family have to be loaded before anything is painted.
+ */
+const BRAND_FONT_SPECS = [ADONIS, GEORGIA].flatMap((family) =>
+  ['400', '700', 'italic 400', 'italic 700'].map((weight) => `${weight} 100px "${family}"`),
+);
+
+const isAdonis = (spec: string) => spec.includes(ADONIS);
+
 type TypeKey = 'kicker' | 'headline' | 'body' | 'byline';
 
 /** Default type sizes in export pixels, plus the range each slider allows. */
@@ -226,21 +240,32 @@ export function SocialAssetStudio() {
   const [showWordmark, setShowWordmark] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
   const [overflowing, setOverflowing] = useState(false);
+  const [missingFonts, setMissingFonts] = useState<string[]>([]);
   const [fontsReady, setFontsReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Load brand fonts into the document so canvas can use them
+  // Load brand fonts into the document so canvas can use them.
+  // Canvas never lazy-loads a face the way DOM text does — an unloaded face is
+  // silently swapped for a fallback serif — so every weight/style the renderer
+  // can emit has to be loaded up front, not just the regulars.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      document.fonts.load('400 100px "adonis-web"'),
-      document.fonts.load('400 100px "Georgia Pro"'),
-      document.fonts.load('italic 400 100px "Georgia Pro"'),
-    ])
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setFontsReady(true);
-      });
+    (async () => {
+      // Wait for the Typekit stylesheet to be parsed; its @font-face rules must
+      // exist before the faces can be requested by name.
+      try {
+        await document.fonts.ready;
+      } catch {}
+      await Promise.all(
+        BRAND_FONT_SPECS.map((spec) => document.fonts.load(spec).catch(() => {})),
+      );
+      if (cancelled) return;
+      const missing = BRAND_FONT_SPECS.filter((spec) => !document.fonts.check(spec));
+      setMissingFonts(
+        Array.from(new Set(missing.map((spec) => (isAdonis(spec) ? 'Adonis' : 'Georgia Pro')))),
+      );
+      setFontsReady(true);
+    })();
     return () => {
       cancelled = true;
     };
@@ -758,6 +783,19 @@ export function SocialAssetStudio() {
             </label>
           )}
         </div>
+
+        {/* Brand fonts are non-negotiable — never let a fallback export out quietly */}
+        {missingFonts.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+            <p className="font-georgia-pro text-xs text-amber-900">
+              <strong className="font-semibold">
+                {missingFonts.join(' and ')} didn&apos;t load.
+              </strong>{' '}
+              The preview and export are falling back to a substitute serif. Check your
+              connection and reload before downloading.
+            </p>
+          </div>
+        )}
 
         {/* Download */}
         <button
