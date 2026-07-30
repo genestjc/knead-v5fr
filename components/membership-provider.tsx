@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useToast } from "@/hooks/use-toast";
 import { createThirdwebClient } from "thirdweb";
@@ -25,6 +25,17 @@ const MembershipContext = createContext<MembershipContextProps | undefined>(unde
 
 const MEMBERSHIP_CACHE_KEY = "knead_membership_cache";
 
+/**
+ * How long we'll block on a first-visit membership check before letting the UI
+ * move on. The check is two Base contract reads; if the RPC never answers, the
+ * promise never settles, and `isLoading` used to stay true for the life of the
+ * page. Anything reading `isLoading` as "probably a member" (hasAccess does, to
+ * avoid paywall flicker) then stayed wrong forever — which is how the
+ * free-article CTA went missing for signed-in readers. The check keeps running
+ * past this deadline; its answer is applied whenever it lands.
+ */
+const MEMBERSHIP_CHECK_TIMEOUT_MS = 8000;
+
 interface CachedMembership {
   type: MembershipType;
   address: string;
@@ -36,6 +47,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
   const [membershipType, setMembershipType] = useState<MembershipType>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestedAddress = useRef<string | null>(null);
   const { toast } = useToast();
 
   const checkMembershipFromContract = async (address: string): Promise<MembershipType> => {
@@ -107,18 +119,24 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
   };
 
   const fetchMembershipType = async (address: string) => {
+    // Guards against a slow check for a previous wallet landing after the reader
+    // switched accounts and overwriting the current wallet's membership.
+    requestedAddress.current = address;
+    const isStale = () => requestedAddress.current !== address;
+
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const cachedMembership = getCachedMembership(address);
       if (cachedMembership) {
         setMembershipType(cachedMembership.type);
         setIsLoading(false);
-        
+
         // Silent background verification — no loading state, no flicker
         checkMembershipFromContract(address)
           .then(freshMembership => {
+            if (isStale()) return;
             if (freshMembership !== cachedMembership.type) {
               console.log("[membership-provider] 🔄 Cache outdated, updating:", freshMembership);
               localStorage.removeItem(MEMBERSHIP_CACHE_KEY);
@@ -127,27 +145,64 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
             }
           })
           .catch(err => console.error("[membership-provider] Background check failed:", err));
-        
+
         return;
       }
-      
-      // No cache — fetch from blockchain
-      const contractMembership = await checkMembershipFromContract(address);
-      cacheMembership(address, contractMembership);
-      setMembershipType(contractMembership);
-      
+
+      // No cache — fetch from blockchain, but don't let an unanswered RPC keep
+      // the whole app in its loading state.
+      const contractCheck = checkMembershipFromContract(address);
+      const applyResult = (membership: MembershipType) => {
+        if (isStale()) return;
+        cacheMembership(address, membership);
+        setMembershipType(membership);
+      };
+
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = await Promise.race([
+        contractCheck.then(() => false),
+        new Promise<boolean>((resolve) => {
+          timeoutId = setTimeout(() => resolve(true), MEMBERSHIP_CHECK_TIMEOUT_MS);
+        }),
+      ]);
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (timedOut) {
+        console.warn(
+          `[membership-provider] ⏱️ Membership check still pending after ${MEMBERSHIP_CHECK_TIMEOUT_MS}ms — treating as no membership until it answers`,
+        );
+        if (!isStale()) {
+          setMembershipType(null);
+          setIsLoading(false);
+        }
+        // Not cached above: a late answer is still authoritative, so apply it.
+        contractCheck
+          .then(applyResult)
+          .catch(err => console.error("[membership-provider] Late membership check failed:", err));
+        return;
+      }
+
+      applyResult(await contractCheck);
+
     } catch (error: any) {
       console.error("[membership-provider] Error fetching membership:", error);
-      setError("Couldn't verify membership status");
-      setMembershipType(null);
+      if (!isStale()) {
+        setError("Couldn't verify membership status");
+        setMembershipType(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (!isStale()) {
+        setIsLoading(false);
+      }
     }
   };
 
   // Check membership on wallet connect/disconnect
   useEffect(() => {
     if (!account?.address) {
+      // Clearing this discards any in-flight check for the wallet that just
+      // disconnected, so its result can't be applied to a signed-out reader.
+      requestedAddress.current = null;
       setMembershipType(null);
       setIsLoading(false);
       setError(null);

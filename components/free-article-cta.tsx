@@ -21,9 +21,19 @@ import {
 } from "@stripe/react-stripe-js";
 import { memberFetch } from "@/lib/auth/member-fetch";
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
-);
+// Loaded on demand rather than at module scope. This CTA mounts on every free
+// story, so a module-scope loadStripe() pulled js.stripe.com into all of those
+// page loads — and if the publishable key is missing from the environment, the
+// rejected promise nobody was awaiting surfaced as a console error on every
+// article. Nothing here needs Stripe until the reader opens the payment modal.
+let stripePromise: ReturnType<typeof loadStripe> | null = null;
+
+const getStripe = () => {
+  if (!stripePromise) {
+    stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+  }
+  return stripePromise;
+};
 
 function PaymentForm({
   onSuccess,
@@ -90,7 +100,7 @@ function PaymentForm({
 
 export function FreeArticleCTA() {
   const account = useActiveAccount();
-  const { hasAccess, isLoading, refreshMembership } = useMembership();
+  const { membershipType, isLoading, refreshMembership } = useMembership();
   const { toast } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -207,8 +217,17 @@ export function FreeArticleCTA() {
       }
     : null;
 
-  // Don't show CTA if already a member
-  if (paymentVerified || hasAccess("premium")) {
+  // Don't show the CTA to confirmed members. This deliberately reads
+  // `membershipType` rather than `hasAccess("premium")`: hasAccess reports
+  // premium for *any* connected wallet while the membership check is in flight,
+  // so a slow (or stalled) check hid this CTA from signed-in non-members —
+  // permanently, in the stalled case. A connected wallet whose check is still
+  // running is held back too — that's what keeps the upsell from flashing at a
+  // paying member — but membership-provider now bounds that wait, so a wedged
+  // RPC can no longer hide the CTA for the life of the page.
+  const membershipUnresolved = Boolean(account?.address) && isLoading;
+
+  if (paymentVerified || membershipType === "premium" || membershipUnresolved) {
     return null;
   }
 
@@ -242,12 +261,14 @@ export function FreeArticleCTA() {
               <li>Receive gifts from Contributors in the chat.</li>
             </ul>
 
-            {isLoading || isVerifying ? (
+            {/* Membership loading no longer reaches this branch — the whole CTA
+                is withheld while a connected wallet resolves — so signed-out
+                readers get the sign-in button straight out of the server render
+                instead of a placeholder that pulses until hydration. */}
+            {isVerifying ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="animate-pulse h-12 bg-gray-100 rounded w-full" />
-                {isVerifying && (
-                  <p className="text-sm text-gray-600 font-georgia-pro">Verifying your payment...</p>
-                )}
+                <p className="text-sm text-gray-600 font-georgia-pro">Verifying your payment...</p>
               </div>
             ) : account?.address ? (
               <button
@@ -259,7 +280,7 @@ export function FreeArticleCTA() {
                   <>
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                     Loading...
                   </>
@@ -292,7 +313,7 @@ export function FreeArticleCTA() {
             </DialogDescription>
           </DialogHeader>
           {clientSecret && stripeOptions && (
-            <Elements stripe={stripePromise} options={stripeOptions}>
+            <Elements stripe={getStripe()} options={stripeOptions}>
               <PaymentForm onSuccess={handlePaymentSuccess} />
             </Elements>
           )}
