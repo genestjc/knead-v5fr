@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { appendTurns, listCriteria, mapRun, mapTurn } from '@/lib/eval/store';
 import { getPersona } from '@/lib/eval/personas';
 import { nextPersonaMessage } from '@/lib/eval/driver';
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const body = await req.json().catch(() => null);
