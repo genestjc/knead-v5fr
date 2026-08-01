@@ -14,7 +14,7 @@ import { client as sanity } from '@/lib/sanity';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { appendTurns, mapRun, mapTurn } from '@/lib/eval/store';
-import { getPersona } from '@/lib/eval/personas';
+import { getPersona, normalizePersonaGoal } from '@/lib/eval/personas';
 import { DRIVER_MODELS } from '@/lib/eval/driver';
 import {
   CONVERSATIONAL_SURFACES,
@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
   const userAgent = userAgentFor(persona);
   const origin = req.nextUrl.origin;
 
+  // Optional. Stored on the run so every step reads the same goal and a saved
+  // run still says what it was sent in to do.
+  const personaGoal = normalizePersonaGoal(body?.personaGoal);
+
   const metadata = {
     slug: slug || null,
     recipeIds: Array.isArray(body?.recipeIds) ? body.recipeIds : [],
@@ -86,6 +90,7 @@ export async function POST(req: NextRequest) {
     userAgent,
     origin,
     inAppBrowser: persona.inAppBrowser ?? null,
+    personaGoal: personaGoal || null,
   };
 
   try {

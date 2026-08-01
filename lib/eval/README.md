@@ -43,6 +43,14 @@ and server-to-server calls all share the deploy's egress IP, so two long
 concurrent runs can trip it. A 429 is recorded as a turn with its log rather than
 crashing the run.
 
+**A persona can carry a goal.** The optional *Persona goal* field under the
+persona cards says what this person came to get done ("get a share caption that
+doesn't sound like an ad"). It's stored on the run as `metadata.personaGoal` and
+handed to the driver as motivation, not a script — the persona still decides how
+it asks and still reacts to what comes back. Blank is the old behavior: the walk
+is steered only by the rubric coverage brief. The judge never sees it; it grades
+the agent's replies, not whether the persona got what it wanted.
+
 **Conversations are stepped from the browser**, one exchange per request. A stall
 never costs you the turns already collected, and you watch the transcript build.
 

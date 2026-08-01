@@ -125,6 +125,8 @@ export async function startAgentRun(
   input: {
     surface: string;
     persona: string;
+    /** Optional errand the persona pursues, in character, for this run. */
+    personaGoal?: string;
     provider: EvalProvider;
     slug?: string;
     recipeIds?: string[];

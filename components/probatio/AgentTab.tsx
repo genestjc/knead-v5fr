@@ -13,7 +13,7 @@ import { useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
 import type { EvalCriterion, EvalProvider, EvalRun, EvalSurface, EvalTurn } from '@/lib/eval/types';
 import { EVAL_SURFACES } from '@/lib/eval/types';
-import { PERSONAS } from '@/lib/eval/personas';
+import { MAX_PERSONA_GOAL_CHARS, PERSONAS } from '@/lib/eval/personas';
 import { SURFACE_BLOCKERS, CONVERSATIONAL_SURFACES } from '@/lib/eval/surfaces';
 import { startAgentRun, stepAgentRun } from './api';
 import { Banner, KNEAD_RED, SectionLabel, TranscriptView } from './shared';
@@ -36,6 +36,7 @@ export function AgentTab({
 }) {
   const [surface, setSurface] = useState<EvalSurface>('article-agent');
   const [personaId, setPersonaId] = useState(PERSONAS[0].id);
+  const [personaGoal, setPersonaGoal] = useState('');
   const [provider, setProvider] = useState<EvalProvider>('claude');
   const [slug, setSlug] = useState('');
   const [surfaceModel, setSurfaceModel] = useState<'sonnet-5' | 'gpt-5'>('sonnet-5');
@@ -69,6 +70,7 @@ export function AgentTab({
       const started = await startAgentRun(account, {
         surface,
         persona: personaId,
+        personaGoal: personaGoal.trim() || undefined,
         provider,
         slug: slug.trim() || undefined,
         surfaceModel,
@@ -164,6 +166,37 @@ export function AgentTab({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Persona goal — optional. The personas describe how someone
+              behaves, not what they came for; a goal pins the walk to one
+              errand without changing the character. Left blank, the run
+              explores as before. */}
+          <div>
+            <SectionLabel>
+              Persona goal <span className="normal-case tracking-normal">· optional</span>
+            </SectionLabel>
+            <textarea
+              value={personaGoal}
+              onChange={(e) => setPersonaGoal(e.target.value.slice(0, MAX_PERSONA_GOAL_CHARS))}
+              disabled={running}
+              rows={3}
+              maxLength={MAX_PERSONA_GOAL_CHARS}
+              placeholder={`What is ${persona.name} trying to get done? e.g. "Get something they can post to their story without it sounding like an ad."`}
+              className="w-full text-sm font-georgia-pro border border-gray-300 rounded-md p-2.5 outline-none focus:border-black disabled:opacity-50 resize-y"
+            />
+            <div className="mt-1 flex items-start justify-between gap-4">
+              <p className="text-[12px] text-gray-500 font-georgia-pro">
+                {CONVERSATIONAL_SURFACES.includes(surface)
+                  ? 'Handed to the driver as motivation, not a script — it stays in character and still reacts to what the agent says. Leave it empty and the persona just explores.'
+                  : 'Saved with the run for reference. This surface is a probe, not a conversation, so nothing is being steered.'}
+              </p>
+              {personaGoal.length > 0 && (
+                <span className="text-[11px] font-mono text-gray-400 shrink-0 pt-0.5">
+                  {personaGoal.length}/{MAX_PERSONA_GOAL_CHARS}
+                </span>
+              )}
             </div>
           </div>
 

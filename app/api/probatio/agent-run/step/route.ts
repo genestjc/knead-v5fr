@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       surface,
       criteria,
       context,
+      goal: run.metadata?.personaGoal ?? null,
       exchanges,
     });
 
