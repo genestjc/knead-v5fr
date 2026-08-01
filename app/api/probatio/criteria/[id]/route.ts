@@ -8,13 +8,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { mapCriterion } from '@/lib/eval/store';
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const body = await req.json().catch(() => null);
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const hard = req.nextUrl.searchParams.get('hard') === 'true';
