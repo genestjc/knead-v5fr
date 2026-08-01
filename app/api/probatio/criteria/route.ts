@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { listCriteria, mapCriterion } from '@/lib/eval/store';
 import { EVAL_SURFACES } from '@/lib/eval/types';
 
@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const VALID_SURFACES = EVAL_SURFACES.map((s) => s.id) as string[];
 
 export async function GET(req: NextRequest) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   try {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const body = await req.json().catch(() => null);
