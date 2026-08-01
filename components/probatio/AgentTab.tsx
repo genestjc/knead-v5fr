@@ -154,7 +154,11 @@ export function AgentTab({
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-[12px] leading-snug text-gray-500 font-georgia-pro line-clamp-3">
+                    {/* Full blurb, no clamp — picking a persona is the one
+                        decision that shapes the whole run, so the description
+                        has to be readable at the moment you choose. Grid rows
+                        stretch, so cards in a row stay level. */}
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-gray-500 font-georgia-pro">
                       {p.blurb}
                     </p>
                   </button>
