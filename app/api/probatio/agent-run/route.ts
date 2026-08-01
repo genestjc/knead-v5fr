@@ -10,6 +10,7 @@
  * run comes back complete.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { client as sanity } from '@/lib/sanity';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { appendTurns, mapRun, mapTurn } from '@/lib/eval/store';
@@ -47,9 +48,30 @@ export async function POST(req: NextRequest) {
   const persona = getPersona(personaId);
   if (!persona) return NextResponse.json({ error: 'Unknown persona' }, { status: 400 });
 
-  const slug = body?.slug ? String(body.slug).trim() : '';
+  const slug = normalizeSlug(body?.slug);
   if ((surface === 'article-agent' || surface === 'audio-summaries') && !slug) {
     return NextResponse.json({ error: 'An article slug is required for this surface' }, { status: 400 });
+  }
+
+  // Verify the story exists BEFORE burning a run on it. Demeter's chat route
+  // falls back to generic mode when the slug matches nothing — it starts
+  // hunting for the article with its search tools ("let me find it… found
+  // it"), which looks like a working run but scores every article-specific
+  // criterion against the wrong context. Better to refuse up front.
+  if (surface === 'article-agent' || surface === 'audio-summaries') {
+    const check = await verifyArticleExists(slug);
+    if (!check.exists) {
+      return NextResponse.json(
+        {
+          error:
+            `No published story has the slug "${slug}". The field wants the bare slug — the part after /posts/ — not the full path or URL.` +
+            (check.suggestions.length
+              ? ` Recent slugs: ${check.suggestions.join(', ')}`
+              : ''),
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const maxTurns = clamp(Number(body?.maxTurns ?? persona.defaultTurns), 1, 20);
@@ -145,4 +167,50 @@ export async function POST(req: NextRequest) {
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(Math.round(value), min), max);
+}
+
+/**
+ * Accept what people actually paste. Sanity matches `slug.current` exactly, so
+ * a full URL, a leading `/posts/`, a trailing slash, or a `?utm_…` tail all
+ * silently match nothing — copying a story's address out of the browser is the
+ * obvious thing to do, and it used to fail without saying so.
+ */
+function normalizeSlug(raw: unknown): string {
+  let slug = String(raw ?? '').trim();
+  if (!slug) return '';
+
+  // Full URL → pathname
+  try {
+    if (/^https?:\/\//i.test(slug)) slug = new URL(slug).pathname;
+  } catch {
+    /* not a parseable URL — keep going with the raw string */
+  }
+
+  slug = slug.split('?')[0].split('#')[0];
+  slug = slug.replace(/^\/+/, '').replace(/\/+$/, '');
+  slug = slug.replace(/^posts\//i, '');
+
+  return slug.trim();
+}
+
+/** Does a published story with this slug exist? Returns recent slugs if not. */
+async function verifyArticleExists(
+  slug: string,
+): Promise<{ exists: boolean; suggestions: string[] }> {
+  try {
+    const found = await sanity.fetch(`count(*[_type == "post" && slug.current == $slug])`, {
+      slug,
+    });
+    if (found > 0) return { exists: true, suggestions: [] };
+
+    const suggestions = await sanity.fetch(
+      `*[_type == "post" && defined(slug.current)] | order(publishedAt desc)[0...5].slug.current`,
+    );
+    return { exists: false, suggestions: Array.isArray(suggestions) ? suggestions : [] };
+  } catch (err) {
+    // Sanity being unreachable shouldn't block a run — let it proceed and
+    // surface the real problem in the transcript instead.
+    console.error('[probatio] slug check failed:', err);
+    return { exists: true, suggestions: [] };
+  }
 }
