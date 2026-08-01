@@ -38,6 +38,23 @@ Over the course of the conversation, steer — in character, in your own words �
 ${areas}`;
 }
 
+/**
+ * The tester's optional goal for this run. It sits between the persona and the
+ * coverage brief on purpose: it says what this person came to get done, while
+ * the persona still decides how they go about it. Kept as motivation rather
+ * than instruction so the driver doesn't recite it as a checklist.
+ */
+function goalBrief(goal: string | null | undefined): string {
+  const text = String(goal ?? '').trim();
+  if (!text) return '';
+  return `
+
+WHAT YOU CAME HERE TO DO
+${text}
+
+That is what you actually want out of this session. Pursue it the way this person would — in your own words, at your own pace, in character. Never quote this as an instruction, never announce it, and never abandon your personality to chase it. If the agent leads somewhere interesting, follow it; if you get what you came for, react like this person would and keep going from there.`;
+}
+
 export interface DriverParams {
   persona: Persona;
   provider: EvalProvider;
@@ -45,14 +62,16 @@ export interface DriverParams {
   criteria: EvalCriterion[];
   /** Article title/slug or build context, so the persona knows what it opened. */
   context: string;
+  /** Optional tester-written goal for this run. */
+  goal?: string | null;
   /** Persona message → agent reply, oldest first. */
   exchanges: { personaMessage: string; agentReply: string }[];
 }
 
 export async function nextPersonaMessage(params: DriverParams): Promise<string> {
-  const { persona, provider, surface, criteria, context, exchanges } = params;
+  const { persona, provider, surface, criteria, context, goal, exchanges } = params;
 
-  const system = `${persona.systemPrompt}${coverageBrief(criteria)}
+  const system = `${persona.systemPrompt}${goalBrief(goal)}${coverageBrief(criteria)}
 
 WHERE YOU ARE
 You are using ${surfaceLabel(surface)} on Knead Magazine's website.

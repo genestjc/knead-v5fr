@@ -99,6 +99,16 @@ export function RunDetail({
             {run.metadata?.slug && (
               <p className="mt-1 text-xs font-mono text-gray-400">/posts/{run.metadata.slug}</p>
             )}
+            {/* The goal the persona was sent in with, so a saved run still
+                explains what it was trying to do. */}
+            {run.metadata?.personaGoal && (
+              <p className="mt-2 text-[13px] leading-relaxed text-gray-600 font-georgia-pro">
+                <span className="text-[11px] uppercase tracking-[0.12em] text-gray-400 mr-2">
+                  Goal
+                </span>
+                {run.metadata.personaGoal}
+              </p>
+            )}
           </div>
 
           {onClose && (

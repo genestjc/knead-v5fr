@@ -152,3 +152,21 @@ How you behave:
 export function getPersona(id: string): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);
 }
+
+/**
+ * Optional per-run goal — one thing the tester wants this persona to be after.
+ *
+ * The six personas describe *how* someone behaves, not what they came for, so
+ * an unguided run wanders wherever the rubric coverage brief pulls it. A goal
+ * pins the session to a specific errand ("get a share caption for this piece",
+ * "find out if it can export the project") without changing the character. It
+ * is deliberately short: it's a motivation handed to the driver, not a script.
+ */
+export const MAX_PERSONA_GOAL_CHARS = 600;
+
+/** Trim and bound a tester-supplied goal. Empty input means "no goal". */
+export function normalizePersonaGoal(raw: unknown): string {
+  return String(raw ?? '')
+    .trim()
+    .slice(0, MAX_PERSONA_GOAL_CHARS);
+}
