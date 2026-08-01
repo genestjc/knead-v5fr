@@ -14,7 +14,7 @@ import type { EvalCriterion, EvalProvider, EvalRun } from '@/lib/eval/types';
 import { surfaceLabel } from '@/lib/eval/types';
 import { getPersona } from '@/lib/eval/personas';
 import { judge as runJudge } from './api';
-import { Banner, SectionLabel, TranscriptView } from './shared';
+import { Banner, KNEAD_RED, SectionLabel, TranscriptView } from './shared';
 import { GradingPanel } from './GradingPanel';
 
 export function RunDetail({
@@ -24,7 +24,7 @@ export function RunDetail({
   onRefresh,
   onClose,
 }: {
-  account: Account;
+  account: Account | null;
   run: EvalRun;
   criteria: EvalCriterion[];
   onRefresh: () => void;
@@ -112,7 +112,15 @@ export function RunDetail({
         </div>
       </div>
 
-      {/* Judge controls */}
+      {/* Transcript */}
+      <div className="px-6 py-5 border-b border-gray-200">
+        <SectionLabel>Full conversation · {turns.length} turns</SectionLabel>
+        <TranscriptView turns={turns} />
+      </div>
+
+      {/* Judge controls — the conversation is done, so this is the moment the
+          run gets scored. Sits directly above human grading so the two graders
+          read as one step: hand it to a model, or do it yourself. */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/60">
         <div className="flex items-center gap-3 flex-wrap">
           <SectionLabel>LLM as a judge</SectionLabel>
@@ -147,7 +155,7 @@ export function RunDetail({
         )}
 
         {run.summary && (
-          <div className="mt-4 border-l-2 pl-4" style={{ borderColor: '#FF6B6B' }}>
+          <div className="mt-4 border-l-2 pl-4" style={{ borderColor: KNEAD_RED }}>
             <SectionLabel>
               Summary
               {run.summaryAuthor && run.summaryAuthor !== 'human'
@@ -159,12 +167,6 @@ export function RunDetail({
             </p>
           </div>
         )}
-      </div>
-
-      {/* Transcript */}
-      <div className="px-6 py-5 border-b border-gray-200">
-        <SectionLabel>Full conversation · {turns.length} turns</SectionLabel>
-        <TranscriptView turns={turns} />
       </div>
 
       {/* Grading */}

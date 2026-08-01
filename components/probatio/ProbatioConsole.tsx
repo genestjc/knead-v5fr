@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
 import type { EvalCriterion, EvalRun, EvalSurface } from '@/lib/eval/types';
+import { PROBATIO_DEMO_MODE } from '@/lib/eval/demo-mode';
 import { fetchCriteria, fetchRun, fetchRuns } from './api';
 import { Banner } from './shared';
 import { RubricTab } from './RubricTab';
@@ -31,7 +32,7 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
   },
 ];
 
-export function ProbatioConsole({ account }: { account: Account }) {
+export function ProbatioConsole({ account }: { account: Account | null }) {
   const [tab, setTab] = useState<TabId>('human');
   const [surface, setSurface] = useState<EvalSurface>('article-agent');
 
@@ -48,7 +49,8 @@ export function ProbatioConsole({ account }: { account: Account }) {
   // and two API calls per render.
   const accountRef = useRef(account);
   accountRef.current = account;
-  const address = account.address;
+  // Null in demo mode, where there is no wallet to key on.
+  const address = account?.address ?? 'demo';
 
   const loadCriteria = useCallback(async () => {
     try {
@@ -144,6 +146,24 @@ export function ProbatioConsole({ account }: { account: Account }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-10">
+        {/* Auth bypass is loud on purpose — a demo build must never quietly
+            become a production one. Flip PROBATIO_DEMO_MODE to false to
+            restore wallet auth and this disappears. */}
+        {PROBATIO_DEMO_MODE && (
+          <div className="mb-6 border border-red-300 bg-red-50 rounded-md px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-red-700 font-medium">
+              Demo mode · authentication disabled
+            </p>
+            <p className="mt-1 font-georgia-pro text-sm text-red-900">
+              Wallet auth is bypassed on this page and every{' '}
+              <span className="font-mono text-[13px]">/api/probatio/*</span> route. Anyone with the
+              URL can read transcripts, start agent runs against your API keys, and delete runs. Set{' '}
+              <span className="font-mono text-[13px]">PROBATIO_DEMO_MODE = false</span> in{' '}
+              <span className="font-mono text-[13px]">lib/eval/demo-mode.ts</span> to restore it.
+            </p>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6">
             <Banner onDismiss={() => setError(null)}>{error}</Banner>

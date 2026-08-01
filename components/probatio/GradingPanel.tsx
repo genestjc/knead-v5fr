@@ -21,7 +21,7 @@ export function GradingPanel({
   criteria,
   onSaved,
 }: {
-  account: Account;
+  account: Account | null;
   run: EvalRun;
   criteria: EvalCriterion[];
   onSaved: () => void;

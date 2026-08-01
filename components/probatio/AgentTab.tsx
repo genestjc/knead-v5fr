@@ -27,7 +27,7 @@ export function AgentTab({
   onRefreshRuns,
   onRefreshSelected,
 }: {
-  account: Account;
+  account: Account | null;
   criteria: EvalCriterion[];
   selectedRun: EvalRun | null;
   onSelectRun: (id: string | null) => void;

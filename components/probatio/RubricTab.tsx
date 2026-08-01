@@ -29,7 +29,7 @@ export function RubricTab({
   onRefreshRuns,
   onRefreshSelected,
 }: {
-  account: Account;
+  account: Account | null;
   criteria: EvalCriterion[];
   runs: EvalRun[];
   surface: EvalSurface;
@@ -214,7 +214,7 @@ function CriterionRow({
   onChanged,
   onError,
 }: {
-  account: Account;
+  account: Account | null;
   criterion: EvalCriterion;
   index: number;
   onChanged: () => void;
@@ -375,7 +375,7 @@ function AddCriterion({
   onAdded,
   onError,
 }: {
-  account: Account;
+  account: Account | null;
   surface: EvalSurface;
   onAdded: () => void;
   onError: (msg: string) => void;
@@ -475,7 +475,7 @@ function RecordRun({
   onSaved,
   onError,
 }: {
-  account: Account;
+  account: Account | null;
   surface: EvalSurface;
   onSaved: () => void;
   onError: (msg: string) => void;
