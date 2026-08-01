@@ -13,6 +13,7 @@ import { useActiveAccount, useActiveWalletConnectionStatus, ConnectButton } from
 import { base } from 'thirdweb/chains';
 import { client } from '@/thirdweb-client';
 import { createKneadWallets } from '@/lib/wallets';
+import { PROBATIO_DEMO_MODE } from '@/lib/eval/demo-mode';
 import { ProbatioConsole } from '@/components/probatio/ProbatioConsole';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,12 @@ export default function ProbatioParsleyPage() {
 
   // Built on mount so the in-app wallet's OAuth redirect returns here.
   const [wallets] = useState(() => createKneadWallets());
+
+  // Demo mode: skip the wallet gate entirely and hand the console a null
+  // account, which makes its API calls go out unsigned. See lib/eval/demo-mode.ts.
+  if (PROBATIO_DEMO_MODE) {
+    return <ProbatioConsole account={null} />;
+  }
 
   if (!account) {
     if (!autoConnectSettled && (connectionStatus === 'connecting' || connectionStatus === 'unknown')) {
