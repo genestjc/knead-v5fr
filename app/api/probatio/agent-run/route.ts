@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { verifyAdminRequest } from '@/lib/admin/verify-admin-request';
+import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { appendTurns, mapRun, mapTurn } from '@/lib/eval/store';
 import { getPersona } from '@/lib/eval/personas';
 import { DRIVER_MODELS } from '@/lib/eval/driver';
@@ -29,7 +29,7 @@ export const maxDuration = 300;
 const VALID_SURFACES = EVAL_SURFACES.map((s) => s.id) as string[];
 
 export async function POST(req: NextRequest) {
-  const auth = await verifyAdminRequest(req);
+  const auth = await requireProbatioAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const body = await req.json().catch(() => null);
