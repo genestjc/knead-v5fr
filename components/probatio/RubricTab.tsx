@@ -4,7 +4,7 @@
  * Human Evaluation / Rubric Setting — the source of truth.
  *
  * Everything the Agent Evaluation tab scores against is defined here: the
- * edge cases per surface, editable in place. Below the rubric sit the saved
+ * test cases per surface, editable in place. Below the rubric sit the saved
  * runs, where a human can record a session (or paste a real transcript),
  * read the behavior logs, and grade it by hand.
  */
@@ -76,7 +76,7 @@ export function RubricTab({
                 <div
                   className={`mt-1 text-[11px] font-mono ${active ? 'text-gray-300' : 'text-gray-400'}`}
                 >
-                  {count} edge case{count === 1 ? '' : 's'}
+                  {count} test case{count === 1 ? '' : 's'}
                 </div>
               </button>
             );
@@ -90,7 +90,7 @@ export function RubricTab({
           <div>
             <h2 className="font-adonis text-3xl">Rubric</h2>
             <p className="font-georgia-pro text-sm text-gray-600 mt-1">
-              Pass/fail edge cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}. These
+              Pass/fail test cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}. These
               are what both human graders and the LLM judge score against.
             </p>
           </div>
@@ -118,7 +118,7 @@ export function RubricTab({
           ))}
           {surfaceCriteria.length === 0 && (
             <p className="p-6 text-sm text-gray-500 font-georgia-pro italic text-center">
-              No edge cases for this surface yet.
+              No test cases for this surface yet.
             </p>
           )}
         </div>
@@ -392,14 +392,14 @@ function AddCriterion({
         onClick={() => setOpen(true)}
         className="mt-3 text-xs uppercase tracking-[0.12em] text-gray-500 hover:text-black transition-colors"
       >
-        + Add an edge case
+        + Add a test case
       </button>
     );
   }
 
   return (
     <div className="mt-3 border border-gray-300 rounded-lg p-4">
-      <SectionLabel>New edge case</SectionLabel>
+      <SectionLabel>New test case</SectionLabel>
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}

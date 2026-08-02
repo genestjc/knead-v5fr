@@ -23,7 +23,7 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
   {
     id: 'human',
     label: 'Human Evaluation / Rubric Setting',
-    sub: 'Define the edge cases. Grade by hand.',
+    sub: 'Define the test cases. Grade by hand.',
   },
   {
     id: 'agent',
@@ -113,7 +113,7 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
           </div>
           <p className="mt-3 font-georgia-pro text-[15px] text-gray-600 max-w-2xl">
             The rubric defined here is the single source of truth. Agent runs are scored against
-            these same edge cases — by you, or by Claude or GPT reading the full logs.
+            these same test cases — by you, or by Claude or GPT reading the full logs.
           </p>
         </div>
 

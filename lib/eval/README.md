@@ -28,7 +28,7 @@ through `lib/ai/router.ts`.
 | File | Role |
 | --- | --- |
 | `types.ts` | Shared shapes, mirroring the migration |
-| `rubric-seed.ts` | The 35 starter edge cases, with grading guidance and polarity |
+| `rubric-seed.ts` | The 35 starter test cases, with grading guidance and polarity |
 | `personas.ts` | The six user-types and their driver prompts |
 | `driver.ts` | The model that plays the user (Sonnet / Terra) |
 | `surfaces.ts` | HTTP drivers for the real endpoints, plus the audio cache probe |

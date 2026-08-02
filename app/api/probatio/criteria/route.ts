@@ -1,8 +1,8 @@
 /**
  * The rubric — the single source of truth for both tabs.
  *
- * GET  lists it (seeding the starter edge cases on first run).
- * POST adds a new edge case.
+ * GET  lists it (seeding the starter test cases on first run).
+ * POST adds a new test case.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';

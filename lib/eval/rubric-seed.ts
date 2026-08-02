@@ -1,7 +1,7 @@
 /**
  * The starting rubric for Probatio Parsley.
  *
- * These 35 edge cases are seeded into `eval_criteria` the first time the
+ * These 35 test cases are seeded into `eval_criteria` the first time the
  * console loads against an empty table. After that the DB is the source of
  * truth — admins add, edit, and delete rows in the Human Evaluation tab and
  * this file is never re-applied. It exists so a fresh environment (or a reset)
