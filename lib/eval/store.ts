@@ -73,7 +73,7 @@ export function mapRun(row: any): EvalRun {
 }
 
 /**
- * Load the rubric, seeding the 35 starter edge cases the first time this runs
+ * Load the rubric, seeding the 35 starter test cases the first time this runs
  * against an empty table. Seeding is best-effort: if two admins open the
  * console simultaneously the second insert may lose the race, so we re-read
  * afterwards rather than trusting our own insert.
