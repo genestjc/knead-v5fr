@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import zlib from 'node:zlib';
-import { promisify } from 'node:util';
 import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 import { isOpenSourceRequestAuthorized } from '@/lib/open-source-auth';
+import {
+  buildStarterReadme,
+  isExportBlockedPath,
+  isSecretEnvFile,
+} from '@/lib/open-source-starter-kit';
+import { buildZip } from '@/lib/zip';
+import { fetchKneadFile, FULL_MAX_FILE_BYTES, KNEAD_BRANCH, KNEAD_REPO } from '@/lib/github';
 
-const deflateRaw = promisify(zlib.deflateRaw);
-
-const GITHUB_REPO = process.env.KNEAD_GITHUB_REPO ?? 'kneadmag/knead';
-const GITHUB_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
+// The repo, branch and auth all come from lib/github.ts so this route and the
+// chat assistant can never disagree about where Knead's source lives. They
+// used to: this route defaulted to a repo that does not exist and read through
+// raw.githubusercontent.com, so with no env override every "repo" file in a
+// starter kit came back as a "file not found" comment stub.
+const GITHUB_REPO = KNEAD_REPO;
+const GITHUB_BRANCH = KNEAD_BRANCH;
 
 interface ZipFile {
   path: string;
@@ -17,22 +25,7 @@ interface ZipFile {
 
 const MAX_REPO_FILES = 20;
 const MAX_GENERATED_FILES = 10;
-const MAX_REPO_FILE_BYTES = 500_000;
 const MAX_GENERATED_FILE_BYTES = 200_000;
-
-const BLOCKED_REPO_PREFIXES = [
-  'app/admin/',
-  'app/api/admin/',
-  'app/api/agent/',
-  'lib/admin/',
-];
-
-const BLOCKED_REPO_FILES = new Set([
-  'lib/agent.ts',
-  'lib/agentcard.ts',
-  'lib/thirdweb-server-wallet.ts',
-  'vercel.json',
-]);
 
 function normalizeZipPath(path: unknown): string | null {
   if (typeof path !== 'string') return null;
@@ -43,19 +36,6 @@ function normalizeZipPath(path: unknown): string | null {
   if (normalized.endsWith('/')) return null;
   if (!/^[A-Za-z0-9._@/-]+$/.test(normalized)) return null;
   return normalized;
-}
-
-function isEnvFile(path: string): boolean {
-  const basename = path.split('/').pop() ?? '';
-  return basename.startsWith('.env') && basename !== '.env.example';
-}
-
-function isBlockedRepoPath(path: string): boolean {
-  return (
-    isEnvFile(path) ||
-    BLOCKED_REPO_FILES.has(path) ||
-    BLOCKED_REPO_PREFIXES.some((prefix) => path.startsWith(prefix))
-  );
 }
 
 async function hasZipAccess(req: NextRequest): Promise<boolean> {
@@ -70,132 +50,24 @@ async function hasZipAccess(req: NextRequest): Promise<boolean> {
   return Boolean(auth.ok);
 }
 
-// ---------- minimal ZIP builder (no external deps) ----------
-
-function crc32(buf: Buffer): number {
-  const table = makeCrc32Table();
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-let _crcTable: number[] | null = null;
-function makeCrc32Table(): number[] {
-  if (_crcTable) return _crcTable;
-  _crcTable = [];
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    _crcTable[n] = c;
-  }
-  return _crcTable;
-}
-
-function writeUInt16LE(n: number): Buffer {
-  const b = Buffer.allocUnsafe(2);
-  b.writeUInt16LE(n, 0);
-  return b;
-}
-function writeUInt32LE(n: number): Buffer {
-  const b = Buffer.allocUnsafe(4);
-  b.writeUInt32LE(n, 0);
-  return b;
-}
-
-async function buildZip(files: { name: string; content: Buffer }[]): Promise<Buffer> {
-  const localHeaders: Buffer[] = [];
-  const centralDir: Buffer[] = [];
-  let offset = 0;
-
-  for (const file of files) {
-    const name = Buffer.from(file.name, 'utf8');
-    const compressed = await deflateRaw(file.content);
-    const crc = crc32(file.content);
-
-    // Local file header
-    const local = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x03, 0x04]), // signature
-      writeUInt16LE(20),                       // version needed
-      writeUInt16LE(0),                        // general purpose bits
-      writeUInt16LE(8),                        // compression: deflate
-      writeUInt16LE(0),                        // mod time
-      writeUInt16LE(0),                        // mod date
-      writeUInt32LE(crc),
-      writeUInt32LE(compressed.length),
-      writeUInt32LE(file.content.length),
-      writeUInt16LE(name.length),
-      writeUInt16LE(0),                        // extra length
-      name,
-      compressed,
-    ]);
-
-    // Central directory entry
-    const central = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x01, 0x02]), // signature
-      writeUInt16LE(20),                       // version made by
-      writeUInt16LE(20),                       // version needed
-      writeUInt16LE(0),
-      writeUInt16LE(8),
-      writeUInt16LE(0),
-      writeUInt16LE(0),
-      writeUInt32LE(crc),
-      writeUInt32LE(compressed.length),
-      writeUInt32LE(file.content.length),
-      writeUInt16LE(name.length),
-      writeUInt16LE(0),
-      writeUInt16LE(0),
-      writeUInt16LE(0),
-      writeUInt16LE(0),
-      writeUInt32LE(0),
-      writeUInt32LE(offset),
-      name,
-    ]);
-
-    localHeaders.push(local);
-    centralDir.push(central);
-    offset += local.length;
-  }
-
-  const centralDirBuf = Buffer.concat(centralDir);
-  const eocd = Buffer.concat([
-    Buffer.from([0x50, 0x4b, 0x05, 0x06]), // end of central dir signature
-    writeUInt16LE(0),
-    writeUInt16LE(0),
-    writeUInt16LE(files.length),
-    writeUInt16LE(files.length),
-    writeUInt32LE(centralDirBuf.length),
-    writeUInt32LE(offset),
-    writeUInt16LE(0),
-  ]);
-
-  return Buffer.concat([...localHeaders, centralDirBuf, eocd]);
-}
-
 // ---------- route ----------
 
-async function fetchRepoFile(path: string): Promise<string> {
-  const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${path}`;
-  try {
-    const res = await fetch(url, {
-      headers: process.env.GITHUB_TOKEN
-        ? { Authorization: `token ${process.env.GITHUB_TOKEN}` }
-        : {},
-    });
-    if (!res.ok) return `// File not found in repo: ${path}\n`;
-    const contentLength = Number(res.headers.get('content-length'));
-    if (Number.isFinite(contentLength) && contentLength > MAX_REPO_FILE_BYTES) {
-      return `// File too large to include in starter kit: ${path}\n`;
-    }
-    const text = await res.text();
-    if (Buffer.byteLength(text, 'utf8') > MAX_REPO_FILE_BYTES) {
-      return `// File too large to include in starter kit: ${path}\n`;
-    }
-    return text;
-  } catch {
-    return `// Could not fetch ${path}\n`;
+/**
+ * Pull one repo file for the bundle. Returns null when it can't be had —
+ * a starter kit full of `// File not found` comments looks like working code
+ * and wastes a beginner's afternoon, so a file we can't pull is left out and
+ * named in the README instead.
+ */
+async function fetchStarterFile(path: string): Promise<string | null> {
+  const result = await fetchKneadFile(path, FULL_MAX_FILE_BYTES);
+  if (!result.ok) return null;
+  // Truncated means the file is larger than FULL_MAX_FILE_BYTES; half a source
+  // file is worse than none, because it still parses as a plausible start.
+  if (result.truncated) {
+    console.error(`[open-source/zip] ${path} exceeds ${FULL_MAX_FILE_BYTES} bytes; omitting`);
+    return null;
   }
+  return result.content;
 }
 
 const ENV_EXAMPLE = `# Copy this file to .env.local and fill in your values
@@ -234,8 +106,9 @@ MUX_TOKEN_SECRET=
 DAILY_API_KEY=
 
 # Towns Protocol — https://docs.towns.com
-NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID=
-NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID=
+# (generic names for your own project — Knead's internal ones differ)
+NEXT_PUBLIC_TOWNS_SPACE_ID=
+NEXT_PUBLIC_TOWNS_DEFAULT_CHANNEL_ID=
 KEY_SHARER_PRIVATE_KEY=
 
 # NFT contract on Base (deploy your own or fork Knead's)
@@ -270,49 +143,94 @@ export async function POST(req: NextRequest) {
     const repoFiles: ZipFile[] = [];
     const generatedFiles: ZipFile[] = [];
 
+    // One malformed entry used to fail the whole download, so a single odd
+    // path from the model cost the builder their entire starter kit. Bad
+    // entries are dropped and the rest is still packaged; only a proposal with
+    // nothing usable left in it is rejected outright.
     for (const file of files) {
       const path = normalizeZipPath(file?.path);
-      if (!path) {
-        return NextResponse.json({ error: 'Invalid file path in ZIP request' }, { status: 400 });
-      }
+      if (!path) continue;
 
-      if (file.source === 'repo') {
-        if (isBlockedRepoPath(path)) {
-          return NextResponse.json({ error: `File is not exportable: ${path}` }, { status: 400 });
-        }
-        if (repoFiles.length < MAX_REPO_FILES) repoFiles.push({ ...file, path });
+      // Be forgiving about `source`: the assistant occasionally sends a
+      // near-miss value, and the intent is unambiguous from whether it also
+      // supplied content.
+      const source: 'repo' | 'generated' =
+        file?.source === 'repo' || file?.source === 'generated'
+          ? file.source
+          : typeof file?.content === 'string' && file.content.trim().length > 0
+            ? 'generated'
+            : 'repo';
+
+      if (source === 'repo') {
+        if (isExportBlockedPath(path)) continue;
+        if (repoFiles.length < MAX_REPO_FILES) repoFiles.push({ ...file, path, source });
         continue;
       }
 
-      if (file.source === 'generated') {
-        const content = file.content ?? '';
-        if (isEnvFile(path) || Buffer.byteLength(content, 'utf8') > MAX_GENERATED_FILE_BYTES) {
-          return NextResponse.json({ error: `Generated file is not exportable: ${path}` }, { status: 400 });
-        }
-        if (generatedFiles.length < MAX_GENERATED_FILES) generatedFiles.push({ ...file, path, content });
+      const content = file.content ?? '';
+      if (isSecretEnvFile(path) || Buffer.byteLength(content, 'utf8') > MAX_GENERATED_FILE_BYTES) continue;
+      if (generatedFiles.length < MAX_GENERATED_FILES) {
+        generatedFiles.push({ ...file, path, content, source });
       }
     }
 
-    const repoContents = await Promise.all(repoFiles.map((f) => fetchRepoFile(f.path)));
+    if (repoFiles.length === 0 && generatedFiles.length === 0) {
+      return NextResponse.json(
+        { error: 'No usable files were listed for this starter kit — ask Demeter to pick the files again.' },
+        { status: 400 },
+      );
+    }
+
+    const repoContents = await Promise.all(repoFiles.map((f) => fetchStarterFile(f.path)));
+
+    const included: { path: string; source: 'repo' | 'generated'; content: string }[] = [];
+    const missing: string[] = [];
 
     for (let i = 0; i < repoFiles.length; i++) {
-      resolvedFiles.push({
-        name: repoFiles[i].path,
-        content: Buffer.from(repoContents[i], 'utf8'),
-      });
+      const content = repoContents[i];
+      if (content === null) {
+        missing.push(repoFiles[i].path);
+        continue;
+      }
+      included.push({ path: repoFiles[i].path, source: 'repo', content });
+    }
+
+    // Every repo file failed: the kit would be nothing but the README and an
+    // env template. Say so plainly rather than handing over an empty bundle
+    // that looks like it worked.
+    if (repoFiles.length > 0 && included.length === 0) {
+      console.error(`[open-source/zip] every repo lookup failed for ${GITHUB_REPO}@${GITHUB_BRANCH}`);
+      return NextResponse.json(
+        {
+          error: `Couldn't pull any of those files from ${GITHUB_REPO}. Nothing was packaged — ask Demeter to try different files, or grab them from github.com/${GITHUB_REPO} directly.`,
+        },
+        { status: 502 },
+      );
     }
 
     for (const gf of generatedFiles) {
-      resolvedFiles.push({
-        name: gf.path,
-        content: Buffer.from(gf.content ?? '', 'utf8'),
-      });
+      included.push({ path: gf.path, source: 'generated', content: gf.content ?? '' });
     }
 
-    // Always include README and .env.example
+    for (const file of included) {
+      resolvedFiles.push({ name: file.path, content: Buffer.from(file.content, 'utf8') });
+    }
+
+    // Always include README and .env.example. The README is assembled here
+    // rather than taken verbatim, so the deploy walkthrough is present even
+    // when the assistant's own instructions arrived thin or empty.
     resolvedFiles.push({
       name: 'README.md',
-      content: Buffer.from(setupInstructions || '# Knead Starter Kit\n\nSee .env.example for configuration.', 'utf8'),
+      content: Buffer.from(
+        buildStarterReadme({
+          included,
+          missing,
+          setupInstructions,
+          repo: GITHUB_REPO,
+          branch: GITHUB_BRANCH,
+        }),
+        'utf8',
+      ),
     });
     resolvedFiles.push({
       name: '.env.example',
@@ -327,10 +245,14 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/zip',
         'Content-Disposition': 'attachment; filename="knead-starter.zip"',
         'Content-Length': String(zip.length),
+        // Lets the client tell a full bundle from a partial one without
+        // unzipping, and makes a bad deploy debuggable from the network tab.
+        'X-Knead-Zip-Files': String(resolvedFiles.length),
+        'X-Knead-Zip-Missing': String(missing.length),
       },
     });
   } catch (err: any) {
-    console.error('[build/zip] error:', err.message);
+    console.error('[open-source/zip] error:', err.message);
     return NextResponse.json({ error: 'Failed to generate ZIP' }, { status: 500 });
   }
 }
