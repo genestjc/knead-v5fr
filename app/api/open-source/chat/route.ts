@@ -5,17 +5,24 @@ import { base } from 'thirdweb/chains';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { RECIPES, FREE_TURNS_PER_DAY, KNEAD_PHILOSOPHY, KEY_SHARER_GUIDE, type RecipeId } from '@/lib/build-recipes';
 import {
-  fetchFile,
+  fetchKneadFile,
   listDirectory,
   searchRepo,
   fetchVendorFile as vendorFetch,
   listVendorDirectory,
   searchVendorRepo,
   getRepoTree,
+  classifyRepoPaths,
+  renderVerbatimSource,
+  CHAT_MAX_FILE_BYTES,
+  FULL_MAX_FILE_BYTES,
+  KNEAD_BRANCH,
   KNEAD_REPO,
+  type RepoFetchFailure,
 } from '@/lib/github';
 import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA, type AgentTool } from '@/lib/ai/router';
 import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
+import { isExportBlockedPath } from '@/lib/open-source-starter-kit';
 
 // A multi-round tool loop can take well over Vercel's default function
 // duration; without this the function is killed mid-request and the client
@@ -209,13 +216,189 @@ async function webSearch(query: string): Promise<string> {
   return data.results?.map((r: any) => `${r.title}: ${r.content}`).join('\n\n') || 'No results found.';
 }
 
+// ---------- source retrieval ----------
+
+// Admin surfaces are off limits (rule 14). Enforced here as well as in the
+// prompt, because a prompt rule is a request and this is a boundary.
+const BLOCKED_PATH = /^(app\/admin\/|app\/api\/admin\/|lib\/admin\/)|(^|\/)\.env/;
+
+const MAX_WINDOW_LINES = 400;
+
+function explainFailure(failure: RepoFetchFailure | undefined, path: string): string {
+  switch (failure) {
+    case 'not-found':
+      return `There is no file at "${path}" in ${KNEAD_REPO}. Check the REPOSITORY MAP for the real path, or use search_repo.`;
+    case 'no-access':
+      return `${KNEAD_REPO} could not be read (the server's GitHub credentials are missing or rejected). This is an outage on our side, not a mistake the user made.`;
+    case 'rate-limited':
+      return 'GitHub rate-limited this lookup. It may work again shortly.';
+    default:
+      return 'The request to GitHub failed.';
+  }
+}
+
+/**
+ * Read a file from Knead's repo for the assistant, optionally a line window.
+ *
+ * Returns either a verbatim-marked block or an explicit failure notice. There
+ * is deliberately no middle ground: the assistant previously told users it was
+ * pasting "the real file straight from the repo" while holding nothing but a
+ * failed lookup, so every failure path here says, in words, that no content
+ * exists and must not be described as repo source.
+ */
+async function readSourceFile(args: any): Promise<string> {
+  const path = String(args?.path ?? '').trim().replace(/^\/+/, '');
+  if (!path) {
+    return 'LOOKUP FAILED — no path was given. You have no file content. Do not present any code as repo source.';
+  }
+  if (BLOCKED_PATH.test(path)) {
+    return `LOOKUP REFUSED — "${path}" is not readable. Choose a different file and do not describe this one's contents.`;
+  }
+
+  const start = Number(args?.start_line);
+  const end = Number(args?.end_line);
+  const wantsWindow = Number.isFinite(start) || Number.isFinite(end);
+
+  const result = await fetchKneadFile(
+    path,
+    wantsWindow ? FULL_MAX_FILE_BYTES : CHAT_MAX_FILE_BYTES,
+  );
+
+  if (!result.ok) {
+    return [
+      `LOOKUP FAILED — no content was returned for "${path}".`,
+      explainFailure(result.failure, path),
+      'You are holding NO source for this file. Do not paste code and call it the real file, and do not summarize what it contains. Tell the user plainly that you could not pull it, then either try a different path or offer to write an example clearly labelled as your own.',
+    ].join('\n');
+  }
+
+  if (!wantsWindow) {
+    return renderVerbatimSource({ label: `${KNEAD_REPO}@${KNEAD_BRANCH}`, result });
+  }
+
+  const lines = result.content.split('\n');
+  const from = Math.max(1, Math.min(Number.isFinite(start) ? start : 1, lines.length));
+  const requestedTo = Number.isFinite(end) ? end : lines.length;
+  const to = Math.max(from, Math.min(requestedTo, lines.length, from + MAX_WINDOW_LINES - 1));
+
+  return renderVerbatimSource({
+    label: `${KNEAD_REPO}@${KNEAD_BRANCH}`,
+    result,
+    window: { from, to },
+    body: lines.slice(from - 1, to).join('\n'),
+  });
+}
+
+// ---------- ZIP proposal validation ----------
+
+const MAX_ZIP_REPO_FILES = 20;
+const MAX_ZIP_GENERATED_FILES = 10;
+
+interface ValidatedZipProposal {
+  proposal: { files: { path: string; source: 'repo' | 'generated'; content?: string }[]; setupInstructions: string } | null;
+  /** What to tell the model — either confirmation or how to fix the call. */
+  message: string;
+}
+
+/**
+ * Turn a propose_zip_contents call into a proposal we can actually build, or
+ * into instructions precise enough for the model to fix it on the next round.
+ *
+ * The old executor recorded whatever it was handed and reported the raw count,
+ * so an empty or hallucinated file list became a download button that produced
+ * an empty bundle. Repo paths are checked against the real tree here, while
+ * the model still has rounds left to correct them.
+ */
+async function validateZipProposal(args: any): Promise<ValidatedZipProposal> {
+  const rawFiles = Array.isArray(args?.files) ? args.files : [];
+  const setupInstructions = typeof args?.setupInstructions === 'string' ? args.setupInstructions : '';
+
+  if (rawFiles.length === 0) {
+    return {
+      proposal: null,
+      message:
+        'ZIP NOT CREATED — the files array was empty. Nothing was saved and no download button is showing. Call propose_zip_contents again with at least one file: use exact paths from the REPOSITORY MAP with source "repo", and add source "generated" files only for short glue code you write yourself.',
+    };
+  }
+
+  const repoPaths: string[] = [];
+  const generated: { path: string; source: 'generated'; content: string }[] = [];
+  const rejected: string[] = [];
+
+  for (const file of rawFiles) {
+    const path = String(file?.path ?? '').trim().replace(/^\/+/, '');
+    // Same export rules the ZIP route enforces, so the count reported here is
+    // the count that actually gets packaged.
+    if (!path || path.includes('..') || BLOCKED_PATH.test(path) || isExportBlockedPath(path)) {
+      if (path) rejected.push(path);
+      continue;
+    }
+    const hasContent = typeof file?.content === 'string' && file.content.trim().length > 0;
+    if (file?.source === 'generated' || (file?.source !== 'repo' && hasContent)) {
+      if (!hasContent) {
+        rejected.push(path);
+        continue;
+      }
+      generated.push({ path, source: 'generated', content: file.content });
+      continue;
+    }
+    repoPaths.push(path);
+  }
+
+  // null means the repo tree is unavailable — unknown membership, so trust the
+  // paths rather than throwing away a whole kit over an outage.
+  const classified = repoPaths.length > 0 ? await classifyRepoPaths(repoPaths) : { known: [], unknown: [] };
+  const knownRepoPaths = classified ? classified.known : repoPaths;
+  const unknownRepoPaths = classified ? classified.unknown : [];
+
+  if (knownRepoPaths.length === 0 && generated.length === 0) {
+    return {
+      proposal: null,
+      message: [
+        'ZIP NOT CREATED — none of those paths exist in the repository, so nothing was saved and no download button is showing.',
+        unknownRepoPaths.length > 0 ? `Not in the repo: ${unknownRepoPaths.join(', ')}` : '',
+        'Call propose_zip_contents again using exact paths copied from the REPOSITORY MAP, or run search_repo first to find the right ones. Do not guess paths.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    };
+  }
+
+  const files = [
+    ...knownRepoPaths.slice(0, MAX_ZIP_REPO_FILES).map((path) => ({ path, source: 'repo' as const })),
+    ...generated.slice(0, MAX_ZIP_GENERATED_FILES),
+  ];
+
+  const notes = [
+    unknownRepoPaths.length > 0
+      ? `Left out (not in the repo): ${unknownRepoPaths.join(', ')} — mention only if the user asks what's inside.`
+      : '',
+    rejected.length > 0 ? `Left out (not exportable): ${rejected.join(', ')}` : '',
+    knownRepoPaths.length > MAX_ZIP_REPO_FILES
+      ? `Only the first ${MAX_ZIP_REPO_FILES} repo files were kept.`
+      : '',
+    setupInstructions.trim().length < 200
+      ? 'Your setup instructions were thin, so the README falls back to the standard GitHub → Vercel → env vars → deploy walkthrough. Walk the user through those steps in conversation too.'
+      : '',
+  ].filter(Boolean);
+
+  return {
+    proposal: { files, setupInstructions },
+    message: [
+      `ZIP READY — ${files.length} file(s) packaged (${knownRepoPaths.length} from the repo, ${generated.length} written by you). The download button is now showing under your reply.`,
+      ...notes,
+      'Tell the user the button is there and what is inside it. Do not call this tool again for the same kit.',
+    ].join('\n'),
+  };
+}
+
 // ---------- tools ----------
 
 const TOOLS: AgentTool[] = [
   {
     name: 'get_source_file',
     description:
-      "Fetch the source code of a file from Knead's open-source repository. Use this to show the user real implementation code for features they want to build.",
+      "Fetch the source code of a file from Knead's open-source repository. Returns the file between BEGIN/END VERBATIM SOURCE markers — that text is the only thing you may present to the user as Knead's real code, and it must be copied exactly. For a long file, read a section at a time with start_line/end_line so the excerpt you paste is complete rather than paraphrased.",
     parameters: {
       type: 'object',
       properties: {
@@ -223,6 +406,15 @@ const TOOLS: AgentTool[] = [
           type: 'string',
           description:
             "Relative file path in the Knead repo, e.g. 'app/api/check-membership/route.ts'",
+        },
+        start_line: {
+          type: 'number',
+          description:
+            'Optional 1-indexed first line to return. Use with end_line to pull one section of a long file (up to 400 lines per call).',
+        },
+        end_line: {
+          type: 'number',
+          description: 'Optional 1-indexed last line to return, inclusive.',
         },
       },
       required: ['path'],
@@ -365,25 +557,26 @@ const TOOLS: AgentTool[] = [
   {
     name: 'propose_zip_contents',
     description:
-      'Declare the list of files that should go into the downloadable starter ZIP. Call this once the user has decided what they want to build.',
+      "Declare the files that go into the downloadable starter ZIP, which puts a download button under your reply. Call it once the user has decided what they want to build. Almost every entry should be source 'repo' with an exact path from the REPOSITORY MAP — the server pulls those files itself, so you never retype code here. Repo paths are checked before the kit is saved: if they don't exist you'll be told, and nothing is saved until they do.",
     parameters: {
       type: 'object',
       properties: {
         files: {
           type: 'array',
+          description: 'At least one file. Up to 20 repo files and 10 generated files.',
           items: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'File path in the ZIP (e.g. app/api/check-membership/route.ts)' },
-              source: { type: 'string', enum: ['repo', 'generated'], description: "'repo' = pull from Knead's GitHub; 'generated' = text you write below" },
-              content: { type: 'string', description: 'Required when source is generated — the file content to write' },
+              path: { type: 'string', description: 'Exact repo path, copied from the REPOSITORY MAP (e.g. app/api/check-membership/route.ts). Never guess one.' },
+              source: { type: 'string', enum: ['repo', 'generated'], description: "'repo' = the server pulls this file from Knead's GitHub (preferred — leave content empty); 'generated' = short glue code you write yourself" },
+              content: { type: 'string', description: 'Only for source "generated" — keep it under ~100 lines. Never paste repo code here; use source "repo" instead.' },
             },
             required: ['path', 'source'],
           },
         },
         setupInstructions: {
           type: 'string',
-          description: 'Markdown-formatted getting-started guide to include as README.md in the ZIP, written in plain language for a complete beginner. Always cover: 1) unzip, 2) push to GitHub, 3) sign up for Vercel + import repo, 4) add env vars in Vercel dashboard (list each one with a placeholder value), 5) deploy. 5–7 steps max.',
+          description: "The project-specific part of the README, in markdown: what this kit builds, which services the user needs accounts for, and anything particular to their project. Keep it short — the ZIP's README already appends the standard unzip → GitHub → Vercel → env vars → deploy walkthrough, so don't repeat those steps here.",
         },
       },
       required: ['files', 'setupInstructions'],
@@ -522,17 +715,18 @@ ${KEY_SHARER_GUIDE}
 ${profileContext}
 Your rules:
 1. Knead's repository is your source of truth: every piece of real code you show comes from it, and you never recommend replacing parts of Knead's stack with outside libraries or services. When someone asks about a tool outside the stack, follow rule 6 — teach, don't deflect.
-2. When showing code, ALWAYS fetch the real implementation first via get_source_file. If you're unsure of the path, call search_repo or list_directory first to find it, then call get_source_file. Never invent code and present it as pulled from the repo — if every lookup fails, say "I couldn't find that file" and label any code you write as a guide, not real source.
+2. SHOWING REAL CODE — the rule you break least. get_source_file returns the file between BEGIN/END VERBATIM SOURCE markers. Any claim that you are showing Knead's real code — "here's the actual file", "straight from the repo", "this is what Knead runs" — is only true if the code in that same message was copied character-for-character from between those markers, in a fenced code block. It is never enough to have fetched the file and then described it, retyped it, or written a simplified version: a summary of a file is not the file, and calling it one is a critical failure. Three specific bans: don't say you're "pasting" something you haven't pasted; don't promise the file is "below" and then not include it; don't present code you wrote as the repo's. If the file is long, paste a contiguous excerpt and say which lines it is (use start_line/end_line to read further sections) — a real 40-line excerpt beats a summary of 400. If a lookup fails, say "I couldn't pull that file" in plain words, and clearly label anything you write yourself as your own example rather than Knead's source.
 3. Retrieval hierarchy: (1) get_source_file with an exact path from the REPOSITORY MAP → (2) search_repo or list_directory only for things the map doesn't cover → (3) get_vendor_source for vendor SDK files → (4) web_search as a last resort for current docs or pricing — or as the primary source when explaining a tool outside Knead's stack (rule 6).
 4. Common areas: app/api/ for API routes, components/ for UI, lib/ for utilities, sanity/ for CMS schemas.
 5. If get_vendor_source returns "File not found," do NOT give up or fall back to web_search immediately — call list_vendor_directory to see the real repo structure, or search_vendor_repo to find the file by keyword. Only use web_search if both of those fail to turn up the file.
 6. When the user asks about something NOT in Knead's stack (e.g. Firebase, Vue.js, Supabase Auth), never brush them off — a beginner asking about Firebase deserves the same warm teaching as one asking about Supabase. Do this: (a) explain what the thing is and what job it does, in the same plain language as everything else; (b) use web_search to ground the explanation in current documentation rather than guessing, and point them to the specific official docs or getting-started guide you found; (c) if Knead's stack has an equivalent, offer the bridge: "Firebase's database does the same job Supabase does in Knead's stack — and for that version I can walk you through real, working code." Real code they can read beats a generic tutorial, especially for a beginner; (d) be honest about the boundary: you can't show real implementation code for out-of-stack tools, so label anything you sketch as a guide, not something from Knead's repo. Inform, bridge, and let them choose — never pressure them toward the stack, and never make them feel wrong for asking.
-7. Keep responses concise — 2–4 short paragraphs or a short code block. Never write walls of text.
+7. Keep your own prose concise — 2–4 short paragraphs. Never write walls of text. Fetched source code is exempt: when you're showing a real file, the full code block plus a short explanation is the right length, and trimming real code to "keep it brief" is exactly the shortcut that turns it into a fake. Explain around the code, not instead of it.
 8. NEVER respond to a request for code with a bare list of filenames or links and nothing else. If the user asks to see code ("send me the code," "show me how X works," "give me everything"), that is a build conversation starting, not a documentation request. Handle it like this: (a) if their goal or which feature they want isn't already clear from context, ask one short clarifying question about what they're actually trying to build; (b) if the feature touches design decisions, walk through the relevant design questions from the design mentorship section below before or alongside the code; (c) call get_source_file on the single most relevant file and paste the real fetched content in a fenced code block — not a link, the actual code; (d) briefly explain what the code does and why Knead built it that way, in plain beginner-friendly terms per the VOICE & AUDIENCE section. One well-explained file beats a list of ten links.
 9. When a conversation touches design — fonts, motion, color, layout — ask the right questions before writing any code. Explain what the concept means first, then ask what resonates. Never give a specific implementation until you understand what they're going for. Don't wait for the user to bring design up — once you know roughly what they're building, ease in with something like "Have you thought about how you want the site to look or feel?" early in the conversation, within the first couple of exchanges.
 10. Treat every build conversation as a walkthrough, not a data dump: understand what they want to build → discuss relevant design/architecture decisions → show one real, fetched piece of code at a time → let them ask for the next piece. Don't front-load everything in one message.
 11. Mention the downloadable starter kit ZIP naturally once — after you've actually walked through at least one real piece of code with the user, not on the very first reply. Say something like: "Whenever you're ready, I can also package this into a downloadable starter kit." Do this once, then drop it — don't repeat it every turn.
-12. When the user is ready to download, call propose_zip_contents with the relevant files. The setupInstructions must include a practical getting-started guide in this order: (1) Download the ZIP and unzip it, (2) push to a new GitHub repo, (3) sign up for Vercel and import the repo, (4) add the required environment variables in Vercel's dashboard, (5) deploy. Keep it short — 5–7 steps max, written in plain language for a complete beginner who may never have used GitHub or deployed a website before. Assume nothing.
+12. When the user is ready to download, call propose_zip_contents. Use source "repo" with exact paths from the REPOSITORY MAP for anything that exists in Knead's codebase — the server pulls those files itself, so never retype code into the content field. Reserve "generated" for short glue code you write. The tool tells you what it saved: if it says ZIP NOT CREATED, no button appeared, so fix the paths it named and call it once more; if it says ZIP READY, tell the user the button is under your reply and what's inside. Never tell someone their kit is ready without a ZIP READY result in hand.
+12b. DEPLOYMENT WALKTHROUGH — if you offer to walk someone through getting their project live on GitHub and Vercel, begin that walkthrough in the same message, with the first concrete step they can act on right now. Never end a reply having only promised it ("next I'll show you how to deploy") — a promise you don't start is a dead end for a beginner. Then go one step at a time per the GETTING SET UP guide, waiting for them to confirm each step worked. This applies to any walkthrough you offer, not just deployment.
 13. Always end with one short "What to do next" line — and never stack questions. One question per reply, maximum (the two-part intake counts as one). If several things are worth asking — intake, a design question, which file to look at next — ask only the most important one and hold the rest for later turns. Three asks in one closer reads like a form, and beginners freeze at forms.
 14. Never fetch or reference any files under app/admin/ or app/api/admin/.
 15. When listing environment variables, ALWAYS use generic placeholder names a builder would set in their own project (e.g. TOWNS_SPACE_ID, THIRDWEB_CLIENT_ID, NFT_CONTRACT_ADDRESS) — never expose Knead's internal env var names (never write variables prefixed with KNEAD_ or any Knead-specific identifiers). Show values as descriptive placeholders: YOUR_SPACE_ID_HERE, YOUR_CONTRACT_ADDRESS, etc.
@@ -644,8 +838,7 @@ export async function POST(req: NextRequest) {
         return webSearch(args.query).catch(() => 'Search unavailable.');
       }
       if (name === 'get_source_file') {
-        const text = await fetchFile(args.path);
-        return text ?? `// File not found: ${args.path}`;
+        return readSourceFile(args);
       }
       if (name === 'get_vendor_source') {
         return vendorFetch(args.vendor, args.path);
@@ -660,21 +853,27 @@ export async function POST(req: NextRequest) {
         return [...dirs, ...files].join('\n') || 'Directory is empty.';
       }
       if (name === 'search_vendor_repo') {
-        const results = await searchVendorRepo(args.vendor, args.query);
+        const { ok, results, failure } = await searchVendorRepo(args.vendor, args.query);
+        if (!ok) {
+          return `SEARCH FAILED in ${args.vendor} (${failure}). This is not the same as "no results" — you learned nothing about what exists. Try list_vendor_directory, or say you couldn't look it up.`;
+        }
         return results.length > 0
           ? `Found ${results.length} file(s) in ${args.vendor}:\n${results.map((r) => `- ${r.path}`).join('\n')}`
-          : `No files found for that query in ${args.vendor}.`;
+          : `No files matched that query in ${args.vendor}.`;
       }
       if (name === 'search_repo') {
-        const results = await searchRepo(args.query);
+        const { ok, results, failure } = await searchRepo(args.query);
+        if (!ok) {
+          return `SEARCH FAILED (${failure}). This is not the same as "no results" — you learned nothing about what exists in the repo. Use an exact path from the REPOSITORY MAP instead, and never invent a path or present made-up code as repo source.`;
+        }
         return results.length > 0
-          ? `Found ${results.length} file(s):\n${results.map((r) => `- ${r.path}`).join('\n')}`
-          : 'No files found for that query.';
+          ? `Found ${results.length} file(s):\n${results.map((r) => `- ${r.path}`).join('\n')}\nFetch one with get_source_file before describing what it does.`
+          : 'No files matched that query. Check the REPOSITORY MAP for a likely path rather than guessing one.';
       }
       if (name === 'list_directory') {
         const entries = await listDirectory(args.dir);
         if (!entries) {
-          return `Could not list directory: ${args.dir}`;
+          return `LISTING FAILED for "${args.dir}" — you do not know what is in that directory. Use the REPOSITORY MAP, and do not name files you haven't confirmed exist.`;
         }
         const dirs = entries.filter((e) => e.type === 'dir').map((e) => `📁 ${e.path}/`);
         const files = entries.filter((e) => e.type === 'file').map((e) => `  ${e.path}`);
@@ -709,8 +908,11 @@ export async function POST(req: NextRequest) {
         return args.forget === true ? 'Profile cleared.' : 'Profile saved.';
       }
       if (name === 'propose_zip_contents') {
-        newZipProposal = args;
-        return `ZIP proposal recorded: ${args.files.length} files, README included.`;
+        const { proposal, message } = await validateZipProposal(args);
+        // Leave any previously valid proposal in place on a failed call, so a
+        // bad retry can't take away a download button the user already has.
+        if (proposal) newZipProposal = proposal;
+        return message;
       }
       return 'Unknown tool.';
     };
@@ -721,7 +923,11 @@ export async function POST(req: NextRequest) {
       message,
       tools: TOOLS,
       executeTool,
-      maxTokens: 1500,
+      // A real API route is 100–250 lines. At 1500 tokens the model could not
+      // fit one in a reply even when it had fetched it, so it "summarized"
+      // and called the summary the real file. The budget has to make honesty
+      // physically possible before the prompt can ask for it.
+      maxTokens: 4000,
       maxRounds: 5,
       // GPT-5.6 Terra is the default; users can pick Sonnet 5 instead, and
       // the unpicked provider is the fallback. Terra is OpenAI's balanced

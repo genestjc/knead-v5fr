@@ -53,6 +53,7 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
   const [turnsLeft, setTurnsLeft] = useState<number>(FREE_TURNS_PER_DAY);
   const [zipProposal, setZipProposal] = useState<ZipProposal | null>(null);
   const [zipping, setZipping] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [model, setModel] = useState<ModelId>('gpt-5');
@@ -144,8 +145,9 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
   };
 
   const downloadZip = async () => {
-    if (!zipProposal) return;
+    if (!zipProposal?.files?.length) return;
     setZipping(true);
+    setZipError(null);
     try {
       const request: RequestInit = {
         method: 'POST',
@@ -155,16 +157,32 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
       const res = account
         ? await memberFetch('/api/open-source/zip', account, request, wallet)
         : await fetch('/api/open-source/zip', request);
-      if (!res.ok) throw new Error();
+
+      // The server explains exactly what went wrong — which files it couldn't
+      // pull, or that the sign-in expired. Swallowing that behind "please try
+      // again" left people retrying a download that could never work.
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.error || 'Could not build your starter kit. Please try again.');
+      }
+
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'knead-starter.zip';
+      // Firefox ignores a click on an anchor that isn't in the document.
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('Could not generate ZIP. Please try again.');
+      a.remove();
+      // Revoking synchronously can cancel the download in some browsers.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (error) {
+      setZipError(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Could not build your starter kit. Please try again.',
+      );
     } finally {
       setZipping(false);
     }
@@ -346,14 +364,23 @@ function BuildUI({ account, wallet }: { account?: Account; wallet?: WalletWithAu
                       <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm font-georgia-pro text-gray-800 whitespace-pre-wrap overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
                         <MessageContent content={msg.content} />
                       </div>
-                      {zipProposal && i === messages.length - 1 && (
-                        <button
-                          onClick={downloadZip}
-                          disabled={zipping}
-                          className="mt-2 flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
-                        >
-                          {zipping ? 'Building…' : '⬇ Download Starter Kit'}
-                        </button>
+                      {zipProposal && zipProposal.files.length > 0 && i === messages.length - 1 && (
+                        <>
+                          <button
+                            onClick={downloadZip}
+                            disabled={zipping}
+                            className="mt-2 flex items-center gap-1.5 bg-black text-white text-xs font-georgia-pro px-4 py-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-60"
+                          >
+                            {zipping
+                              ? 'Building…'
+                              : `⬇ Download Starter Kit (${zipProposal.files.length} file${zipProposal.files.length === 1 ? '' : 's'})`}
+                          </button>
+                          {zipError && (
+                            <p className="mt-2 text-xs font-georgia-pro text-red-600 leading-relaxed">
+                              {zipError}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

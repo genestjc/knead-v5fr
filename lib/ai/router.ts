@@ -57,14 +57,19 @@ export type Provider = 'claude' | 'openai';
 
 // Cost controls. Tool results (fetched source files can be huge) and client
 // history are the two unbounded inputs; everything else is capped by design.
-const MAX_TOOL_RESULT_CHARS = 12_000;
+// Sized to clear lib/github.ts's CHAT_MAX_FILE_BYTES (12 KB) plus the header
+// and markers wrapped around fetched source. If a file's end marker were cut
+// off here, the model would lose the boundary between real repo code and its
+// own text — the exact confusion that produces "here's the real file" over
+// code nobody fetched.
+const MAX_TOOL_RESULT_CHARS = 16_000;
 const MAX_HISTORY_TURNS = 12;
 
 function truncateToolResult(text: string): string {
   if (text.length <= MAX_TOOL_RESULT_CHARS) return text;
   return (
     text.slice(0, MAX_TOOL_RESULT_CHARS) +
-    '\n\n[Truncated — showing the first 12,000 characters. Call the tool again for a more specific file or section if you need more.]'
+    `\n\n[Truncated — this result was cut off at ${MAX_TOOL_RESULT_CHARS.toLocaleString()} characters, so anything past this point is missing rather than absent. Treat what you have as an excerpt, say so if you show it, and request a narrower file or line range if you need the rest.]`
   );
 }
 
