@@ -3,23 +3,32 @@
  *
  * Uses SyncAgent from @towns-protocol/sdk (server-side, no React).
  * Listens in NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID for @Demeter mentions
- * from Admin/Contributor wallets, runs the OpenAI agent loop, and posts results
- * back to Towns.
+ * from Admin/Contributor wallets, answers the question via lib/agent.ts, and
+ * posts the reply back to Towns.
+ *
+ * Demeter is read-only — stories, events, and web search. It cannot spend,
+ * order, or mutate anything. See DECISIONS.md (2026-08-09) before adding a
+ * tool that writes.
  *
  * Run with:  npx tsx server/agent-runner.ts
  *
  * Env vars needed on Render:
- *   AGENT_RUNNER_PRIVATE_KEY                        ← new agent wallet private key
+ *   AGENT_RUNNER_PRIVATE_KEY                        ← agent wallet private key
  *   NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID                 ✅ already on Render
  *   NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID       ✅ already on Render
  *   NEXT_PUBLIC_BASE_RPC_URL                        ✅ already on Render
- *   OPENAI_API_KEY
+ *   ANTHROPIC_API_KEY                               ← NEW: Claude is primary
+ *   OPENAI_API_KEY                                  ← fallback provider
+ *   TAVILY_API_KEY                                  ← NEW: web_search tool
+ *   NEXT_PUBLIC_SANITY_PROJECT_ID                   ← NEW: article lookups
+ *   NEXT_PUBLIC_SANITY_DATASET                      ← NEW: article lookups
  *   NEXT_PUBLIC_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  *   THIRDWEB_SECRET_KEY
  *   NEXT_PUBLIC_CONTRIBUTOR_NFT_CONTRACT_ADDRESS
- *   SHOPIFY_STORE_DOMAIN
- *   SHOPIFY_STOREFRONT_ACCESS_TOKEN
+ *
+ * No longer needed (removed with agentic commerce):
+ *   SHOPIFY_STORE_DOMAIN, SHOPIFY_STOREFRONT_ACCESS_TOKEN, AGENTCARD_*
  */
 
 import 'fake-indexeddb/auto'; // polyfill IndexedDB for Node.js (SyncAgent crypto store)
@@ -33,7 +42,6 @@ import {
 import type { Channel } from '@towns-protocol/sdk';
 import { runAgent } from '@/lib/agent';
 import { getWalletAgentRole } from '@/lib/agent/role-gate';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 // The Towns SDK catches this error internally and logs it via its debug logger — it recovers
 // on its own retry. Filter it from both stdout and stderr so Render stops alerting on it.
@@ -69,8 +77,17 @@ async function main() {
     );
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Missing OPENAI_API_KEY');
+  // Claude is primary and OpenAI is the fallback, so a missing ANTHROPIC key
+  // isn't fatal — it just means every turn pays the fallback path. Warn loudly
+  // rather than refusing to boot. Missing BOTH is fatal.
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+    throw new Error('Missing both ANTHROPIC_API_KEY and OPENAI_API_KEY — no provider available');
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('⚠️  ANTHROPIC_API_KEY missing — every turn will run on the OpenAI fallback');
+  }
+  if (!process.env.TAVILY_API_KEY) {
+    console.warn('⚠️  TAVILY_API_KEY missing — the web_search tool will return "Search unavailable"');
   }
 
   const townsConfig  = townsEnv().makeTownsConfig('omega', { rpcUrl: BASE_RPC });
@@ -137,8 +154,6 @@ async function main() {
 
   console.log('🟢 Agent Runner is online\n');
 
-  startProposalPoller(channel);
-
   process.on('SIGTERM', async () => { await agent.stop(); process.exit(0); });
   process.on('SIGINT',  async () => { await agent.stop(); process.exit(0); });
 
@@ -177,65 +192,6 @@ async function handleMessage(senderId: string, content: string, channel: Channel
   if (reply && reply !== 'Agent completed.') {
     await channel.sendMessage(`[Demeter] ${reply}`).catch(() => {});
   }
-}
-
-function startProposalPoller(channel: Channel) {
-  const POLL_INTERVAL = 5 * 60 * 1000;
-
-  async function checkProposals() {
-    try {
-      const supabase = getSupabaseAdmin();
-      const { data: proposals } = await supabase
-        .from('proposals')
-        .select('id, title, description, items, created_by, vote_threshold, vote_count')
-        .eq('status', 'open');
-
-      const ready = (proposals ?? []).filter(
-        (p: any) => p.vote_count >= p.vote_threshold,
-      );
-
-      for (const proposal of ready) {
-        const { data: claimed } = await supabase
-          .from('proposals')
-          .update({ status: 'triggered', triggered_at: new Date().toISOString() })
-          .eq('id', proposal.id)
-          .eq('status', 'open')
-          .select('id')
-          .single();
-
-        if (!claimed) continue;
-
-        console.log(`[proposals] Executing proposal: ${proposal.title}`);
-        await channel.sendMessage(`[Demeter] Executing approved proposal: "${proposal.title}"`).catch(() => {});
-
-        const items = (proposal.items as any[]).map((item: any, i: number) => {
-          if (item.type === 'usdc')     return `${i + 1}. Pay ${item.amount_usdc} USDC to ${item.recipient_address}${item.notes ? ` for: ${item.notes}` : ''}`;
-          if (item.type === 'merch')    return `${i + 1}. Send merch (${item.product_handle ?? 'knead-merch'}) to ${item.recipient_name ?? item.recipient_address}${item.shipping_address ? ` — ship to ${JSON.stringify(item.shipping_address)}` : ''}`;
-          if (item.type === 'magazine') return `${i + 1}. Send magazine to ${item.recipient_name ?? item.recipient_address}${item.shipping_address ? ` — ship to ${JSON.stringify(item.shipping_address)}` : ''}`;
-          return `${i + 1}. ${JSON.stringify(item)}`;
-        });
-
-        const command = `Execute approved proposal: "${proposal.title}".\nItems:\n${items.join('\n')}\nPost a summary when done.`;
-
-        const result = await runAgent(
-          { command, senderAddress: proposal.created_by || '', proposalId: proposal.id },
-          async (msg: string) => { await channel.sendMessage(`[Demeter] ${msg}`).catch(() => {}); },
-        ).catch((err: Error) => ({ success: false, summary: err.message, actionsCompleted: [], errors: [err.message] }));
-
-        await supabase.from('proposals').update({
-          status: result.success ? 'executed' : 'failed',
-          executed_at: new Date().toISOString(),
-          execution_result: result,
-        }).eq('id', proposal.id);
-      }
-    } catch (err: any) {
-      console.error('[proposals] Poll error:', err.message);
-    }
-  }
-
-  setTimeout(checkProposals, 10_000);
-  setInterval(checkProposals, POLL_INTERVAL);
-  console.log('📋 Proposal poller started (every 5 minutes)');
 }
 
 main().catch(err => {
