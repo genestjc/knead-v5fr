@@ -111,13 +111,13 @@ export function WelcomeModal({ isOpen, onClose, userId }: WelcomeModalProps) {
                   <li className="flex gap-3">
                     <span className="mt-1 shrink-0">•</span>
                     <span>
-                      <strong>Knead Monthly</strong> members can watch unlimitedly + participate during events, earning tips. Can also submit Demeter proposals and earn other rewards.
+                      <strong>Knead Monthly</strong> members can watch unlimitedly + participate during events, earning tips. Can also tag @demeter to explore Knead's stories and events.
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="mt-1 shrink-0">•</span>
                     <span>
-                      <strong>Contributors</strong> are special guests or earned members. They have full chat privileges, including DMs, and are allocated a weekly allowance to tip Knead Monthly members, earning 20% cash back. Can vote on Demeter proposals and gift rewards.
+                      <strong>Contributors</strong> are special guests or earned members. They have full chat privileges, including DMs, and are allocated a weekly allowance to tip Knead Monthly members, earning 20% cash back. Can tip Knead Monthly members from a weekly allowance, earning 20% cash back.
                     </span>
                   </li>
                 </ul>
