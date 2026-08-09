@@ -281,9 +281,6 @@ export function ContributorWelcomeModal({
                     To encourage passive engagement, your allowance is on a 'use it or lose it' basis.
                   </p>
                   <p>
-                    Contributors get a weekly allowance to tip Knead Monthly members, earning 20% cash back — and can tag @demeter anytime to dig into Knead's archive.
-                  </p>
-                  <p>
                     If you're a Contributor who earned this status from making good contributions as a Knead
                     Monthly member, your weekly allowance will be higher than appointed guests.
                   </p>
