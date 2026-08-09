@@ -12,7 +12,6 @@ import { MonthlyMintManager } from '@/components/admin/MonthlyMintManager';
 import { MailingListManager } from '@/components/admin/MailingListManager';
 
 import { AnnouncementsManager } from '@/components/admin/AnnouncementsManager';
-import { ProposalsManager } from '@/components/admin/ProposalsManager';
 import { SocialAssetStudio } from '@/components/admin/SocialAssetStudio';
 
 // ✅ Prevents static generation
@@ -34,7 +33,7 @@ export default function AdminPage() {
     }
   }, [connectionStatus]);
 
-  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements' | 'proposals' | 'social'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'contributors' | 'users' | 'mint' | 'events-mail' | 'contributors-mail' | 'announcements' | 'social'>('events');
 
   // Built on mount so the in-app wallet's OAuth redirectUrl returns to /admin
   // after a social sign-in, not the page the app was first loaded on.
@@ -208,17 +207,6 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('proposals')}
-              className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
-                activeTab === 'proposals'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              📋 Proposals
-            </button>
-
-            <button
               onClick={() => setActiveTab('social')}
               className={`py-4 px-1 border-b-2 font-georgia-pro text-sm font-medium transition ${
                 activeTab === 'social'
@@ -247,9 +235,6 @@ export default function AdminPage() {
             )}
             {activeTab === 'announcements' && (
               <AnnouncementsManager adminAddress={account.address} />
-            )}
-            {activeTab === 'proposals' && (
-              <ProposalsManager adminAddress={account.address} />
             )}
             {activeTab === 'social' && <SocialAssetStudio />}
           </>
