@@ -83,8 +83,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                       <li>Unlimited viewing/reacting.</li>
                       <li>Custom alias.</li>
                       <li>Participate during live events.</li>
-                      <li>Submit Demeter proposals.</li>
-                      <li>Earn rewards.</li>
+                                            <li>Earn rewards.</li>
                     </ul>
                   </div>
 
@@ -95,8 +94,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                       <li>DMs + Video Chat with other Contributors.</li>
                       <li>Custom alias, avatar, and bio.</li>
                       <li>20% cashback on tips.</li>
-                      <li>Vote on Demeter proposals.</li>
-                      <li>Give gifts to Knead Monthly members.</li>
+                                            <li>Give gifts to Knead Monthly members.</li>
                     </ul>
                   </div>
                 </div>
@@ -113,7 +111,7 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
 
                   <FAQDropdown
                     question="What's Demeter?"
-                    answer="Demeter is an agent for managing creator proposals and giving rewards."
+                    answer="Demeter is Knead's in-chat companion. Ask it about our stories, the people in them, or what's coming up on the calendar."
                   />
 
                   <FAQDropdown
