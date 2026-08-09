@@ -88,7 +88,6 @@ export function MemberWelcomeModal({ isOpen, onClose, userAddress, userId }: Mem
                   <li>Participate and comment during live events.</li>
                   <li>Receive tips from Contributors in the chat.</li>
                   <li>Ask Demeter about our stories, events, and the people we cover.</li>
-                  <li>Receive gifts from Contributors in the chat.</li>
                   <li>Set a display name (alias) that appears in the chat.</li>
                 </ul>
               </div>
