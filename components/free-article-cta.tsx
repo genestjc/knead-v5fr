@@ -238,7 +238,7 @@ export function FreeArticleCTA() {
               <li>Create a chat alias.</li>
               <li>Participate and comment during chat events.</li>
               <li>Receive tips from Contributors in the chat.</li>
-              <li>Submit Demeter proposals in the chat.</li>
+              <li>Ask Demeter about any Knead story, subject, or event.</li>
               <li>Receive gifts from Contributors in the chat.</li>
             </ul>
 
