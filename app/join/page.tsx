@@ -332,7 +332,7 @@ export default function JoinPage() {
                 <li>Unlimted turns in Open Source.</li>
                 <li>Participate and comment during chat events.</li>
                 <li>Receive tips + gifts from Contributors in the chat.</li>
-                <li>Submit Demeter proposals in the chat.</li>
+                <li>Ask Demeter about any Knead story, subject, or event.</li>
               </ul>
               {isLoading || isVerifying ? (
                 <div className="flex flex-col items-center gap-2">
