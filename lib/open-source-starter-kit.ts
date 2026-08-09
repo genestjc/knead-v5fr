@@ -28,8 +28,6 @@ export interface StarterKitFile {
 const EXPORT_BLOCKED_PREFIXES = ['app/admin/', 'app/api/admin/', 'app/api/agent/', 'lib/admin/'];
 
 const EXPORT_BLOCKED_FILES = new Set([
-  'lib/agent.ts',
-  'lib/agentcard.ts',
   'lib/thirdweb-server-wallet.ts',
   'vercel.json',
 ]);
