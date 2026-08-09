@@ -28,18 +28,6 @@
     "app/api/check-membership/route.ts": {
       "maxDuration": 30
     },
-    "app/api/agent/execute-purchase/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/agent/fulfill-merch/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/agent/send-usdc/route.ts": {
-      "maxDuration": 120
-    },
-    "app/api/cron/check-proposals/route.ts": {
-      "maxDuration": 300
-    },
     "app/api/cron/distribute-pool/route.ts": {
       "maxDuration": 300
     },
@@ -66,10 +54,6 @@
     {
       "path": "/api/cron/allocate-allowances",
       "schedule": "0 0 * * 0"
-    },
-    {
-      "path": "/api/cron/check-proposals",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
