@@ -94,7 +94,6 @@ export function AboutFAQModal({ isOpen, onClose }: AboutFAQModalProps) {
                       <li>DMs + Video Chat with other Contributors.</li>
                       <li>Custom alias, avatar, and bio.</li>
                       <li>20% cashback on tips.</li>
-                                            <li>Give gifts to Knead Monthly members.</li>
                     </ul>
                   </div>
                 </div>
