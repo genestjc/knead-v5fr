@@ -329,10 +329,9 @@ export default function JoinPage() {
               </p>
               <ul className="font-georgia-pro mb-6 text-left space-y-2 list-disc list-outside pl-4">
                 <li>Unlimited access to stories and chat events.</li>                
-                <li>Unlimted turns in Open Source.</li>
+                <li>Unlimited turns in Open Source.</li>
                 <li>Participate and comment during chat events.</li>
-                <li>Receive tips + gifts from Contributors in the chat.</li>
-                <li>Ask Demeter about any Knead story, subject, or event.</li>
+                <li>Receive tips from Contributors in the chat.</li>
               </ul>
               {isLoading || isVerifying ? (
                 <div className="flex flex-col items-center gap-2">
@@ -386,8 +385,7 @@ export default function JoinPage() {
                 <li>Create a chat alias and profile picture.</li>
                 <li>Participate and comment freely in the chat.</li>
                 <li>Receive 20% cashback on chat tips.</li>
-                <li>DM and video chat other chat Contributors.</li>
-                <li>Gift Knead Monthly members items in chat.</li>
+                <li>DM and video chat other Contributors.</li>
               </ul>
             </div>
           </div>
