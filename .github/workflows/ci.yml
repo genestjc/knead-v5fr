@@ -54,6 +54,14 @@ jobs:
           fi
           echo "No unresolved imports in shipped code."
 
+      # Unit tests, on Node's built-in runner via tsx — no test framework to
+      # install. These cover the parts that fail silently rather than loudly:
+      # the /open-source export blocklist (an entry once pointed at a path the
+      # file had moved away from, and nothing noticed), the outbound secret
+      # scanner, and judge-response parsing.
+      - name: Unit tests
+        run: npm test
+
   build:
     name: Production build
     runs-on: ubuntu-latest

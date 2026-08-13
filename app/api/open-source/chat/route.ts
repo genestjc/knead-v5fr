@@ -67,7 +67,7 @@ async function checkAndIncrementUsage(
   identifier: string,
   identifierType: string,
   isPremium: boolean,
-): Promise<{ allowed: boolean; turnsUsed: number; turnsLeft: number }> {
+): Promise<{ allowed: boolean; turnsUsed: number; turnsLeft: number; unavailable?: boolean }> {
   if (isPremium) return { allowed: true, turnsUsed: 0, turnsLeft: 9999 };
 
   const supabase = getSupabaseAdmin();
@@ -80,10 +80,13 @@ async function checkAndIncrementUsage(
     .eq('date', today)
     .maybeSingle();
 
+  // This used to fail open so a DB hiccup wouldn't block anyone. That made the
+  // counter the only thing standing between an outage and unmetered LLM spend
+  // billed to Knead — anyone who could make this query fail got infinite turns.
+  // A meter we can't read is a meter we can't honour, so it's a refusal now.
   if (error) {
     console.error('[build/chat] usage lookup error:', error.message);
-    // Fail open so a DB hiccup doesn't block everyone
-    return { allowed: true, turnsUsed: 0, turnsLeft: FREE_TURNS_PER_DAY };
+    return { allowed: false, turnsUsed: 0, turnsLeft: 0, unavailable: true };
   }
 
   const turnsUsed = data?.turn_count ?? 0;
@@ -92,8 +95,9 @@ async function checkAndIncrementUsage(
     return { allowed: false, turnsUsed, turnsLeft: 0 };
   }
 
-  // Upsert
-  await supabase.from('build_usage').upsert(
+  // Same reasoning as the read: an increment that silently fails leaves the
+  // count frozen, which is unlimited turns by another route.
+  const { error: incrementError } = await supabase.from('build_usage').upsert(
     {
       identifier,
       identifier_type: identifierType,
@@ -102,6 +106,11 @@ async function checkAndIncrementUsage(
     },
     { onConflict: 'identifier,date' },
   );
+
+  if (incrementError) {
+    console.error('[build/chat] usage increment error:', incrementError.message);
+    return { allowed: false, turnsUsed, turnsLeft: 0, unavailable: true };
+  }
 
   return { allowed: true, turnsUsed: turnsUsed + 1, turnsLeft: FREE_TURNS_PER_DAY - turnsUsed - 1 };
 }
@@ -218,10 +227,11 @@ async function webSearch(query: string): Promise<string> {
 
 // ---------- source retrieval ----------
 
-// Admin surfaces are off limits (rule 14). Enforced here as well as in the
-// prompt, because a prompt rule is a request and this is a boundary.
-const BLOCKED_PATH = /^(app\/admin\/|app\/api\/admin\/|lib\/admin\/)|(^|\/)\.env/;
-
+// Admin surfaces and privileged runtimes are off limits (rule 14). Enforced
+// here as well as in the prompt, because a prompt rule is a request and this
+// is a boundary. The rules themselves live in lib/open-source-starter-kit.ts
+// so that reading a file aloud and packaging it into a ZIP can never disagree
+// about what is off limits.
 const MAX_WINDOW_LINES = 400;
 
 function explainFailure(failure: RepoFetchFailure | undefined, path: string): string {
@@ -251,7 +261,7 @@ async function readSourceFile(args: any): Promise<string> {
   if (!path) {
     return 'LOOKUP FAILED — no path was given. You have no file content. Do not present any code as repo source.';
   }
-  if (BLOCKED_PATH.test(path)) {
+  if (isExportBlockedPath(path)) {
     return `LOOKUP REFUSED — "${path}" is not readable. Choose a different file and do not describe this one's contents.`;
   }
 
@@ -329,7 +339,7 @@ async function validateZipProposal(args: any): Promise<ValidatedZipProposal> {
     const path = String(file?.path ?? '').trim().replace(/^\/+/, '');
     // Same export rules the ZIP route enforces, so the count reported here is
     // the count that actually gets packaged.
-    if (!path || path.includes('..') || BLOCKED_PATH.test(path) || isExportBlockedPath(path)) {
+    if (!path || path.includes('..') || isExportBlockedPath(path)) {
       if (path) rejected.push(path);
       continue;
     }
@@ -795,7 +805,23 @@ export async function POST(req: NextRequest) {
 
     // Rate limit
     const { id: identifier, type: identifierType } = await getIdentifier(req, verifiedWalletAddress);
-    const { allowed, turnsLeft } = await checkAndIncrementUsage(identifier, identifierType, isPremium);
+    const { allowed, turnsLeft, unavailable } = await checkAndIncrementUsage(
+      identifier,
+      identifierType,
+      isPremium,
+    );
+
+    // Distinct from being out of turns: nothing is wrong with their account and
+    // telling them to upgrade would be a lie.
+    if (unavailable) {
+      return NextResponse.json(
+        {
+          error: 'usage_unavailable',
+          message: "We couldn't check your daily turn count just now — that's on our end. Try again in a moment.",
+        },
+        { status: 503 },
+      );
+    }
 
     if (!allowed) {
       return NextResponse.json(

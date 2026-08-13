@@ -21,27 +21,55 @@ export interface StarterKitFile {
 
 // ---------- what may leave the repo ----------
 
-// Shared by the ZIP builder and by the assistant's proposal check, so the
-// file count the assistant announces is the file count that gets packaged.
-// They disagreed before: the assistant would promise files the ZIP route then
-// dropped without a word.
-const EXPORT_BLOCKED_PREFIXES = ['app/admin/', 'app/api/admin/', 'app/api/agent/', 'lib/admin/'];
+// The single gate for both surfaces that can move repo files to a user: the
+// chat assistant reading a file aloud, and the ZIP builder packaging one.
+// Those used to be two lists that drifted — the chat regex never learned about
+// app/api/agent/ — so they live here now and both callers import this.
+const EXPORT_BLOCKED_PREFIXES = [
+  'app/admin/',
+  'app/api/admin/',
+  'app/api/agent/',
+  'lib/admin/',
+  // Privileged runtimes, not teaching material: the key-sharer bot holds a
+  // funded wallet key and the agent runner drives it.
+  'server/',
+  // Operator scripts — moderator management, treasury distribution.
+  'scripts/',
+];
 
-const EXPORT_BLOCKED_FILES = new Set([
-  'lib/thirdweb-server-wallet.ts',
+/**
+ * Blocked by basename, wherever the file sits.
+ *
+ * Path-anchored entries rot: this set previously held
+ * "lib/thirdweb-server-wallet.ts" while the file lived at the repo root, so
+ * the entry matched nothing and the file was exportable the whole time.
+ */
+const EXPORT_BLOCKED_BASENAMES = new Set([
+  'thirdweb-server-wallet.ts',
   'vercel.json',
 ]);
 
+function basenameOf(path: string): string {
+  return path.split('/').pop() ?? '';
+}
+
 /** Real .env files carry live secrets; the committed template does not. */
 export function isSecretEnvFile(path: string): boolean {
-  const basename = path.split('/').pop() ?? '';
+  const basename = basenameOf(path);
   return basename.startsWith('.env') && basename !== '.env.example';
+}
+
+/** Any .env file at all, template included. */
+function isEnvFile(path: string): boolean {
+  return basenameOf(path).startsWith('.env');
 }
 
 export function isExportBlockedPath(path: string): boolean {
   return (
-    isSecretEnvFile(path) ||
-    EXPORT_BLOCKED_FILES.has(path) ||
+    // Every .env, template included. The ZIP writes its own .env.example from
+    // a template in the route, so nothing needs the repo's copy.
+    isEnvFile(path) ||
+    EXPORT_BLOCKED_BASENAMES.has(basenameOf(path)) ||
     EXPORT_BLOCKED_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
 }
