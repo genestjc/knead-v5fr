@@ -7,6 +7,7 @@ import {
   isSecretEnvFile,
 } from '@/lib/open-source-starter-kit';
 import { buildZip } from '@/lib/zip';
+import { redactAndLog } from '@/lib/secret-scan';
 import { fetchKneadFile, FULL_MAX_FILE_BYTES, KNEAD_BRANCH, KNEAD_REPO } from '@/lib/github';
 
 // The repo, branch and auth all come from lib/github.ts so this route and the
@@ -212,7 +213,11 @@ export async function POST(req: NextRequest) {
       included.push({ path: gf.path, source: 'generated', content: gf.content ?? '' });
     }
 
+    // Scan on the way out, not just on the way in: the path rules above decide
+    // WHICH files ship, and this decides what may be inside them. Covers both
+    // repo files and anything the model wrote into a generated file.
     for (const file of included) {
+      file.content = redactAndLog(file.content, `starter kit: ${file.path}`);
       resolvedFiles.push({ name: file.path, content: Buffer.from(file.content, 'utf8') });
     }
 

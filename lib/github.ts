@@ -14,6 +14,7 @@
 // and neither one is permission to invent code and call it repo source.
 
 import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { redactSecrets } from '@/lib/secret-scan';
 
 export const KNEAD_REPO = process.env.KNEAD_GITHUB_REPO ?? 'genestjc/knead-v5fr';
 export const KNEAD_BRANCH = process.env.KNEAD_GITHUB_BRANCH ?? 'main';
@@ -478,7 +479,16 @@ export function renderVerbatimSource(opts: {
   body?: string;
 }): string {
   const { label, result, window } = opts;
-  const body = opts.body ?? result.content;
+  // Path rules decide which files may be read; this decides what may be in
+  // them. A credential committed by accident into an otherwise-teachable file
+  // would otherwise reach the model — and the model is told to paste this text
+  // to the user character for character.
+  const { clean: body, findings } = redactSecrets(opts.body ?? result.content);
+  if (findings.length > 0) {
+    console.error(
+      `[secret-scan] redacted ${findings.join(', ')} from ${result.repo}@${result.branch}:${result.path}`,
+    );
+  }
   const shown = window
     ? `lines ${window.from}–${window.to} of ${result.totalLines}`
     : result.truncated

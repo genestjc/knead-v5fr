@@ -21,6 +21,7 @@
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
 import type { EvalCriterion, EvalProvider, EvalTurn, Verdict } from './types';
 import { surfaceLabel } from './types';
+import { parseJudgeJSON } from './judge-json';
 
 export interface JudgeVerdict {
   criterionId: string;
@@ -154,7 +155,11 @@ Include one entry for every rubric row, using the exact id strings. Use "na" onl
   const raw = await runAgentChat({
     system: JUDGE_SYSTEM,
     message: prompt,
-    maxTokens: 8000,
+    // Every rubric row costs a rationale plus a quoted evidence string, and
+    // both are stored up to 2000 chars. At 8000 the JSON for a full rubric was
+    // being cut off mid-string, which arrives as an unparseable response rather
+    // than as a short one — scale the budget to the rubric instead of guessing.
+    maxTokens: Math.min(32_000, 4_000 + criteria.length * 700),
     maxRounds: 1,
     preferredProvider: provider,
     openaiModel: OPENAI_SOL,
@@ -164,14 +169,25 @@ Include one entry for every rubric row, using the exact id strings. Use "na" onl
   const parsed = parseJudgeJSON(raw);
   const validIds = new Set(criteria.map((c) => c.id));
 
-  const verdicts: JudgeVerdict[] = (parsed.verdicts ?? [])
-    .filter((v: any) => validIds.has(v?.criterionId))
-    .map((v: any) => ({
-      criterionId: String(v.criterionId),
+  // Dedupe by criterion. Judges occasionally score a row twice — usually the
+  // same verdict restated — and the results table is keyed on
+  // (run_id, criterion_id, judged_by), so a duplicate made Postgres reject the
+  // whole batch with "ON CONFLICT DO UPDATE command cannot affect row a second
+  // time" and lost every verdict in the run. First scoring of a row wins.
+  const seen = new Set<string>();
+  const verdicts: JudgeVerdict[] = [];
+
+  for (const v of parsed.verdicts ?? []) {
+    const criterionId = String(v?.criterionId ?? '');
+    if (!validIds.has(criterionId) || seen.has(criterionId)) continue;
+    seen.add(criterionId);
+    verdicts.push({
+      criterionId,
       verdict: normalizeVerdict(v.verdict),
       rationale: String(v.rationale ?? '').slice(0, 2000),
       evidence: String(v.evidence ?? '').slice(0, 2000),
-    }));
+    });
+  }
 
   if (verdicts.length === 0) {
     throw new Error('The judge returned no scoreable verdicts. Try the other provider.');
@@ -189,27 +205,4 @@ function normalizeVerdict(value: unknown): Verdict {
   if (v === 'pass') return 'pass';
   if (v === 'fail') return 'fail';
   return 'na';
-}
-
-/**
- * Models sometimes wrap JSON in fences or add a lead-in sentence despite being
- * told not to. Strip fences, then fall back to the outermost braces.
- */
-function parseJudgeJSON(raw: string): { verdicts?: any[]; summary?: string } {
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    /* fall through */
-  }
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start !== -1 && end > start) {
-    try {
-      return JSON.parse(cleaned.slice(start, end + 1));
-    } catch {
-      /* fall through */
-    }
-  }
-  throw new Error('Could not parse the judge response as JSON.');
 }

@@ -152,10 +152,19 @@ export async function upsertResults(
   const supabase = getSupabaseAdmin();
   if (verdicts.length === 0) return [];
 
+  // Postgres rejects an ON CONFLICT batch that touches the same row twice
+  // ("cannot affect row a second time"), which fails the entire upsert — so a
+  // single repeated criterion cost every verdict in the run. The judge dedupes
+  // too; this is the gate closest to the table, and it also covers the human
+  // grading path. Last write for a criterion wins.
+  const byCriterion = new Map<string, (typeof verdicts)[number]>();
+  for (const v of verdicts) byCriterion.set(v.criterionId, v);
+  const deduped = [...byCriterion.values()];
+
   const { data, error } = await supabase
     .from('eval_results')
     .upsert(
-      verdicts.map((v) => ({
+      deduped.map((v) => ({
         run_id: runId,
         criterion_id: v.criterionId,
         verdict: v.verdict,
