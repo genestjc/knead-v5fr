@@ -4,11 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { useMembership } from '@/components/membership-provider';
 import { X, Send, Loader2, Copy, Check, Volume2, Square } from 'lucide-react';
+import { loadThread, saveThread, type ThreadMessage } from '@/lib/demeter-thread';
 
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
+type Message = ThreadMessage;
 
 interface DemeterBubbleProps {
   slug?: string;
@@ -263,6 +261,12 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     else setPanelStyle(null);
   }, [open]);
 
+  // Restore the reader's thread after mount (never during render — the server
+  // renders an empty panel and reading storage inline would break hydration).
+  useEffect(() => {
+    setMessages(loadThread(slug));
+  }, [slug]);
+
   // Stop narration when the panel closes or the component unmounts
   useEffect(() => {
     if (!open) stopAudio();
@@ -301,7 +305,12 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
     if (!text.trim() || loading) return;
 
     const userMsg: Message = { role: 'user', content: text.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    // Persist alongside every state update rather than from an effect: on a
+    // slug change the restore effect and a save effect would race, and the
+    // loser writes one article's thread under the other's key.
+    const withUser = [...messages, userMsg];
+    setMessages(withUser);
+    saveThread(slug, withUser);
     setInput('');
     resetTextareaHeight();
     setLoading(true);
@@ -320,13 +329,14 @@ export function DemeterBubble({ slug, contentId, isPremiumPost }: DemeterBubbleP
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
 
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: data.reply },
-      ]);
+      const withReply: Message[] = [...withUser, { role: 'assistant', content: data.reply }];
+      setMessages(withReply);
+      saveThread(slug, withReply);
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      // The failure notice is deliberately not persisted — a reload shouldn't
+      // replay a transient error, and it isn't context worth resolving against.
+      setMessages([
+        ...withUser,
         {
           role: 'assistant',
           content: "Sorry, I couldn't get a response. Try again in a moment.",

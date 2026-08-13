@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
 import { runAgentChat, OPENAI_SOL, type AgentTool } from '@/lib/ai/router';
+import { webSearch } from '@/lib/ai/web-search';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Tool loops can exceed Vercel's default function duration
@@ -39,7 +40,7 @@ const TOOLS: AgentTool[] = [
   {
     name: 'web_search',
     description:
-      'Search the web for current information about people, places, events, or topics mentioned in the article — e.g. upcoming dinners, recent news, social media activity, event dates.',
+      "Search the live web and get back sources you can cite. REQUIRED before you state anything about the world that is not written in the article you're embedded in — upcoming projects, dinners or events, recent news, social activity, what a subject is doing now, or where a place actually is. Your own recollection is not a substitute: if it is not in the article and you did not search for it this turn, you do not know it.",
     parameters: {
       type: 'object',
       properties: {
@@ -79,6 +80,23 @@ const TOOLS: AgentTool[] = [
     },
   },
 ];
+
+// Demeter kept answering "what else is this person up to?" from the model's
+// own recall — plausible, unattributable, and occasionally wrong. The tool
+// description alone wasn't enough to make it reach for the tool, so the rule
+// is stated in the prompt too, on every variant.
+const SEARCH_RULES = `Facts from outside the material in front of you (important):
+- Anything you have not been given here, you do not know. Upcoming projects, recent news, events, social activity, where a place is, what someone is doing now — call web_search FIRST, then answer from what comes back. Never answer those from memory, and never dress up a guess as a finding.
+- Name the source in your reply the way an editor would — "per Eater LA", "her studio's site lists". A clause is plenty; no URLs, no link dumps, no footnotes.
+- Keep the line visible between what you were given, what you found, and what you're inferring. If you're reading between the lines, say so.
+- If the search comes back empty or unavailable, say plainly that you couldn't find anything current and give the reader what you do have. An honest miss beats a confident invention.`;
+
+// The reader's thread is sent up with every turn. Demeter used to volunteer
+// that it couldn't remember anything — which read as broken to anyone in an
+// in-app browser, where the whole session lives inside one WebView.
+const CONTINUITY_RULES = `Continuity:
+- You are given the conversation so far. Follow-ups like "what was her name again?" or "make it punchier" resolve against those earlier turns — read them and answer.
+- Never tell the reader you can't remember, that you don't retain context, that the thread is lost, or that they'll have to repeat themselves. If a reference is genuinely ambiguous, just ask which one they mean.`;
 
 async function searchArticles(keyword: string): Promise<string> {
   try {
@@ -121,27 +139,6 @@ async function getArticle(slug: string): Promise<string> {
     console.error('[Demeter] Get article error:', err);
     return 'Could not fetch that story right now.';
   }
-}
-
-async function webSearch(query: string): Promise<string> {
-  const res = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: process.env.TAVILY_API_KEY,
-      query,
-      search_depth: 'basic',
-      include_answer: true,
-      max_results: 5,
-    }),
-  });
-  const data = await res.json();
-  if (data.answer) return data.answer;
-  return (
-    data.results
-      ?.map((r: any) => `${r.title}: ${r.content}`)
-      .join('\n\n') || 'No results found.'
-  );
 }
 
 function portableTextToPlain(blocks: any[]): string {
@@ -220,6 +217,10 @@ You can also answer questions about:
 
 Keep responses to 2–3 short paragraphs. Match Knead's voice: intelligent, warm, never stuffy.
 
+${SEARCH_RULES}
+
+${CONTINUITY_RULES}
+
 After every response, suggest two follow-up questions:
 You might also ask:
 • [question one]
@@ -235,10 +236,13 @@ ${articleContext}
 
 Rules:
 - Only answer questions related to this article and the people, places, events, and themes within it
-- Use web_search when you need current information — upcoming events, recent news, social media activity — about subjects in the article
 - If someone asks something completely unrelated to this article or Knead's world (recipes, homework, coding, etc.), respond: "I'm here to help you explore this story — ask me anything about it."
 - Keep responses to 2–3 short paragraphs
 - Match Knead's voice: intelligent, warm, never stuffy
+
+${SEARCH_RULES}
+
+${CONTINUITY_RULES}
 
 Sharing (important — this is part of your job):
 - Knead grows when readers share stories. After you give a TLDR or summary, or whenever the reader seems engaged, offer to craft them a short post to share on social — and make one of your two suggested follow-up questions that offer, phrased as the reader would say it (e.g. "Craft me a post I can share")
@@ -253,7 +257,11 @@ You might also ask:
 
 Only answer questions related to Knead Magazine's world: culture, food, fashion, music, art, and the stories we cover. If asked something unrelated, respond: "I'm here to help you explore Knead's world — ask me anything about our stories."
 
-Use web_search for current information when relevant. Keep responses to 2–3 short paragraphs.
+Keep responses to 2–3 short paragraphs.
+
+${SEARCH_RULES}
+
+${CONTINUITY_RULES}
 
 After every response, suggest two follow-up questions:
 You might also ask:
@@ -268,7 +276,9 @@ You might also ask:
       tools: TOOLS,
       executeTool: async (name, args) => {
         if (name === 'web_search') {
-          return webSearch(args.query).catch(() => 'Search unavailable.');
+          // webSearch handles its own failures and returns an instruction not
+          // to answer from memory, so a thrown-away error here would defeat it.
+          return webSearch(args.query, { logTag: 'Demeter' });
         }
         if (name === 'search_articles') {
           return searchArticles(args.keyword);
