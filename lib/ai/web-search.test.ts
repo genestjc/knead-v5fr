@@ -21,6 +21,16 @@ function stubTavily(response: { ok?: boolean; status?: number; body?: any }) {
   })) as any;
 }
 
+/** Captures the body sent to Tavily so the request itself can be asserted on. */
+function captureRequest(body: any = { results: [], answer: 'x' }) {
+  const sent: any[] = [];
+  globalThis.fetch = (async (_url: string, init: any) => {
+    sent.push(JSON.parse(init.body));
+    return { ok: true, status: 200, json: async () => body } as any;
+  }) as any;
+  return sent;
+}
+
 function restore() {
   globalThis.fetch = realFetch;
   if (realKey === undefined) delete process.env.TAVILY_API_KEY;
@@ -100,6 +110,110 @@ test('a genuinely empty result set is distinguished from a failure', async () =>
     assert.match(out, /RETURNED NOTHING/);
     assert.doesNotMatch(out, /FAILED|UNAVAILABLE/);
     assert.match(out, /Do NOT answer from memory/);
+  } finally {
+    restore();
+  }
+});
+
+/**
+ * The reported miss: asked about Daniel Arsham's trading cards, the agent
+ * surfaced a years-old Pokémon collab — better covered, so better ranked — and
+ * never mentioned the current Contemporary100 project. Both have to reach the
+ * model, dated, with instructions to lead on the recent one and offer the other.
+ */
+const ARSHAM = {
+  answer: 'Daniel Arsham has worked on several trading card projects.',
+  results: [
+    {
+      title: 'Daniel Arsham x Pokémon crossover cards',
+      url: 'https://example.com/pokemon',
+      content: 'The eroded Pikachu set.',
+      published_date: '2023-01-15T00:00:00Z',
+    },
+    {
+      title: 'Daniel Arsham joins Contemporary100',
+      url: 'https://example.com/contemporary100',
+      content: 'A new card series.',
+      published_date: '2026-06-02T00:00:00Z',
+    },
+  ],
+};
+
+test('keeps competing projects from every era, with their dates', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  stubTavily({ body: ARSHAM });
+  try {
+    const out = await webSearch('Daniel Arsham trading cards');
+    // Both eras reach the model — the older one is context, not a casualty.
+    assert.match(out, /Pokémon/);
+    assert.match(out, /Contemporary100/);
+    assert.match(out, /2023-01-15/);
+    assert.match(out, /2026-06-02/);
+    // And it is told to lead on the recent one and offer the choice.
+    assert.match(out, /NOT by date/);
+    assert.match(out, /most recent/i);
+    assert.match(out, /ask which they want/i);
+  } finally {
+    restore();
+  }
+});
+
+test('undated results are marked as undated rather than left blank', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  stubTavily({ body: RESULTS });
+  try {
+    const out = await webSearch('chef second location');
+    assert.match(out, /date not given by the source/);
+  } finally {
+    restore();
+  }
+});
+
+test('an unparseable date is dropped, never rendered as Invalid Date', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  stubTavily({
+    body: { results: [{ title: 'T', url: 'https://e.com', published_date: 'last tuesday' }] },
+  });
+  try {
+    const out = await webSearch('anything');
+    assert.doesNotMatch(out, /Invalid Date/);
+    assert.match(out, /date not given by the source/);
+  } finally {
+    restore();
+  }
+});
+
+test('recency defaults to unfiltered, so older projects survive the search', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  const sent = captureRequest();
+  try {
+    await webSearch('Daniel Arsham trading cards');
+    // time_range is a hard filter — sending one by default would have erased
+    // the older collaboration before the model ever saw it.
+    assert.equal('time_range' in sent[0], false);
+  } finally {
+    restore();
+  }
+});
+
+test('an explicit recency window is passed through and disclosed', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  const sent = captureRequest({ results: [{ title: 'T', url: 'https://e.com' }] });
+  try {
+    const out = await webSearch('is the pop-up open', { recency: 'week' });
+    assert.equal(sent[0].time_range, 'week');
+    assert.match(out, /narrowed to the past week/);
+  } finally {
+    restore();
+  }
+});
+
+test('an off-enum recency falls back to unfiltered instead of reaching Tavily', async () => {
+  process.env.TAVILY_API_KEY = 'test-key';
+  const sent = captureRequest();
+  try {
+    await webSearch('anything', { recency: 'recent' as any });
+    assert.equal('time_range' in sent[0], false);
   } finally {
     restore();
   }
