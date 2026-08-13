@@ -45,6 +45,12 @@ const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'A focused search query.' },
+        recency: {
+          type: 'string',
+          enum: ['any', 'week', 'month', 'year'],
+          description:
+            "How far back results may come from. Leave as 'any' (the default) for almost everything, including 'what is he working on now' — 'any' still lets you lead with the newest result, and it keeps older projects visible so you can offer the reader the choice between them. Narrow ONLY when older material would be actively wrong to show, e.g. 'is the pop-up still open this week'. Narrowing hides everything outside the window.",
+        },
       },
       required: ['query'],
     },
@@ -88,6 +94,8 @@ const TOOLS: AgentTool[] = [
 const SEARCH_RULES = `Facts from outside the material in front of you (important):
 - Anything you have not been given here, you do not know. Upcoming projects, recent news, events, social activity, where a place is, what someone is doing now — call web_search FIRST, then answer from what comes back. Never answer those from memory, and never dress up a guess as a finding.
 - Name the source in your reply the way an editor would — "per Eater LA", "her studio's site lists". A clause is plenty; no URLs, no link dumps, no footnotes.
+- Lead with the most recent thing that answers the question, unless the reader pointed at a particular project, era, or date — then that one leads. A subject's current work is almost always what they're asking about; a well-covered older project is not the answer just because more was written about it.
+- When more than one distinct thing genuinely fits — two different collaborations, two releases, two venues — don't quietly pick one. Give the newest in a sentence, name the other in a clause, and ask which they'd like. Make your two suggested follow-ups those two options, one each, so it's a tap rather than a typed reply.
 - Keep the line visible between what you were given, what you found, and what you're inferring. If you're reading between the lines, say so.
 - If the search comes back empty or unavailable, say plainly that you couldn't find anything current and give the reader what you do have. An honest miss beats a confident invention.`;
 
@@ -278,7 +286,7 @@ You might also ask:
         if (name === 'web_search') {
           // webSearch handles its own failures and returns an instruction not
           // to answer from memory, so a thrown-away error here would defeat it.
-          return webSearch(args.query, { logTag: 'Demeter' });
+          return webSearch(args.query, { logTag: 'Demeter', recency: args.recency });
         }
         if (name === 'search_articles') {
           return searchArticles(args.keyword);
