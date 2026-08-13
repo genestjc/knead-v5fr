@@ -21,6 +21,7 @@ import {
   type RepoFetchFailure,
 } from '@/lib/github';
 import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA, type AgentTool } from '@/lib/ai/router';
+import { webSearch } from '@/lib/ai/web-search';
 import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 import { isExportBlockedPath } from '@/lib/open-source-starter-kit';
 
@@ -204,25 +205,6 @@ function buildProfileContext(profile: BuilderProfile | null, isNewConversation: 
       : 'Use this memory quietly to calibrate your explanations — do not re-welcome them mid-conversation.',
   );
   return `\n${lines.join('\n')}\n`;
-}
-
-// ---------- web search ----------
-
-async function webSearch(query: string): Promise<string> {
-  const res = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: process.env.TAVILY_API_KEY,
-      query,
-      search_depth: 'basic',
-      include_answer: true,
-      max_results: 4,
-    }),
-  });
-  const data = await res.json();
-  if (data.answer) return data.answer;
-  return data.results?.map((r: any) => `${r.title}: ${r.content}`).join('\n\n') || 'No results found.';
 }
 
 // ---------- source retrieval ----------
@@ -861,7 +843,7 @@ export async function POST(req: NextRequest) {
 
     const executeTool = async (name: string, args: any): Promise<string> => {
       if (name === 'web_search') {
-        return webSearch(args.query).catch(() => 'Search unavailable.');
+        return webSearch(args.query, { maxResults: 4, logTag: 'build/chat' });
       }
       if (name === 'get_source_file') {
         return readSourceFile(args);

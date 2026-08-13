@@ -13,6 +13,7 @@
 import { createClient } from 'next-sanity';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import type { AgentTool } from '@/lib/ai/router';
+import { webSearch } from '@/lib/ai/web-search';
 
 const sanity = createClient({
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
@@ -183,27 +184,9 @@ export async function getEvents(status?: string): Promise<string> {
   }
 }
 
-export async function webSearch(query: string): Promise<string> {
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: process.env.TAVILY_API_KEY,
-        query,
-        search_depth: 'basic',
-        include_answer: true,
-        max_results: 5,
-      }),
-    });
-    const data = await res.json();
-    if (data.answer) return data.answer;
-    return data.results?.map((r: any) => `${r.title}: ${r.content}`).join('\n\n') || 'No results found.';
-  } catch (err) {
-    console.error('[Demeter] Web search error:', err);
-    return 'Search unavailable.';
-  }
-}
+// Re-exported so the community-chat agent keeps importing search from the
+// knowledge module alongside the rest of Demeter's read-only tools.
+export { webSearch };
 
 /** Single dispatcher so every Demeter surface exposes the identical tool set. */
 export async function executeKnowledgeTool(name: string, args: any): Promise<string> {
@@ -215,7 +198,7 @@ export async function executeKnowledgeTool(name: string, args: any): Promise<str
     case 'get_events':
       return getEvents(args?.status ? String(args.status) : undefined);
     case 'web_search':
-      return webSearch(String(args?.query ?? ''));
+      return webSearch(String(args?.query ?? ''), { logTag: 'Demeter' });
     default:
       return `Unknown tool: ${name}`;
   }
