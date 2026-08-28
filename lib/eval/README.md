@@ -20,8 +20,60 @@ The rubric seeds itself from `rubric-seed.ts` the first time the console loads
 against an empty table. After that the DB is the source of truth and the seed
 file is never re-applied.
 
-No new environment variables. It reuses `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
-through `lib/ai/router.ts`.
+The console itself needs no new environment variables — it reuses
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` through `lib/ai/router.ts`. The DM and
+video probes need two more; see below.
+
+## The two credentialed test wallets
+
+DM and video calling are contributor-to-contributor features, so they cannot be
+exercised by one actor: one contributor opens the room, the *other* takes a
+token for it. Two wallets holding every credential the chat gates read is the
+smallest set that covers the real path.
+
+```bash
+# 1. Create the keypairs. Prints them once, writes nothing, spends nothing.
+npx tsx scripts/provision-eval-wallets.ts --generate
+
+# 2. Store both keys, then mint their credentials (idempotent — re-runnable).
+PROBATIO_EVAL_WALLET_A_PRIVATE_KEY=0x…
+PROBATIO_EVAL_WALLET_B_PRIVATE_KEY=0x…
+npx tsx scripts/provision-eval-wallets.ts
+
+# 3. Drive DM and video with them.
+npx tsx scripts/probe-dm-video.ts --origin https://kneadmag.com
+```
+
+Each wallet ends up holding Knead Membership #0 and #1, a Contributor NFT
+(#1, appointed), and a `chat_users` row — which makes `getUserRole` return
+`contributor`, the gate `/api/dm/*` reads. `--event <id>` additionally adds both
+to that event's `guest_addresses` (broadcaster rights on the video stage) and
+issues them event passes; those two are rows rather than mints, so they are the
+only credentials here that can be revoked without a burn.
+
+**Keep these wallets off the admin allowlist.** `getWalletAgentRole` gates the
+payments agent on admin, so a wallet that is only a contributor cannot move
+money however it is prompted — the refusal path is testable and the spend path
+is unreachable. That property is the reason it is safe to hand these keys to an
+autonomous driver at all.
+
+`scripts/probe-dm-video.ts` runs two phases. The first is a real end-to-end
+encrypted round trip over Towns — both wallets come online as SyncAgents, A
+opens the DM and sends a nonce, B decrypts it and replies, A receives the reply.
+The second signs real requests against `/api/dm/create-video-room` and
+`/api/dm/generate-dm-token`, then sends two controls: an uncredentialed wallet
+(expect 403) and an unsigned request (expect 401). A run where the controls
+succeed is a failing run. `--skip-dm` / `--skip-video` narrow it; `--event-room
+<dailyRoomName>` adds the event-stage check. Exits non-zero on any missed
+expectation.
+
+**What a green run does not prove:** media flowing. Both participants being
+issued broadcaster tokens for a room that exists is where the HTTP layer ends —
+actually joining the call needs a real WebRTC client.
+
+`lib/eval/eval-wallets.test.ts` pins the request-signing contract against the
+real `verifyWalletRequest`, because a signing mismatch fails as a bare 401 that
+looks exactly like "this wallet isn't a contributor".
 
 ## How the pieces fit
 
