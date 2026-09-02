@@ -56,6 +56,45 @@ function plainTextFromBlocks(blocks: unknown): string | undefined {
   return text || undefined
 }
 
+// Search engines truncate around here; answer engines read the whole string.
+const DESCRIPTION_MAX = 155
+
+function truncateAtWord(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
+  const lastSpace = cut.lastIndexOf(" ")
+  const trimmed = lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut
+  return `${trimmed.replace(/[\s.,;:!?—–-]+$/, "")}…`
+}
+
+/**
+ * The one sentence a machine reads to decide what this story is about.
+ *
+ * A hand-written excerpt always wins. Failing that, derive from the article's
+ * own opening rather than emitting boilerplate — a real first line describes
+ * the piece, and "Read X on Knead" describes nothing, which is the difference
+ * between a page an answer engine can place and one it can't.
+ *
+ * For premium posts the fallback reads only the ungated opening blocks, the
+ * same two the page renders publicly. A meta description is public by
+ * definition and must never be a way to read gated prose.
+ */
+function deriveDescription(post: SanityDocument): string {
+  if (typeof post.excerpt === "string" && post.excerpt.trim()) {
+    return post.excerpt.trim()
+  }
+
+  const isPremium = Boolean(post.isPremium || post.premium)
+  const source = Array.isArray(post.body) ? (isPremium ? post.body.slice(0, 2) : post.body) : []
+  const opening = plainTextFromBlocks(source)
+
+  if (opening) {
+    return truncateAtWord(opening.replace(/\s+/g, " ").trim(), DESCRIPTION_MAX)
+  }
+
+  return `Read ${post.title || "this post"} on Knead - Stories worth savoring`
+}
+
 const options = { next: { revalidate: 60 } }
 
 // Generate metadata for SEO - This function is already quite robust.
@@ -77,12 +116,14 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       console.error("Error generating image URL for metadata:", error)
     }
 
+    const description = deriveDescription(post)
+
     return {
       title: `${post.title || 'Untitled Post'} | Knead`,
-      description: post.excerpt || `Read ${post.title || 'this post'} on Knead - Stories worth savoring`,
+      description,
       openGraph: {
         title: post.title || 'Untitled Post',
-        description: post.excerpt || `Read ${post.title || 'this post'} on Knead`,
+        description,
         type: "article",
         publishedTime: post.publishedAt,
         authors: post.author?.name ? [post.author.name] : undefined,
@@ -91,7 +132,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
       twitter: {
         card: "summary_large_image",
         title: post.title || 'Untitled Post',
-        description: post.excerpt || `Read ${post.title || 'this post'} on Knead`,
+        description,
         images: imageUrl ? [imageUrl] : undefined,
       },
       alternates: {
@@ -146,7 +187,7 @@ export default async function PostPage({ params }: PostPageProps) {
     const jsonLd = articleSchema({
       title: post.title || "Untitled",
       slug: params.slug,
-      excerpt: post.excerpt,
+      excerpt: deriveDescription(post),
       publishedAt: post.publishedAt,
       updatedAt: post._updatedAt,
       imageUrl: post.mainImage?.asset ? getImageUrl() : null,
