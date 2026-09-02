@@ -20,6 +20,15 @@ export default {
       validation: (Rule) => Rule.required(),
     },
     {
+      name: "excerpt",
+      title: "Excerpt",
+      description:
+        "One or two sentences that answer what this story is about. Used as the meta description, the Demeter search result summary, and the text answer engines read when deciding whether to cite the piece. Write it as a standalone claim, not a teaser — 'A Richmond baker spent two years rebuilding a sourdough starter from her grandmother's notes' beats 'You won't believe what she found.'",
+      type: "text",
+      rows: 3,
+      validation: (Rule) => Rule.max(300).warning("Search engines truncate past ~160 characters; answer engines read the whole thing."),
+    },
+    {
       name: "author",
       title: "Author",
       type: "reference",

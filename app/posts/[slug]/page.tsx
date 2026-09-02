@@ -12,6 +12,7 @@ import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
 import { ArticleListenButton } from "../../../components/demeter/ArticleListenButton"
 import { FreeArticleCTA } from "../../../components/free-article-cta"
 import { BackToStoriesLink } from "../../../components/back-to-stories-link"
+import { articleSchema, jsonLdScript } from "@/lib/structured-data"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -23,6 +24,7 @@ interface PostPageProps {
 // Updated GROQ query to fetch premium field (checking both isPremium and premium)
 const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   _id,
+  _updatedAt,
   title,
   slug,
   publishedAt,
@@ -37,9 +39,22 @@ const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   excerpt,
   isPremium,
   premium,
-  "author": author->{name, image, bio},
+  "author": author->{_id, name, image, bio},
   "categories": categories[]->title
 }`
+
+// Author bios are Portable Text; JSON-LD needs a plain string. Kept local
+// rather than imported from lib/demeter-knowledge so this page doesn't pull in
+// the Supabase admin client and web-search modules just to flatten a bio.
+function plainTextFromBlocks(blocks: unknown): string | undefined {
+  if (!Array.isArray(blocks)) return undefined
+  const text = blocks
+    .filter((b: any) => b?._type === "block" && Array.isArray(b.children))
+    .map((b: any) => b.children.map((c: any) => c?.text ?? "").join(""))
+    .join(" ")
+    .trim()
+  return text || undefined
+}
 
 const options = { next: { revalidate: 60 } }
 
@@ -128,8 +143,26 @@ export default async function PostPage({ params }: PostPageProps) {
       }
     }
 
+    const jsonLd = articleSchema({
+      title: post.title || "Untitled",
+      slug: params.slug,
+      excerpt: post.excerpt,
+      publishedAt: post.publishedAt,
+      updatedAt: post._updatedAt,
+      imageUrl: post.mainImage?.asset ? getImageUrl() : null,
+      isPremium: isPremiumPost,
+      author: post.author
+        ? { _id: post.author._id, name: post.author.name, bioText: plainTextFromBlocks(post.author.bio) }
+        : null,
+      categories: Array.isArray(post.categories) ? post.categories.filter(Boolean) : [],
+    })
+
     return (
       <>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
+        />
         <Header />
         <DemeterBubble slug={params.slug} contentId={post._id} isPremiumPost={isPremiumPost} />
         <main className="min-h-screen bg-white">
@@ -187,7 +220,9 @@ export default async function PostPage({ params }: PostPageProps) {
                       )}
                     </div>
                     <UnlockContent contentId={post._id || ""}>
-                      <div className="article-body">
+                      {/* Class is referenced by the hasPart cssSelector in the
+                          Article JSON-LD — keep the two in sync. */}
+                      <div className="article-body article-body--gated">
                         {post.body && Array.isArray(post.body) && post.body.length > 2 ? (
                           <PortableTextRenderer content={post.body.slice(2)} />
                         ) : (

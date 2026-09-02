@@ -25,3 +25,10 @@ export const SUBSCRIPTION_PRICES = {
 export const ARTICLE_LIMITS = {
   FREEMIUM: 3,
 };
+
+// Canonical origin for anything a machine reads: sitemap URLs, robots, and the
+// absolute URLs required by JSON-LD. Never a relative path — crawlers resolve
+// these outside the context of the page that emitted them. No trailing slash.
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL || "https://kneadmag.com"
+).replace(/\/+$/, "");
