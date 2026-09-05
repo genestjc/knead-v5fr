@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/header"
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | Knead",
+  title: "Privacy Policy",
   description:
     "Knead Publishing LLC privacy policy covering data collection, third-party services, user rights, and compliance with GDPR and COPPA.",
 }

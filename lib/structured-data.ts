@@ -1,4 +1,11 @@
-import { SITE_URL } from "@/lib/constants"
+import {
+  SITE_URL,
+  SITE_NAME,
+  SITE_DESCRIPTION,
+  SITE_SLOGAN,
+  SITE_TOPICS,
+  SITE_SOCIAL_PROFILES,
+} from "@/lib/constants"
 
 /**
  * JSON-LD builders for the pages answer engines read.
@@ -18,6 +25,7 @@ import { SITE_URL } from "@/lib/constants"
  */
 
 const ORG_ID = `${SITE_URL}/#organization`
+const WEBSITE_ID = `${SITE_URL}/#website`
 
 /**
  * Serialize a schema for injection into a <script type="application/ld+json">.
@@ -44,19 +52,87 @@ export interface ArticleSchemaInput {
     bioText?: string
   } | null
   categories?: string[]
+  /**
+   * Named subjects the piece is *about* — an interviewee, a profiled artist.
+   * This is the difference between a page that reads as journalism about a
+   * person and one that reads as marketing for a product.
+   */
+  about?: Array<{ type: "Person" | "Organization"; name: string }>
 }
 
+/**
+ * Knead, as an entity.
+ *
+ * NewsMediaOrganization is the point of this node. Plain Organization says
+ * "a company exists here" and leaves the category to be guessed from whatever
+ * page the crawler landed on; NewsMediaOrganization says "this is a publisher",
+ * which is the claim that stops an interview about AI being read as evidence
+ * that Knead sells AI tools.
+ *
+ * `description` carries the category, `slogan` carries the voice, `knowsAbout`
+ * states the beat explicitly rather than leaving it to be inferred from a
+ * sample of one article, and `sameAs` gives an engine somewhere to corroborate
+ * all of it.
+ */
 export function organizationSchema() {
   return {
-    "@type": "Organization",
+    "@type": ["Organization", "NewsMediaOrganization"],
     "@id": ORG_ID,
-    name: "Knead",
+    name: SITE_NAME,
     url: SITE_URL,
-    description: "Nourishment for the creative spirit.",
+    description: SITE_DESCRIPTION,
+    slogan: SITE_SLOGAN,
+    knowsAbout: SITE_TOPICS,
+    sameAs: SITE_SOCIAL_PROFILES,
+    publishingPrinciples: `${SITE_URL}/about`,
     logo: {
       "@type": "ImageObject",
+      "@id": `${SITE_URL}/#logo`,
       url: `${SITE_URL}/faviconk.jpg`,
+      caption: SITE_NAME,
     },
+  }
+}
+
+/** The site itself, so articles have a publication to belong to. */
+export function websiteSchema() {
+  return {
+    "@type": "WebSite",
+    "@id": WEBSITE_ID,
+    url: SITE_URL,
+    name: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    publisher: { "@id": ORG_ID },
+    inLanguage: "en-US",
+  }
+}
+
+/**
+ * The site-wide graph, emitted on every page from the root layout.
+ *
+ * Every page carrying this is a page that answers "what is Knead?" without
+ * needing the engine to find and correctly interpret a specific article. It
+ * also means the `@id` references in articleSchema always resolve within the
+ * same document.
+ */
+export function siteSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [organizationSchema(), websiteSchema()],
+  }
+}
+
+/** The /about page, which is where an engine looks to resolve the publisher. */
+export function aboutPageSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "@id": `${SITE_URL}/about#page`,
+    url: `${SITE_URL}/about`,
+    name: `About ${SITE_NAME}`,
+    description: SITE_DESCRIPTION,
+    isPartOf: { "@id": WEBSITE_ID },
+    mainEntity: { "@id": ORG_ID },
   }
 }
 
@@ -87,7 +163,15 @@ export function articleSchema(input: ArticleSchemaInput) {
     ...(input.publishedAt ? { datePublished: input.publishedAt } : {}),
     dateModified: input.updatedAt || input.publishedAt,
     author,
-    publisher: organizationSchema(),
+    // References, not copies. The full nodes are emitted once by siteSchema()
+    // in the root layout, which is present on this page too — so these resolve
+    // in-document, and the article is explicitly part of a publication rather
+    // than a page that happens to sit at this domain.
+    publisher: { "@id": ORG_ID },
+    isPartOf: { "@id": WEBSITE_ID },
+    ...(input.about?.length
+      ? { about: input.about.map((e) => ({ "@type": e.type, name: e.name })) }
+      : {}),
     ...(input.categories?.length ? { articleSection: input.categories, keywords: input.categories.join(", ") } : {}),
     isAccessibleForFree: !input.isPremium,
     ...(input.isPremium

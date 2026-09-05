@@ -1,5 +1,13 @@
+import type { Metadata } from "next"
+import { SITE_NAME } from "@/lib/constants"
 import { Header } from "@/components/header"
 import { getPosts } from "@/lib/cms"
+
+export const metadata: Metadata = {
+  title: "Archive",
+  description: `Every story published by ${SITE_NAME}, an independent magazine covering art, music, food, technology, and other creative disciplines.`,
+  alternates: { canonical: "/archive" },
+}
 import { ArchiveGrid } from "@/components/archive-grid"
 
 // Add this to revalidate every 60 seconds (or use 0 for on-demand)

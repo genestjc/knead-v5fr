@@ -1,5 +1,15 @@
+import type { Metadata } from "next"
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/constants"
 import { Header } from "@/components/header"
 import { PostCardFullBleed } from "@/components/post-card-full-bleed"
+
+export const metadata: Metadata = {
+  // Absolute, so the homepage reads as the publication itself rather than
+  // "Knead | Knead" via the root template.
+  title: { absolute: SITE_NAME },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+}
 import { client } from "../sanity/client"
 import type { SanityDocument } from "next-sanity"
 import { ScrollFadeWrapper } from "@/components/scroll-fade-wrapper"

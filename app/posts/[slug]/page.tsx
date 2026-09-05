@@ -13,6 +13,7 @@ import { ArticleListenButton } from "../../../components/demeter/ArticleListenBu
 import { FreeArticleCTA } from "../../../components/free-article-cta"
 import { BackToStoriesLink } from "../../../components/back-to-stories-link"
 import { articleSchema, jsonLdScript } from "@/lib/structured-data"
+import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -40,7 +41,8 @@ const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   isPremium,
   premium,
   "author": author->{_id, name, image, bio},
-  "categories": categories[]->title
+  "categories": categories[]->title,
+  subjects[]{name, type}
 }`
 
 // Author bios are Portable Text; JSON-LD needs a plain string. Kept local
@@ -104,7 +106,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
     if (!post) {
       return {
-        title: "Post Not Found | Knead",
+        title: "Post Not Found",
         description: "The requested post could not be found.",
       }
     }
@@ -119,7 +121,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     const description = deriveDescription(post)
 
     return {
-      title: `${post.title || 'Untitled Post'} | Knead`,
+      title: post.title || 'Untitled Post',
       description,
       openGraph: {
         title: post.title || 'Untitled Post',
@@ -142,8 +144,9 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
   } catch (error) {
     console.error("Error generating metadata:", error)
     return {
-      title: "Knead",
-      description: "Stories worth savoring",
+      // Absolute, so the root layout's "%s | Knead" template doesn't double it.
+      title: { absolute: SITE_NAME },
+      description: SITE_DESCRIPTION,
     }
   }
 }
@@ -196,6 +199,11 @@ export default async function PostPage({ params }: PostPageProps) {
         ? { _id: post.author._id, name: post.author.name, bioText: plainTextFromBlocks(post.author.bio) }
         : null,
       categories: Array.isArray(post.categories) ? post.categories.filter(Boolean) : [],
+      about: Array.isArray(post.subjects)
+        ? post.subjects
+            .filter((s: any) => s?.name)
+            .map((s: any) => ({ type: s.type === "Organization" ? "Organization" : "Person", name: s.name }))
+        : [],
     })
 
     return (

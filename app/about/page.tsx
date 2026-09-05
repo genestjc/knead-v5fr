@@ -1,9 +1,30 @@
 import { Header } from "@/components/header"
 import { Instagram, Twitter } from "lucide-react"
+import type { Metadata } from "next"
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants"
+import { aboutPageSchema, jsonLdScript } from "@/lib/structured-data"
+
+// This is the page an answer engine reads to work out what Knead is, so it
+// gets the description in full rather than inheriting a tagline.
+export const metadata: Metadata = {
+  title: `About ${SITE_NAME}`,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: `About ${SITE_NAME}`,
+    description: SITE_DESCRIPTION,
+    type: "website",
+    url: `${SITE_URL}/about`,
+  },
+  alternates: { canonical: "/about" },
+}
 
 export default function AboutPage() {
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(aboutPageSchema()) }}
+      />
       <Header />
 
       <section className="py-24 md:py-32">
