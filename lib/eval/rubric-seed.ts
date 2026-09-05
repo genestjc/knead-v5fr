@@ -356,6 +356,12 @@ export const RUBRIC_SEED: SeedCriterion[] = [
   },
   {
     surface: 'aeo-story',
+    prompt: 'Did our article body actually reach the crawler?',
+    guidance:
+      'Read prose-reached-crawler on OURS. This row gates every editorial row below it: if the body did not reach the crawler, the word, quote and specificity counts describe what an engine received, not what was published, and say nothing about the reporting. A published interview that extracts to a handful of words is a rendering or gating failure, not a thin piece. Fail here means fix delivery before touching the writing.',
+  },
+  {
+    surface: 'aeo-story',
     prompt: 'Does our piece carry original quoted speech?',
     guidance:
       'Read original-quotation on OURS, and compare against the field. Quotes are what an engine cannot source anywhere else, which is what earns an attributed citation rather than an uncredited synthesis.',

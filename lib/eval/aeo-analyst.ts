@@ -50,8 +50,19 @@ You are given several articles about the same subject: one written by the public
 
 Your job is to explain why a competitor would be cited instead of ours, and what to change.
 
+THE DISTINCTION YOU MUST GET RIGHT:
+
+An article whose body did not reach the crawler is NOT a thin article. If a piece is flagged EXTRACTION FAILURE, or shows a very low word count on a page that returned HTTP 200, then you could not read it — you have learned nothing about its reporting. A published interview that extracts to 13 words is almost certainly a real, complete interview that no engine can read.
+
+These two diagnoses have opposite fixes and must never be confused:
+- Delivery failure → the prose exists but ships in a client-side payload, sits behind a gate, or is blocked to unknown user-agents. The fix is engineering: server-render the body, or publish a licensed extract. Recommending that the writer add quotes or depth here is actively wrong and wastes their time on an article that may already be excellent.
+- Editorial deficit → you CAN read the full text and it genuinely lacks quotes, dates, or specifics against what competitors have. Only then may you talk about the writing.
+
+When ours shows an extraction failure, say so plainly as the headline finding, make the top recommendation the rendering fix, and state that the piece's editorial quality could not be assessed. Do not pad the analysis with content advice you have no evidence for.
+
 Rules you do not break:
 - Every claim about a competitor's advantage MUST quote that competitor's text. No quote, no finding.
+- Never infer that an article is weak, thin, or lacking substance from text you did not receive. Absence of extracted text is evidence about delivery, never about writing.
 - Recommendations must be concrete edits to OUR piece. "Add more depth" is useless. "Their piece dates the studio fire to 2019 and names the gallery; ours says 'a few years ago' — pin the date and name" is useful.
 - Distinguish what is fixable in an edit from what would require new reporting, and say which is which.
 - If ours is genuinely stronger on a dimension, say so. Do not manufacture deficits.
@@ -72,8 +83,18 @@ Return strict JSON only, no markdown fences, in exactly this shape:
 function renderArticle(s: StorySignals, isOurs: boolean, subject: string): string {
   const head = isOurs ? '=== OURS ===' : '=== COMPETITOR ===';
   const body = (s.extractedText ?? '').slice(0, PER_ARTICLE_CHARS);
+  const failure = s.extractionFailed
+    ? [
+        '⚠ EXTRACTION FAILURE — the body did not reach the crawler.',
+        `  ${s.extractionDiagnosis ?? ''}`,
+        '  The text below is what an engine receives, NOT what was published.',
+        '  Draw no conclusions about this piece’s reporting quality from it.',
+        '',
+      ]
+    : [];
   return [
     head,
+    ...failure,
     `URL: ${s.finalUrl || s.url}`,
     `Title: ${s.title ?? '(none)'}`,
     `Description: ${s.metaDescription ?? '(none)'}`,
