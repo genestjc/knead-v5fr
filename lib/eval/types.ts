@@ -17,7 +17,8 @@ export type EvalSurface =
   | 'audio-summaries'
   | 'open-source'
   | 'community-chat'
-  | 'aeo-audit';
+  | 'aeo-audit'
+  | 'aeo-story';
 
 export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] = [
   {
@@ -44,6 +45,11 @@ export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] 
     id: 'aeo-audit',
     label: 'AEO Audit — Publishers',
     blurb: 'Grade Knead and competing publications on answer-engine citability.',
+  },
+  {
+    id: 'aeo-story',
+    label: 'AEO Audit — Story vs Story',
+    blurb: 'One subject, our piece against theirs. Scored, then read by an analyst.',
   },
 ];
 

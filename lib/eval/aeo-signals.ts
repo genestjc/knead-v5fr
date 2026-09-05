@@ -82,6 +82,13 @@ export interface AeoSignals {
   feeds: string[];
   visibleWords: number;
   scriptTextRatio: number;
+  /**
+   * The extracted body text, capped. Present so the story analyst can read
+   * what a competitor actually published rather than reasoning about its
+   * markup — markup says whether a piece is citable, prose says why one gets
+   * cited over another. Empty for site-level audits, which don't need it.
+   */
+  extractedText: string;
 
   robots: { exists: boolean; blocksAiCrawlers: string[]; declaresSitemap: boolean };
   sitemapExists: boolean;
@@ -290,7 +297,24 @@ const NEWS_ARTICLE_TYPES = ['NewsArticle', 'ReportageNewsArticle', 'Report'];
 
 // ─── The audit ───────────────────────────────────────────────────────────────
 
-export async function auditUrl(rawUrl: string): Promise<AeoSignals> {
+/** How much body text a story audit keeps for the analyst to read. */
+export const MAX_EXTRACT_CHARS = 14_000;
+
+export interface AuditOptions {
+  /**
+   * Keep the extracted body text on the result. Story audits need it; site
+   * audits don't, and carrying a homepage's text through the run row is waste.
+   */
+  keepText?: boolean;
+  /**
+   * Skip robots.txt / sitemap.xml / llms.txt. Those are origin-level facts —
+   * fetching them once per article across five articles on the same site is
+   * three wasted requests per duplicate origin.
+   */
+  skipSiblings?: boolean;
+}
+
+export async function auditUrl(rawUrl: string, options: AuditOptions = {}): Promise<AeoSignals> {
   const url = assertPublicUrl(rawUrl);
   const origin = url.origin;
 
@@ -324,6 +348,7 @@ export async function auditUrl(rawUrl: string): Promise<AeoSignals> {
     feeds: [],
     visibleWords: 0,
     scriptTextRatio: 0,
+    extractedText: '',
     robots: { exists: false, blocksAiCrawlers: [], declaresSitemap: false },
     sitemapExists: false,
     llmsTxtExists: false,
@@ -369,6 +394,7 @@ export async function auditUrl(rawUrl: string): Promise<AeoSignals> {
   const scriptChars = scriptTextLength(html);
   const totalText = scriptChars + visible.length;
   base.scriptTextRatio = totalText > 0 ? Number((scriptChars / totalText).toFixed(3)) : 0;
+  if (options.keepText) base.extractedText = visible.slice(0, MAX_EXTRACT_CHARS);
 
   // JSON-LD
   const ld = scanJsonLd(html);
@@ -408,12 +434,19 @@ export async function auditUrl(rawUrl: string): Promise<AeoSignals> {
     };
   }
 
-  // Sibling files
-  const [robotsRes, sitemapRes, llmsRes] = await Promise.all([
-    fetchText(`${origin}/robots.txt`),
-    fetchText(`${origin}/sitemap.xml`),
-    fetchText(`${origin}/llms.txt`),
-  ]);
+  // Sibling files — origin-level, so a story audit comparing several articles
+  // on one site can skip them after the first.
+  const [robotsRes, sitemapRes, llmsRes] = options.skipSiblings
+    ? [
+        { ok: false, text: '' } as const,
+        { ok: false, text: '' } as const,
+        { ok: false, text: '' } as const,
+      ]
+    : await Promise.all([
+        fetchText(`${origin}/robots.txt`),
+        fetchText(`${origin}/sitemap.xml`),
+        fetchText(`${origin}/llms.txt`),
+      ]);
 
   if (robotsRes.ok && robotsRes.text) {
     const txt = robotsRes.text;

@@ -326,4 +326,69 @@ export const RUBRIC_SEED: SeedCriterion[] = [
       'Read ai-crawlers-allowed, which lists any AI user-agent given a blanket Disallow. Blocking is a legitimate business choice, so this row records the posture rather than punishing it — but a publisher that blocks has chosen to forfeit citation, and that should be deliberate. Expected verdict is fail: a pass here means crawlers ARE blocked.',
     expectedVerdict: 'fail',
   },
+
+  // ─── AEO Audit — Story vs Story (10) ───────────────────────────────────────
+  // Scored against one subject across several publications' coverage of it.
+  // These grade OUR piece; the competitors are the field it is measured against.
+  {
+    surface: 'aeo-story',
+    prompt: 'Does our piece name the subject in its title?',
+    guidance:
+      'Read subject-in-title on the article marked OURS. The single strongest retrieval signal for a named-subject query. Fail if the headline is oblique about who the piece is about.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Does our description name the subject?',
+    guidance:
+      'Read subject-in-description on OURS. The description is what an engine reads when deciding whether this page answers a question about this person.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Is the subject declared in machine-readable form?',
+    guidance:
+      'Read subject-in-schema on OURS — an Article `about` entity naming the subject. Without it the piece never states who it covers in a form a machine can resolve, and has to be inferred from prose.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Is the subject named in the opening?',
+    guidance:
+      'Read subject-in-opening on OURS. Engines weight the lede heavily. A piece that takes four paragraphs to name its subject is answering a different question for the first four paragraphs.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Does our piece carry original quoted speech?',
+    guidance:
+      'Read original-quotation on OURS, and compare against the field. Quotes are what an engine cannot source anywhere else, which is what earns an attributed citation rather than an uncredited synthesis.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Does our piece make specific, datable claims?',
+    guidance:
+      'Read specificity on OURS. Generic coverage gets synthesized without attribution; a dated, named, numbered claim gets cited because it can only come from here.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Does our body text survive extraction as well as the field?',
+    guidance:
+      'Compare extractable-text and script-locked-text across every article. Fail if ours extracts to materially less text than competitors — that is a rendering problem masquerading as a content problem.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Is our byline a resolvable entity where competitors are too?',
+    guidance:
+      'Read author-entity across the field. An author who resolves to a person accumulates authority on a beat across pieces; a bare string does not. Score na if no competitor manages it either.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Do we score at or above the field on the composite?',
+    guidance:
+      'Read the FIELD COMPARISON turn. Pass if OURS is at or above the competitor median. This is the headline row — everything else explains it.',
+  },
+  {
+    surface: 'aeo-story',
+    prompt: 'Is our piece missing something a competitor demonstrably has?',
+    guidance:
+      'Read the competitor advantages in the analyst section, each of which must carry a quote. A pass HERE means a real gap was found and evidenced, which is the failure for us; expected verdict is fail. Score na if the analyst found nothing evidenced.',
+    expectedVerdict: 'fail',
+  },
 ];

@@ -14,6 +14,11 @@ import type { Account } from 'thirdweb/wallets';
 import { adminFetch } from '@/lib/admin/admin-fetch';
 import type { EvalCriterion, EvalProvider, EvalResult, EvalRun, EvalTurn, Verdict } from '@/lib/eval/types';
 import type { AeoSignals } from '@/lib/eval/aeo-signals';
+import type { StorySignals } from '@/lib/eval/aeo-story';
+import type { StoryAnalysis } from '@/lib/eval/aeo-analyst';
+
+/** The route strips extractedText before responding — it is large and server-only. */
+export type StorySignalsLite = Omit<StorySignals, 'extractedText'>;
 
 /** Signed when there's a wallet, plain fetch when there isn't (demo mode). */
 function call(
@@ -168,6 +173,34 @@ export async function startAeoAudit(
   done: boolean;
 }> {
   const res = await call('/api/probatio/aeo-audit', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return unwrap(res);
+}
+
+export async function startStoryAudit(
+  account: Account | null,
+  input: {
+    subject: string;
+    ourUrl: string;
+    competitorUrls: string[];
+    provider?: EvalProvider;
+    analyze?: boolean;
+    title?: string;
+  },
+): Promise<{
+  run: EvalRun;
+  turns: EvalTurn[];
+  signals: StorySignalsLite[];
+  subject: string;
+  subjectScore: number | null;
+  fieldMedian: number | null;
+  analysis: StoryAnalysis | null;
+  done: boolean;
+}> {
+  const res = await call('/api/probatio/aeo-story', account, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
