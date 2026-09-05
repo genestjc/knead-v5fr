@@ -135,6 +135,10 @@ export async function POST(req: NextRequest) {
           specificityMarkers: s.specificityMarkers,
           visibleWords: s.visibleWords,
           scriptTextRatio: s.scriptTextRatio,
+          // Carried into the log so the judge weighs "could not read it"
+          // differently from "there was nothing to read".
+          extractionFailed: s.extractionFailed,
+          extractionDiagnosis: s.extractionDiagnosis,
           article: s.article,
           checks: s.checks,
           ...(s.error ? { error: s.error } : {}),

@@ -304,6 +304,7 @@ export function AeoAuditTab({
 
       {storySignals && storySignals.length > 0 && (
         <>
+          <ExtractionNotice signals={storySignals} />
           <Scoreboard
             signals={storySignals as unknown as AeoSignals[]}
             subjectScore={subjectScore}
@@ -449,6 +450,39 @@ function Scoreboard({
           that was fetched.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The one result that must not be misread.
+ *
+ * A piece whose body never reached the crawler scores like a thin piece and
+ * reads like one in every downstream number. Saying so before the scoreboard
+ * is what stops "13 words" being taken as a verdict on the writing.
+ */
+function ExtractionNotice({ signals }: { signals: StorySignalsLite[] }) {
+  const failed = signals.filter((s) => s.extractionFailed);
+  if (failed.length === 0) return null;
+  const oursFailed = signals[0]?.extractionFailed;
+
+  return (
+    <div className="border border-red-300 bg-red-50 rounded-md px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-red-700 font-medium">
+        {oursFailed ? 'Our body never reached the crawler' : 'A competitor body never reached the crawler'}
+      </p>
+      <p className="mt-1 font-georgia-pro text-sm text-red-900 max-w-3xl">
+        This is a <strong>delivery</strong> problem, not an editorial one. The word counts, quote counts
+        and specificity numbers below describe what an engine received — not what was published. Do not
+        read them as a judgement on the reporting.
+      </p>
+      <ul className="mt-2 space-y-1">
+        {failed.map((s) => (
+          <li key={s.url} className="text-[13px] text-red-900">
+            <span className="font-mono">{hostOf(s.finalUrl || s.url)}</span> — {s.extractionDiagnosis}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
