@@ -49,6 +49,44 @@ export default {
       of: [{ type: "reference", to: { type: "category" } }],
     },
     {
+      name: "subjects",
+      title: "Subjects",
+      description:
+        "Who or what this piece is about — the interviewee, the profiled artist, the restaurant. Not the author, and not every name mentioned in passing. This is published as structured data and is what tells an answer engine the piece is journalism about a person, rather than marketing for a product. An interview with a painter about AI is otherwise easy to mistake for an AI art tool.",
+      type: "array",
+      of: [
+        {
+          type: "object",
+          name: "subject",
+          fields: [
+            {
+              name: "name",
+              title: "Name",
+              type: "string",
+              validation: (Rule) => Rule.required(),
+            },
+            {
+              name: "type",
+              title: "Type",
+              type: "string",
+              options: {
+                list: [
+                  { title: "Person", value: "Person" },
+                  { title: "Organization", value: "Organization" },
+                ],
+                layout: "radio",
+              },
+              initialValue: "Person",
+              validation: (Rule) => Rule.required(),
+            },
+          ],
+          preview: {
+            select: { title: "name", subtitle: "type" },
+          },
+        },
+      ],
+    },
+    {
       name: "publishedAt",
       title: "Published at",
       type: "datetime",

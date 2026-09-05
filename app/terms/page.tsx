@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/header"
 
 export const metadata: Metadata = {
-  title: "Terms of Service | Knead",
+  title: "Terms of Service",
   description:
     "Knead Publishing LLC terms of service covering membership tiers, payment terms, NFT membership, chat moderation, and governing law.",
 }
