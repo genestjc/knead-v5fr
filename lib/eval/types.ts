@@ -5,12 +5,19 @@
  * Keep the two in step: the API routes hand these shapes straight to the UI.
  */
 
-/** The four Knead AI surfaces under test. */
+/**
+ * Surfaces under test.
+ *
+ * The first four are Knead's own AI products. `aeo-audit` is the odd one out:
+ * it grades *websites* — Knead's and its competitors' — on whether an answer
+ * engine can identify and cite them. Same rubric machinery, different evidence.
+ */
 export type EvalSurface =
   | 'article-agent'
   | 'audio-summaries'
   | 'open-source'
-  | 'community-chat';
+  | 'community-chat'
+  | 'aeo-audit';
 
 export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] = [
   {
@@ -32,6 +39,11 @@ export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] 
     id: 'community-chat',
     label: 'Demeter — Community Chat',
     blurb: 'The Towns channel agent. Event-driven — graded from pasted transcripts.',
+  },
+  {
+    id: 'aeo-audit',
+    label: 'AEO Audit — Publishers',
+    blurb: 'Grade Knead and competing publications on answer-engine citability.',
   },
 ];
 

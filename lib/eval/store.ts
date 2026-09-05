@@ -73,27 +73,40 @@ export function mapRun(row: any): EvalRun {
 }
 
 /**
- * Load the rubric, seeding the 35 starter test cases the first time this runs
- * against an empty table. Seeding is best-effort: if two admins open the
- * console simultaneously the second insert may lose the race, so we re-read
- * afterwards rather than trusting our own insert.
+ * Load the rubric, seeding starter test cases for any surface that has none.
+ *
+ * Seeding is per-surface rather than per-table. A whole-table check only ever
+ * fires on a brand-new environment, which means a surface added after the
+ * first run — the AEO audit was the first — would come up with an empty rubric
+ * forever and no way to judge a run. Scoping it to the surface lets new
+ * surfaces arrive with their rows while leaving every existing row untouched:
+ * a surface an admin has deliberately emptied is the one case this re-seeds,
+ * which is a fair trade for not shipping a dead tab.
+ *
+ * Best-effort: if two admins open the console at once the second insert may
+ * lose the race, so we re-read afterwards rather than trusting our own insert.
  */
 export async function listCriteria(opts: { includeInactive?: boolean } = {}): Promise<EvalCriterion[]> {
   const supabase = getSupabaseAdmin();
 
-  const { count, error: countError } = await supabase
+  const { data: existing, error: countError } = await supabase
     .from('eval_criteria')
-    .select('id', { count: 'exact', head: true });
+    .select('surface');
 
   if (countError) throw new Error(`Could not read the rubric: ${countError.message}`);
 
-  if ((count ?? 0) === 0) {
-    const rows = RUBRIC_SEED.map((c, i) => ({
+  const populated = new Set((existing ?? []).map((r: any) => r.surface));
+  const missing = RUBRIC_SEED.filter((c) => !populated.has(c.surface));
+
+  if (missing.length > 0) {
+    // Keep sort_order stable against the seed file so a partially seeded table
+    // orders the same way a freshly seeded one does.
+    const rows = missing.map((c) => ({
       surface: c.surface,
       prompt: c.prompt,
       guidance: c.guidance,
       expected_verdict: c.expectedVerdict ?? 'pass',
-      sort_order: i,
+      sort_order: RUBRIC_SEED.indexOf(c),
       is_active: true,
     }));
     const { error: seedError } = await supabase.from('eval_criteria').insert(rows);
