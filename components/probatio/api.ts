@@ -13,6 +13,7 @@
 import type { Account } from 'thirdweb/wallets';
 import { adminFetch } from '@/lib/admin/admin-fetch';
 import type { EvalCriterion, EvalProvider, EvalResult, EvalRun, EvalTurn, Verdict } from '@/lib/eval/types';
+import type { AeoSignals } from '@/lib/eval/aeo-signals';
 
 /** Signed when there's a wallet, plain fetch when there isn't (demo mode). */
 function call(
@@ -151,6 +152,25 @@ export async function stepAgentRun(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ runId }),
+  });
+  return unwrap(res);
+}
+
+export async function startAeoAudit(
+  account: Account | null,
+  input: { subjectUrl: string; competitorUrls: string[]; title?: string },
+): Promise<{
+  run: EvalRun;
+  turns: EvalTurn[];
+  signals: AeoSignals[];
+  subjectScore: number | null;
+  fieldMedian: number | null;
+  done: boolean;
+}> {
+  const res = await call('/api/probatio/aeo-audit', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   });
   return unwrap(res);
 }

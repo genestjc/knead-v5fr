@@ -210,7 +210,9 @@ export function AgentTab({
                 disabled={running}
                 className="w-full text-sm border border-gray-300 rounded-md p-2 bg-white outline-none focus:border-black"
               >
-                {EVAL_SURFACES.map((s) => (
+                {/* aeo-audit grades websites, not conversations — it has no
+                    persona to drive and lives in its own tab. */}
+                {EVAL_SURFACES.filter((s) => s.id !== 'aeo-audit').map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
                   </option>

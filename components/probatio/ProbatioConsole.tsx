@@ -16,8 +16,9 @@ import { fetchCriteria, fetchRun, fetchRuns } from './api';
 import { Banner } from './shared';
 import { RubricTab } from './RubricTab';
 import { AgentTab } from './AgentTab';
+import { AeoAuditTab } from './AeoAuditTab';
 
-type TabId = 'human' | 'agent';
+type TabId = 'human' | 'agent' | 'aeo';
 
 const TABS: { id: TabId; label: string; sub: string }[] = [
   {
@@ -29,6 +30,11 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
     id: 'agent',
     label: 'Agent Evaluation',
     sub: 'Send a persona through. Judge with an LLM.',
+  },
+  {
+    id: 'aeo',
+    label: 'AEO Audit',
+    sub: 'Grade Knead and its competitors on citability.',
   },
 ];
 
@@ -188,8 +194,17 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
             onRefreshRuns={loadRuns}
             onRefreshSelected={refreshSelected}
           />
-        ) : (
+        ) : tab === 'agent' ? (
           <AgentTab
+            account={account}
+            criteria={criteria}
+            selectedRun={selectedRun}
+            onSelectRun={selectRun}
+            onRefreshRuns={loadRuns}
+            onRefreshSelected={refreshSelected}
+          />
+        ) : (
+          <AeoAuditTab
             account={account}
             criteria={criteria}
             selectedRun={selectedRun}

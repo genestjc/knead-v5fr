@@ -248,4 +248,82 @@ export const RUBRIC_SEED: SeedCriterion[] = [
     guidance:
       'Pass: reads like a member of the channel — short, plain, in context. Fail: status-report formatting or boilerplate that ignores the room.',
   },
+
+  // ─── AEO Audit — Publishers (12) ───────────────────────────────────────────
+  // Graded against the deterministic signal report in each turn's behavior log,
+  // not against prose. Every row below is decidable from that report; a judge
+  // that has to reason about intent here is guessing.
+  {
+    surface: 'aeo-audit',
+    prompt: 'Can an engine tell this is a publication without reading an article?',
+    guidance:
+      'The failure this whole surface exists to catch. Pass: the org-schema and news-org-type checks both pass, OR a categorical description names the outlet as a magazine/journal/newspaper. Fail: identity has to be inferred from whatever page was crawled — which is how a magazine gets classified as software.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is the organization typed as a news or media organization?',
+    guidance:
+      'Read the news-org-type check. Pass: NewsMediaOrganization or Periodical. Warn/fail: a generic Organization, which says a company exists but not what kind.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Does the description name a category rather than evoke a mood?',
+    guidance:
+      'Read categorical-description. Pass: the description contains a category noun — magazine, journal, publication, reporting. Fail: slogan-only copy. "Nourishment for the creative spirit" is a mood; "an independent magazine covering art and food" is a category.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is the publisher corroborated by off-site profiles?',
+    guidance:
+      'Read the sameas check. Pass: two or more sameAs links. A sameAs is only a claim — but a publisher with none gives an engine nowhere to confirm it exists as an entity.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is the topical beat declared rather than inferred?',
+    guidance:
+      'Read knows-about. Pass: knowsAbout lists subject areas. Fail: absent, leaving the beat to be guessed from a sample of whatever got crawled.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Are editorial standards published?',
+    guidance:
+      'Read publishing-principles. Pass: publishingPrinciples, ethicsPolicy, or masthead present. This is a trust signal specific to journalism that brands have no equivalent of.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Are bylines resolvable entities rather than bare strings?',
+    guidance:
+      'Read author-entity. Pass: the author carries @id, url, or sameAs. Fail or warn: a plain name string, which cannot accumulate authority across pieces. Score na if no Article node was present on the audited page.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Does body text survive extraction?',
+    guidance:
+      'Read extractable-text. Pass: 250+ words remain after scripts and tags are stripped. This is what a readability-style extractor sees — a long feature that extracts to two paragraphs is thin content to an engine regardless of how it looks in a browser.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is prose locked inside script payloads?',
+    guidance:
+      'Read script-locked-text. A high ratio means the text ships in a JSON/RSC payload rather than the document — the fingerprint of client-side rendering or a client-side paywall. Pass HERE means the content is NOT locked away; the check already encodes the polarity.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is the paywall declared to machines?',
+    guidance:
+      'Read paywall-declared. Pass: isAccessibleForFree or hasPart present. Score na for a free page. Without it, a crawler receiving a truncated body cannot distinguish a short article from one it only saw the top of.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Is the archive discoverable — sitemap, robots, feed?',
+    guidance:
+      'Read the sitemap, robots and feed checks together. Pass: at least two of the three. Discovery that depends entirely on a crawler finding links organically leaves the long tail unread.',
+  },
+  {
+    surface: 'aeo-audit',
+    prompt: 'Does the publisher block AI crawlers?',
+    guidance:
+      'Read ai-crawlers-allowed, which lists any AI user-agent given a blanket Disallow. Blocking is a legitimate business choice, so this row records the posture rather than punishing it — but a publisher that blocks has chosen to forfeit citation, and that should be deliberate. Expected verdict is fail: a pass here means crawlers ARE blocked.',
+    expectedVerdict: 'fail',
+  },
 ];
