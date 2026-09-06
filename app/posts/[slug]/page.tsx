@@ -12,8 +12,9 @@ import { DemeterBubble } from "../../../components/demeter/DemeterBubble"
 import { ArticleListenButton } from "../../../components/demeter/ArticleListenButton"
 import { FreeArticleCTA } from "../../../components/free-article-cta"
 import { BackToStoriesLink } from "../../../components/back-to-stories-link"
-import { articleSchema, jsonLdScript } from "@/lib/structured-data"
+import { articleSchema, jsonLdScript, type KeyFact } from "@/lib/structured-data"
 import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants"
+import { KeyFacts } from "@/components/key-facts"
 
 // Define the params type for the page
 interface PostPageProps {
@@ -42,7 +43,8 @@ const POST_QUERY = `*[_type == "post" && slug.current == $slug][0]{
   premium,
   "author": author->{_id, name, image, bio},
   "categories": categories[]->title,
-  subjects[]{name, type}
+  subjects[]{name, type},
+  keyFacts[]{fact, when, sourceUrl}
 }`
 
 // Author bios are Portable Text; JSON-LD needs a plain string. Kept local
@@ -187,6 +189,16 @@ export default async function PostPage({ params }: PostPageProps) {
       }
     }
 
+    const keyFacts: KeyFact[] = Array.isArray(post.keyFacts)
+      ? post.keyFacts
+          .filter((f: any) => typeof f?.fact === "string" && f.fact.trim())
+          .map((f: any) => ({
+            fact: f.fact.trim(),
+            when: typeof f.when === "string" && f.when.trim() ? f.when.trim() : undefined,
+            sourceUrl: typeof f.sourceUrl === "string" && f.sourceUrl.trim() ? f.sourceUrl.trim() : undefined,
+          }))
+      : []
+
     const jsonLd = articleSchema({
       title: post.title || "Untitled",
       slug: params.slug,
@@ -204,6 +216,7 @@ export default async function PostPage({ params }: PostPageProps) {
             .filter((s: any) => s?.name)
             .map((s: any) => ({ type: s.type === "Organization" ? "Organization" : "Person", name: s.name }))
         : [],
+      keyFacts,
     })
 
     return (
@@ -256,6 +269,9 @@ export default async function PostPage({ params }: PostPageProps) {
                   />
                 </div>
               )}
+              {/* Above the body on purpose: this is the densest factual text
+                  on the page and engines weight the opening. */}
+              <KeyFacts facts={keyFacts} />
               <div className="article-content">
                 {isPremiumPost ? (
                   <>
