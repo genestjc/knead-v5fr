@@ -4,27 +4,36 @@
  * /admin/create-channel — create a channel in the Knead space.
  *
  * Built because a stream can outlive the nodes assigned to it. Our main
- * channel's stream was allocated, at creation, to a set of nodes that included
- * one operated by Figment. That operator left the network and its host stopped
+ * channel's stream was allocated, at creation, to a node set that included one
+ * operated by Figment. That operator left the network and its host stopped
  * resolving, but the stream still lists it as a replica, so every write has to
  * reach a machine that no longer exists and fails with DOWNSTREAM_NETWORK_ERROR.
  * Re-allocating an existing stream needs River DAO participation; creating a
  * new channel does not, and a new stream is allocated across whichever nodes
  * are operational now.
  *
- * The signing model is the point of this page. Channel creation is a space-
- * owner operation, and the obvious implementation — a server route holding
+ * The signing model is the point. Channel creation is a space-owner operation,
+ * and the obvious implementation — a server route holding
  * SPACE_OWNER_PRIVATE_KEY — makes any auth bug on /api/admin/* equivalent to
  * handing over the space. So nothing is signed on the server: the owner
  * connects their own wallet and signs in the browser, exactly as the chat
  * client already does for joinSpace. There is no key to leak here because
  * there is no key here.
  *
+ * The component split is load-bearing, not stylistic. Towns hooks that need a
+ * SyncAgent — useCreateChannel among them — throw when called before the agent
+ * connects, which is why app/chat/chat-client.tsx keeps its outer component
+ * free of them and puts the rest in connected-chat. The first version of this
+ * page called useCreateChannel at mount and hit exactly that: the whole page
+ * threw into the root ErrorBoundary before rendering. Only useAgentConnection
+ * is safe pre-connection; everything else waits for isAgentConnected.
+ *
  * Temporary by intent. Delete it once the channel is cut over.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useActiveAccount, useActiveWalletConnectionStatus, ConnectButton } from 'thirdweb/react';
 import { useCreateChannel, useAgentConnection } from '@towns-protocol/react-sdk';
+import type { Signer } from 'ethers';
 import { client, activeChain } from '@/thirdweb-client';
 import { createKneadWallets } from '@/lib/wallets';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
@@ -39,12 +48,13 @@ export default function CreateChannelPage() {
   // root (see components/towns-boundary.tsx) — mount it for this page too.
   return (
     <TownsBoundary>
-      <CreateChannelConsole />
+      <WalletGate />
     </TownsBoundary>
   );
 }
 
-function CreateChannelConsole() {
+/** Wallet gate. Calls no SDK hooks at all. */
+function WalletGate() {
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
   const [wallets] = useState(() => createKneadWallets());
@@ -53,6 +63,16 @@ function CreateChannelConsole() {
   useEffect(() => {
     if (connectionStatus === 'connected' || connectionStatus === 'disconnected') setSettled(true);
   }, [connectionStatus]);
+
+  if (!SPACE_ID) {
+    return (
+      <Shell>
+        <p className="text-red-700">
+          NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID is not set, so there is no space to create a channel in.
+        </p>
+      </Shell>
+    );
+  }
 
   if (!account) {
     if (!settled && (connectionStatus === 'connecting' || connectionStatus === 'unknown')) {
@@ -69,22 +89,24 @@ function CreateChannelConsole() {
     );
   }
 
-  return <Creator address={account.address} />;
+  return <AgentGate address={account.address} />;
 }
 
-function Creator({ address }: { address: string }) {
+/**
+ * Connects the Towns agent. useAgentConnection is the one hook safe to call
+ * before a SyncAgent exists — see the note at the top of this file.
+ */
+function AgentGate({ address }: { address: string }) {
   const account = useActiveAccount();
   const { connect: connectAgent, isAgentConnected } = useAgentConnection();
-  const { createChannel } = useCreateChannel(SPACE_ID ?? '');
 
-  const signerRef = useRef<any>(null);
-  const [name, setName] = useState('');
+  const signerRef = useRef<Signer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [channelId, setChannelId] = useState<string | null>(null);
 
-  async function ensureSigner() {
-    if (!signerRef.current && account) {
+  async function ensureSigner(): Promise<Signer> {
+    if (!signerRef.current) {
+      if (!account) throw new Error('Wallet disconnected.');
       signerRef.current = await createTownsSigner(account, client, activeChain);
     }
     return signerRef.current;
@@ -95,45 +117,12 @@ function Creator({ address }: { address: string }) {
     setBusy('Connecting to Towns…');
     try {
       const signer = await ensureSigner();
-      await connectAgent(signer, {
-        ...(SPACE_ID ? { highPriorityStreamIds: [SPACE_ID] } : {}),
-      });
+      await connectAgent(signer, { highPriorityStreamIds: [SPACE_ID!] });
     } catch (err: any) {
       setError(err?.message ?? 'Could not connect to Towns.');
     } finally {
       setBusy(null);
     }
-  }
-
-  async function handleCreate() {
-    setError(null);
-    setChannelId(null);
-    if (!name.trim()) return setError('Give the channel a name.');
-    setBusy('Creating the channel — approve the transaction in your wallet…');
-    try {
-      const signer = await ensureSigner();
-      const result: any = await createChannel(name.trim(), signer);
-      // The SDK returns the new stream/channel id; shapes have varied across
-      // versions, so accept the common ones rather than assuming one.
-      const id =
-        typeof result === 'string' ? result : result?.channelId ?? result?.streamId ?? result?.id ?? null;
-      setChannelId(id);
-      if (!id) setError('Channel created, but no id came back — check the space in the Towns app.');
-    } catch (err: any) {
-      setError(err?.message ?? 'Channel creation failed.');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  if (!SPACE_ID) {
-    return (
-      <Shell>
-        <p className="text-red-700">
-          NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID is not set, so there is no space to create a channel in.
-        </p>
-      </Shell>
-    );
   }
 
   return (
@@ -147,7 +136,9 @@ function Creator({ address }: { address: string }) {
         </div>
       )}
 
-      {!isAgentConnected ? (
+      {isAgentConnected ? (
+        <ChannelForm ensureSigner={ensureSigner} />
+      ) : (
         <button
           onClick={handleConnect}
           disabled={Boolean(busy)}
@@ -155,27 +146,64 @@ function Creator({ address }: { address: string }) {
         >
           {busy ?? 'Connect to Towns'}
         </button>
-      ) : (
-        <>
-          <label className="block text-[11px] uppercase tracking-[0.16em] text-gray-500 mb-2">
-            Channel name
-          </label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="general"
-            disabled={Boolean(busy)}
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-4 focus:outline-none focus:border-black"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={Boolean(busy) || !name.trim()}
-            className="px-5 py-2.5 rounded bg-black text-white text-sm font-medium disabled:opacity-40"
-          >
-            {busy ?? 'Create channel'}
-          </button>
-        </>
       )}
+    </Shell>
+  );
+}
+
+/**
+ * Only mounted once the agent is connected, because useCreateChannel needs the
+ * SyncAgent and throws without one.
+ */
+function ChannelForm({ ensureSigner }: { ensureSigner: () => Promise<Signer> }) {
+  const { createChannel } = useCreateChannel(SPACE_ID!);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [channelId, setChannelId] = useState<string | null>(null);
+
+  async function handleCreate() {
+    setError(null);
+    setChannelId(null);
+    if (!name.trim()) return setError('Give the channel a name.');
+    setBusy('Creating — approve the transaction in your wallet…');
+    try {
+      const signer = await ensureSigner();
+      // createChannel resolves to the new channel id.
+      const id = await createChannel(name.trim(), signer);
+      setChannelId(id);
+    } catch (err: any) {
+      setError(err?.message ?? 'Channel creation failed.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="mb-6 border border-red-300 bg-red-50 rounded px-4 py-3 text-sm text-red-900">
+          {error}
+        </div>
+      )}
+
+      <label className="block text-[11px] uppercase tracking-[0.16em] text-gray-500 mb-2">
+        Channel name
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="general"
+        disabled={Boolean(busy)}
+        className="w-full border border-gray-300 rounded px-3 py-2 mb-4 focus:outline-none focus:border-black"
+      />
+      <button
+        onClick={handleCreate}
+        disabled={Boolean(busy) || !name.trim()}
+        className="px-5 py-2.5 rounded bg-black text-white text-sm font-medium disabled:opacity-40"
+      >
+        {busy ?? 'Create channel'}
+      </button>
 
       {channelId && (
         <div className="mt-8 border border-green-300 bg-green-50 rounded px-4 py-4">
@@ -192,7 +220,7 @@ function Creator({ address }: { address: string }) {
           </ul>
         </div>
       )}
-    </Shell>
+    </>
   );
 }
 
