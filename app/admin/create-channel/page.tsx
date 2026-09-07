@@ -37,6 +37,7 @@ import type { Signer } from 'ethers';
 import { client, activeChain } from '@/thirdweb-client';
 import { createKneadWallets } from '@/lib/wallets';
 import { createTownsSigner } from '@/lib/towns-signer-adapter';
+import { TOWNS_CONFIG } from '@/lib/towns-config';
 import { TownsBoundary } from '@/components/towns-boundary';
 
 const SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
@@ -117,7 +118,13 @@ function AgentGate({ address }: { address: string }) {
     setBusy('Connecting to Towns…');
     try {
       const signer = await ensureSigner();
-      await connectAgent(signer, { highPriorityStreamIds: [SPACE_ID!] });
+      // townsConfig is required. Without it the SDK dereferences an undefined
+      // config and fails with "Cannot read properties of undefined (reading
+      // 'base')" — the same reason both connect calls in chat-client pass it.
+      await connectAgent(signer, {
+        townsConfig: TOWNS_CONFIG,
+        highPriorityStreamIds: [SPACE_ID!],
+      });
     } catch (err: any) {
       setError(err?.message ?? 'Could not connect to Towns.');
     } finally {
