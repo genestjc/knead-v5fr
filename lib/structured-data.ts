@@ -34,6 +34,17 @@ const WEBSITE_ID = `${SITE_URL}/#website`
  * literal text "</script>" would otherwise close the element early and let
  * CMS content become markup. < is valid JSON and parses identically.
  */
+/**
+ * Only publish a date as a date when it actually is one.
+ *
+ * Editors write "2023" and "2024-03", but also "spring 2024" and "2019–2021".
+ * Emitting the latter as a machine date asserts a precision the copy never
+ * had, which is worse than omitting it.
+ */
+export function isIsoDate(when?: string): boolean {
+  return Boolean(when && /^\d{4}(-\d{2}(-\d{2})?)?$/.test(when.trim()))
+}
+
 export function jsonLdScript(schema: object): string {
   return JSON.stringify(schema).replace(/</g, "\\u003c")
 }
@@ -58,6 +69,14 @@ export interface ArticleSchemaInput {
    * person and one that reads as marketing for a product.
    */
   about?: Array<{ type: "Person" | "Organization"; name: string }>
+  /** Dated, checkable specifics — see components/key-facts.tsx. */
+  keyFacts?: KeyFact[]
+}
+
+export interface KeyFact {
+  fact: string
+  when?: string
+  sourceUrl?: string
 }
 
 /**
@@ -139,6 +158,12 @@ export function aboutPageSchema() {
 export function articleSchema(input: ArticleSchemaInput) {
   const url = `${SITE_URL}/posts/${input.slug}`
 
+  // Filter here rather than trusting the caller: components/key-facts drops
+  // empty rows before rendering, and if this did not do the same, an editor's
+  // half-filled row would be published as structured data that the visible
+  // fact box does not show. The two must not be able to disagree.
+  const keyFacts = (input.keyFacts ?? []).filter((f) => f?.fact?.trim())
+
   const author = input.author?.name
     ? {
         "@type": "Person",
@@ -171,6 +196,28 @@ export function articleSchema(input: ArticleSchemaInput) {
     isPartOf: { "@id": WEBSITE_ID },
     ...(input.about?.length
       ? { about: input.about.map((e) => ({ "@type": e.type, name: e.name })) }
+      : {}),
+    // Key facts as an ItemList. schema.org has no vocabulary for "the checkable
+    // claims this piece establishes", and ClaimReview means fact-checking
+    // someone else's claim, which this is not. An ItemList is the honest
+    // structure: an ordered set of statements belonging to the article. The
+    // larger share of the value is the rendered text in components/key-facts —
+    // this makes the same facts addressable rather than only readable.
+    ...(keyFacts.length
+      ? {
+          mainEntity: {
+            "@type": "ItemList",
+            name: "Key facts",
+            numberOfItems: keyFacts.length,
+            itemListElement: keyFacts.map((f, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              name: f.fact.trim(),
+              ...(isIsoDate(f.when) ? { startDate: f.when!.trim() } : {}),
+              ...(f.sourceUrl ? { url: f.sourceUrl } : {}),
+            })),
+          },
+        }
       : {}),
     ...(input.categories?.length ? { articleSection: input.categories, keywords: input.categories.join(", ") } : {}),
     isAccessibleForFree: !input.isPremium,

@@ -87,6 +87,46 @@ export default {
       ],
     },
     {
+      name: "keyFacts",
+      title: "Key facts",
+      description:
+        "The datable, checkable facts this piece establishes — a career before the work, a named studio and where it is, a collection and the year it shipped. Three to six is plenty. These render as a fact box under the image and are published as structured data. This is the field that wins 'who is X' questions: an answer engine assembling a profile pulls from the pieces that name names and dates, and a great interview that never pins a date loses to a thinner one that does.",
+      type: "array",
+      of: [
+        {
+          type: "object",
+          name: "keyFact",
+          fields: [
+            {
+              name: "fact",
+              title: "Fact",
+              description:
+                "One sentence, specific and checkable. 'Trained as an investment banker before turning to generative art' — not 'has an unconventional background'.",
+              type: "string",
+              validation: (Rule) => Rule.required().max(200),
+            },
+            {
+              name: "when",
+              title: "When",
+              description:
+                "Optional. A year, month, or range — 2023, 2024-03, 2019–2021. A bare year or year-month is also published in machine-readable form.",
+              type: "string",
+            },
+            {
+              name: "sourceUrl",
+              title: "Source",
+              description: "Optional link supporting the fact.",
+              type: "url",
+            },
+          ],
+          preview: {
+            select: { title: "fact", subtitle: "when" },
+          },
+        },
+      ],
+      validation: (Rule) => Rule.max(8).warning("Past six or so, a fact box stops being scannable."),
+    },
+    {
       name: "publishedAt",
       title: "Published at",
       type: "datetime",
