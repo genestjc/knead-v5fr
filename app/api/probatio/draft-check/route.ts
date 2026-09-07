@@ -48,16 +48,43 @@ export async function POST(req: NextRequest) {
   const provider = body?.provider === 'openai' ? 'openai' : 'claude'
   const shouldAdvise = body?.advise !== false
 
-  if (!id) {
-    return NextResponse.json({ error: 'Pass a document id or slug.' }, { status: 400 })
+  // Two ways in. The Studio view posts the document it is currently showing,
+  // which beats fetching by id in two ways: it reflects edits the writer has
+  // not saved yet — the state they actually want checked — and it needs no
+  // read token, because the Studio already has the document in hand.
+  const inlineDoc: DraftDocument | null =
+    body?.document && typeof body.document === 'object' ? (body.document as DraftDocument) : null
+
+  if (!id && !inlineDoc) {
+    return NextResponse.json({ error: 'Pass a document id or slug, or a document.' }, { status: 400 })
   }
 
   const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
-  if (!projectId) {
+  if (!projectId && !inlineDoc) {
     return NextResponse.json({ error: 'NEXT_PUBLIC_SANITY_PROJECT_ID is not set.' }, { status: 500 })
   }
 
   try {
+    if (inlineDoc) {
+      const report = checkDraft(await resolveReferences(inlineDoc, projectId))
+      const reportText = renderDraftReport(report)
+      let advice: DraftAdvice | null = null
+      if (shouldAdvise) {
+        try {
+          advice = await adviseDraft({ provider, report, reportText, precedent: await gatherPrecedent() })
+        } catch (err: any) {
+          console.error('[probatio] draft advisor:', err.message)
+        }
+      }
+      return NextResponse.json({
+        documentId: inlineDoc._id ?? null,
+        isDraft: Boolean(inlineDoc._id?.startsWith('drafts.')),
+        report: { ...report, bodyText: undefined },
+        reportText,
+        advice,
+      })
+    }
+
     // Drafts are invisible to the CDN client the site uses. A read token plus
     // previewDrafts is what makes checking-before-publishing possible at all;
     // without SANITY_API_READ_TOKEN this still works for published documents.
@@ -112,6 +139,55 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[probatio] draft-check:', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+/**
+ * Turn a raw Studio document into the shape the checks expect.
+ *
+ * The GROQ path resolves references — `author->{name}`, `categories[]->title`.
+ * A document handed straight out of the Studio form does not: author and
+ * categories arrive as `{_ref, _type: 'reference'}`. Checking that document
+ * unchanged would report "no author" and "no categories" on a piece that has
+ * both, which is exactly the kind of false failure this tool exists to avoid.
+ *
+ * Author and category documents are published content, so the public client
+ * reads them. If the lookup fails, return what we had rather than failing the
+ * whole check — a missing byline check is better than no report.
+ */
+async function resolveReferences(doc: DraftDocument, projectId?: string): Promise<DraftDocument> {
+  const authorRef = (doc.author as any)?._ref
+  const categoryRefs = Array.isArray(doc.categories)
+    ? (doc.categories as any[]).map((c) => c?._ref).filter(Boolean)
+    : []
+
+  if (!projectId || (!authorRef && categoryRefs.length === 0)) return doc
+
+  try {
+    const sanity = createClient({
+      projectId,
+      dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
+      apiVersion: '2024-01-01',
+      useCdn: true,
+    })
+
+    const [author, categories] = await Promise.all([
+      authorRef
+        ? sanity.fetch(`*[_id == $id][0]{_id, name, bio}`, { id: authorRef })
+        : Promise.resolve(doc.author ?? null),
+      categoryRefs.length
+        ? sanity.fetch(`*[_id in $ids].title`, { ids: categoryRefs })
+        : Promise.resolve(doc.categories ?? []),
+    ])
+
+    return {
+      ...doc,
+      author: author ?? null,
+      categories: Array.isArray(categories) ? categories.filter(Boolean) : [],
+    }
+  } catch (err) {
+    console.error('[probatio] reference resolution failed:', err)
+    return doc
   }
 }
 

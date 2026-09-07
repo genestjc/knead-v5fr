@@ -1,3 +1,22 @@
+import { DraftCheckView } from "./components/DraftCheckView"
+
+/**
+ * Adds an "AEO check" tab beside the form on posts.
+ *
+ * The check has to live where the writing happens. An editor is never going to
+ * open an engineering console to find out their excerpt is missing, and by the
+ * time a published page can be audited the crawl has already happened.
+ */
+export const defaultDocumentNode = (S, { schemaType }) => {
+  if (schemaType === "post") {
+    return S.document().views([
+      S.view.form(),
+      S.view.component(DraftCheckView).title("AEO check").id("aeo-check"),
+    ])
+  }
+  return S.document().views([S.view.form()])
+}
+
 export const structure = (S) =>
   S.list()
     .title("Content")
