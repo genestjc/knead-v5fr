@@ -16,6 +16,11 @@ import type { EvalCriterion, EvalProvider, EvalResult, EvalRun, EvalTurn, Verdic
 import type { AeoSignals } from '@/lib/eval/aeo-signals';
 import type { StorySignals } from '@/lib/eval/aeo-story';
 import type { StoryAnalysis } from '@/lib/eval/aeo-analyst';
+import type { DraftReport as FullDraftReport } from '@/lib/eval/draft-check';
+import type { DraftAdvice } from '@/lib/eval/draft-advisor';
+
+/** The route strips bodyText before responding — it is large and server-only. */
+export type DraftReport = Omit<FullDraftReport, 'bodyText'>;
 
 /** The route strips extractedText before responding — it is large and server-only. */
 export type StorySignalsLite = Omit<StorySignals, 'extractedText'>;
@@ -201,6 +206,24 @@ export async function startStoryAudit(
   done: boolean;
 }> {
   const res = await call('/api/probatio/aeo-story', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return unwrap(res);
+}
+
+export async function checkDraft(
+  account: Account | null,
+  input: { id: string; provider?: EvalProvider; advise?: boolean },
+): Promise<{
+  documentId: string;
+  isDraft: boolean;
+  report: DraftReport;
+  reportText: string;
+  advice: DraftAdvice | null;
+}> {
+  const res = await call('/api/probatio/draft-check', account, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

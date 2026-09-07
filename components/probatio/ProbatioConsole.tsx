@@ -17,8 +17,9 @@ import { Banner } from './shared';
 import { RubricTab } from './RubricTab';
 import { AgentTab } from './AgentTab';
 import { AeoAuditTab } from './AeoAuditTab';
+import { DraftCheckTab } from './DraftCheckTab';
 
-type TabId = 'human' | 'agent' | 'aeo';
+type TabId = 'human' | 'agent' | 'aeo' | 'draft';
 
 const TABS: { id: TabId; label: string; sub: string }[] = [
   {
@@ -35,6 +36,11 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
     id: 'aeo',
     label: 'AEO Audit',
     sub: 'Grade Knead and its competitors on citability.',
+  },
+  {
+    id: 'draft',
+    label: 'Draft Check',
+    sub: 'Grade a story before it publishes.',
   },
 ];
 
@@ -203,7 +209,7 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
             onRefreshRuns={loadRuns}
             onRefreshSelected={refreshSelected}
           />
-        ) : (
+        ) : tab === 'aeo' ? (
           <AeoAuditTab
             account={account}
             criteria={criteria}
@@ -212,6 +218,8 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
             onRefreshRuns={loadRuns}
             onRefreshSelected={refreshSelected}
           />
+        ) : (
+          <DraftCheckTab account={account} />
         )}
       </main>
     </div>
