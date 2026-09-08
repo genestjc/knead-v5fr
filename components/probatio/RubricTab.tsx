@@ -53,6 +53,11 @@ export function RubricTab({
 
   const surfaceRuns = useMemo(() => runs.filter((r) => r.surface === surface), [runs, surface]);
 
+  // The AEO surfaces score themselves. Saying "no test cases yet" there reads as
+  // an unfinished setup and sends whoever is looking off to write rows that
+  // would only restate checks the audit already computes.
+  const selfScoring = surface === 'aeo-audit' || surface === 'aeo-story';
+
   return (
     <div className="space-y-10">
       {error && <Banner onDismiss={() => setError(null)}>{error}</Banner>}
@@ -90,8 +95,17 @@ export function RubricTab({
           <div>
             <h2 className="font-adonis text-3xl">Rubric</h2>
             <p className="font-georgia-pro text-sm text-gray-600 mt-1">
-              Pass/fail test cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}. These
-              are what both human graders and the LLM judge score against.
+              {selfScoring ? (
+                <>
+                  {EVAL_SURFACES.find((s) => s.id === surface)?.label} scores itself. Every finding
+                  is computed, and the analyst supplies the judgement — so it ships with no rows.
+                </>
+              ) : (
+                <>
+                  Pass/fail test cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}.
+                  These are what both human graders and the LLM judge score against.
+                </>
+              )}
             </p>
           </div>
           <label className="flex items-center gap-2 text-xs text-gray-500">
@@ -118,7 +132,9 @@ export function RubricTab({
           ))}
           {surfaceCriteria.length === 0 && (
             <p className="p-6 text-sm text-gray-500 font-georgia-pro italic text-center">
-              No test cases for this surface yet.
+              {selfScoring
+                ? 'Graded deterministically — the audit computes its own findings. Add a row here only for a question the checks cannot answer.'
+                : 'No test cases for this surface yet.'}
             </p>
           )}
         </div>

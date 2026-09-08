@@ -40,9 +40,12 @@ async function unwrap<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export async function fetchCriteria(account: Account | null): Promise<EvalCriterion[]> {
+export async function fetchCriteria(
+  account: Account | null,
+): Promise<{ criteria: EvalCriterion[]; seedError: string | null }> {
   const res = await call('/api/probatio/criteria', account);
-  return (await unwrap<{ criteria: EvalCriterion[] }>(res)).criteria;
+  const body = await unwrap<{ criteria: EvalCriterion[]; seedError?: string | null }>(res);
+  return { criteria: body.criteria, seedError: body.seedError ?? null };
 }
 
 export async function createCriterion(

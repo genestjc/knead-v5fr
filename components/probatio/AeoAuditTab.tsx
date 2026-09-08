@@ -69,9 +69,6 @@ export function AeoAuditTab({
   const [subjectScore, setSubjectScore] = useState<number | null>(null);
   const [fieldMedian, setFieldMedian] = useState<number | null>(null);
 
-  const activeSurface = mode === 'site' ? 'aeo-audit' : 'aeo-story';
-  const auditCriteria = criteria.filter((c) => c.surface === activeSurface && c.isActive);
-
   function resetResults() {
     setError(null);
     setSignals(null);
@@ -199,7 +196,6 @@ export function AeoAuditTab({
             <span className="text-[13px] text-gray-500">
               {siteCount} site{siteCount === 1 ? '' : 's'} · up to 8
             </span>
-            <RubricWarning count={auditCriteria.length} />
           </div>
         </>
       ) : (
@@ -284,7 +280,6 @@ export function AeoAuditTab({
             <span className="text-[13px] text-gray-500">
               {storyCount} stor{storyCount === 1 ? 'y' : 'ies'} · up to 6
             </span>
-            <RubricWarning count={auditCriteria.length} />
           </div>
         </>
       )}
@@ -344,15 +339,6 @@ function splitUrls(raw: string): string[] {
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function RubricWarning({ count }: { count: number }) {
-  if (count > 0) return null;
-  return (
-    <span className="text-[13px] text-amber-700">
-      No active rubric rows for this mode — add them in Rubric Setting before judging.
-    </span>
-  );
 }
 
 function Scoreboard({

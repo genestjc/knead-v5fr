@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireProbatioAdmin } from '@/lib/eval/require-admin';
-import { listCriteria, mapCriterion } from '@/lib/eval/store';
+import { loadRubric, mapCriterion } from '@/lib/eval/store';
 import { EVAL_SURFACES } from '@/lib/eval/types';
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   try {
-    const criteria = await listCriteria({ includeInactive: true });
-    return NextResponse.json({ criteria });
+    const { criteria, seedError } = await loadRubric({ includeInactive: true });
+    return NextResponse.json({ criteria, seedError });
   } catch (err: any) {
     console.error('[probatio] GET criteria:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });

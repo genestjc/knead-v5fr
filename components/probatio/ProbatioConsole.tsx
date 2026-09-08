@@ -66,7 +66,12 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
 
   const loadCriteria = useCallback(async () => {
     try {
-      setCriteria(await fetchCriteria(accountRef.current));
+      const { criteria: rows, seedError } = await fetchCriteria(accountRef.current);
+      setCriteria(rows);
+      // A rejected seed is worth saying out loud: the rows exist in
+      // rubric-seed.ts and the database refused them, which looks identical to
+      // an unwritten rubric from the tab.
+      if (seedError) setError(seedError);
     } catch (err: any) {
       setError(err.message);
     }
