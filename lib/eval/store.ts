@@ -85,9 +85,21 @@ export function mapRun(row: any): EvalRun {
  *
  * Best-effort: if two admins open the console at once the second insert may
  * lose the race, so we re-read afterwards rather than trusting our own insert.
- * A genuinely failed seed throws — see the note above the check below.
+ *
+ * A failed seed is REPORTED, never thrown. The rubric console wants to know —
+ * an empty tab that blames the admin for not writing rows is worse than useless
+ * — but judging a community-chat run has nothing to do with whether the AEO
+ * rows made it in, and must not fail because they did not. Callers that only
+ * need rows use listCriteria(); the console uses loadRubric() and shows
+ * seedError in its banner.
  */
-export async function listCriteria(opts: { includeInactive?: boolean } = {}): Promise<EvalCriterion[]> {
+export interface RubricLoad {
+  criteria: EvalCriterion[];
+  /** Set when the seed insert was rejected AND those surfaces are still empty. */
+  seedError: string | null;
+}
+
+export async function loadRubric(opts: { includeInactive?: boolean } = {}): Promise<RubricLoad> {
   const supabase = getSupabaseAdmin();
 
   const { data: existing, error: countError } = await supabase
@@ -137,20 +149,30 @@ export async function listCriteria(opts: { includeInactive?: boolean } = {}): Pr
   // insert (a stale CHECK constraint on `surface` does exactly this to a
   // surface added after the table was created).
   //
-  // Only raise it if the rows really are still absent. Losing the insert race
-  // to another admin is harmless: they filled the table, so the read below
-  // returns their rows and there is nothing to report.
+  // Only report it if the rows really are still absent. Losing the insert race
+  // to another admin is harmless: they filled the table, so the read above
+  // returns their rows and there is nothing to say.
+  let seedError: string | null = null;
   if (seedFailure) {
     const stillEmpty = missingSurfaces.filter((s) => !criteria.some((c) => c.surface === s));
     if (stillEmpty.length > 0) {
-      throw new Error(
+      seedError =
         `Could not seed the rubric for ${stillEmpty.join(', ')}: ${seedFailure}. ` +
-          'These rows are defined in lib/eval/rubric-seed.ts — the database rejected the insert rather than the rubric being unwritten.',
-      );
+        'These rows are defined in lib/eval/rubric-seed.ts — the database rejected the insert rather than the rubric being unwritten.';
+      console.error('[probatio]', seedError);
     }
   }
 
-  return criteria;
+  return { criteria, seedError };
+}
+
+/**
+ * Rows only. Use this from anywhere that needs the rubric to do its job —
+ * judging a run, stepping an agent — where a seeding problem on an unrelated
+ * surface is not a reason to fail.
+ */
+export async function listCriteria(opts: { includeInactive?: boolean } = {}): Promise<EvalCriterion[]> {
+  return (await loadRubric(opts)).criteria;
 }
 
 /** Append turns to a run. Indices continue from whatever is already stored. */
