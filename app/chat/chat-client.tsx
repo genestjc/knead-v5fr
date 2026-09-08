@@ -30,6 +30,11 @@ declare global {
 
 const SAVED_SPACE_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_SPACE_ID;
 
+// Optional. When set to a channel the space actually contains, the app opens
+// that channel instead of whichever one happens to be first. lib/towns/
+// agent-listener.ts already read this variable; the chat UI did not.
+const CONFIGURED_CHANNEL_ID = process.env.NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID;
+
 const ConnectedChat = nextDynamic(() => import('./connected-chat'), {
   ssr: false,
   loading: () => <LoadingSpinner message="Loading chat..." />,
@@ -601,13 +606,42 @@ function TownsChatReadyInner({
     return <LoadingSpinner message="Syncing with chat network..." />;
   }
 
-  console.log('📺 Space data:', { 
-    initialized: space.initialized, 
+  console.log('📺 Space data:', {
+    initialized: space.initialized,
     channelIds: space.channelIds,
-    channelCount: space.channelIds?.length 
+    channelCount: space.channelIds?.length,
+    configuredChannelId: CONFIGURED_CHANNEL_ID ?? null,
   });
 
-  const channelId = space.channelIds?.[0];
+  // Which channel the app opens.
+  //
+  // This used to be `space.channelIds[0]` unconditionally, which meant
+  // NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID was read only by the agent
+  // (lib/towns/agent-listener.ts) and never by the chat UI. Setting that
+  // variable therefore appeared to do nothing here — no redeploy or hard
+  // refresh would move the app off the space's first channel, which is the
+  // default channel created with the space.
+  //
+  // That matters because a stream's node set is fixed at creation. The default
+  // channel's set included an operator who has since left the network, so every
+  // write to it fails; the fix is to point the app at a channel created later,
+  // which cannot be done while the channel is chosen positionally.
+  //
+  // The membership guard is the important half: if the configured id is absent
+  // from the space — a typo, or a value from another environment — fall back to
+  // the first channel so chat still works, rather than rendering an empty
+  // timeline against an id the space does not contain.
+  const channelId =
+    CONFIGURED_CHANNEL_ID && space.channelIds?.includes(CONFIGURED_CHANNEL_ID)
+      ? CONFIGURED_CHANNEL_ID
+      : space.channelIds?.[0];
+
+  if (CONFIGURED_CHANNEL_ID && channelId !== CONFIGURED_CHANNEL_ID) {
+    console.warn(
+      `⚠️ NEXT_PUBLIC_KNEAD_CHAT_DEFAULT_CHANNEL_ID (${CONFIGURED_CHANNEL_ID}) is not a channel in this space — ` +
+        `falling back to ${channelId}. Check the value, and that the wallet has joined that channel.`,
+    );
+  }
   if (!channelId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
