@@ -53,10 +53,14 @@ export function RubricTab({
 
   const surfaceRuns = useMemo(() => runs.filter((r) => r.surface === surface), [runs, surface]);
 
-  // The AEO surfaces score themselves. Saying "no test cases yet" there reads as
-  // an unfinished setup and sends whoever is looking off to write rows that
-  // would only restate checks the audit already computes.
-  const selfScoring = surface === 'aeo-audit' || surface === 'aeo-story';
+  // This tab is organised around the rubric a surface is graded by, so it lists
+  // only the surfaces that have one. The AEO audits score themselves — every
+  // finding is computed and the analyst supplies the judgement — and their runs
+  // live in the AEO Audit tab, next to the controls that produce them.
+  const rubricSurfaces = useMemo(
+    () => EVAL_SURFACES.filter((s) => s.id !== 'aeo-audit' && s.id !== 'aeo-story'),
+    [],
+  );
 
   return (
     <div className="space-y-10">
@@ -66,7 +70,7 @@ export function RubricTab({
       <div>
         <SectionLabel>Product under test</SectionLabel>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {EVAL_SURFACES.map((s) => {
+          {rubricSurfaces.map((s) => {
             const count = criteria.filter((c) => c.surface === s.id && c.isActive).length;
             const active = s.id === surface;
             return (
@@ -95,17 +99,8 @@ export function RubricTab({
           <div>
             <h2 className="font-adonis text-3xl">Rubric</h2>
             <p className="font-georgia-pro text-sm text-gray-600 mt-1">
-              {selfScoring ? (
-                <>
-                  {EVAL_SURFACES.find((s) => s.id === surface)?.label} scores itself. Every finding
-                  is computed, and the analyst supplies the judgement — so it ships with no rows.
-                </>
-              ) : (
-                <>
-                  Pass/fail test cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}.
-                  These are what both human graders and the LLM judge score against.
-                </>
-              )}
+              Pass/fail test cases for {EVAL_SURFACES.find((s) => s.id === surface)?.label}. These
+              are what both human graders and the LLM judge score against.
             </p>
           </div>
           <label className="flex items-center gap-2 text-xs text-gray-500">
@@ -132,9 +127,7 @@ export function RubricTab({
           ))}
           {surfaceCriteria.length === 0 && (
             <p className="p-6 text-sm text-gray-500 font-georgia-pro italic text-center">
-              {selfScoring
-                ? 'Graded deterministically — the audit computes its own findings. Add a row here only for a question the checks cannot answer.'
-                : 'No test cases for this surface yet.'}
+              No test cases for this surface yet.
             </p>
           )}
         </div>
