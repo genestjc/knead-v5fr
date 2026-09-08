@@ -41,15 +41,20 @@ export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] 
     label: 'Demeter — Community Chat',
     blurb: 'The Towns channel agent. Event-driven — graded from pasted transcripts.',
   },
-  {
-    id: 'aeo-audit',
-    label: 'AEO Audit — Publishers',
-    blurb: 'Grade Knead and competing publications on answer-engine citability.',
-  },
+  // Story vs Story sits above Publishers deliberately. Publisher identity is a
+  // property of the site: it changes when someone edits the org schema, which is
+  // rarely, so that audit answers a question once and then repeats itself. The
+  // story audit runs against a different subject every time and tells you
+  // something new on each run, so it is the one that earns a place at the top.
   {
     id: 'aeo-story',
     label: 'AEO Audit — Story vs Story',
     blurb: 'One subject, our piece against theirs. Scored, then read by an analyst.',
+  },
+  {
+    id: 'aeo-audit',
+    label: 'AEO Audit — Publishers',
+    blurb: 'Site-level identity. A backup check — re-run it when the org schema changes.',
   },
 ];
 

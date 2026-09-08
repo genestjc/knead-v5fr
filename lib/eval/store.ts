@@ -85,6 +85,7 @@ export function mapRun(row: any): EvalRun {
  *
  * Best-effort: if two admins open the console at once the second insert may
  * lose the race, so we re-read afterwards rather than trusting our own insert.
+ * A genuinely failed seed throws — see the note above the check below.
  */
 export async function listCriteria(opts: { includeInactive?: boolean } = {}): Promise<EvalCriterion[]> {
   const supabase = getSupabaseAdmin();
@@ -98,6 +99,9 @@ export async function listCriteria(opts: { includeInactive?: boolean } = {}): Pr
   const populated = new Set((existing ?? []).map((r: any) => r.surface));
   const missing = RUBRIC_SEED.filter((c) => !populated.has(c.surface));
 
+  const missingSurfaces = Array.from(new Set(missing.map((c) => c.surface)));
+  let seedFailure: string | null = null;
+
   if (missing.length > 0) {
     // Keep sort_order stable against the seed file so a partially seeded table
     // orders the same way a freshly seeded one does.
@@ -110,7 +114,7 @@ export async function listCriteria(opts: { includeInactive?: boolean } = {}): Pr
       is_active: true,
     }));
     const { error: seedError } = await supabase.from('eval_criteria').insert(rows);
-    if (seedError) console.error('[probatio] rubric seed failed:', seedError.message);
+    if (seedError) seedFailure = seedError.message;
   }
 
   let query = supabase
@@ -123,7 +127,30 @@ export async function listCriteria(opts: { includeInactive?: boolean } = {}): Pr
 
   const { data, error } = await query;
   if (error) throw new Error(`Could not read the rubric: ${error.message}`);
-  return (data ?? []).map(mapCriterion);
+
+  const criteria = (data ?? []).map(mapCriterion);
+
+  // A failed seed used to be logged to the server console and swallowed. The
+  // tab then rendered an empty rubric and told whoever was looking to "add
+  // them in Rubric Setting" — sending them off to hand-write rows that are
+  // already written here, when the real fault was the database rejecting the
+  // insert (a stale CHECK constraint on `surface` does exactly this to a
+  // surface added after the table was created).
+  //
+  // Only raise it if the rows really are still absent. Losing the insert race
+  // to another admin is harmless: they filled the table, so the read below
+  // returns their rows and there is nothing to report.
+  if (seedFailure) {
+    const stillEmpty = missingSurfaces.filter((s) => !criteria.some((c) => c.surface === s));
+    if (stillEmpty.length > 0) {
+      throw new Error(
+        `Could not seed the rubric for ${stillEmpty.join(', ')}: ${seedFailure}. ` +
+          'These rows are defined in lib/eval/rubric-seed.ts — the database rejected the insert rather than the rubric being unwritten.',
+      );
+    }
+  }
+
+  return criteria;
 }
 
 /** Append turns to a run. Indices continue from whatever is already stored. */
