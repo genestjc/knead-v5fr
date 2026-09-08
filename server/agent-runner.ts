@@ -112,6 +112,34 @@ async function main() {
   const space     = agent.spaces.getSpace(SPACE_ID);
   const channel   = space.getChannel(CHANNEL_ID);
 
+  // Join before subscribing.
+  //
+  // getChannel() only builds a handle — it does not make this wallet a member.
+  // Subscribing to a channel the agent has not joined yields no events and no
+  // error: the runner starts, logs that it is listening, and stays silent
+  // forever. That is exactly what happened when the community moved to a new
+  // channel. The agent wallet was still a member of the old one, so the old
+  // stream kept appearing in sync (and failing, since its node set includes a
+  // departed operator) while the new channel produced nothing at all. The
+  // key-sharer bot survived the same move because it calls join() on startup.
+  //
+  // Joining every start makes the runner survive a channel change on its own,
+  // rather than needing someone to remember to add the wallet by hand.
+  try {
+    await channel.join();
+    console.log(`[agent] Joined channel ${CHANNEL_ID}`);
+  } catch (err: any) {
+    const msg = String(err?.message ?? '').toLowerCase();
+    if (msg.includes('already a member') || msg.includes('already')) {
+      console.log('[agent] Already a channel member');
+    } else {
+      // Worth failing loudly: without membership this process would run
+      // indefinitely, look healthy, and answer nobody.
+      console.error('[agent] Could not join channel — the runner cannot hear messages without it.');
+      throw err;
+    }
+  }
+
   // historyEventIds: events that existed at startup — never process these
   // processedEventIds: new events we've already handled — don't double-process
   // Encrypted events are intentionally NOT added until decrypted (kind flips to ChannelMessage)
