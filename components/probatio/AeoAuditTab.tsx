@@ -44,7 +44,11 @@ export function AeoAuditTab({
   onRefreshRuns: () => void;
   onRefreshSelected: () => void;
 }) {
-  const [mode, setMode] = useState<Mode>('site');
+  // Story vs story is the default. The publication audit grades the site's own
+  // identity markup, which only changes when someone edits it — so it answers
+  // its question once and then keeps giving the same answer. The story audit
+  // takes a new subject and a new field every run.
+  const [mode, setMode] = useState<Mode>('story');
 
   // Site mode
   const [subjectUrl, setSubjectUrl] = useState('https://www.kneadmag.com');
@@ -128,8 +132,8 @@ export function AeoAuditTab({
         <div className="mt-3 inline-flex rounded-md border border-gray-300 overflow-hidden">
           {(
             [
-              ['site', 'Publication', 'Can an engine tell what we are?'],
               ['story', 'Story vs story', 'Who wins the citation on one subject?'],
+              ['site', 'Publication', 'Backup check — site identity'],
             ] as const
           ).map(([id, label, sub]) => (
             <button

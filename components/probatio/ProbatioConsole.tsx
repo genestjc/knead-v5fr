@@ -35,7 +35,7 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
   {
     id: 'aeo',
     label: 'AEO Audit',
-    sub: 'Grade Knead and its competitors on citability.',
+    sub: 'One subject, our story against the field.',
   },
   {
     id: 'draft',
