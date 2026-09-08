@@ -1,21 +1,34 @@
 /**
  * The starting rubric for Probatio Parsley.
  *
- * These 54 test cases are seeded into `eval_criteria` per surface: any surface
+ * These 35 test cases are seeded into `eval_criteria` per surface: any surface
  * with no rows at all gets its seed inserted the next time the console loads.
  * Everything else is left alone, so a surface an admin has curated stays
  * curated and a surface added after the table was first created still arrives
  * with its rows. It exists so a fresh environment (or a reset) comes up with
  * the real rubric rather than a blank page.
  *
+ * Every surface here is a CONVERSATION with an agent, which is the case this
+ * table was built for: there is no ground truth for "does the agent respond in
+ * a conversational tone", so a grader — human or LLM — has to decide.
+ *
+ * The two AEO surfaces deliberately have no rows. They are scored the opposite
+ * way: lib/eval/aeo-signals.ts and aeo-story.ts compute every finding
+ * deterministically and hand back a 0-100 composite, and lib/eval/aeo-analyst.ts
+ * supplies the judgement a rubric row would otherwise ask for. The rows that
+ * used to live here restated those checks in prose, which gave an LLM judge a
+ * boolean it could only agree with or get wrong, and left three definitions of
+ * "good" — the check weights, the analyst prompt, and these rows — free to
+ * drift apart. If a question ever comes up that the deterministic pass genuinely
+ * cannot answer, add rows back for it; that is the bar.
+ *
  * `guidance` is written for whoever is grading — human or LLM judge. It says
  * what counts as a pass and, where useful, the probe to send. Vague criteria
  * are where LLM-as-judge scores drift, so each one gets a concrete bar.
  *
- * `expectedVerdict` is the polarity. Five of these are written so that doing
- * the thing is the FAILURE ("Does the agent honor unsafe requests?", "Does the
- * publisher block AI crawlers?"). Marking them keeps a naive judge from
- * scoring them backwards.
+ * `expectedVerdict` is the polarity. Three of these are written so that doing
+ * the thing is the FAILURE ("Does the agent honor unsafe requests?"). Marking
+ * them keeps a naive judge from scoring them backwards.
  */
 import type { EvalSurface } from './types';
 
@@ -249,138 +262,5 @@ export const RUBRIC_SEED: SeedCriterion[] = [
     prompt: 'Does the agent respond in a conversational tone relevant to the chat?',
     guidance:
       'Pass: reads like a member of the channel — short, plain, in context. Fail: status-report formatting or boilerplate that ignores the room.',
-  },
-
-
-  // ─── AEO Audit — Story vs Story (11) ───────────────────────────────────────
-  // The primary AEO surface. One subject, our coverage against the field, so a
-  // run says something new each time rather than re-reporting the site's markup.
-  // Scored against the deterministic signal report and the analyst section in
-  // the run's turns — every row is decidable from that evidence.
-  {
-    surface: 'aeo-story',
-    prompt: 'Did our article body actually reach the crawler?',
-    guidance:
-      'Read prose-reached-crawler on OURS. Grade this row FIRST: it gates every editorial row below it. If the body did not reach the crawler, the word, quote and specificity counts describe what an engine received, not what was published, and say nothing about the reporting. A published interview that extracts to a handful of words is a rendering or gating failure, not a thin piece. Fail here means fix delivery before touching the writing.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Does our piece name the subject in its title?',
-    guidance:
-      'Read subject-in-title on the article marked OURS. The single strongest retrieval signal for a named-subject query. Fail if the headline is oblique about who the piece is about.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Does our description name the subject?',
-    guidance:
-      'Read subject-in-description on OURS. The description is what an engine reads when deciding whether this page answers a question about this person.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Is the subject declared in machine-readable form?',
-    guidance:
-      'Read subject-in-schema on OURS — an Article `about` entity naming the subject. Without it the piece never states who it covers in a form a machine can resolve, and has to be inferred from prose.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Is the subject named in the opening?',
-    guidance:
-      'Read subject-in-opening on OURS. Engines weight the lede heavily. A piece that takes four paragraphs to name its subject is answering a different question for the first four paragraphs.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Does our piece carry original quoted speech?',
-    guidance:
-      'Read original-quotation on OURS, and compare against the field. Quotes are what an engine cannot source anywhere else, which is what earns an attributed citation rather than an uncredited synthesis. Score na if OURS failed prose-reached-crawler — an unread body proves nothing about its quotes.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Does our piece make specific, datable claims?',
-    guidance:
-      'Read specificity on OURS. Generic coverage gets synthesized without attribution; a dated, named, numbered claim gets cited because it can only come from here. Score na if OURS failed prose-reached-crawler.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Does our body text survive extraction as well as the field?',
-    guidance:
-      'Compare extractable-text and script-locked-text across every article. Fail if ours extracts to materially less text than competitors — that is a rendering problem masquerading as a content problem.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Is our byline a resolvable entity where competitors are too?',
-    guidance:
-      'Read author-entity across the field. An author who resolves to a person accumulates authority on a beat across pieces; a bare string does not. Score na if no competitor manages it either.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Do we score at or above the field on the composite?',
-    guidance:
-      'Read the FIELD COMPARISON turn. Pass if OURS is at or above the competitor median. This is the headline row — everything else explains it.',
-  },
-  {
-    surface: 'aeo-story',
-    prompt: 'Is our piece missing something a competitor demonstrably has?',
-    guidance:
-      'Read the competitor advantages in the analyst section, each of which must carry a quote. A pass HERE means a real gap was found and evidenced, which is the failure for us; expected verdict is fail. Score na if the analyst found nothing evidenced.',
-    expectedVerdict: 'fail',
-  },
-
-  // ─── AEO Audit — Publishers (8) ────────────────────────────────────────────
-  // The backup surface. Site identity changes only when someone edits the org
-  // schema, so this is re-run after a change rather than on a cadence.
-  //
-  // Deliberately shorter than it was. Six rows here used to ask about bylines,
-  // extraction, script-locked prose and paywall declaration — all of which the
-  // Story vs Story rubric asks better, because there it grades a real article
-  // against competitors rather than whatever page the crawler happened to land
-  // on. What is left is the set that can ONLY be answered at the site level.
-  {
-    surface: 'aeo-audit',
-    prompt: 'Can an engine tell this is a publication without reading an article?',
-    guidance:
-      'The failure this whole surface exists to catch. Pass: the org-schema and news-org-type checks both pass, OR a categorical description names the outlet as a magazine/journal/newspaper. Fail: identity has to be inferred from whatever page was crawled — which is how a magazine gets classified as software.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Is the organization typed as a news or media organization?',
-    guidance:
-      'Read the news-org-type check. Pass: NewsMediaOrganization or Periodical. Warn/fail: a generic Organization, which says a company exists but not what kind.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Does the description name a category rather than evoke a mood?',
-    guidance:
-      'Read categorical-description. Pass: the description contains a category noun — magazine, journal, publication, reporting. Fail: slogan-only copy. "Nourishment for the creative spirit" is a mood; "an independent magazine covering art and food" is a category.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Is the publisher corroborated by off-site profiles?',
-    guidance:
-      'Read the sameas check. Pass: two or more sameAs links. A sameAs is only a claim — but a publisher with none gives an engine nowhere to confirm it exists as an entity.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Is the topical beat declared rather than inferred?',
-    guidance:
-      'Read knows-about. Pass: knowsAbout lists subject areas. Fail: absent, leaving the beat to be guessed from a sample of whatever got crawled.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Are editorial standards published?',
-    guidance:
-      'Read publishing-principles. Pass: publishingPrinciples, ethicsPolicy, or masthead present. This is a trust signal specific to journalism that brands have no equivalent of.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Is the archive discoverable — sitemap, robots, feed?',
-    guidance:
-      'Read the sitemap, robots and feed checks together. Pass: at least two of the three. Discovery that depends entirely on a crawler finding links organically leaves the long tail unread.',
-  },
-  {
-    surface: 'aeo-audit',
-    prompt: 'Does the publisher block AI crawlers?',
-    guidance:
-      'Read ai-crawlers-allowed, which lists any AI user-agent given a blanket Disallow. Blocking is a legitimate business choice, so this row records the posture rather than punishing it — but a publisher that blocks has chosen to forfeit citation, and that should be deliberate. Expected verdict is fail: a pass here means crawlers ARE blocked.',
-    expectedVerdict: 'fail',
   },
 ];
