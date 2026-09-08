@@ -12,7 +12,7 @@
  */
 import { useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
-import type { EvalCriterion, EvalProvider, EvalRun } from '@/lib/eval/types';
+import type { EvalCriterion, EvalProvider, EvalRun, EvalSurface } from '@/lib/eval/types';
 import type { AeoSignals, CheckStatus } from '@/lib/eval/aeo-signals';
 import type { StoryAnalysis } from '@/lib/eval/aeo-analyst';
 import { startAeoAudit, startStoryAudit, type StorySignalsLite } from './api';
@@ -32,6 +32,7 @@ const DEFAULT_COMPETITORS = [
 export function AeoAuditTab({
   account,
   criteria,
+  runs,
   selectedRun,
   onSelectRun,
   onRefreshRuns,
@@ -39,6 +40,7 @@ export function AeoAuditTab({
 }: {
   account: Account | null;
   criteria: EvalCriterion[];
+  runs: EvalRun[];
   selectedRun: EvalRun | null;
   onSelectRun: (id: string | null) => void;
   onRefreshRuns: () => void;
@@ -121,6 +123,13 @@ export function AeoAuditTab({
 
   const siteCount = 1 + splitUrls(competitors).length;
   const storyCount = 1 + splitUrls(storyCompetitors).length;
+
+  // Saved runs live here rather than in Rubric Setting. That tab is organised
+  // around the rubric a surface is graded by, and these two surfaces no longer
+  // have one — so their runs were filed under a heading that had nothing left
+  // to say about them. Scoped to the mode on screen: story runs under story.
+  const activeSurface: EvalSurface = mode === 'site' ? 'aeo-audit' : 'aeo-story';
+  const modeRuns = runs.filter((r) => r.surface === activeSurface);
 
   return (
     <div className="space-y-8">
@@ -315,6 +324,38 @@ export function AeoAuditTab({
       )}
 
       {analysis && <AnalystPanel analysis={analysis} />}
+
+      <section className="pt-2">
+        <h2 className="font-adonis text-2xl mb-1">Saved runs</h2>
+        <p className="font-georgia-pro text-sm text-gray-600 mb-4">
+          {mode === 'story'
+            ? 'Every comparison keeps its full signal report and analyst output, so a verdict can be traced back to the pages it was drawn from.'
+            : 'Every audit keeps its full signal report, so a score can be traced back to the checks behind it.'}
+        </p>
+
+        <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
+          {modeRuns.map((run) => (
+            <button
+              key={run.id}
+              onClick={() => onSelectRun(selectedRun?.id === run.id ? null : run.id)}
+              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                selectedRun?.id === run.id ? 'bg-gray-50' : ''
+              }`}
+            >
+              <div className="font-georgia-pro text-[15px] text-gray-900 truncate">{run.title}</div>
+              <div className="text-[11px] uppercase tracking-[0.1em] text-gray-400 mt-0.5">
+                {new Date(run.createdAt).toLocaleDateString()} ·{' '}
+                <span className={run.status === 'failed' ? 'text-red-600' : ''}>{run.status}</span>
+              </div>
+            </button>
+          ))}
+          {modeRuns.length === 0 && (
+            <p className="p-6 text-sm text-gray-500 font-georgia-pro italic text-center">
+              No runs saved yet.
+            </p>
+          )}
+        </div>
+      </section>
 
       {selectedRun && (
         <div className="pt-4 border-t border-gray-200">

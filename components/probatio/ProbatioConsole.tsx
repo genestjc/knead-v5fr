@@ -218,6 +218,7 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
           <AeoAuditTab
             account={account}
             criteria={criteria}
+            runs={runs}
             selectedRun={selectedRun}
             onSelectRun={selectRun}
             onRefreshRuns={loadRuns}
