@@ -605,3 +605,51 @@ html {
   }
 }
 
+
+/* ─── /ai-3720-build deck ──────────────────────────────────────────────────
+   Printing the deck (⌘P → Save as PDF) has to produce one slide per page, so
+   the scroll container gives up its fixed height and each slide takes a page
+   break. Backgrounds are forced because a dark deck printed without them is
+   white type on white paper. */
+@media print {
+  /* Landscape and edge to edge: the slides carry their own padding, and a
+     printed margin would frame every dark slide in white. */
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #000 !important;
+  }
+
+  .deck-scroll {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .deck-slide {
+    min-height: 0 !important;
+    padding: 44px !important;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .deck-slide:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* Progress bar, dot rail, counter — screen affordances with no print meaning. */
+  .deck-chrome {
+    display: none !important;
+  }
+
+  .deck-scroll,
+  .deck-slide {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
