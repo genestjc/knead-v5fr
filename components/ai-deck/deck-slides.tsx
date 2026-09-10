@@ -8,9 +8,11 @@
  * capability deck that overstates is worse than no deck.
  */
 import type { ReactNode } from 'react';
-
-/** Knead's brand red, used as the deck's only accent. */
-export const ACCENT = '#FF6B6B';
+import type { DemoArticle } from '@/lib/deck-demo-article';
+import { DemoDemeter } from './demo-demeter';
+import { DemoBuildAssistant } from './demo-build-assistant';
+import { DemoProbatio } from './demo-probatio';
+import { ACCENT } from './theme';
 
 export interface DeckSlide {
   id: string;
@@ -72,6 +74,33 @@ function Points({ items, numbered = true }: { items: ReactNode[]; numbered?: boo
   );
 }
 
+/**
+ * A slide whose point is the working thing on it, so the words get out of the
+ * way: smaller heading, one line of setup, then the demo.
+ */
+function DemoSlide({
+  kicker,
+  title,
+  lede,
+  children,
+}: {
+  kicker: string;
+  title: string;
+  lede: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="max-w-6xl w-full">
+      <Kicker>{kicker}</Kicker>
+      <h2 className="font-adonis text-3xl md:text-5xl leading-[1.05] text-white mb-3">{title}</h2>
+      <p className="font-georgia-pro text-base md:text-lg text-white/60 leading-relaxed max-w-3xl mb-6">
+        {lede}
+      </p>
+      {children}
+    </div>
+  );
+}
+
 /** The "and here's what that is for you" line that closes a product slide. */
 function ForYou({ children }: { children: ReactNode }) {
   return (
@@ -93,10 +122,14 @@ const cover = (
       <br />
       <span style={{ color: ACCENT }}>Then we prove it works.</span>
     </h1>
-    <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl">
+    <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-8">
       Demeter, the open-source build assistant, and Probatio Parsley are running in production
       on kneadmag.com right now. This is what they are — and what it looks like when we build
       them for you.
+    </p>
+    <p className="font-georgia-pro text-sm md:text-base text-white/45 leading-relaxed max-w-2xl border-l pl-4" style={{ borderColor: ACCENT }}>
+      Three slides in this deck are the live products, not pictures of them. Type into them.
+      Every answer comes back from production.
     </p>
   </div>
 );
@@ -577,19 +610,75 @@ function Strong({ children }: { children: ReactNode }) {
   return <strong className="text-white font-normal">{children}</strong>;
 }
 
-export const SLIDES: DeckSlide[] = [
-  { id: 'cover', label: 'Cover', content: cover },
-  { id: 'offerings', label: 'What we do', content: offerings },
-  { id: 'proof', label: 'Proof of work', content: proof },
-  { id: 'demeter', label: 'Demeter', content: demeter },
-  { id: 'build-assistant', label: 'Build assistant', content: buildAssistant },
-  { id: 'probatio', label: 'Probatio Parsley', content: probatio },
-  { id: 'agentic-testing', label: 'Agentic testing', content: agenticTesting },
-  { id: 'aeo', label: 'Answer-engine visibility', content: aeo },
-  { id: 'marketing-data', label: 'Marketing data', content: marketingData },
-  { id: 'payments-agent', label: 'Agentic operations', content: paymentsAgent },
-  { id: 'router', label: 'The routing core', content: router },
-  { id: 'engagement', label: 'How it goes', content: engagement },
-  { id: 'principles', label: 'How we build', content: principles },
-  { id: 'close', label: 'Contact', content: close },
-];
+/**
+ * The deck, in order. A claim slide is followed by the working thing, so
+ * nobody has to take the claim on trust.
+ *
+ * Takes the demo article because the Demeter slide runs against a real post
+ * resolved from the CMS at render time — see lib/deck-demo-article.ts.
+ */
+export function buildSlides(article: DemoArticle | null): DeckSlide[] {
+  return [
+    { id: 'cover', label: 'Cover', content: cover },
+    { id: 'offerings', label: 'What we do', content: offerings },
+    { id: 'proof', label: 'Proof of work', content: proof },
+
+    { id: 'demeter', label: 'Demeter', content: demeter },
+    {
+      id: 'demeter-demo',
+      label: 'Demo · Demeter',
+      content: (
+        <DemoSlide
+          kicker="Demo — try it"
+          title="The article, with Demeter on it."
+          lede={
+            article
+              ? 'A real story out of the archive. The spoken summary is written and narrated on demand, then cached; Demeter answers from the piece itself and searches the web when the question runs past it.'
+              : 'The spoken summary is written and narrated on demand, then cached; Demeter answers from the archive and searches the web when a question runs past it.'
+          }
+        >
+          <DemoDemeter article={article} />
+        </DemoSlide>
+      ),
+    },
+
+    { id: 'build-assistant', label: 'Build assistant', content: buildAssistant },
+    {
+      id: 'build-demo',
+      label: 'Demo · Build assistant',
+      content: (
+        <DemoSlide
+          kicker="Demo — try it"
+          title="Ask this codebase a question."
+          lede="It fetches the files at query time and answers from what it read. Fifteen turns a day, no sign-in, same endpoint the real page uses."
+        >
+          <DemoBuildAssistant />
+        </DemoSlide>
+      ),
+    },
+
+    { id: 'probatio', label: 'Probatio Parsley', content: probatio },
+    {
+      id: 'probatio-demo',
+      label: 'Demo · Probatio',
+      content: (
+        <DemoSlide
+          kicker="Demo — drive it"
+          title="The console, not a screenshot."
+          lede="Rubric, personas, judge and verdicts — the console we grade our own agents with, embedded live."
+        >
+          <DemoProbatio />
+        </DemoSlide>
+      ),
+    },
+
+    { id: 'agentic-testing', label: 'Agentic testing', content: agenticTesting },
+    { id: 'aeo', label: 'Answer-engine visibility', content: aeo },
+    { id: 'marketing-data', label: 'Marketing data', content: marketingData },
+    { id: 'payments-agent', label: 'Agentic operations', content: paymentsAgent },
+    { id: 'router', label: 'The routing core', content: router },
+    { id: 'engagement', label: 'How it goes', content: engagement },
+    { id: 'principles', label: 'How we build', content: principles },
+    { id: 'close', label: 'Contact', content: close },
+  ];
+}

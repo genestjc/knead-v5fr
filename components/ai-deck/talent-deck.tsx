@@ -12,11 +12,17 @@
  * The chrome (progress bar, dot rail, counter) hides in print so ⌘P produces a
  * clean one-slide-per-page PDF; the rules live under `.deck-*` in globals.css.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { SLIDES, ACCENT } from './deck-slides';
+import type { DemoArticle } from '@/lib/deck-demo-article';
+import { buildSlides } from './deck-slides';
+import { ACCENT } from './theme';
 
-export function TalentDeck() {
+export function TalentDeck({ article }: { article: DemoArticle | null }) {
+  // Built here rather than on the server so the only thing crossing the
+  // boundary is the article's plain data, not a tree of slide elements.
+  const SLIDES = useMemo(() => buildSlides(article), [article]);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const [index, setIndex] = useState(0);
@@ -56,8 +62,16 @@ export function TalentDeck() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Don't hijack the browser's own shortcuts, or typing in the mailto link.
+      // Don't hijack the browser's own shortcuts.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // The demo slides have text fields on them. Space and the arrow keys
+      // belong to whoever is typing — paging the deck out from under a
+      // half-written question is the fastest way to end a demo.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) {
+        return;
+      }
 
       const forward = ['ArrowRight', 'ArrowDown', 'PageDown', ' '];
       const back = ['ArrowLeft', 'ArrowUp', 'PageUp'];
@@ -79,7 +93,7 @@ export function TalentDeck() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [index, goTo]);
+  }, [index, goTo, SLIDES.length]);
 
   const atEnd = index === SLIDES.length - 1;
 
