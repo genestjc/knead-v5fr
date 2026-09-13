@@ -11,10 +11,12 @@
  * product, so nobody has to take the claim on trust.
  */
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import type { DemoArticle } from '@/lib/deck-demo-article';
 import { DemoDemeter } from './demo-demeter';
 import { DemoBuildAssistant } from './demo-build-assistant';
 import { DemoProbatio } from './demo-probatio';
+import { FitText } from './fit-text';
 import { ACCENT } from './theme';
 
 export interface DeckSlide {
@@ -78,24 +80,21 @@ function DemoSlide({
 // ─── 01 · Cover ───────────────────────────────────────────────────────────────
 
 const cover = (
-  <div className="max-w-5xl">
+  <div className="w-full">
     <p className="text-[10px] md:text-[11px] uppercase tracking-[0.25em] text-white/40 mb-8">
       Knead
     </p>
-    <h1 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
-      AI Products
-      <br />
-      <span style={{ color: ACCENT }}>+ Strategy</span>
+
+    {/* Both lines are measured and scaled to span the full slide width on
+        desktop — see fit-text.tsx for why this is measured rather than sized
+        by hand. Phones keep the fixed ramp. */}
+    <h1 className="font-adonis text-white mb-8 text-5xl leading-[0.95] md:text-8xl">
+      <FitText>AI Products</FitText>
+      <FitText style={{ color: ACCENT }}>+ Strategy</FitText>
     </h1>
-    <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-10">
+
+    <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl">
       Building the tools that enhance modern media.
-    </p>
-    <p
-      className="font-georgia-pro text-sm md:text-base text-white/45 leading-relaxed max-w-2xl border-l pl-4"
-      style={{ borderColor: ACCENT }}
-    >
-      Three slides in this deck are the live products, not pictures of them. Type into them —
-      every answer comes back from production.
     </p>
   </div>
 );
@@ -103,34 +102,55 @@ const cover = (
 // ─── 02 · Who we are ──────────────────────────────────────────────────────────
 
 const whoWeAre = (
-  <div className="max-w-5xl w-full">
-    <Kicker>Knead</Kicker>
-    <Title>Who We Are</Title>
-
-    <div className="space-y-7 max-w-3xl">
-      <p className="font-georgia-pro text-lg md:text-xl text-white/70 leading-relaxed">
-        Knead&apos;s a magazine that covers art, food, music, technology, fashion, and other
-        creative disciplines.
-      </p>
-
-      <p className="font-georgia-pro text-lg md:text-xl text-white/70 leading-relaxed">
-        Our interviews include notable names such as{' '}
-        <span className="text-white">
-          Daniel Arsham, LVMH, AMBUSH, Constant Practice, Nina Chanel Abney, Richard Nadler, Dr.
-          Gigi Casimiro
-        </span>
-        , and others.
-      </p>
-
-      <p
-        className="font-georgia-pro text-lg md:text-xl text-white leading-relaxed border-l pl-5"
-        style={{ borderColor: ACCENT }}
-      >
-        Our platform uses AI to enhance the reader experience, not write stories or design cover
-        images.
-      </p>
+  <>
+    {/* Full-bleed photograph behind this slide only. The slide section is
+        `relative`, so this fills it edge to edge, under the type. Two darkening
+        layers rather than one: the flat wash guarantees contrast anywhere on
+        the frame, and the gradient keeps the left column — where the words are
+        — darker still, while the right stays open enough to read as a kitchen.
+        next/image rather than a CSS background: the source is a 2 MB JPEG and
+        this way it ships as a sized, modern-format image. */}
+    <div aria-hidden className="absolute inset-0 z-0">
+      <Image
+        src="/nisei-kitchen-blvck-svm.jpg"
+        alt=""
+        fill
+        sizes="100vw"
+        className="object-cover"
+      />
+      <div className="absolute inset-0 bg-black/65" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black via-black/75 to-black/25" />
     </div>
-  </div>
+
+    <div className="relative z-10 max-w-5xl w-full">
+      <Kicker>Knead</Kicker>
+      <Title>Who We Are</Title>
+
+      <div className="space-y-7 max-w-3xl">
+        <p className="font-georgia-pro text-lg md:text-xl text-white/75 leading-relaxed">
+          Knead&apos;s a magazine that covers art, food, music, technology, fashion, and other
+          creative disciplines.
+        </p>
+
+        <p className="font-georgia-pro text-lg md:text-xl text-white/75 leading-relaxed">
+          Our interviews include notable names such as{' '}
+          <span className="text-white">
+            Daniel Arsham, LVMH, AMBUSH, Constant Practice, Nina Chanel Abney, Richard Nadler, Dr.
+            Gigi Casimiro
+          </span>
+          , and others.
+        </p>
+
+        <p
+          className="font-georgia-pro text-lg md:text-xl text-white leading-relaxed border-l pl-5"
+          style={{ borderColor: ACCENT }}
+        >
+          Our platform uses AI to enhance the reader experience, not write stories or design cover
+          images.
+        </p>
+      </div>
+    </div>
+  </>
 );
 
 // ─── 03 · What we do ──────────────────────────────────────────────────────────
@@ -248,7 +268,10 @@ const proof = (
       ))}
     </div>
 
-    <p className="mt-8 font-georgia-pro text-base md:text-lg text-white/60 leading-relaxed max-w-3xl">
+    <p
+      className="mt-8 font-georgia-pro text-lg md:text-2xl text-white leading-relaxed max-w-3xl border-l pl-5"
+      style={{ borderColor: ACCENT }}
+    >
       Every company&apos;s a media company. Here&apos;s the tools we&apos;ve built to help enhance
       ours:
     </p>
@@ -264,7 +287,7 @@ const bigDeal = (
       The Big Deal
     </h2>
     <p className="font-georgia-pro text-xl md:text-3xl text-white/70 leading-relaxed max-w-4xl mb-6">
-      Everyone wants to use AI but no one wants it to impact creativity or brand integrity.
+      AI should create experiences, not creative.
     </p>
     <p
       className="font-adonis text-2xl md:text-4xl leading-snug max-w-3xl"
@@ -284,8 +307,7 @@ const close = (
       Let&apos;s build yours.
     </h2>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-12">
-      Bring the surface you already know you need — the assistant, the testing harness, the
-      dashboard — or just the question your current stack refuses to answer.
+      Start seeing how tomorrow&apos;s tools can help improve today&apos;s results.
     </p>
     <a
       href="mailto:joe@kneadmag.com"
