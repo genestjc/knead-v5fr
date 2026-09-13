@@ -114,7 +114,7 @@ const whoWeAre = (
       </p>
 
       <p className="font-georgia-pro text-lg md:text-xl text-white/70 leading-relaxed">
-        Our interviews include notable names including{' '}
+        Our interviews include notable names such as{' '}
         <span className="text-white">
           Daniel Arsham, LVMH, AMBUSH, Constant Practice, Nina Chanel Abney, Richard Nadler, Dr.
           Gigi Casimiro
