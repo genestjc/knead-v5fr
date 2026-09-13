@@ -89,7 +89,7 @@ const cover = (
       <span style={{ color: ACCENT }}>+ Strategy</span>
     </h1>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl">
-      Building the tools that enhance modern media.
+      Building what's next in media experience.
     </p>
   </div>
 );
