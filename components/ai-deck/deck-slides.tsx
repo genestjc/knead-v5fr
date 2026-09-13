@@ -296,10 +296,10 @@ const bigDeal = (
 const close = (
   <div className="max-w-5xl">
     <h2 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
-      Let&apos;s build yours.
+      Together, we can create what tomorrow's brand experience looks like, today.
     </h2>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-12">
-      Start seeing how tomorrow&apos;s tools can help improve today&apos;s results.
+      Let's talk about what you want to build:
     </p>
     <a
       href="mailto:joe@kneadmag.com"
