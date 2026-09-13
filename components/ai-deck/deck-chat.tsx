@@ -43,8 +43,8 @@ export function ChatLog({
           <div
             className={
               msg.role === 'user'
-                ? 'max-w-[85%] rounded-2xl rounded-tr-sm bg-white text-black px-3.5 py-2.5 font-georgia-pro text-[13px] leading-relaxed whitespace-pre-wrap'
-                : 'max-w-[90%] rounded-2xl rounded-tl-sm bg-white/[0.07] border border-white/10 text-white/85 px-3.5 py-2.5 font-georgia-pro text-[13px] leading-relaxed whitespace-pre-wrap'
+                ? 'max-w-[85%] rounded-2xl rounded-tr-sm bg-white text-black px-4 py-3 font-georgia-pro text-sm leading-relaxed whitespace-pre-wrap'
+                : 'max-w-[90%] rounded-2xl rounded-tl-sm bg-white/[0.07] border border-white/10 text-white/85 px-4 py-3 font-georgia-pro text-sm leading-relaxed whitespace-pre-wrap'
             }
             style={{ overflowWrap: 'anywhere' }}
           >
@@ -100,7 +100,7 @@ export function Starters({
           key={p}
           onClick={() => onPick(p)}
           disabled={disabled}
-          className="text-left font-georgia-pro text-[11px] text-white/55 border border-white/15 rounded-full px-3 py-1.5 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
+          className="text-left font-georgia-pro text-xs md:text-[13px] text-white/55 border border-white/15 rounded-full px-3.5 py-2.5 md:py-2 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
         >
           {p}
         </button>
@@ -123,7 +123,7 @@ export function ChatInput({
   placeholder: string;
 }) {
   return (
-    <div className="flex items-end gap-2 border border-white/15 rounded-2xl px-3 py-2 focus-within:border-white/40 transition-colors">
+    <div className="flex items-end gap-2 border border-white/15 rounded-2xl px-3 py-2.5 focus-within:border-white/40 transition-colors">
       <textarea
         rows={1}
         value={value}
@@ -138,16 +138,16 @@ export function ChatInput({
         }}
         placeholder={placeholder}
         disabled={disabled}
-        className="flex-1 resize-none bg-transparent outline-none font-georgia-pro text-[13px] text-white placeholder-white/25 leading-relaxed py-1 disabled:opacity-50"
-        style={{ minHeight: '28px', maxHeight: '96px' }}
+        className="flex-1 resize-none bg-transparent outline-none font-georgia-pro text-base md:text-sm text-white placeholder-white/25 leading-relaxed py-1 disabled:opacity-50"
+        style={{ minHeight: '32px', maxHeight: '96px' }}
       />
       <button
         onClick={onSubmit}
         disabled={disabled || !value.trim()}
         aria-label="Send"
-        className="shrink-0 w-7 h-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-white/80 transition-colors disabled:opacity-25"
+        className="shrink-0 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:bg-white/80 transition-colors disabled:opacity-25"
       >
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path
             d="M7 1l6 6-6 6M13 7H1"
             stroke="currentColor"

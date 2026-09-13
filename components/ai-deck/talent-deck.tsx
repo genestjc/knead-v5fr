@@ -111,10 +111,10 @@ export function TalentDeck({ article }: { article: DemoArticle | null }) {
       </div>
 
       {/* Wordmark */}
-      <div className="deck-chrome fixed top-0 left-0 z-30 px-6 md:px-12 py-5">
+      <div className="deck-chrome fixed top-0 left-0 z-30 px-6 md:px-12 py-4 md:py-5">
         <Link
           href="/"
-          className="font-adonis text-sm text-white/50 hover:text-white transition-colors"
+          className="font-adonis text-2xl md:text-3xl text-white/70 hover:text-white transition-colors"
         >
           Knead
         </Link>
@@ -161,7 +161,7 @@ export function TalentDeck({ article }: { article: DemoArticle | null }) {
               slideRefs.current[i] = el;
             }}
             aria-label={slide.label}
-            className="deck-slide relative min-h-[100svh] snap-start flex items-center px-6 md:px-20 lg:px-28 py-24 md:py-20"
+            className="deck-slide relative min-h-[100svh] snap-start flex items-center px-6 md:px-20 lg:px-28 pt-28 pb-24 md:pt-24 md:pb-20"
           >
             {slide.content}
           </section>
