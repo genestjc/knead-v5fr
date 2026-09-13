@@ -89,7 +89,7 @@ const cover = (
       <span style={{ color: ACCENT }}>+ Strategy</span>
     </h1>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl">
-      Building what's next in media experience.
+      Building what&apos;s next in media experience.
     </p>
   </div>
 );
@@ -295,11 +295,11 @@ const bigDeal = (
 
 const close = (
   <div className="max-w-5xl">
-    <h2 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
-      Let's create what tomorrow's brand experience looks like, today.
+    <h2 className="font-adonis text-4xl md:text-6xl leading-[1.05] text-white mb-8">
+      Let&apos;s create what tomorrow&apos;s brand experience looks like, today.
     </h2>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-12">
-      Want to talk about what you'd like to build?
+      Want to talk about what you&apos;d like to build?
     </p>
     <a
       href="mailto:joe@kneadmag.com"
