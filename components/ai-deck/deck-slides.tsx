@@ -286,7 +286,7 @@ const bigDeal = (
       className="font-adonis text-2xl md:text-4xl leading-snug max-w-3xl"
       style={{ color: ACCENT }}
     >
-      Knead helps your company reach that goal.
+      It should empower people to learn and share faster. Knead can help you get there.
     </p>
   </div>
 );
@@ -296,10 +296,10 @@ const bigDeal = (
 const close = (
   <div className="max-w-5xl">
     <h2 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
-      Together, we can create what tomorrow's brand experience looks like, today.
+      Let's create what tomorrow's brand experience looks like, today.
     </h2>
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl mb-12">
-      Let's talk about what you want to build:
+      Want to talk about what you'd like to build?
     </p>
     <a
       href="mailto:joe@kneadmag.com"
