@@ -42,24 +42,30 @@ export function DemoProbatio() {
 
   return (
     <div ref={holderRef} className="border border-white/10 bg-black w-full">
-      <div className="flex items-center justify-between gap-4 px-5 md:px-6 py-4 border-b border-white/10">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-white/10">
+        <div className="min-w-0">
           <p className="font-adonis text-lg text-white leading-none mb-1.5">Probatio Parsley</p>
           <LiveBadge>Live · the console itself</LiveBadge>
         </div>
+        {/* Full width on a phone: a console in a frame is always going to be
+            better in its own tab, so that should be the easy thing to hit. */}
         <a
           href="/probatio-parsley"
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 font-georgia-pro text-[11px] text-white/40 hover:text-white transition-colors"
+          className="shrink-0 text-center rounded-full border border-white/25 px-4 py-2.5 md:py-2 font-georgia-pro text-xs md:text-[13px] text-white/70 hover:text-white hover:border-white/50 transition-colors"
         >
           Open full screen ↗
         </a>
       </div>
 
-      {/* An iframe prints as a white rectangle and pushes the slide onto a
+      {/* Sized in viewport units so the console gets as much room as the
+          screen can spare, on a phone as much as a laptop, without ever
+          pushing the slide past one screen.
+
+          An iframe prints as a white rectangle and pushes the slide onto a
           second page — on paper the sentence below stands in for it. */}
-      <div className="relative bg-white h-[300px] md:h-[360px] print:hidden">
+      <div className="relative bg-white h-[54svh] md:h-[52svh] print:hidden">
         {load ? (
           <iframe
             src="/probatio-parsley"
