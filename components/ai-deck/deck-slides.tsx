@@ -145,8 +145,7 @@ const whoWeAre = (
           className="font-georgia-pro text-lg md:text-xl text-white leading-relaxed border-l pl-5"
           style={{ borderColor: ACCENT }}
         >
-          Our platform uses AI to enhance the reader experience, not write stories or design cover
-          images.
+          Our platform uses AI to enhance the reader experience, not write stories or design slop.
         </p>
       </div>
     </div>
