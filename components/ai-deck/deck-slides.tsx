@@ -161,7 +161,7 @@ const OFFERINGS: Offering[] = [
     n: '01',
     title: 'Agentic Products',
     points: [
-      'Agents for the brand experience — to help answer questions, craft social posts, or offer exclusive discounts.',
+      'Agents for the consumer's brand experience — to help answer questions, craft social posts, or offer exclusive discounts.',
       'Agents for your team to ask questions — pulled directly from your documentation, vendors, or repo.',
       'Voice for content summaries and user experiences.',
     ],
