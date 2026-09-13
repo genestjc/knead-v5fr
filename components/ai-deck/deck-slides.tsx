@@ -16,7 +16,6 @@ import type { DemoArticle } from '@/lib/deck-demo-article';
 import { DemoDemeter } from './demo-demeter';
 import { DemoBuildAssistant } from './demo-build-assistant';
 import { DemoProbatio } from './demo-probatio';
-import { FitText } from './fit-text';
 import { ACCENT } from './theme';
 
 export interface DeckSlide {
@@ -80,19 +79,15 @@ function DemoSlide({
 // ─── 01 · Cover ───────────────────────────────────────────────────────────────
 
 const cover = (
-  <div className="w-full">
+  <div className="max-w-5xl">
     <p className="text-[10px] md:text-[11px] uppercase tracking-[0.25em] text-white/40 mb-8">
       Knead
     </p>
-
-    {/* Both lines are measured and scaled to span the full slide width on
-        desktop — see fit-text.tsx for why this is measured rather than sized
-        by hand. Phones keep the fixed ramp. */}
-    <h1 className="font-adonis text-white mb-8 text-5xl leading-[0.95] md:text-8xl">
-      <FitText>AI Products</FitText>
-      <FitText style={{ color: ACCENT }}>+ Strategy</FitText>
+    <h1 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
+      AI Products
+      <br />
+      <span style={{ color: ACCENT }}>+ Strategy</span>
     </h1>
-
     <p className="font-georgia-pro text-lg md:text-2xl text-white/70 leading-relaxed max-w-3xl">
       Building the tools that enhance modern media.
     </p>
@@ -281,7 +276,6 @@ const proof = (
 
 const bigDeal = (
   <div className="max-w-5xl">
-    <Kicker>Why this matters</Kicker>
     <h2 className="font-adonis text-4xl md:text-7xl leading-[1.02] text-white mb-8">
       The Big Deal
     </h2>
@@ -301,7 +295,6 @@ const bigDeal = (
 
 const close = (
   <div className="max-w-5xl">
-    <Kicker>Next</Kicker>
     <h2 className="font-adonis text-5xl md:text-8xl leading-[0.95] text-white mb-8">
       Let&apos;s build yours.
     </h2>
