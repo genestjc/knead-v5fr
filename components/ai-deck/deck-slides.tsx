@@ -286,7 +286,7 @@ const bigDeal = (
       className="font-adonis text-2xl md:text-4xl leading-snug max-w-3xl"
       style={{ color: ACCENT }}
     >
-      It should empower people to learn and share faster. Knead can help you get there.
+      Instead, it should empower people to learn and share faster. Knead can help you get there.
     </p>
   </div>
 );
