@@ -163,7 +163,7 @@ const OFFERINGS: Offering[] = [
     points: [
       'Agents for the consumer's brand experience — to help answer questions, craft social posts, or offer exclusive discounts.',
       'Agents for your team to ask questions — pulled directly from your documentation, vendors, or repo.',
-      'Voice for content summaries and user experiences.',
+      'Voice summaries and conversational experiences.',
     ],
   },
   {
@@ -171,7 +171,7 @@ const OFFERINGS: Offering[] = [
     title: 'Agentic Testing',
     subtitle: 'Putting agents to work faster, in more places than a human team can.',
     points: [
-      "Having agents simulate every device and app where a brand is found — a Gen-Z user going through the whole sign-up process in Instagram's in-app browser, for instance.",
+      "Having agents simulate every device and app where a brand is found; for example, a Gen-Z user going through the whole sign-up process in Instagram's in-app browser.",
       'Simulating users not readily within reach, such as less tech-savvy generations.',
       'Running agents across your live socials and media assets to summarize audience sentiment (LLM-as-judge).',
     ],
