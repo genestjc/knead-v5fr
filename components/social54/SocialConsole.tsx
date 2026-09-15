@@ -17,6 +17,7 @@ import type { Competitor } from '@/lib/social/types';
 import { fetchConsoleState } from './api';
 import { Banner, Spinner } from './shared';
 import { PulseTab } from './PulseTab';
+import { CoverageTab } from './CoverageTab';
 import { SentimentTab } from './SentimentTab';
 import { TrendsTab } from './TrendsTab';
 import { HeadToHeadTab } from './HeadToHeadTab';
@@ -24,10 +25,19 @@ import { ComposerTab } from './ComposerTab';
 import { CompetitorsTab } from './CompetitorsTab';
 import { HistoryTab } from './HistoryTab';
 
-type TabId = 'pulse' | 'sentiment' | 'trends' | 'head-to-head' | 'composer' | 'competitors' | 'history';
+type TabId =
+  | 'pulse'
+  | 'coverage'
+  | 'sentiment'
+  | 'trends'
+  | 'head-to-head'
+  | 'composer'
+  | 'competitors'
+  | 'history';
 
 const TABS: { id: TabId; label: string; sub: string }[] = [
   { id: 'pulse', label: 'Pulse', sub: 'Every platform, right now.' },
+  { id: 'coverage', label: 'Coverage', sub: 'What they published. No keys.' },
   { id: 'sentiment', label: 'Sentiment', sub: 'What the replies say.' },
   { id: 'trends', label: 'Trends', sub: 'Macro drift, micro spikes.' },
   { id: 'head-to-head', label: 'Head to Head', sub: 'Our post vs theirs.' },
@@ -159,6 +169,8 @@ export function SocialConsole({ account }: { account: Account | null }) {
           <Spinner label="Checking what this console can reach…" />
         ) : tab === 'pulse' ? (
           <PulseTab account={account} platforms={platforms} archive={archive} />
+        ) : tab === 'coverage' ? (
+          <CoverageTab account={account} />
         ) : tab === 'sentiment' ? (
           <SentimentTab account={account} />
         ) : tab === 'trends' ? (

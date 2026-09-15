@@ -85,6 +85,7 @@ export function PulseTab({
         </div>
       </div>
 
+      <ReachSummary platforms={platforms} />
       <ReachGrid platforms={platforms} archive={archive} />
 
       {error && <Banner onDismiss={() => setError(null)}>{error}</Banner>}
@@ -114,6 +115,42 @@ export function PulseTab({
 }
 
 /* ─── what the environment can reach, before anything is pulled ─────────── */
+
+/**
+ * What works right now, stated before the list of what doesn't.
+ *
+ * Without this the screen opens on five platforms of which three read "set
+ * INSTAGRAM_ACCESS_TOKEN", and the whole console looks gated behind
+ * credentials nobody has. Three of them genuinely are — that cannot be fixed,
+ * only said plainly — but two platforms and the entire Coverage tab work with
+ * nothing at all, and that should be the first thing on the page rather than
+ * something you infer from an absent warning.
+ */
+function ReachSummary({ platforms }: { platforms: PlatformStatus[] }) {
+  const live = platforms.filter((p) => p.configured || p.publicReadable);
+  const gated = platforms.filter((p) => !p.configured && !p.publicReadable);
+
+  if (gated.length === 0) return null;
+
+  return (
+    <div className="border border-gray-900 rounded-md px-4 py-3">
+      <p className="font-georgia-pro text-[15px] text-gray-900">
+        <strong className="font-medium">
+          Collecting now with no credentials: {live.map((p) => p.label).join(' and ')}
+        </strong>
+        , plus everything on the <strong className="font-medium">Coverage</strong> tab — what the
+        field published, read from their own feeds.
+      </p>
+      <p className="font-georgia-pro text-[14px] text-gray-600 mt-1.5">
+        {gated.map((p) => p.label).join(', ')} need access tokens and will keep saying so. That is
+        not a setup step you have missed: those platforms have no public read path, so nothing can
+        be collected from them by anyone without credentials.
+        {gated.some((p) => p.costsMoney) &&
+          ' One of them also requires a paid API tier.'}
+      </p>
+    </div>
+  );
+}
 
 function ReachGrid({
   platforms,
