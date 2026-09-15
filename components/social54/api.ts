@@ -16,6 +16,7 @@ import type { FieldStats } from '@/lib/social/field';
 import type { StoryBrief, ComposerResult } from '@/lib/social/agents/composer';
 import type { SentimentReport } from '@/lib/social/agents/sentiment';
 import type { TrendReport } from '@/lib/social/agents/trends';
+import type { EditorialSweep } from '@/lib/social/editorial';
 import type { HeadToHeadOutcome, HeadToHeadReport } from '@/lib/social/agents/head-to-head';
 import type {
   AgentProvider,
@@ -100,6 +101,8 @@ export interface TrendsResult {
   stats: FieldStats;
   caveats: string[];
   archiveDays: number | null;
+  /** What the field published, from their own feeds. Null if the sweep failed. */
+  editorial: EditorialSweep | null;
   headline: string;
 }
 
@@ -164,16 +167,23 @@ export async function fetchCompetitors(
 
 export async function addCompetitor(
   account: Account | null,
-  input: { name: string; note?: string; handles: CompetitorHandle[] },
-): Promise<Competitor> {
-  return (await unwrap<{ competitor: Competitor }>(await post('/api/social/competitors', account, input)))
-    .competitor;
+  input: { name: string; note?: string; handles: CompetitorHandle[]; feedUrl?: string },
+): Promise<{ competitor: Competitor; feedNote: string }> {
+  return unwrap<{ competitor: Competitor; feedNote: string }>(
+    await post('/api/social/competitors', account, input),
+  );
 }
 
 export async function patchCompetitor(
   account: Account | null,
   id: string,
-  patch: Partial<{ name: string; note: string | null; handles: CompetitorHandle[]; isActive: boolean }>,
+  patch: Partial<{
+    name: string;
+    note: string | null;
+    handles: CompetitorHandle[];
+    feedUrl: string | null;
+    isActive: boolean;
+  }>,
 ): Promise<Competitor> {
   const res = await call(`/api/social/competitors/${id}`, account, {
     method: 'PATCH',

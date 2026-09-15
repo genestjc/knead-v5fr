@@ -20,6 +20,7 @@
  */
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { COMPETITOR_SEED } from './config';
+import type { EditorialItem } from './editorial';
 import type {
   AgentProvider,
   Competitor,
@@ -39,6 +40,7 @@ export function mapCompetitor(row: any): Competitor {
     name: row.name,
     note: row.note ?? null,
     handles: normalizeHandles(row.handles),
+    feedUrl: row.feed_url ?? null,
     isActive: row.is_active ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -96,6 +98,10 @@ export async function loadCompetitors(): Promise<CompetitorLoad> {
       name: c.name,
       note: c.note,
       handles: c.handles,
+      // The seed carries homepages, not feeds. sweepEditorial notices the URL
+      // is a page, discovers the real feed from it, and the trends route
+      // writes that back — so the guess-free path costs one extra fetch, once.
+      feed_url: c.siteUrl ?? null,
       is_active: true,
     })),
   );
@@ -124,6 +130,7 @@ export async function createCompetitor(input: {
   name: string;
   note?: string | null;
   handles: CompetitorHandle[];
+  feedUrl?: string | null;
 }): Promise<Competitor> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -132,6 +139,7 @@ export async function createCompetitor(input: {
       name: input.name,
       note: input.note ?? null,
       handles: normalizeHandles(input.handles),
+      feed_url: input.feedUrl ?? null,
       is_active: true,
     })
     .select()
@@ -142,13 +150,20 @@ export async function createCompetitor(input: {
 
 export async function updateCompetitor(
   id: string,
-  patch: Partial<{ name: string; note: string | null; handles: CompetitorHandle[]; isActive: boolean }>,
+  patch: Partial<{
+    name: string;
+    note: string | null;
+    handles: CompetitorHandle[];
+    feedUrl: string | null;
+    isActive: boolean;
+  }>,
 ): Promise<Competitor> {
   const supabase = getSupabaseAdmin();
   const row: Record<string, any> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) row.name = patch.name;
   if (patch.note !== undefined) row.note = patch.note;
   if (patch.handles !== undefined) row.handles = normalizeHandles(patch.handles);
+  if (patch.feedUrl !== undefined) row.feed_url = patch.feedUrl;
   if (patch.isActive !== undefined) row.is_active = patch.isActive;
 
   const { data, error } = await supabase
@@ -279,6 +294,77 @@ export async function archiveCoverage(): Promise<{ earliest: string | null; post
     .select('post_id', { count: 'exact', head: true });
 
   return { earliest: data?.[0]?.published_at ?? null, posts: count ?? 0 };
+}
+
+// ─── editorial archive ────────────────────────────────────────────────────
+
+/**
+ * Archive what the field published.
+ *
+ * Same reasoning as archivePosts: no feed serves more than its recent entries,
+ * so a coverage-gap claim is only checkable against what was there last time.
+ * Best-effort — a sweep is worth showing even when it could not be persisted.
+ *
+ * first_seen_at is left to the column default and never sent on update, so
+ * re-sweeping a piece keeps the date we discovered it. That is what separates
+ * "they just published this" from "this was always in the feed and has only
+ * now entered our window".
+ */
+export async function archiveEditorial(
+  items: EditorialItem[],
+): Promise<{ saved: number; error: string | null }> {
+  const rows = items.filter((i) => i.url);
+  if (rows.length === 0) return { saved: 0, error: null };
+
+  const supabase = getSupabaseAdmin();
+  const now = new Date().toISOString();
+
+  const { error, count } = await supabase.from('social_editorial_items').upsert(
+    rows.map((i) => ({
+      url: i.url,
+      source: i.source,
+      host: i.host,
+      title: i.title,
+      summary: i.summary,
+      categories: i.categories,
+      published_at: i.publishedAt,
+      last_seen_at: now,
+    })),
+    { onConflict: 'url', count: 'exact' },
+  );
+
+  if (error) {
+    console.error('[social54] editorial archive failed:', error.message);
+    return { saved: 0, error: `Published pieces were not archived: ${error.message}` };
+  }
+  return { saved: count ?? rows.length, error: null };
+}
+
+export async function readArchivedEditorial(opts: {
+  days: number;
+  limit?: number;
+}): Promise<EditorialItem[]> {
+  const supabase = getSupabaseAdmin();
+  const since = new Date(Date.now() - opts.days * 86_400_000).toISOString();
+
+  const { data, error } = await supabase
+    .from('social_editorial_items')
+    .select('*')
+    .gte('published_at', since)
+    .order('published_at', { ascending: false })
+    .limit(opts.limit ?? 400);
+
+  if (error) throw new Error(`Could not read the editorial archive: ${error.message}`);
+
+  return (data ?? []).map((row: any) => ({
+    url: row.url,
+    source: row.source,
+    host: row.host ?? '',
+    title: row.title ?? '',
+    summary: row.summary ?? '',
+    categories: row.categories ?? [],
+    publishedAt: row.published_at ?? null,
+  }));
 }
 
 // ─── runs ─────────────────────────────────────────────────────────────────

@@ -179,10 +179,21 @@ export const COMPETITOR_SEED: {
   name: string;
   note: string;
   handles: { platform: SocialPlatform; handle: string }[];
+  /**
+   * The publication's homepage, not its feed.
+   *
+   * Seeding a guessed feed URL would bake in a guess that fails quietly on the
+   * half of publications whose path I'd get wrong. A homepage is a fact, and
+   * lib/social/editorial.ts discovers the feed from it on the first sweep and
+   * stores what it found — so a wrong guess is impossible and the lookup
+   * happens once.
+   */
+  siteUrl?: string;
 }[] = [
   {
     name: 'Hyperallergic',
     note: 'Art criticism with real reporting cadence. The benchmark for art-story reach.',
+    siteUrl: 'https://hyperallergic.com',
     handles: [
       { platform: 'instagram', handle: 'hyperallergic' },
       { platform: 'x', handle: 'hyperallergic' },
@@ -192,6 +203,7 @@ export const COMPETITOR_SEED: {
   {
     name: 'It’s Nice That',
     note: 'Design and visual culture. Sets the format conventions we get compared to.',
+    siteUrl: 'https://www.itsnicethat.com',
     handles: [
       { platform: 'instagram', handle: 'itsnicethat' },
       { platform: 'x', handle: 'itsnicethat' },
@@ -201,6 +213,7 @@ export const COMPETITOR_SEED: {
   {
     name: 'Zora',
     note: 'The platform itself sets onchain publishing norms — watch the format, not the rivalry.',
+    siteUrl: 'https://zora.co',
     handles: [
       { platform: 'farcaster', handle: 'zora' },
       { platform: 'x', handle: 'ourzora' },
@@ -210,6 +223,7 @@ export const COMPETITOR_SEED: {
   {
     name: 'Paragraph',
     note: 'Onchain publishing peer. Closest competitor for the Farcaster readership.',
+    siteUrl: 'https://paragraph.com',
     handles: [
       { platform: 'farcaster', handle: 'paragraph' },
       { platform: 'x', handle: 'paragraph_xyz' },
@@ -218,6 +232,7 @@ export const COMPETITOR_SEED: {
   {
     name: 'Eater',
     note: 'Food vertical. Comparison target for the food stories, not the art ones.',
+    siteUrl: 'https://www.eater.com',
     handles: [
       { platform: 'instagram', handle: 'eater' },
       { platform: 'x', handle: 'eater' },
