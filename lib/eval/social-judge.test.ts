@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import {
   budgetImages,
   criteriaFor,
+  describeImages,
   parseSocialJudgement,
   renderSocialSummary,
 } from './social-judge';
@@ -278,4 +279,35 @@ test('no side is ever budgeted more than it has', () => {
   const budget = budgetImages(3, [1, 1], 20);
   assert.equal(budget.ours, 3);
   assert.deepEqual(budget.theirs, [1, 1]);
+});
+
+// ─── describing what was attached ────────────────────────────────────────────
+
+test('frames and screenshots in one submission are told apart', () => {
+  // Someone films the Story sequence AND screenshots the comment thread. Calling
+  // all five frames would tell the model the comment screenshot is the end of
+  // the sequence.
+  const described = describeImages(5, [0.5, 4, 7.5]);
+  assert.match(described, /first 3 image\(s\) are FRAMES/);
+  assert.match(described, /0\.5s, 4s, 7\.5s/);
+  assert.match(described, /remaining 2 image\(s\) are SCREENSHOT/);
+});
+
+test('screenshots alone are not described as a sequence', () => {
+  const described = describeImages(2, []);
+  assert.doesNotMatch(described, /FRAMES|sequence, /);
+  assert.match(described, /2 image\(s\) are SCREENSHOT/);
+});
+
+test('frames alone are all described as frames', () => {
+  const described = describeImages(3, [1, 2, 3]);
+  assert.match(described, /first 3 image\(s\) are FRAMES/);
+  assert.doesNotMatch(described, /SCREENSHOT/);
+});
+
+test('more timestamps than images does not invent images', () => {
+  // The budget trimmed the frames after the timestamps were computed.
+  const described = describeImages(2, [1, 2, 3, 4]);
+  assert.match(described, /first 2 image\(s\) are FRAMES/);
+  assert.doesNotMatch(described, /SCREENSHOT/);
 });

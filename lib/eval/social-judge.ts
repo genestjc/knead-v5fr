@@ -250,9 +250,7 @@ function renderSubmission(
   const frames =
     imageCount === 0
       ? '(no images for this post)'
-      : timestamps.length
-      ? `${imageCount} FRAME(S) attached, sampled at ${timestamps.map((t) => `${t}s`).join(', ')} of a screen recording, in that order.`
-      : `${imageCount} SCREENSHOT(S) attached — read the caption and any replies from them.`;
+      : describeImages(imageCount, timestamps);
 
   return [
     `=== ${heading} ===`,
@@ -272,6 +270,35 @@ function renderSubmission(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * What was attached, told apart.
+ *
+ * A submission can carry both — someone films the Story sequence and also
+ * screenshots the comment thread — and the frames always come first, in time
+ * order. Describing all of them as frames would tell the model that a
+ * screenshot of the replies is the end of the sequence, which is the one thing
+ * about the ordering it actually needs to get right.
+ */
+export function describeImages(imageCount: number, timestamps: number[]): string {
+  const frames = Math.min(timestamps.length, imageCount);
+  const stills = imageCount - frames;
+
+  const parts: string[] = [];
+  if (frames > 0) {
+    parts.push(
+      `The first ${frames} image(s) are FRAMES from a screen recording, sampled at ` +
+        `${timestamps.slice(0, frames).map((t) => `${t}s`).join(', ')}, in that order — read them as one sequence.`,
+    );
+  }
+  if (stills > 0) {
+    parts.push(
+      `${frames > 0 ? `The remaining ${stills}` : `${stills}`} image(s) are SCREENSHOT(S) — separate captures, not part of any sequence.`,
+    );
+  }
+  parts.push('Read the caption and any visible replies out of them.');
+  return parts.join(' ');
 }
 
 function renderCriteria(criteria: EvalCriterion[]): string {
