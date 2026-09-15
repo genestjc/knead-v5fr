@@ -102,8 +102,67 @@ export interface AgentChatOptions {
    * user-facing model picker.
    */
   preferredProvider?: Provider;
+  /**
+   * Images to send alongside `message`, as base64.
+   *
+   * Added for Social 54, where a screenshot is the only way to read an
+   * Instagram or X post at all — both platforms wall their content off from
+   * unauthenticated requests, so a person looking at their own screen and
+   * handing it over is the path that works. It also carries more than the API
+   * would: a screenshot has the photograph in it, and the photograph is half
+   * of why an Instagram post works.
+   *
+   * Both providers take images only on the current user turn, which is all
+   * this is used for. History stays text.
+   */
+  images?: ImageInput[];
   /** Prefix for error logs, e.g. 'Demeter' or 'build/chat'. */
   logTag: string;
+}
+
+export interface ImageInput {
+  /** Base64 WITHOUT the data: URL prefix. */
+  data: string;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+}
+
+/**
+ * Per-request image cap.
+ *
+ * Anthropic rejects oversized images outright, and a rejection here loses the
+ * whole judging run rather than one screenshot — so the caller is told which
+ * image is too big and by how much, in a message a person can act on, before
+ * anything is sent.
+ */
+export const MAX_IMAGE_BYTES = 5_000_000;
+export const MAX_IMAGES_PER_REQUEST = 8;
+
+/**
+ * Validate images before they reach a provider.
+ *
+ * Returns the problems rather than throwing: a caller judging four screenshots
+ * would rather drop the one that is unreadable and grade the other three than
+ * lose the run.
+ */
+export function checkImages(images: ImageInput[]): string[] {
+  const problems: string[] = [];
+  if (images.length > MAX_IMAGES_PER_REQUEST) {
+    problems.push(
+      `${images.length} images were supplied; at most ${MAX_IMAGES_PER_REQUEST} can be sent at once.`,
+    );
+  }
+  images.forEach((image, i) => {
+    // base64 carries ~4 chars per 3 bytes; decode the length rather than
+    // measuring the string, or a 4MB image reads as 5.3MB and gets refused.
+    const bytes = Math.floor((image.data.length * 3) / 4);
+    if (bytes > MAX_IMAGE_BYTES) {
+      problems.push(
+        `Image ${i + 1} is ${(bytes / 1_000_000).toFixed(1)}MB, over the ${MAX_IMAGE_BYTES / 1_000_000}MB limit. Resize or re-crop it.`,
+      );
+    }
+    if (!image.data) problems.push(`Image ${i + 1} is empty.`);
+  });
+  return problems;
 }
 
 /**
@@ -197,9 +256,26 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
     { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
   ];
 
+  // Images ride on the current user turn only. Text goes LAST: a model shown
+  // the instruction before the images tends to answer from the instruction and
+  // skim what it was given, which for a judging pass means grading a post it
+  // barely looked at.
+  const userContent: Anthropic.ContentBlockParam[] | string =
+    opts.images?.length
+      ? [
+          ...opts.images.map(
+            (image): Anthropic.ImageBlockParam => ({
+              type: 'image',
+              source: { type: 'base64', media_type: image.mediaType, data: image.data },
+            }),
+          ),
+          { type: 'text', text: message },
+        ]
+      : message;
+
   const messages: Anthropic.MessageParam[] = [
     ...sanitizeHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user' as const, content: message },
+    { role: 'user' as const, content: userContent },
   ];
 
   // Chat surfaces are latency-sensitive, so thinking stays off. This must be
@@ -303,7 +379,18 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: 'system', content: system },
     ...sanitizeHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
+    opts.images?.length
+      ? {
+          role: 'user' as const,
+          content: [
+            ...opts.images.map((image) => ({
+              type: 'image_url' as const,
+              image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+            })),
+            { type: 'text' as const, text: message },
+          ],
+        }
+      : { role: 'user' as const, content: message },
   ];
 
   // Same as the Claude loop: keep text from every round, since text sent

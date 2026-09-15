@@ -17,6 +17,8 @@ import type { StoryBrief, ComposerResult } from '@/lib/social/agents/composer';
 import type { SentimentReport } from '@/lib/social/agents/sentiment';
 import type { TrendReport } from '@/lib/social/agents/trends';
 import type { EditorialItem, EditorialSweep } from '@/lib/social/editorial';
+import type { JudgeOutput } from '@/lib/social/judge/judge';
+import type { Judgement, JudgeCriterion } from '@/lib/social/judge/types';
 import type { HeadToHeadOutcome, HeadToHeadReport } from '@/lib/social/agents/head-to-head';
 import type {
   AgentProvider,
@@ -155,6 +157,74 @@ export async function runCompose(
   input: { slug: string; provider: AgentProvider; platforms?: SocialPlatform[] },
 ): Promise<ComposeResult> {
   return unwrap<ComposeResult>(await post('/api/social/compose', account, input));
+}
+
+// ─── rubric and judge ─────────────────────────────────────────────────────
+
+export async function fetchRubric(
+  account: Account | null,
+): Promise<{ criteria: JudgeCriterion[]; seedError: string | null }> {
+  return unwrap(await call('/api/social/rubric', account));
+}
+
+export async function addCriterion(
+  account: Account | null,
+  input: {
+    platform: SocialPlatform | null;
+    prompt: string;
+    guidance: string;
+    expectedVerdict: 'pass' | 'fail';
+    weight: number;
+  },
+): Promise<JudgeCriterion> {
+  return (await unwrap<{ criterion: JudgeCriterion }>(await post('/api/social/rubric', account, input)))
+    .criterion;
+}
+
+export async function patchCriterion(
+  account: Account | null,
+  id: string,
+  patch: Partial<{
+    platform: SocialPlatform | null;
+    prompt: string;
+    guidance: string;
+    expectedVerdict: 'pass' | 'fail';
+    weight: number;
+    isActive: boolean;
+  }>,
+): Promise<JudgeCriterion> {
+  const res = await call(`/api/social/rubric/${id}`, account, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return (await unwrap<{ criterion: JudgeCriterion }>(res)).criterion;
+}
+
+export async function removeCriterion(account: Account | null, id: string): Promise<void> {
+  await unwrap(await call(`/api/social/rubric/${id}`, account, { method: 'DELETE' }));
+}
+
+export interface JudgeRunResult {
+  judgement: Judgement | null;
+  output: JudgeOutput;
+  criteria: JudgeCriterion[];
+  summary: string;
+  saveFailed: boolean;
+}
+
+export async function runJudge(
+  account: Account | null,
+  input: {
+    platform: SocialPlatform;
+    provider: AgentProvider;
+    subject?: string;
+    title?: string;
+    ours: unknown;
+    theirs: unknown[];
+  },
+): Promise<JudgeRunResult> {
+  return unwrap<JudgeRunResult>(await post('/api/social/judge', account, input));
 }
 
 // ─── coverage ─────────────────────────────────────────────────────────────
