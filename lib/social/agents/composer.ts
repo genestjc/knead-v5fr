@@ -27,7 +27,7 @@ import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
 import { SITE_TOPICS } from '@/lib/constants';
 import { rankPosts } from '../metrics';
 import { platformLabel, SOCIAL_PLATFORMS, type AgentProvider, type SocialPlatform, type SocialPost } from '../types';
-import { arrayOf, oneOf, parseAgentJson, str } from './json';
+import { arrayOf, oneOf, parseAgentJson, str } from '@/lib/eval/json';
 import { renderPost } from './evidence';
 
 export interface StoryBrief {

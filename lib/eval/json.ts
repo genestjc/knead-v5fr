@@ -1,15 +1,16 @@
 /**
- * Tolerant JSON extraction for the social agents.
+ * Tolerant JSON extraction for the Probatio agents.
  *
- * Every agent here asks for strict JSON and most of the time gets it. The rest
- * of the time a model wraps it in a ```json fence, prefixes "Here's the
- * analysis:", or appends a closing sentence — none of which are worth losing a
- * run over, which is the same reasoning behind lib/eval/judge-json.ts.
+ * Every agent that returns structured findings asks for strict JSON and most
+ * of the time gets it. The rest of the time a model wraps it in a ```json
+ * fence, prefixes "Here's the analysis:", or appends a closing sentence — none
+ * of which are worth losing a run over. ./judge-json.ts is the narrower version
+ * the transcript judge uses, for the same reason.
  *
  * The one rule this file will not bend: an unparseable response is never
  * silently converted into an empty result. An empty sentiment report reads as
- * "nobody said anything", and an empty trends report reads as "nothing is
- * happening" — both are confident claims about the world, and neither is what
+ * "nobody said anything" and an empty findings list reads as "nothing is
+ * wrong" — both are confident claims about the world, and neither is what
  * happened. Callers get `ok: false` and the raw prose so they can show it.
  */
 

@@ -29,7 +29,7 @@ import { comparableFields, compactNumber, median, rateOn, totalOn } from '../met
 import { assessComparability, renderComparabilityRules, type Comparability } from '../scale';
 import { splitBySubject } from '../subjects';
 import { platformLabel, type AgentProvider, type SocialPlatform, type SocialPost } from '../types';
-import { arrayOf, oneOf, parseAgentJson, str } from './json';
+import { arrayOf, oneOf, parseAgentJson, str } from '@/lib/eval/json';
 import { postRef, renderCaveats, renderPost } from './evidence';
 
 export interface ScoredPost {

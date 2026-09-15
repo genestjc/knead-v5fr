@@ -14,7 +14,7 @@
  */
 import { getPosts } from '@/lib/cms';
 import { SITE_URL } from '@/lib/constants';
-import type { StoryBrief } from './agents/composer';
+import type { StoryBrief } from './social-composer';
 
 /** How much of a piece the composer sees. Enough to write from, not the feature. */
 const OPENING_CHARS = 3_000;

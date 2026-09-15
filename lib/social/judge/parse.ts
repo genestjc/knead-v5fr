@@ -7,7 +7,7 @@
  * scoring is where an LLM judge quietly produces a number that looks fine and
  * is not.
  */
-import { arrayOf, numberInRange, oneOf, parseAgentJson, str } from '../agents/json';
+import { arrayOf, numberInRange, oneOf, parseAgentJson, str } from '@/lib/eval/json';
 import {
   weightedScore,
   type ComparisonRead,

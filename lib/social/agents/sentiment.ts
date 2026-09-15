@@ -19,7 +19,7 @@
  * inventing a quote nobody wrote.
  */
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
-import { arrayOf, numberInRange, oneOf, parseAgentJson, str } from './json';
+import { arrayOf, numberInRange, oneOf, parseAgentJson, str } from '@/lib/eval/json';
 import { renderCaveats, renderCommentBlock, renderPostBlock } from './evidence';
 import type { AgentProvider, SocialComment, SocialPost } from '../types';
 

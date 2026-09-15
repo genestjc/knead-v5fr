@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { loadRubric, mapCriterion } from '@/lib/eval/store';
-import { EVAL_SURFACES } from '@/lib/eval/types';
+import { EVAL_SURFACES, clampWeight, isSocialPlatform } from '@/lib/eval/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
         prompt,
         guidance: body?.guidance ? String(body.guidance).trim() : null,
         expected_verdict: body?.expectedVerdict === 'fail' ? 'fail' : 'pass',
+        weight: clampWeight(body?.weight),
+        // Only the social audit scopes rows to a platform, and an unrecognised
+        // value becomes "applies everywhere" rather than a row nothing matches.
+        platform: isSocialPlatform(body?.platform) ? body.platform : null,
         sort_order: (last?.sort_order ?? -1) + 1,
         is_active: true,
       })

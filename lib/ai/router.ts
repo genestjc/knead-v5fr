@@ -36,8 +36,37 @@ export const OPENAI_SOL = 'gpt-5.6-sol';
 export const OPENAI_TERRA = 'gpt-5.6-terra';
 export const OPENAI_FALLBACK_MODEL = 'gpt-5.6-luna';
 
-export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+/**
+ * The provider clients, built on first use rather than on import.
+ *
+ * They used to be constructed at module scope, and the OpenAI SDK throws
+ * `Missing credentials` from its constructor when there is no key. That turned
+ * importing ANYTHING from this file into a hard requirement for a live
+ * OPENAI_API_KEY — including importing a constant. The visible cost was that no
+ * pure function in a module that touches the router could be unit-tested
+ * without a key in the environment, and the workaround was to keep splitting
+ * parsing logic into separate files to dodge the import. Building them lazily
+ * removes the reason for those splits: a module can import `MAX_IMAGE_BYTES`
+ * without standing up two SDK clients.
+ *
+ * Cached after the first call, so this is not a client per request.
+ */
+let anthropicClient: Anthropic | null = null;
+let openaiClient: OpenAI | null = null;
+
+export function getAnthropic(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return anthropicClient;
+}
+
+export function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
 
 export interface AgentTool {
   name: string;
@@ -105,7 +134,7 @@ export interface AgentChatOptions {
   /**
    * Images to send alongside `message`, as base64.
    *
-   * Added for Social 54, where a screenshot is the only way to read an
+   * Added for the social audit, where a screenshot is the only way to read an
    * Instagram or X post at all — both platforms wall their content off from
    * unauthenticated requests, so a person looking at their own screen and
    * handing it over is the path that works. It also carries more than the API
@@ -135,7 +164,18 @@ export interface ImageInput {
  * anything is sent.
  */
 export const MAX_IMAGE_BYTES = 5_000_000;
-export const MAX_IMAGES_PER_REQUEST = 8;
+/**
+ * 20, not 8.
+ *
+ * Eight was a conservative guess made when the only input was someone pasting
+ * a screenshot or two. The social audit changed the shape of the request: a
+ * screen recording of a Story sequence or a scroll through a competitor's grid
+ * gets sampled into frames, and four frames of a sixty-second recording is a
+ * different post from the one that was filmed. Both providers accept far more
+ * than twenty; the real ceiling is the per-request token budget, and twenty
+ * frames at thumbnail width sits well inside it.
+ */
+export const MAX_IMAGES_PER_REQUEST = 20;
 
 /**
  * Validate images before they reach a provider.
@@ -292,7 +332,7 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
   let stopReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model,
       max_tokens: maxTokens,
       thinking,
@@ -337,7 +377,7 @@ async function runClaudeLoop(opts: AgentChatOptions): Promise<string> {
     console.error(
       `[${opts.logTag}] Claude gave no text (stop_reason=${stopReason}); forcing a final answer`,
     );
-    const final = await anthropic.messages.create({
+    const final = await getAnthropic().messages.create({
       model,
       max_tokens: maxTokens,
       thinking,
@@ -399,7 +439,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
   let finishReason: string | null = null;
 
   for (let round = 0; round < maxRounds; round++) {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: openaiModel,
       // GPT-5.6 is a reasoning model: it takes max_completion_tokens (not
       // max_tokens), and reasoning tokens draw from that same budget, so keep
@@ -449,7 +489,7 @@ async function runOpenAILoop(opts: AgentChatOptions): Promise<string> {
     console.error(
       `[${opts.logTag}] GPT-5.6 gave no text (finish_reason=${finishReason}); forcing a final answer`,
     );
-    const final = await openai.chat.completions.create({
+    const final = await getOpenAI().chat.completions.create({
       model: openaiModel,
       max_completion_tokens: Math.max(maxTokens * 3, 4096),
       reasoning_effort: 'none',

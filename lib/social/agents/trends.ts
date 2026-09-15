@@ -22,7 +22,7 @@
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
 import { renderFieldStats, renderScaleRules, type FieldStats } from '../field';
 import { renderEditorial, type EditorialSweep } from '../editorial';
-import { arrayOf, oneOf, parseAgentJson, str } from './json';
+import { arrayOf, oneOf, parseAgentJson, str } from '@/lib/eval/json';
 import { renderCaveats, renderPostBlock } from './evidence';
 import type { AgentProvider, SocialPost } from '../types';
 

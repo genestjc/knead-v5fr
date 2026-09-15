@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { requireProbatioAdmin } from '@/lib/eval/require-admin';
 import { mapCriterion } from '@/lib/eval/store';
+import { clampWeight, isSocialPlatform } from '@/lib/eval/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.expectedVerdict === 'pass' || body.expectedVerdict === 'fail') {
     patch.expected_verdict = body.expectedVerdict;
   }
+  if ('weight' in body) patch.weight = clampWeight(body.weight);
+  // An explicit null clears the scope back to "applies everywhere"; an
+  // unrecognised platform does the same rather than writing a row nothing
+  // matches. Absent means leave it alone.
+  if ('platform' in body) patch.platform = isSocialPlatform(body.platform) ? body.platform : null;
   if (typeof body.isActive === 'boolean') patch.is_active = body.isActive;
   if (typeof body.sortOrder === 'number') patch.sort_order = body.sortOrder;
 

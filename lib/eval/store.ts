@@ -17,6 +17,11 @@ export function mapCriterion(row: any): EvalCriterion {
     prompt: row.prompt,
     guidance: row.guidance,
     expectedVerdict: row.expected_verdict,
+    // Both columns arrived with migration 016. Defaulting here as well as in
+    // the schema keeps a row read from a database that has not run it yet from
+    // scoring as weight-undefined, which would silently drop it from the total.
+    weight: typeof row.weight === 'number' ? row.weight : 1,
+    platform: row.platform ?? null,
     sortOrder: row.sort_order,
     isActive: row.is_active,
     createdAt: row.created_at,
@@ -122,6 +127,8 @@ export async function loadRubric(opts: { includeInactive?: boolean } = {}): Prom
       prompt: c.prompt,
       guidance: c.guidance,
       expected_verdict: c.expectedVerdict ?? 'pass',
+      weight: c.weight ?? 1,
+      platform: c.platform ?? null,
       sort_order: RUBRIC_SEED.indexOf(c),
       is_active: true,
     }));

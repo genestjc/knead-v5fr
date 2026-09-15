@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSocialAdmin } from '@/lib/social/require-admin';
 import { clampWindow, collectSnapshot } from '@/lib/social/collect';
 import { composeDrafts, renderComposerSummary } from '@/lib/social/agents/composer';
-import { findStoryBrief, listStoryBriefs } from '@/lib/social/stories';
+import { findStoryBrief, listStoryBriefs } from '@/lib/eval/stories';
 import { readArchivedPosts, createRun, completeRun } from '@/lib/social/store';
 import { SOCIAL_PLATFORMS, type SocialPlatform, type SocialPost } from '@/lib/social/types';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
