@@ -24,6 +24,7 @@ import {
   type AccountSummary,
   type Movement,
 } from './metrics';
+import { assessComparability, renderComparabilityRules, type Comparability } from './scale';
 import { platformLabel, type MediaType, type SocialPlatform, type SocialPost } from './types';
 
 export interface FormatMix {
@@ -50,6 +51,13 @@ export interface PlatformField {
    * computed on these fields only — see lib/social/metrics.ts.
    */
   comparableOn: string[];
+  /**
+   * Whether the two sides are close enough in audience size for a rate
+   * comparison to mean anything. See lib/social/scale.ts — at a large gap the
+   * rate favours us structurally, and reporting that as a win is reporting our
+   * follower count back to us as an achievement.
+   */
+  comparability: Comparability;
   /**
    * Set when the platform cannot support a fair comparison, e.g. LinkedIn,
    * where only our own posts are readable. The agent is told not to rank here.
@@ -131,6 +139,10 @@ export function computeFieldStats(posts: SocialPost[], windowDays: number): Fiel
         competitors.map((c) => c.medianRate).filter((v): v is number => v !== null),
       ),
       comparableOn: [...comparable],
+      comparability: assessComparability(
+        ours?.followers ?? null,
+        competitors.map((c) => c.followers),
+      ),
       comparisonBlocked:
         competitors.length === 0
           ? `No competitor data on ${platformLabel(platform)} in this pull — there is nothing to rank against, and our numbers here must not be described as leading or lagging.`
@@ -195,6 +207,12 @@ export function renderFieldStats(stats: FieldStats): string {
       `   comparable metrics on this platform: ${platform.comparableOn.length ? platform.comparableOn.join(' + ') : 'none — accounts here report different fields, so totals are NOT comparable'}`,
     );
     if (platform.comparisonBlocked) lines.push(`   ⚠ ${platform.comparisonBlocked}`);
+    // The scale caveat sits directly above the numbers it applies to. In a
+    // block this long, a warning at the top of the prompt is out of sight by
+    // the time the model reaches the rate column.
+    if (platform.competitors.length > 0 && !platform.comparability.rateIsMeaningful) {
+      lines.push(`   ⚠ RATE NOT COMPARABLE HERE. ${platform.comparability.explanation}`);
+    }
 
     const rows = [platform.ours, ...platform.competitors].filter((a): a is FieldAccount => a !== null);
     for (const account of rows) {
@@ -218,6 +236,11 @@ export function renderFieldStats(stats: FieldStats): string {
       lines.push(
         `   Ours: ${compactNumber(platform.ours.medianEngagement)} vs field median ${compactNumber(platform.fieldMedianEngagement)} (${delta >= 0 ? '+' : ''}${compactNumber(delta)})`,
       );
+      if (!platform.comparability.rateIsMeaningful) {
+        lines.push(
+          '      (this difference is an audience-size difference. Do not report it as performance.)',
+        );
+      }
     }
     lines.push('');
   }
@@ -234,34 +257,88 @@ export function renderFieldStats(stats: FieldStats): string {
 }
 
 function renderMovement(m: Movement): string {
-  if (!m.sufficient) {
-    return `not enough posts to read (${m.recentCount} recent vs ${m.previousCount} prior — 2 a side is the minimum; do not describe this as a rise or a fall)`;
-  }
+  const absolute = `recent median ${compactNumber(m.recent)} vs prior ${compactNumber(m.previous)}`;
   if (m.changePct === null) {
-    return `recent median ${compactNumber(m.recent)} vs prior ${compactNumber(m.previous)} (no percentage — the prior half was zero)`;
+    return `${absolute} — no percentage: ${m.withheldReason ?? 'not enough to compute one'}`;
   }
-  return `recent median ${compactNumber(m.recent)} vs prior ${compactNumber(m.previous)} (${m.changePct >= 0 ? '+' : ''}${m.changePct}%)`;
+  return `${absolute} (${m.changePct >= 0 ? '+' : ''}${m.changePct}%)`;
 }
 
-/** The single most useful line for a dashboard header. */
+/**
+ * The single most useful line for a dashboard header.
+ *
+ * It used to rank platforms by our rate delta against the field and announce
+ * where we were "strongest". At a large follower gap that headline is
+ * guaranteed to be flattering and guaranteed to be meaningless: small accounts
+ * out-rate large ones structurally, so we would lead everywhere, forever, for
+ * exactly as long as we stayed small.
+ *
+ * So the delta is only reported on platforms where the two sides are within an
+ * order of magnitude of each other. Where they are not, the headline says what
+ * is actually true — our own numbers, and that the field is a different size —
+ * rather than manufacturing a victory out of arithmetic.
+ */
 export function headlineComparison(stats: FieldStats): string {
   const scored = stats.platforms
     .filter((p) => p.ours?.medianRate != null && p.fieldMedianRate != null)
     .map((p) => ({
       platform: p.platform,
       delta: (p.ours!.medianRate as number) - (p.fieldMedianRate as number),
-    }))
-    .sort((a, b) => b.delta - a.delta);
+      comparability: p.comparability,
+    }));
 
-  if (scored.length === 0) return 'Not enough overlapping data to rank us against the field yet.';
+  if (scored.length === 0) return 'Not enough overlapping data to compare us with the field yet.';
 
-  const best = scored[0];
-  const worst = scored[scored.length - 1];
-  if (scored.length === 1) {
-    return `${platformLabel(best.platform)}: we run ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(2)} points of engagement rate against the field median.`;
+  const fair = scored.filter((s) => s.comparability.rateIsMeaningful);
+
+  // Nothing is a fair comparison. Report our own position instead of a ranking.
+  if (fair.length === 0) {
+    const ourBest = stats.platforms
+      .filter((p) => p.ours?.medianRate != null)
+      .sort((a, b) => (b.ours!.medianRate as number) - (a.ours!.medianRate as number))[0];
+
+    const gaps = scored
+      .map((s) => s.comparability.gapRatio)
+      .filter((g): g is number => g !== null);
+    const typicalGap = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null;
+
+    return (
+      (ourBest
+        ? `Our strongest platform on engagement rate is ${platformLabel(ourBest.platform)} at ${ourBest.ours!.medianRate}%. `
+        : '') +
+      (typicalGap
+        ? `The field here is roughly ${typicalGap}× our size, so we are not ranked against it — small accounts out-rate large ones by default, and that comparison would flatter us without telling us anything. `
+        : 'The field is far larger than us, so we are not ranked against it. ') +
+      'Watch our own trajectory and the coverage gaps instead.'
+    );
   }
+
+  fair.sort((a, b) => b.delta - a.delta);
+  const best = fair[0];
+  const withheld = scored.length - fair.length;
+  const suffix = withheld
+    ? ` ${withheld} platform${withheld === 1 ? '' : 's'} not ranked — the field there is too much larger for a rate comparison to mean anything.`
+    : '';
+
+  if (fair.length === 1) {
+    return `${platformLabel(best.platform)}: we run ${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(2)} points of engagement rate against the field median.${suffix}`;
+  }
+
+  const worst = fair[fair.length - 1];
   return (
     `Strongest on ${platformLabel(best.platform)} (${best.delta >= 0 ? '+' : ''}${best.delta.toFixed(2)} pts vs field), ` +
-    `weakest on ${platformLabel(worst.platform)} (${worst.delta >= 0 ? '+' : ''}${worst.delta.toFixed(2)} pts).`
+    `weakest on ${platformLabel(worst.platform)} (${worst.delta >= 0 ? '+' : ''}${worst.delta.toFixed(2)} pts).${suffix}`
   );
+}
+
+/** Every platform's comparability assessment, for the agents and the console. */
+export function comparabilityOf(stats: FieldStats): Comparability[] {
+  return stats.platforms
+    .filter((p) => p.competitors.length > 0)
+    .map((p) => p.comparability);
+}
+
+/** The scale rules block handed to any agent that sees competitor numbers. */
+export function renderScaleRules(stats: FieldStats): string {
+  return renderComparabilityRules(comparabilityOf(stats));
 }

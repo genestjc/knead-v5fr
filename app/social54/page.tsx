@@ -8,9 +8,10 @@
  * verified server-side against a wallet signature, so a wallet that isn't an
  * admin can open this page but can't read or start anything.
  *
- * Unlike Probatio, the demo bypass is off by default — these routes read
- * through five social credentials and return unpublished editorial strategy.
- * See lib/social/demo-mode.ts.
+ * The demo bypass is currently ON, matching /probatio-parsley, so this gate is
+ * skipped entirely and the console renders with a null account. Flip
+ * SOCIAL54_DEMO_MODE in lib/social/demo-mode.ts to restore it — that file
+ * documents what the bypass exposes.
  */
 import { useEffect, useState } from 'react';
 import { useActiveAccount, useActiveWalletConnectionStatus, ConnectButton } from 'thirdweb/react';

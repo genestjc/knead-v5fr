@@ -165,10 +165,39 @@ function ReachPanel({
             ) : (
               <SourcePill source="none" />
             )}
+
+            {/* Free-and-ready is called out rather than left to be inferred
+                from a missing warning — it's the reason this console works on
+                day one, and it should be visible as a positive. */}
+            {p.freeAndReady && !p.configured && (
+              <span
+                className="text-[11px] font-mono text-emerald-700"
+                title="Collects with no credentials and no spend."
+              >
+                free · no setup
+              </span>
+            )}
+
             {!p.configured && p.missingEnv.length > 0 && (
               <span className="text-[11px] font-mono text-gray-400">
-                {p.publicReadable ? 'set for the supported path: ' : 'needs: '}
+                {p.publicReadable ? 'optional upgrade: ' : 'needs: '}
                 {p.missingEnv.join(', ')}
+                {p.costsMoney && (
+                  <span className="text-amber-700" title="Reading this platform at a useful volume generally requires a paid API tier.">
+                    {' '}
+                    · paid tier
+                  </span>
+                )}
+              </span>
+            )}
+
+            {/* Shown once the platform is running: what it still can't see. */}
+            {p.configured && p.missingOptionalEnv.length > 0 && (
+              <span
+                className="text-[11px] font-mono text-gray-400"
+                title="Optional — the platform is already collecting without this."
+              >
+                add for more: {p.missingOptionalEnv.join(', ')}
               </span>
             )}
           </div>
@@ -254,16 +283,20 @@ function PlatformPanel({
                     emphasis={account.isOurs}
                   />
                   <td className="px-3 py-2 text-xs font-mono text-gray-500">
-                    {account.movement.sufficient && account.movement.changePct !== null ? (
+                    {account.movement.changePct !== null ? (
                       <span className={account.movement.changePct >= 0 ? 'text-emerald-700' : 'text-red-700'}>
                         {account.movement.changePct >= 0 ? '+' : ''}
                         {account.movement.changePct}%
                       </span>
+                    ) : account.movement.recent !== null && account.movement.previous !== null ? (
+                      // The absolute numbers rather than a dash: at small
+                      // volumes "4 → 8" is both honest and perfectly readable,
+                      // where "+100%" is neither.
+                      <span className="text-gray-400" title={account.movement.withheldReason ?? undefined}>
+                        {account.movement.previous} → {account.movement.recent}
+                      </span>
                     ) : (
-                      <span
-                        className="text-gray-300"
-                        title={`${account.movement.recentCount} recent vs ${account.movement.previousCount} prior — two a side is the minimum before this means anything`}
-                      >
+                      <span className="text-gray-300" title={account.movement.withheldReason ?? undefined}>
                         too thin
                       </span>
                     )}

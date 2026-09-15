@@ -239,7 +239,7 @@ function Scoreboard({ board }: { board: PlatformScoreboard }) {
         <span className="font-mono text-[10px] text-gray-500">
           scored on {board.comparableOn.join(' + ') || 'nothing comparable'}
         </span>
-        {board.deltaRate !== null && (
+        {board.deltaRate !== null ? (
           <span
             className={`font-mono text-xs ml-auto ${
               board.deltaRate >= 0 ? 'text-emerald-700' : 'text-red-700'
@@ -248,8 +248,26 @@ function Scoreboard({ board }: { board: PlatformScoreboard }) {
             {board.deltaRate >= 0 ? '+' : ''}
             {board.deltaRate} pts vs the field
           </span>
+        ) : (
+          board.ourMedianRate !== null &&
+          board.theirMedianRate !== null && (
+            // Both medians, deliberately not subtracted and deliberately not
+            // coloured. A green "+3.4 pts" here would be read as a win in half
+            // a second, and at this size gap it is arithmetic, not a result.
+            <span className="font-mono text-xs ml-auto text-gray-400">
+              ours {board.ourMedianRate.toFixed(2)}% · theirs {board.theirMedianRate.toFixed(2)}% ·
+              not compared
+            </span>
+          )
         )}
       </div>
+
+      {!board.comparability.rateIsMeaningful && board.posts.some((p) => !p.isOurs) && (
+        <p className="px-4 py-2.5 text-[13px] font-georgia-pro text-amber-900 bg-amber-50 border-b border-amber-100">
+          <strong className="font-medium">Rate isn&rsquo;t comparable here.</strong>{' '}
+          {board.comparability.explanation}
+        </p>
+      )}
 
       {board.caveat && (
         <p className="px-4 py-2.5 text-[13px] font-georgia-pro text-amber-900 bg-amber-50 border-b border-amber-100">

@@ -135,9 +135,8 @@ export function SocialConsole({ account }: { account: Account | null }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
-        {/* Off by default, unlike Probatio's. These routes read through five
-            social credentials and return unpublished editorial strategy, so
-            the bypass is loud whenever it is on. */}
+        {/* These routes spend model budget and return unpublished editorial
+            strategy, so the bypass is loud whenever it is on. */}
         {SOCIAL54_DEMO_MODE && (
           <div className="border border-red-300 bg-red-50 rounded-md px-4 py-3">
             <p className="text-[11px] uppercase tracking-[0.16em] text-red-700 font-medium">

@@ -34,6 +34,7 @@ lib/social/
   http.ts             the one bounded, timed-out fetch every connector makes
   collect.ts          the fan-out, with per-platform failure isolation
   metrics.ts          engagement, rate, median, movement — all pure, all tested
+  scale.ts            whether a comparison is meaningful at these audience sizes
   field.ts            computed field statistics (cadence, format mix, tag deltas)
   subjects.ts         matching a post to the thing it is about
   stories.ts          Sanity stories, reduced to what the composer may claim
@@ -66,33 +67,68 @@ competitor's post did with the same subject that ours didn't, what the replies
 actually mean, what to change. Every one of them is required to quote its
 evidence.
 
+## The second rule: rate only corrects for size within a size band
+
+Engagement rate stops the bigger account winning automatically — but only while
+the two accounts are within roughly an order of magnitude of each other. Small
+accounts out-rate large ones *structurally*, because of how feeds distribute,
+not because of quality.
+
+At a few hundred followers against a national title, a rate comparison is
+guaranteed to flatter us and guaranteed to be meaningless: we'd "lead the field"
+on every platform for exactly as long as we stayed small. `scale.ts` decides
+whether a rate delta is allowed to become a verdict; where it isn't, the
+scoreboard withholds the delta, the headline reports our own position instead,
+and the agents are told in as many words not to claim a win.
+
+Competitor data is never hidden by this — their subjects, cadence, formats and
+craft are useful at any size gap. It's only the scoreboard that stops meaning
+anything.
+
+Same reasoning in `movement()`: a median going 4 → 8 is four more engagements,
+not "+100%", so a percentage is withheld below a real baseline.
+
 ## Platform limits, stated once
 
-| Platform | Ours | Competitors | Reply text |
-|---|---|---|---|
-| Instagram | full, incl. saves + reach | likes/comments/captions via `business_discovery` | ours only |
-| X | full `public_metrics` | full `public_metrics` | needs a tier allowing recent search |
-| Farcaster | full, public | full, public | Neynar only |
-| Zora | collects, public | collects, public | none |
-| LinkedIn | full | **none — API scopes reads to pages we administer** | ours only |
+| Platform | Ours | Competitors | Reply text | Cost |
+|---|---|---|---|---|
+| **Farcaster** | full, public | full, public | Neynar only | **free, no setup** |
+| **Zora** | collects, public | collects, public | none | **free, no setup** |
+| Instagram (Instagram Login) | full, incl. saves + reach | **none — no `business_discovery` on this path** | ours only | free, needs a Meta app |
+| Instagram (Facebook Login) | full, incl. saves + reach | likes/comments/captions via `business_discovery` | ours only | free, needs a Facebook Page |
+| X | full `public_metrics` | full `public_metrics` | needs a tier allowing recent search | **usually paid** |
+| LinkedIn | full | **none — API scopes reads to pages we administer** | ours only | free, needs API approval |
 
-Farcaster is the only platform where competitor data is as complete as our own,
-which is worth weighting accordingly when the numbers disagree with Instagram's.
+Instagram picks its path from the credentials present: token alone → Instagram
+Login (no Facebook Page required); token plus `INSTAGRAM_BUSINESS_ACCOUNT_ID` →
+Facebook Login, which adds competitors. Adding a Page later is one new
+environment variable and no code change.
+
+Farcaster is the only platform where competitor data is as complete as our own
+*and* free, which is worth weighting accordingly when the numbers disagree.
 
 ## Auth
 
-`SOCIAL54_DEMO_MODE` in `demo-mode.ts` defaults to `false`, unlike
-Probatio's. These routes read through five social credentials, spend model
-budget on every analysis, and return unpublished editorial strategy alongside
-unapproved drafts. Turning the bypass on is one line and puts a red banner
-across the console while it's on.
+`SOCIAL54_DEMO_MODE` in `demo-mode.ts` is currently **`true`**, matching
+`lib/eval/demo-mode.ts`, so `/social54` and every `/api/social/*` route skip the
+wallet check. A red banner sits across the console while it's on. Set it to
+`false` to restore auth — that's the whole revert.
+
+What that exposes: model spend (each analysis makes an Opus/GPT call on your
+key, bounded by the per-route rate limits), unpublished editorial strategy, and
+write access to the roster. Not the platform credentials themselves — tokens are
+read server-side and never reach the client, so the bypass leaks what the tokens
+can *see*, not the tokens.
 
 ## Running it
 
 1. Apply `supabase/migrations/011_social54.sql`.
-2. Fill in whichever platform blocks in `.env.example` you have credentials for.
-   Farcaster and Zora work with none.
-3. Open `/social54` with an admin wallet. Pull once from the Pulse tab — the
-   other tabs get better as the archive deepens.
+2. Open `/social54`. **Farcaster and Zora collect immediately with no
+   credentials and no spend** — that's the zero-config path, and it's enough to
+   see the console work.
+3. Add platforms as you get keys. The Pulse tab lists exactly which variables
+   each one still needs, and marks which need a paid tier.
+4. Pull once from Pulse. The other tabs get better as the archive deepens —
+   macro trend claims unlock at three weeks of history.
 
 Tests: `npm test` (the pure helpers in `metrics`, `subjects` and `agents/json`).

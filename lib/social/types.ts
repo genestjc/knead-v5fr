@@ -36,8 +36,21 @@ export interface PlatformMeta {
   label: string;
   /** What this platform is actually good for, in Knead's mix. */
   blurb: string;
-  /** Env vars that turn the authenticated connector on. */
+  /** Env vars required before the connector can collect anything at all. */
   envVars: string[];
+  /**
+   * Env vars that widen what the connector can see but are not needed to run.
+   * Kept separate so the console asks for the minimum to get started and
+   * mentions the rest as an upgrade, rather than presenting one long list that
+   * looks mandatory.
+   */
+  optionalEnvVars?: string[];
+  /**
+   * Whether this platform costs money to read at a useful volume. Surfaced in
+   * the console because "unconfigured" and "unconfigured and behind a paywall"
+   * are different problems with different answers.
+   */
+  costsMoney?: boolean;
   /**
    * Whether anything can be read without credentials. Farcaster and Zora are
    * open by design; the other three are not, and saying so in the UI is more
@@ -51,7 +64,11 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     id: 'instagram',
     label: 'Instagram',
     blurb: 'Where the covers and studio photography land. Reach is saves-driven.',
-    envVars: ['INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_BUSINESS_ACCOUNT_ID'],
+    // The token alone is enough (Instagram Login, no Facebook Page needed).
+    // INSTAGRAM_BUSINESS_ACCOUNT_ID is optional and unlocks competitor data —
+    // see optionalEnvVars and lib/social/providers/instagram.ts.
+    envVars: ['INSTAGRAM_ACCESS_TOKEN'],
+    optionalEnvVars: ['INSTAGRAM_BUSINESS_ACCOUNT_ID'],
     publicReadable: false,
   },
   x: {
@@ -60,6 +77,9 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     blurb: 'Story distribution and the argument around it. Quotes matter more than likes.',
     envVars: ['X_BEARER_TOKEN'],
     publicReadable: false,
+    // The only platform here that generally needs a paid tier to read
+    // timelines at any useful volume.
+    costsMoney: true,
   },
   farcaster: {
     id: 'farcaster',

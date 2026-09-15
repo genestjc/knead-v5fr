@@ -1,25 +1,44 @@
 /**
- * The demo-mode flag, alone in its own module.
+ * ⚠️ TEMPORARY — DEMO MODE FOR SOCIAL 54 ⚠️
  *
- * It lives here rather than in require-admin.ts because the console reads it
- * to decide whether to show the bypass banner, and the console is a client
- * component. require-admin.ts pulls in verify-admin-request, which pulls in
- * viem and the service-role Supabase client — importing it from a client file
- * drags all of that into the browser bundle for the sake of one boolean.
+ * When true, /social54 and every /api/social/* route skip wallet
+ * authentication entirely. Anyone who can reach the URL can read the
+ * monitoring data, edit the competitor roster, and start analyses that spend
+ * Anthropic/OpenAI budget against your keys.
  *
- * lib/eval/demo-mode.ts exists for exactly the same reason.
+ * This is on at the team's request, matching lib/eval/demo-mode.ts so the two
+ * internal consoles behave the same way while they are being shown around.
+ * It is NOT safe on a public deployment.
  *
- * ⚠️ Set to true ONLY for a local or gated demo. While true, /social54 and
- * every /api/social/* route skip wallet authentication entirely: anyone with
- * the URL can read the monitoring data, start analyses against your API keys,
- * and edit the competitor roster.
+ * ─────────────────────────────────────────────────────────────────────────
+ *  TO RESTORE AUTH: change the line below to `false`. That's the whole revert
+ *  — no other file needs touching. The auth code was never removed, only
+ *  bypassed; requireSocialAdmin still calls verifyAdminRequest underneath.
+ * ─────────────────────────────────────────────────────────────────────────
  *
- * It defaults to false, unlike Probatio's. Probatio's bypass exposes a rubric
- * and some transcripts; this one exposes five social credentials' worth of
- * reach, model budget, and an unpublished editorial strategy alongside drafts
- * nobody has approved.
+ * What is actually exposed while this is true, in rough order of how much it
+ * would cost you:
+ *
+ *   • MODEL SPEND. Sentiment, Trends, Head to Head and Composer each make an
+ *     Opus/GPT call on your key. The per-route rate limits still apply, so
+ *     this is bounded rather than unbounded, but it is not free.
+ *   • UNPUBLISHED EDITORIAL STRATEGY. Coverage gaps, competitor analysis, and
+ *     drafts nobody has approved.
+ *   • THE ROSTER. Anyone can add or remove competitors.
+ *
+ * What is NOT exposed: the platform credentials themselves. Tokens are read
+ * server-side by the connectors and never returned to the client, so demo mode
+ * leaks what the tokens can SEE, not the tokens.
+ *
+ * While this is true the console shows a persistent red banner, so a demo
+ * build can't quietly become production.
+ *
+ * It lives in its own module, apart from require-admin.ts, because the console
+ * reads it to decide whether to show that banner and the console is a client
+ * component — importing require-admin.ts there would drag viem and the
+ * service-role Supabase client into the browser bundle for one boolean.
  */
-export const SOCIAL54_DEMO_MODE = false;
+export const SOCIAL54_DEMO_MODE = true;
 
 /** Actor recorded on runs created while auth is bypassed. */
 export const DEMO_ACTOR = 'demo-mode';

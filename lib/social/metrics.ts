@@ -202,9 +202,21 @@ export function rankPosts(posts: SocialPost[], limit = 10): RankedPost[] {
  * Split a window in half and report movement.
  *
  * This is what "micro trend" means operationally: what changed between the
- * recent half and the one before it. Anything shorter than two posts a side is
- * reported as insufficient rather than as a percentage, because a single post
- * moving from 40 to 80 engagements is not a 100% upward trend.
+ * recent half and the one before it.
+ *
+ * Two floors, because a percentage is a very confident-looking way to report
+ * noise and both of these produced one:
+ *
+ *   • POST COUNT. Three a side, not two. With two, a single post carries half
+ *     the median on its side of the line, so ordinary variation between four
+ *     posts prints as a trend.
+ *
+ *   • BASELINE SIZE. A median moving from 4 engagements to 8 is "+100%", and
+ *     that number is indistinguishable in a table from a real doubling of a
+ *     large account. Below MIN_BASELINE_ENGAGEMENT the change is reported in
+ *     absolute terms and the percentage is withheld — at small volumes the
+ *     raw numbers are the honest unit, and they are also perfectly readable,
+ *     which is the point.
  */
 export interface Movement {
   recent: number | null;
@@ -214,7 +226,20 @@ export interface Movement {
   recentCount: number;
   previousCount: number;
   sufficient: boolean;
+  /** Why changePct was withheld, when it was. Null when it is present. */
+  withheldReason: string | null;
 }
+
+/** Posts required on each side of the split before a percentage is computed. */
+export const MIN_POSTS_PER_SIDE = 3;
+
+/**
+ * Baseline below which a percentage is withheld.
+ *
+ * Ten engagements. Under it, single interactions produce double-digit
+ * percentage swings that read exactly like real movement.
+ */
+export const MIN_BASELINE_ENGAGEMENT = 10;
 
 export function movement(posts: SocialPost[], windowDays: number): Movement {
   const half = Date.now() - (windowDays / 2) * 86_400_000;
@@ -228,18 +253,36 @@ export function movement(posts: SocialPost[], windowDays: number): Movement {
 
   const recent = value(recentPosts);
   const previous = value(previousPosts);
-  const sufficient = recentPosts.length >= 2 && previousPosts.length >= 2;
+  const sufficient =
+    recentPosts.length >= MIN_POSTS_PER_SIDE && previousPosts.length >= MIN_POSTS_PER_SIDE;
+
+  let changePct: number | null = null;
+  let withheldReason: string | null = null;
+
+  if (!sufficient) {
+    withheldReason =
+      `${recentPosts.length} recent post(s) against ${previousPosts.length} prior — ` +
+      `${MIN_POSTS_PER_SIDE} a side is the minimum before a percentage means anything. This is not a rise or a fall.`;
+  } else if (recent === null || previous === null) {
+    withheldReason = 'One half of the window has no post with a comparable metric.';
+  } else if (previous <= 0) {
+    withheldReason = 'The prior half had no engagement to measure against, so there is no percentage to compute.';
+  } else if (previous < MIN_BASELINE_ENGAGEMENT) {
+    withheldReason =
+      `The baseline is ${previous} engagement(s) — below ${MIN_BASELINE_ENGAGEMENT}, a percentage magnifies ordinary variation into a trend. ` +
+      `Read it as ${previous} → ${recent}.`;
+  } else {
+    changePct = Number((((recent - previous) / previous) * 100).toFixed(1));
+  }
 
   return {
     recent,
     previous,
-    changePct:
-      sufficient && recent !== null && previous !== null && previous > 0
-        ? Number((((recent - previous) / previous) * 100).toFixed(1))
-        : null,
+    changePct,
     recentCount: recentPosts.length,
     previousCount: previousPosts.length,
     sufficient,
+    withheldReason,
   };
 }
 

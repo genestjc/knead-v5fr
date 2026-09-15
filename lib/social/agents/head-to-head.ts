@@ -26,6 +26,7 @@
  */
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
 import { comparableFields, compactNumber, median, rateOn, totalOn } from '../metrics';
+import { assessComparability, renderComparabilityRules, type Comparability } from '../scale';
 import { splitBySubject } from '../subjects';
 import { platformLabel, type AgentProvider, type SocialPlatform, type SocialPost } from '../types';
 import { arrayOf, oneOf, parseAgentJson, str } from './json';
@@ -49,7 +50,13 @@ export interface PlatformScoreboard {
   posts: ScoredPost[];
   ourMedianRate: number | null;
   theirMedianRate: number | null;
-  /** Positive means we beat the field on this platform, on rate. */
+  /** Whether the two audiences are close enough in size to compare on rate. */
+  comparability: Comparability;
+  /**
+   * Positive means we beat the field on this platform, on rate. Null when the
+   * audiences are too far apart for the number to mean anything — see
+   * lib/social/scale.ts.
+   */
   deltaRate: number | null;
   /** Why this platform's comparison should not be trusted, when it shouldn't. */
   caveat: string | null;
@@ -134,14 +141,27 @@ export function scoreSubject(posts: SocialPost[], subject: string): HeadToHeadOu
       theirs.map((p) => rateOn(p, fields)).filter((v): v is number => v !== null),
     );
 
+    const comparability = assessComparability(
+      ours.reduce<number | null>(
+        (max, p) => (typeof p.authorFollowers === 'number' ? Math.max(max ?? 0, p.authorFollowers) : max),
+        null,
+      ),
+      theirs.map((p) => p.authorFollowers),
+    );
+
     scoreboards.push({
       platform,
       comparableOn: [...fields],
       posts: scored,
       ourMedianRate,
       theirMedianRate,
+      comparability,
+      // Withheld outright when the audiences are too far apart. A delta that
+      // cannot be interpreted is worse than no delta: it gets read as a score
+      // by anyone skimming, and at this size gap it always reads in our
+      // favour. The two medians are still reported separately.
       deltaRate:
-        ourMedianRate !== null && theirMedianRate !== null
+        comparability.rateIsMeaningful && ourMedianRate !== null && theirMedianRate !== null
           ? Number((ourMedianRate - theirMedianRate).toFixed(3))
           : null,
       caveat: platformCaveat(fields.length, ours.length, theirs.length, platform, scored),
@@ -181,7 +201,9 @@ function platformCaveat(
 
 const SYSTEM = `You are an editorial analyst for an independent culture magazine. Several outlets — including this one — posted about the same subject. You are explaining why theirs did better or worse than ours, and what to change.
 
-You get a computed SCOREBOARD and the posts themselves. The scoreboard is already fair: both sides are scored on the metrics both sides report, and on engagement RATE (engagement divided by followers), not raw counts. Use its numbers. Do not rank posts from different platforms against each other — an Instagram like and a Farcaster like are not the same unit, and a mixed leaderboard measures which platform is more generous with likes.
+You get a computed SCOREBOARD and the posts themselves. Both sides are scored on the metrics both sides report, and on engagement RATE (engagement divided by followers) rather than raw counts. Use its numbers. Do not rank posts from different platforms against each other — an Instagram like and a Farcaster like are not the same unit, and a mixed leaderboard measures which platform is more generous with likes.
+
+READ THE AUDIENCE SCALE BLOCK FIRST. Rate only corrects for audience size while the two accounts are roughly comparable. Where the scoreboard says the rate is not comparable, it is because the field is an order of magnitude larger than us — and small accounts out-rate large ones structurally, as a property of feed distribution rather than of quality. On those platforms the scoreboard deliberately withholds the delta, and you must not reconstruct one or claim we came out ahead. Our rate looking better there is arithmetic, not a result.
 
 RULES YOU DO NOT BREAK:
 
@@ -191,7 +213,9 @@ RULES YOU DO NOT BREAK:
 
 3. FORMAT AND TIMING BEFORE CONTENT. Before concluding that our writing lost, check the cheaper explanations the data shows you: format (video against a link card), posting time, whether ours carried the story link and theirs carried the image, cadence. An outlet posting three times about a subject to our once is a distribution difference, not a writing one.
 
-4. SMALL NUMBERS ARE SMALL. If a comparison rests on one post a side, say so and lower your confidence. Never generalize from a single pair to "our audience prefers X".
+4. SMALL NUMBERS ARE SMALL. If a comparison rests on one post a side, say so and lower your confidence. Never generalize from a single pair to "our audience prefers X". When our post drew a handful of engagements, the difference between 3 and 7 is not a signal about the writing — do not build an explanation on top of it.
+
+4b. WHAT TO PRODUCE WHEN THE SCOREBOARD CANNOT DECIDE. On a platform marked not comparable, the useful analysis is not who won. It is what their post DID that ours did not — what it led with, what it quoted, what it showed, when it ran, how many times they returned to the subject. Those are craft observations, they hold at any audience size, and they are what we can actually act on. Write those. Put the numbers aside and say plainly that you are doing so.
 
 5. NOT COVERING IT IS ITS OWN FINDING. If we published nothing on this subject, do not analyze our absent post. State plainly that the field covered it and we did not, say whether it looks like ours to cover, and stop.
 
@@ -226,6 +250,7 @@ export async function analyzeHeadToHead(opts: {
     `SUBJECT: ${outcome.subject}`,
     '',
     renderCaveats(caveats),
+    renderComparabilityRules(outcome.scoreboards.map((b) => b.comparability)),
     renderScoreboards(outcome),
     '',
     outcome.ourPosts.length === 0
@@ -263,6 +288,9 @@ export function renderScoreboards(outcome: HeadToHeadOutcome): string {
       `   scored on: ${board.comparableOn.length ? board.comparableOn.join(' + ') : 'nothing comparable'}`,
     );
     if (board.caveat) lines.push(`   ⚠ ${board.caveat}`);
+    if (!board.comparability.rateIsMeaningful && board.posts.some((p) => !p.isOurs)) {
+      lines.push(`   ⚠ RATE NOT COMPARABLE HERE. ${board.comparability.explanation}`);
+    }
     for (const post of board.posts) {
       lines.push(
         `   [${post.ref}] ${post.isOurs ? 'OURS      ' : 'competitor'} @${post.handle}` +
@@ -276,6 +304,13 @@ export function renderScoreboards(outcome: HeadToHeadOutcome): string {
       lines.push(
         `   Our median rate ${board.ourMedianRate?.toFixed(3)}% vs theirs ${board.theirMedianRate?.toFixed(3)}% ` +
           `(${board.deltaRate >= 0 ? '+' : ''}${board.deltaRate} pts — ${board.deltaRate >= 0 ? 'ahead' : 'behind'}).`,
+      );
+    } else if (board.ourMedianRate !== null && board.theirMedianRate !== null) {
+      // Both medians, no delta and no verdict word. Stated this way on purpose:
+      // the numbers are real and worth seeing, the subtraction is not.
+      lines.push(
+        `   Our median rate ${board.ourMedianRate.toFixed(3)}%, theirs ${board.theirMedianRate.toFixed(3)}%. ` +
+          'No delta is given — see the scale warning above. Neither side "wins" this.',
       );
     }
     lines.push('');

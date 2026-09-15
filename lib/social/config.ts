@@ -128,8 +128,18 @@ export interface PlatformStatus {
   label: string;
   configured: boolean;
   publicReadable: boolean;
-  /** Present but unset env vars, so the console can name what to fill in. */
+  /** Required but unset env vars, so the console can name what to fill in. */
   missingEnv: string[];
+  /** Unset vars that would widen what this platform can see, but aren't needed. */
+  missingOptionalEnv: string[];
+  /** Whether reading this platform at a useful volume generally costs money. */
+  costsMoney: boolean;
+  /**
+   * True when this platform collects with no credentials and no spend. These
+   * are what the console leads with: a monitoring tool nobody can open until
+   * five API applications clear is a monitoring tool nobody opens.
+   */
+  freeAndReady: boolean;
   ownHandle: string | null;
 }
 
@@ -137,12 +147,18 @@ export function platformStatuses(): PlatformStatus[] {
   const own = ownAccounts();
   return SOCIAL_PLATFORMS.map((platform) => {
     const meta = PLATFORM_META[platform];
+    const configured = isConfigured(platform);
     return {
       platform,
       label: meta.label,
-      configured: isConfigured(platform),
+      configured,
       publicReadable: meta.publicReadable,
       missingEnv: meta.envVars.filter((name) => !process.env[name]?.trim()),
+      missingOptionalEnv: (meta.optionalEnvVars ?? []).filter(
+        (name) => !process.env[name]?.trim(),
+      ),
+      costsMoney: meta.costsMoney === true,
+      freeAndReady: meta.publicReadable && !meta.costsMoney,
       ownHandle: own.find((a) => a.platform === platform)?.handle ?? null,
     };
   });

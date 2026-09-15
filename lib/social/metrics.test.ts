@@ -118,30 +118,57 @@ test('a big account does not out-rank a small one on rate', () => {
   assert.equal(ranked[0].post.id, small.id);
 });
 
-test('movement refuses to report a percentage on fewer than two posts a side', () => {
-  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+
+test('movement refuses to report a percentage on too few posts a side', () => {
   const thin = [
     post({ publishedAt: daysAgo(1), metrics: { likes: 80 } }),
+    post({ publishedAt: daysAgo(2), metrics: { likes: 80 } }),
     post({ publishedAt: daysAgo(10), metrics: { likes: 40 } }),
+    post({ publishedAt: daysAgo(11), metrics: { likes: 40 } }),
   ];
 
   const m = movement(thin, 14);
-  assert.equal(m.sufficient, false);
-  assert.equal(m.changePct, null, 'one post a side is not a 100% rise');
+  assert.equal(m.sufficient, false, 'two a side is not enough — one post carries half the median');
+  assert.equal(m.changePct, null);
+  assert.ok(m.withheldReason, 'and it must say why rather than going quiet');
 });
 
-test('movement reports a percentage once both halves are populated', () => {
-  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+test('movement reports a percentage once both halves are populated enough', () => {
   const posts = [
-    post({ publishedAt: daysAgo(1), metrics: { likes: 100 } }),
-    post({ publishedAt: daysAgo(2), metrics: { likes: 100 } }),
-    post({ publishedAt: daysAgo(10), metrics: { likes: 50 } }),
-    post({ publishedAt: daysAgo(11), metrics: { likes: 50 } }),
+    ...[1, 2, 3].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 100 } })),
+    ...[9, 10, 11].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 50 } })),
   ];
 
   const m = movement(posts, 14);
   assert.equal(m.sufficient, true);
   assert.equal(m.changePct, 100);
+});
+
+test('a tiny baseline does not get turned into a percentage', () => {
+  // The exact case this floor exists for: a median of 4 going to 8 is four
+  // more engagements, and "+100%" is indistinguishable in a table from a real
+  // doubling of a large account.
+  const posts = [
+    ...[1, 2, 3].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 8 } })),
+    ...[9, 10, 11].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 4 } })),
+  ];
+
+  const m = movement(posts, 14);
+  assert.equal(m.sufficient, true, 'there are enough posts — the problem is the size of them');
+  assert.equal(m.changePct, null);
+  assert.match(m.withheldReason ?? '', /4 → 8/, 'the absolute numbers are given instead');
+});
+
+test('the same proportional move IS reported once the baseline is real', () => {
+  const posts = [
+    ...[1, 2, 3].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 200 } })),
+    ...[9, 10, 11].map((d) => post({ publishedAt: daysAgo(d), metrics: { likes: 100 } })),
+  ];
+
+  const m = movement(posts, 14);
+  assert.equal(m.changePct, 100);
+  assert.equal(m.withheldReason, null);
 });
 
 test('collects stay out of the engagement total', () => {
