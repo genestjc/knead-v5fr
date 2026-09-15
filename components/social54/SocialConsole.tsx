@@ -16,7 +16,10 @@ import { SOCIAL54_DEMO_MODE } from '@/lib/social/demo-mode';
 import type { Competitor } from '@/lib/social/types';
 import { fetchConsoleState } from './api';
 import { Banner, Spinner } from './shared';
+import { JudgeTab } from './JudgeTab';
+import { RubricTab } from './RubricTab';
 import { PulseTab } from './PulseTab';
+import { CoverageTab } from './CoverageTab';
 import { SentimentTab } from './SentimentTab';
 import { TrendsTab } from './TrendsTab';
 import { HeadToHeadTab } from './HeadToHeadTab';
@@ -24,20 +27,53 @@ import { ComposerTab } from './ComposerTab';
 import { CompetitorsTab } from './CompetitorsTab';
 import { HistoryTab } from './HistoryTab';
 
-type TabId = 'pulse' | 'sentiment' | 'trends' | 'head-to-head' | 'composer' | 'competitors' | 'history';
+type TabId =
+  | 'judge'
+  | 'rubric'
+  | 'composer'
+  | 'coverage'
+  | 'competitors'
+  | 'history'
+  | 'pulse'
+  | 'sentiment'
+  | 'trends'
+  | 'head-to-head';
 
+/**
+ * Judge first, then the rubric it grades against.
+ *
+ * The order is the argument. This console began as five metric connectors and
+ * a dashboard, and at a few hundred followers those numbers could not carry a
+ * conclusion — lib/social/scale.ts exists to say so. What a post DOES is
+ * readable from the post, needs no credential, and is the part that can change
+ * on Thursday. So the agent layer leads and the collection sits behind it.
+ */
 const TABS: { id: TabId; label: string; sub: string }[] = [
-  { id: 'pulse', label: 'Pulse', sub: 'Every platform, right now.' },
-  { id: 'sentiment', label: 'Sentiment', sub: 'What the replies say.' },
-  { id: 'trends', label: 'Trends', sub: 'Macro drift, micro spikes.' },
-  { id: 'head-to-head', label: 'Head to Head', sub: 'Our post vs theirs.' },
+  { id: 'judge', label: 'Judge', sub: 'Paste or screenshot. Graded.' },
+  { id: 'rubric', label: 'Rubric', sub: 'What good looks like.' },
   { id: 'composer', label: 'Composer', sub: 'Drafts for what we publish.' },
+  { id: 'coverage', label: 'Coverage', sub: 'What they published. No keys.' },
   { id: 'competitors', label: 'Competitors', sub: 'Who we measure against.' },
   { id: 'history', label: 'History', sub: 'Every saved analysis.' },
 ];
 
+/**
+ * The metric surfaces, kept but moved out of the way.
+ *
+ * They work, and on a day when Instagram has a token they are worth opening.
+ * They are not what the console is for, so they sit behind a disclosure rather
+ * than competing with the judge for the first click.
+ */
+const METRIC_TABS: { id: TabId; label: string; sub: string }[] = [
+  { id: 'pulse', label: 'Pulse', sub: 'Platform metrics, where we have them.' },
+  { id: 'sentiment', label: 'Sentiment', sub: 'Replies, pulled by API.' },
+  { id: 'trends', label: 'Trends', sub: 'Macro drift, micro spikes.' },
+  { id: 'head-to-head', label: 'Head to Head', sub: 'Scored, not judged.' },
+];
+
 export function SocialConsole({ account }: { account: Account | null }) {
-  const [tab, setTab] = useState<TabId>('pulse');
+  const [tab, setTab] = useState<TabId>('judge');
+  const [showMetrics, setShowMetrics] = useState(false);
 
   const [platforms, setPlatforms] = useState<PlatformStatus[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -95,9 +131,9 @@ export function SocialConsole({ account }: { account: Account | null }) {
             </span>
           </div>
           <p className="mt-3 font-georgia-pro text-[15px] text-gray-600 max-w-2xl">
-            Instagram, X, Farcaster, Zora and LinkedIn in one place, with agents that read the
-            replies, track what the field is doing, and compare our posts against the competition on
-            the subjects we are writing about.
+            Agents that read our posts the way an editor would — graded against a rubric you
+            control, with the quote behind every verdict and the edits worth making. Paste a
+            caption or screenshot it; no platform credentials required.
           </p>
           {!loading && (
             <p className="mt-2 text-[11px] font-mono text-gray-400">
@@ -108,8 +144,8 @@ export function SocialConsole({ account }: { account: Account | null }) {
         </div>
 
         <div className="max-w-6xl mx-auto px-6 overflow-x-auto">
-          <div className="flex gap-7 -mb-px min-w-max">
-            {TABS.map((t) => {
+          <div className="flex gap-7 -mb-px min-w-max items-end">
+            {(showMetrics ? [...TABS, ...METRIC_TABS] : TABS).map((t) => {
               const active = t.id === tab;
               return (
                 <button
@@ -130,6 +166,13 @@ export function SocialConsole({ account }: { account: Account | null }) {
                 </button>
               );
             })}
+            <button
+              onClick={() => setShowMetrics((v) => !v)}
+              className="pb-3 text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900 transition-colors"
+              title="Platform metrics. They need credentials, and at our audience size they carry less than the judge does."
+            >
+              {showMetrics ? '− metrics' : '+ metrics'}
+            </button>
           </div>
         </div>
       </header>
@@ -157,8 +200,14 @@ export function SocialConsole({ account }: { account: Account | null }) {
 
         {loading ? (
           <Spinner label="Checking what this console can reach…" />
+        ) : tab === 'judge' ? (
+          <JudgeTab account={account} />
+        ) : tab === 'rubric' ? (
+          <RubricTab account={account} />
         ) : tab === 'pulse' ? (
           <PulseTab account={account} platforms={platforms} archive={archive} />
+        ) : tab === 'coverage' ? (
+          <CoverageTab account={account} />
         ) : tab === 'sentiment' ? (
           <SentimentTab account={account} />
         ) : tab === 'trends' ? (
