@@ -20,7 +20,7 @@
  * actually covers — a macro claim over a nine-day archive is not a macro claim.
  */
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
-import { renderFieldStats, type FieldStats } from '../field';
+import { renderFieldStats, renderScaleRules, type FieldStats } from '../field';
 import { arrayOf, oneOf, parseAgentJson, str } from './json';
 import { renderCaveats, renderPostBlock } from './evidence';
 import type { AgentProvider, SocialPost } from '../types';
@@ -71,13 +71,13 @@ RULES YOU DO NOT BREAK:
 
 1. HISTORY LIMITS MACRO CLAIMS. You are told how far back the archive reaches. You cannot call anything a multi-week trend if the data covers less than three weeks. In that case say so in "historyNote" and label those observations "micro" with confidence "tentative".
 
-2. THE MOVEMENT FIGURES HAVE A MINIMUM. Where the statistics say movement could not be read because there were too few posts, do not describe that account as rising or falling. Two posts a side is the stated minimum and it is not negotiable.
+2. THE MOVEMENT FIGURES HAVE A MINIMUM. Where the statistics withhold a percentage — too few posts, or a baseline too small for one to mean anything — do not describe that account as rising or falling. The statistics say why in each case; respect it and quote the absolute numbers instead. A median going from 4 engagements to 8 is not a 100% upward trend, it is four more engagements.
 
 3. ABSENCE IS NOT BEHAVIOR. Read the DATA CAVEATS. A platform that is unconfigured, failed, or one-sided tells you nothing about what happens there. Never write that a competitor has abandoned a platform, or that we lead one, on the strength of missing data.
 
 4. COMPARE ON THE STATED RULER. Each platform lists which metrics every account there reports. A comparison built on a metric only one side has is not a comparison. The statistics already respect this; your prose must too.
 
-5. RATE, NOT COUNT. A competitor with twenty times our following will out-count us on every post. That is a fact about their following. Engagement RATE is the comparison that means something, and it is computed for you.
+5. RATE, BUT ONLY WITHIN A SIZE BAND. A competitor with twenty times our following will out-count us on every post; that is a fact about their following, so raw counts are not the comparison. Engagement RATE corrects for this — but ONLY while the two accounts are roughly comparable in size. Read the AUDIENCE SCALE block. On any platform it marks as not comparable, the rate favours us structurally, because small accounts out-rate large ones as a matter of how feeds distribute. There you must not say we beat, lead, outperform or are ahead of the field, however good the numbers look — that is reporting our follower count back to us as an achievement. Compare us against OUR OWN past instead, and mine the competitors for subjects, formats and cadence.
 
 6. GAPS ARE CHECKED AGAINST FIT. A subject the field is covering is only a gap if this magazine would plausibly publish it — it covers art, music, food, technology, creative culture, and independent journalism. A crypto-price thread is not a gap in our coverage.
 
@@ -126,6 +126,7 @@ export async function analyzeTrends(opts: {
 
   const prompt = [
     renderCaveats(caveats),
+    renderScaleRules(stats),
     history,
     '',
     renderFieldStats(stats),

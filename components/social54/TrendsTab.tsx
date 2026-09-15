@@ -253,6 +253,12 @@ function FieldTable({ result }: { result: TrendsResult }) {
                   {platform.comparisonBlocked}
                 </p>
               )}
+              {platform.competitors.length > 0 && !platform.comparability.rateIsMeaningful && (
+                <p className="font-georgia-pro text-[13px] text-amber-800 mb-1">
+                  <strong className="font-medium">Rate isn&rsquo;t comparable here.</strong>{' '}
+                  {platform.comparability.explanation}
+                </p>
+              )}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.12em] text-gray-400 border-b border-gray-100">

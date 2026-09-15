@@ -1,22 +1,27 @@
 /**
- * Instagram — Graph API connector.
+ * Instagram — two login paths, picked from whichever credentials are present.
  *
- * Two different endpoints do the two halves of the job, and conflating them is
- * the mistake worth avoiding:
+ * Meta ships two different Instagram APIs, and which one you can use is
+ * decided by something outside this code: whether there is a Facebook Page.
  *
- *   • OUR account reads through /{ig-user-id}/media, which is the only path
- *     that returns insights — saves and reach. Those are the numbers that
- *     actually explain Instagram reach, and they exist for the authenticated
- *     account only.
- *   • COMPETITORS read through business_discovery, Instagram's supported way
- *     to see another business account. It returns follower count, captions,
- *     likes and comment counts. It does NOT return saves, reach, or comment
- *     text, and no amount of asking changes that.
+ *   FACEBOOK LOGIN (graph.facebook.com) — needs a Professional account linked
+ *   to a Facebook Page. Reads our media with insights, AND reads competitors
+ *   through business_discovery. Used when INSTAGRAM_BUSINESS_ACCOUNT_ID is set.
  *
- * So a competitor's saves are null, not zero, and the console says the field
- * is unavailable rather than showing a 0 that reads as "nobody saved it".
- * Comment TEXT — what the sentiment agent needs — is ours-only for the same
- * reason, which is a real limit on that analysis, not a bug to route around.
+ *   INSTAGRAM LOGIN (graph.instagram.com) — needs no Facebook Page at all.
+ *   Reads our own media, insights and comment text through /me. Has NO
+ *   business_discovery: competitor data does not exist on this path, at any
+ *   price, and cannot be worked around. Used when only the token is set.
+ *
+ * The connector picks by credential rather than by a mode flag so that adding
+ * a Page later is one new environment variable and no code change — competitor
+ * rows start appearing on the next pull.
+ *
+ * What stays true on both paths: insights (saves, reach) and comment text are
+ * OURS ONLY. business_discovery, where available, returns follower count,
+ * captions, likes and comment counts, and never saves, reach or comment text.
+ * So a competitor's saves are null, not zero, and the console says the field is
+ * unavailable rather than showing a 0 that reads as "nobody saved it".
  */
 import { getJson } from '../http';
 import { MAX_COMMENTS_PER_POST, MAX_POSTS_PER_ACCOUNT } from '../config';
@@ -30,7 +35,23 @@ import {
 } from '../types';
 import { extractLinks, extractTags, numberOrNull, type ProviderRequest } from './shared';
 
-const API = 'https://graph.facebook.com/v21.0';
+const FACEBOOK_API = 'https://graph.facebook.com/v21.0';
+const INSTAGRAM_API = 'https://graph.instagram.com/v21.0';
+
+/**
+ * Which path this environment can take.
+ *
+ * `business-discovery` is the capability that actually differs, so it is named
+ * for that rather than for the login flow — every branch below turns on
+ * whether competitors are readable, not on which host is being called.
+ */
+export type InstagramPath = 'facebook-login' | 'instagram-login';
+
+export function instagramPath(): InstagramPath | null {
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  if (!token) return null;
+  return process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim() ? 'facebook-login' : 'instagram-login';
+}
 
 function mediaType(raw: string | undefined): MediaType {
   switch ((raw ?? '').toUpperCase()) {
@@ -49,11 +70,12 @@ export async function fetchInstagram(req: ProviderRequest): Promise<PlatformResu
   const started = Date.now();
   const token = process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
   const igUserId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim();
+  const path = instagramPath();
 
   const base: PlatformResult = {
     platform: 'instagram',
     ok: false,
-    configured: Boolean(token && igUserId),
+    configured: path !== null,
     source: 'none',
     error: null,
     note: null,
@@ -63,15 +85,18 @@ export async function fetchInstagram(req: ProviderRequest): Promise<PlatformResu
     fetchedMs: 0,
   };
 
-  if (!token || !igUserId) {
+  if (!token || path === null) {
     return {
       ...base,
       ok: true,
-      note: 'Instagram is unconfigured. Set INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID — the Graph API has no public read path, so nothing can be collected without them.',
+      note:
+        'Instagram is unconfigured. Set INSTAGRAM_ACCESS_TOKEN — neither Instagram API has a public read path, so nothing can be collected without it. ' +
+        'Add INSTAGRAM_BUSINESS_ACCOUNT_ID as well if the account is linked to a Facebook Page; that unlocks competitor data through business_discovery.',
       fetchedMs: Date.now() - started,
     };
   }
 
+  const wantsCompetitors = req.accounts.some((a) => !a.isOurs);
   const accounts: SocialAccount[] = [];
   const posts: SocialPost[] = [];
   const comments: SocialComment[] = [];
@@ -80,16 +105,25 @@ export async function fetchInstagram(req: ProviderRequest): Promise<PlatformResu
   for (const account of req.accounts) {
     try {
       if (account.isOurs) {
-        const result = await fetchOwnAccount(igUserId, token, req);
+        const result =
+          path === 'facebook-login'
+            ? await fetchOwnAccount(FACEBOOK_API, igUserId!, token, req)
+            : // Instagram Login has no account id to look up — the token is
+              // the account, addressed as /me.
+              await fetchOwnAccount(INSTAGRAM_API, 'me', token, req);
         accounts.push(result.account);
         posts.push(...result.posts);
         comments.push(...result.comments);
-      } else {
-        const result = await fetchViaBusinessDiscovery(igUserId, token, account.handle, req);
+      } else if (path === 'facebook-login') {
+        const result = await fetchViaBusinessDiscovery(igUserId!, token, account.handle, req);
         if (result.account) accounts.push(result.account);
         posts.push(...result.posts);
         if (result.error) problems.push(`@${account.handle}: ${result.error}`);
       }
+      // On instagram-login there is no competitor branch at all. Skipped
+      // silently per account and reported once in `note` below: repeating
+      // "business_discovery is unavailable" per handle would fill the error
+      // line with one fact.
     } catch (err: any) {
       problems.push(`@${account.handle}: ${err?.message ?? 'failed'}`);
     }
@@ -98,11 +132,10 @@ export async function fetchInstagram(req: ProviderRequest): Promise<PlatformResu
   return {
     ...base,
     ok: posts.length > 0 || problems.length === 0,
+    configured: true,
     source: 'api',
     error: problems.length ? problems.join(' · ') : null,
-    note: req.accounts.some((a) => !a.isOurs)
-      ? 'Competitor rows come from business_discovery: likes, comments counts and captions only. Saves, reach and comment text are available for our own account alone.'
-      : null,
+    note: instagramNote(path, wantsCompetitors),
     accounts,
     posts,
     comments,
@@ -110,13 +143,51 @@ export async function fetchInstagram(req: ProviderRequest): Promise<PlatformResu
   };
 }
 
+/**
+ * What this pull could and could not see, in one sentence.
+ *
+ * This is the string the agents read in their caveats block, so on the
+ * Instagram-Login path it has to be unambiguous that competitor absence is a
+ * property of the API and not of the competitors.
+ */
+function instagramNote(path: InstagramPath, wantsCompetitors: boolean): string | null {
+  if (path === 'instagram-login') {
+    return (
+      'Read through Instagram Login (no Facebook Page): OUR ACCOUNT ONLY. ' +
+      (wantsCompetitors
+        ? 'Competitors on the roster were NOT collected — business_discovery does not exist on this path, so their absence here says nothing about their activity. '
+        : '') +
+      'Do not describe us as leading or lagging on Instagram. Link a Facebook Page and set INSTAGRAM_BUSINESS_ACCOUNT_ID to add competitor data.'
+    );
+  }
+  return wantsCompetitors
+    ? 'Competitor rows come from business_discovery: likes, comment counts and captions only. Saves, reach and comment text are available for our own account alone.'
+    : null;
+}
+
+/**
+ * Our own account, on either path.
+ *
+ * The two differ only in the host and the node: Facebook Login addresses the
+ * account by its id, Instagram Login addresses it as `me`. Everything past
+ * that — the media fields, the insights sub-query, the comments edge — is the
+ * same call, which is why this is one function and not two.
+ *
+ * `name` is requested on the Facebook path only. It is not a field on the
+ * Instagram Login user node, and asking for it there fails the whole profile
+ * read rather than being ignored.
+ */
 async function fetchOwnAccount(
-  igUserId: string,
+  api: string,
+  node: string,
   token: string,
   req: ProviderRequest,
 ): Promise<{ account: SocialAccount; posts: SocialPost[]; comments: SocialComment[] }> {
+  const profileFields =
+    api === FACEBOOK_API ? 'username,name,followers_count' : 'username,followers_count';
+
   const profile = await getJson<any>(
-    `${API}/${igUserId}?fields=username,name,followers_count&access_token=${encodeURIComponent(token)}`,
+    `${api}/${node}?fields=${profileFields}&access_token=${encodeURIComponent(token)}`,
   );
   if (!profile.ok) throw new Error(profile.error ?? 'profile read failed');
 
@@ -138,7 +209,7 @@ async function fetchOwnAccount(
   ].join(',');
 
   const media = await getJson<any>(
-    `${API}/${igUserId}/media?fields=${encodeURIComponent(fields)}&limit=${MAX_POSTS_PER_ACCOUNT}&access_token=${encodeURIComponent(token)}`,
+    `${api}/${node}/media?fields=${encodeURIComponent(fields)}&limit=${MAX_POSTS_PER_ACCOUNT}&access_token=${encodeURIComponent(token)}`,
   );
   if (!media.ok) throw new Error(media.error ?? 'media read failed');
 
@@ -183,7 +254,7 @@ async function fetchOwnAccount(
     for (const post of ranked) {
       if ((post.metrics.comments ?? 0) === 0) continue;
       const res = await getJson<any>(
-        `${API}/${post.id}/comments?fields=id,text,timestamp,username,like_count&limit=${MAX_COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
+        `${api}/${post.id}/comments?fields=id,text,timestamp,username,like_count&limit=${MAX_COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
       );
       if (!res.ok) continue;
       for (const c of res.data?.data ?? []) {
@@ -225,7 +296,9 @@ async function fetchViaBusinessDiscovery(
   const field = `business_discovery.username(${handle}){${inner}}`;
 
   const res = await getJson<any>(
-    `${API}/${igUserId}?fields=${encodeURIComponent(field)}&access_token=${encodeURIComponent(token)}`,
+    // Facebook Login only — business_discovery is not exposed on
+    // graph.instagram.com, which is why this branch is unreachable there.
+    `${FACEBOOK_API}/${igUserId}?fields=${encodeURIComponent(field)}&access_token=${encodeURIComponent(token)}`,
   );
 
   if (!res.ok) {
