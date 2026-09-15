@@ -21,6 +21,7 @@
  */
 import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
 import { renderFieldStats, renderScaleRules, type FieldStats } from '../field';
+import { renderEditorial, type EditorialSweep } from '../editorial';
 import { arrayOf, oneOf, parseAgentJson, str } from './json';
 import { renderCaveats, renderPostBlock } from './evidence';
 import type { AgentProvider, SocialPost } from '../types';
@@ -81,6 +82,8 @@ RULES YOU DO NOT BREAK:
 
 6. GAPS ARE CHECKED AGAINST FIT. A subject the field is covering is only a gap if this magazine would plausibly publish it — it covers art, music, food, technology, creative culture, and independent journalism. A crypto-price thread is not a gap in our coverage.
 
+6b. COVERAGE IS NOT PERFORMANCE. Where you are given WHAT THE FIELD PUBLISHED, those are headlines from the publications' own feeds. They carry NO engagement information at all. Never infer that a piece did well because it is listed, never compare a headline count to a like count, and never describe a publication as "performing" on the basis of how much it published. What that section is good for is precisely the thing the engagement numbers cannot tell you at our size: what they chose to cover, and how often. Cadence and subject choice compare exactly and fairly across any audience gap. Lean on them — and when the scale block has told you the rates are not comparable, this section is the strongest evidence you have.
+
 7. ACTIONS ARE DOABLE THIS WEEK. "Improve video strategy" is not an action. "Cut the link-only posts on X — our three link posts median 0.4% against 1.1% for the native-text ones" is.
 
 Return strict JSON only, no markdown fences, in exactly this shape:
@@ -102,8 +105,14 @@ export async function analyzeTrends(opts: {
   caveats: string[];
   /** How far back the post archive reaches, in days. Bounds every macro claim. */
   archiveDays: number | null;
+  /**
+   * What the field PUBLISHED, from their own feeds. Carries no engagement
+   * data, and is the only competitor signal that stays fair across an
+   * audience-size gap — see lib/social/editorial.ts.
+   */
+  editorial?: EditorialSweep | null;
 }): Promise<TrendReport> {
-  const { provider, stats, posts, caveats, archiveDays } = opts;
+  const { provider, stats, posts, caveats, archiveDays, editorial } = opts;
   const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL;
 
   const ours = renderPostBlock('OUR POSTS (top by engagement rate)', posts.filter((p) => p.isOurs), {
@@ -130,10 +139,16 @@ export async function analyzeTrends(opts: {
     history,
     '',
     renderFieldStats(stats),
+    // Placed after the metrics and clearly labelled: the coverage data is the
+    // part that survives a size gap, so it has to be reachable even when the
+    // numbers above are unusable.
+    editorial ? renderEditorial(editorial) : '',
     ours.text,
     '',
     theirs.text,
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const raw = await runAgentChat({
     system: SYSTEM,

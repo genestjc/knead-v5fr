@@ -118,6 +118,62 @@ export async function getJson<T = any>(
   }
 }
 
+/**
+ * GET text — feeds and HTML pages, which the editorial sweep reads.
+ *
+ * Separate from getJson because a feed that fails to parse must not be
+ * reported as a transport failure: the difference between "the server did not
+ * answer" and "the server answered with something that is not a feed" is the
+ * difference between retrying and fixing the URL.
+ *
+ * Sends an Accept that prefers feed types, and identifies honestly — a
+ * publication that wants to block us should be able to.
+ */
+export async function getText(
+  url: string,
+  init: RequestInit = {},
+): Promise<{ ok: boolean; status: number | null; text: string; error: string | null; ms: number }> {
+  const started = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      cache: 'no-store',
+      redirect: 'follow',
+      headers: {
+        Accept:
+          'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.8, */*;q=0.5',
+        'User-Agent': 'KneadSocial54/1.0 (+https://kneadmag.com; editorial monitoring)',
+        ...(init.headers ?? {}),
+      },
+    });
+
+    const text = await readCapped(res);
+
+    return {
+      ok: res.ok,
+      status: res.status,
+      text,
+      error: res.ok ? null : summarizeError(res.status, text),
+      ms: Date.now() - started,
+    };
+  } catch (err: any) {
+    const aborted = err?.name === 'AbortError';
+    return {
+      ok: false,
+      status: null,
+      text: '',
+      error: aborted ? `Timed out after ${TIMEOUT_MS / 1000}s` : (err?.message ?? 'Request failed'),
+      ms: Date.now() - started,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** POST JSON — used by the GraphQL connectors. */
 export async function postJson<T = any>(
   url: string,

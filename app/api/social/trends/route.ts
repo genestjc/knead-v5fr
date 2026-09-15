@@ -18,12 +18,15 @@ import { requireSocialAdmin } from '@/lib/social/require-admin';
 import { clampWindow, collectSnapshot, collectionCaveats } from '@/lib/social/collect';
 import {
   archiveCoverage,
+  archiveEditorial,
   archivePosts,
   loadCompetitors,
   readArchivedPosts,
+  updateCompetitor,
   createRun,
   completeRun,
 } from '@/lib/social/store';
+import { sweepEditorial } from '@/lib/social/editorial';
 import { computeFieldStats, headlineComparison } from '@/lib/social/field';
 import { analyzeTrends, renderTrendSummary } from '@/lib/social/agents/trends';
 import type { SocialPost } from '@/lib/social/types';
@@ -90,14 +93,58 @@ export async function POST(req: NextRequest) {
     const stats = computeFieldStats(posts, windowDays);
     const caveats = collectionCaveats(snapshot);
 
-    const report = await analyzeTrends({ provider, stats, posts, caveats, archiveDays });
+    // What the field PUBLISHED, from their own feeds. Needs no platform
+    // credential, and carries the one comparison that stays fair across an
+    // audience-size gap — so a failure here is worth reporting but never worth
+    // failing the run over.
+    const editorial = await sweepEditorial(competitors, {
+      windowDays: Math.max(windowDays, 14),
+      includeSearchFallback: true,
+    }).catch((err) => {
+      console.error('[social54] editorial sweep failed:', err.message);
+      return null;
+    });
+
+    if (editorial) {
+      await archiveEditorial(editorial.items);
+
+      // Write back any feed discovered from a homepage this run, so the
+      // discovery fetches happen once rather than on every sweep. Failing here
+      // costs a repeated lookup next time, nothing more.
+      for (const result of editorial.results) {
+        if (!result.discoveredFeedUrl) continue;
+        const match = competitors.find((c) => c.name === result.source);
+        if (!match) continue;
+        await updateCompetitor(match.id, { feedUrl: result.discoveredFeedUrl }).catch((err) =>
+          console.error(`[social54] could not store feed for ${result.source}:`, err.message),
+        );
+      }
+    }
+
+    const report = await analyzeTrends({
+      provider,
+      stats,
+      posts,
+      caveats,
+      archiveDays,
+      editorial,
+    });
     const summary = renderTrendSummary(report);
 
     await completeRun(run.id, {
       status: 'complete',
       summary,
       model: report.model,
-      payload: { report, stats, caveats, archiveDays, headline: headlineComparison(stats) },
+      payload: {
+        report,
+        stats,
+        caveats,
+        archiveDays,
+        headline: headlineComparison(stats),
+        editorial: editorial
+          ? { results: editorial.results, windowDays: editorial.windowDays }
+          : null,
+      },
     });
 
     return NextResponse.json({
@@ -106,6 +153,7 @@ export async function POST(req: NextRequest) {
       stats,
       caveats,
       archiveDays,
+      editorial,
       headline: headlineComparison(stats),
     });
   } catch (err: any) {

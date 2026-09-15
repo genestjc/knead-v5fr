@@ -242,6 +242,13 @@ export interface Competitor {
   /** Why this one is in the set — kept so the roster doesn't drift into noise. */
   note: string | null;
   handles: CompetitorHandle[];
+  /**
+   * RSS/Atom feed, which is how we see what they PUBLISH without any platform
+   * credential. Coverage and cadence are the two comparisons that stay fair
+   * across an audience-size gap, so for a small account this is often worth
+   * more than the handles — see lib/social/editorial.ts.
+   */
+  feedUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

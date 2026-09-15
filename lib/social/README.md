@@ -35,6 +35,8 @@ lib/social/
   collect.ts          the fan-out, with per-platform failure isolation
   metrics.ts          engagement, rate, median, movement — all pure, all tested
   scale.ts            whether a comparison is meaningful at these audience sizes
+  feed-parse.ts       hand-rolled RSS/Atom reader; no dependency, tolerant of real feeds
+  editorial.ts        what the field PUBLISHED, via their feeds — no credentials needed
   field.ts            computed field statistics (cadence, format mix, tag deltas)
   subjects.ts         matching a post to the thing it is about
   stories.ts          Sanity stories, reduced to what the composer may claim
@@ -88,6 +90,33 @@ anything.
 Same reasoning in `movement()`: a median going 4 → 8 is four more engagements,
 not "+100%", so a percentage is withheld below a real baseline.
 
+## The free half: what they published
+
+Every social API here is gated on the **metrics**. None of them gates the
+**journalism**. What a publication printed, and when, is announced by the
+publication itself in a format built to be machine-read.
+
+`editorial.ts` sweeps competitor RSS/Atom feeds — no token, no login wall, no
+terms-of-service question — and falls back to Tavily search (already configured
+for Demeter) for publications with no discoverable feed. It feeds the Trends
+agent's coverage-gap analysis.
+
+This matters more than it sounds, and it follows directly from `scale.ts`:
+**coverage and cadence are the two comparisons that don't decay across an
+audience-size gap.** A magazine with a few hundred followers and one with
+several hundred thousand can be compared exactly and fairly on what they chose
+to cover and how often. Engagement cannot. So at a large size gap this is the
+honest comparison — and it happens to be the free one.
+
+The roster stores a feed URL per competitor. You paste a **homepage**; the feed
+is discovered from what the page advertises, then the conventional paths, and
+the resolved URL is written back so the lookup happens once. The seed carries
+homepages rather than guessed feed paths for the same reason.
+
+Coverage data is labelled hard in the prompt: it carries no engagement
+information, and the agent is told never to read a headline count as
+popularity.
+
 ## Platform limits, stated once
 
 | Platform | Ours | Competitors | Reply text | Cost |
@@ -122,7 +151,7 @@ can *see*, not the tokens.
 
 ## Running it
 
-1. Apply `supabase/migrations/011_social54.sql`.
+1. Apply `supabase/migrations/011_social54.sql`, then `012_social_feeds.sql`.
 2. Open `/social54`. **Farcaster and Zora collect immediately with no
    credentials and no spend** — that's the zero-config path, and it's enough to
    see the console work.
