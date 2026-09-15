@@ -21,7 +21,8 @@
  * belong to the publication, not the story, and scoring five articles from one
  * site against them would just restate the site audit five times.
  */
-import { auditUrl, type AeoSignals, type SignalCheck } from './aeo-signals';
+import { auditUrl, emptyAeoSignals, type AeoSignals, type SignalCheck } from './aeo-signals';
+import { buildSeoChecks } from './seo-signals';
 
 export interface StoryTarget {
   url: string;
@@ -381,7 +382,7 @@ export async function runStoryAudit(subject: string, targets: StoryTarget[]): Pr
       if (origin) seenOrigins.add(origin);
       base = await auditUrl(target.url, { keepText: true, skipSiblings });
     } catch (err: any) {
-      base = failedSignals(target.url, err?.message ?? 'audit failed');
+      base = emptyAeoSignals(target.url, err?.message ?? 'audit failed');
     }
 
     const coverage = analyzeCoverage(base, subject);
@@ -391,8 +392,19 @@ export async function runStoryAudit(subject: string, targets: StoryTarget[]): Pr
 
     // Replace the site-level check set with the story-scoped one. Origin checks
     // would otherwise mark every article on a feedless site down identically.
+    // AEO checks, then the on-page SEO ones. Both are computed from the same
+    // document and scored into the same composite, but they stay separately
+    // identifiable (`seo-` prefixed ids) so the report can say which of the two
+    // a piece is losing — the whole reason for auditing both.
     const checks = base.ok
-      ? buildStoryChecks(base, coverage, quoted, specificity, subject, extraction)
+      ? [
+          ...buildStoryChecks(base, coverage, quoted, specificity, subject, extraction),
+          ...buildSeoChecks(base, {
+            subject,
+            isArticle: true,
+            extractionFailed: extraction.failed,
+          }),
+        ]
       : [{ id: 'reachable', label: 'Article is reachable', status: 'fail' as const, detail: base.error ?? `HTTP ${base.httpStatus ?? '—'}`, weight: 1 }];
 
     signals.push({
@@ -425,43 +437,6 @@ function median(values: number[]): number {
   return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
 }
 
-function failedSignals(url: string, error: string): AeoSignals {
-  return {
-    url,
-    finalUrl: url,
-    ok: false,
-    httpStatus: null,
-    fetchMs: 0,
-    error,
-    title: null,
-    metaDescription: null,
-    ogType: null,
-    ogSiteName: null,
-    canonical: null,
-    jsonLdBlocks: 0,
-    jsonLdInvalid: 0,
-    schemaTypes: [],
-    organization: { found: false, isNewsMedia: false, sameAs: [], knowsAbout: [], hasPublishingPrinciples: false },
-    article: {
-      found: false,
-      typedAsNews: false,
-      hasAuthor: false,
-      authorIsEntity: false,
-      hasDatePublished: false,
-      declaresPaywall: false,
-      hasAbout: false,
-    },
-    feeds: [],
-    visibleWords: 0,
-    scriptTextRatio: 0,
-    extractedText: '',
-    robots: { exists: false, blocksAiCrawlers: [], declaresSitemap: false },
-    sitemapExists: false,
-    llmsTxtExists: false,
-    checks: [],
-    score: 0,
-  };
-}
 
 /** Per-article report, used as the turn body the judge and analyst read. */
 export function renderStoryReport(s: StorySignals, isSubject: boolean, subject: string): string {
@@ -485,7 +460,20 @@ export function renderStoryReport(s: StorySignals, isSubject: boolean, subject: 
   );
   lines.push(`Body: ${s.visibleWords} words · ${s.quotedPassages} quoted passage(s) · ${s.specificityMarkers} specificity markers`);
   lines.push('');
-  for (const c of s.checks) lines.push(`[${c.status.toUpperCase().padEnd(4)}] ${c.label} — ${c.detail}`);
+  // Printed in two groups. They are scored into one composite but they answer
+  // different questions, and a reader skimming this report needs to know which
+  // of the two a failing row belongs to.
+  const render = (c: (typeof s.checks)[number]) =>
+    `[${c.status.toUpperCase().padEnd(4)}] ${c.label} — ${c.detail}`;
+
+  lines.push('AEO — can an engine identify and quote it:');
+  for (const c of s.checks.filter((c) => !c.id.startsWith('seo-'))) lines.push(render(c));
+
+  const seoChecks = s.checks.filter((c) => c.id.startsWith('seo-'));
+  if (seoChecks.length) {
+    lines.push('', 'SEO — can a search engine index it, and will anyone click it:');
+    for (const c of seoChecks) lines.push(render(c));
+  }
   return lines.join('\n');
 }
 

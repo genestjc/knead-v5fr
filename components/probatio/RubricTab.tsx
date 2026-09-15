@@ -10,8 +10,8 @@
  */
 import { useMemo, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
-import type { EvalCriterion, EvalRun, EvalSurface } from '@/lib/eval/types';
-import { EVAL_SURFACES } from '@/lib/eval/types';
+import type { EvalCriterion, EvalRun, EvalSurface, SocialPlatform } from '@/lib/eval/types';
+import { EVAL_SURFACES, platformLabel, SOCIAL_PLATFORMS } from '@/lib/eval/types';
 import { PERSONAS } from '@/lib/eval/personas';
 import { createCriterion, createHumanRun, deleteCriterion, deleteRun, updateCriterion } from './api';
 import { Banner, ScoreBar, SectionLabel } from './shared';
@@ -233,7 +233,15 @@ function CriterionRow({
   const [prompt, setPrompt] = useState(criterion.prompt);
   const [guidance, setGuidance] = useState(criterion.guidance ?? '');
   const [expected, setExpected] = useState(criterion.expectedVerdict);
+  const [weight, setWeight] = useState(criterion.weight);
+  const [platform, setPlatform] = useState<SocialPlatform | null>(criterion.platform);
   const [busy, setBusy] = useState(false);
+
+  // Weight and platform only mean anything on the social audit. Every other
+  // surface asks questions of roughly equal importance and has no platform to
+  // scope to, so showing the controls there would be two decisions to make
+  // about nothing.
+  const isSocial = criterion.surface === 'social-audit';
 
   async function save() {
     if (!prompt.trim()) return onError('The criterion text is required.');
@@ -243,6 +251,7 @@ function CriterionRow({
         prompt: prompt.trim(),
         guidance: guidance.trim() || null,
         expectedVerdict: expected,
+        ...(isSocial ? { weight, platform } : {}),
       });
       setEditing(false);
       onChanged();
@@ -304,6 +313,41 @@ function CriterionRow({
             />
             Inverted — doing this is the failure
           </label>
+
+          {isSocial && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                Weight
+                <select
+                  value={weight}
+                  onChange={(e) => setWeight(Number(e.target.value))}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+                >
+                  <option value={1}>1 — minor</option>
+                  <option value={2}>2 — matters</option>
+                  <option value={3}>3 — decisive</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                Applies to
+                <select
+                  value={platform ?? ''}
+                  onChange={(e) =>
+                    setPlatform(e.target.value ? (e.target.value as SocialPlatform) : null)
+                  }
+                  className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+                >
+                  <option value="">Every platform</option>
+                  {SOCIAL_PLATFORMS.map((p) => (
+                    <option key={p} value={p}>
+                      {platformLabel(p)} only
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+
           <div className="ml-auto flex gap-2">
             <button
               onClick={() => setEditing(false)}
@@ -335,6 +379,14 @@ function CriterionRow({
               <span className="ml-2 text-[10px] uppercase tracking-[0.1em] text-amber-700">
                 inverted
               </span>
+            )}
+            {criterion.platform && (
+              <span className="ml-2 text-[10px] uppercase tracking-[0.1em] text-gray-500">
+                {platformLabel(criterion.platform)} only
+              </span>
+            )}
+            {criterion.weight > 1 && (
+              <span className="ml-2 text-[10px] font-mono text-gray-400">×{criterion.weight}</span>
             )}
             {!criterion.isActive && (
               <span className="ml-2 text-[10px] uppercase tracking-[0.1em] text-gray-500">
@@ -393,7 +445,12 @@ function AddCriterion({
   const [prompt, setPrompt] = useState('');
   const [guidance, setGuidance] = useState('');
   const [expected, setExpected] = useState<'pass' | 'fail'>('pass');
+  const [weight, setWeight] = useState(1);
+  const [platform, setPlatform] = useState<SocialPlatform | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // See CriterionRow: these two only mean anything on the social audit.
+  const isSocial = surface === 'social-audit';
 
   if (!open) {
     return (
@@ -414,14 +471,18 @@ function AddCriterion({
         onChange={(e) => setPrompt(e.target.value)}
         rows={2}
         autoFocus
-        placeholder="Did the agent…?"
+        placeholder={isSocial ? 'Does the post…?' : 'Did the agent…?'}
         className="w-full font-georgia-pro text-[15px] border border-gray-300 rounded-md p-2 outline-none focus:border-black"
       />
       <textarea
         value={guidance}
         onChange={(e) => setGuidance(e.target.value)}
         rows={3}
-        placeholder="How to grade it: what counts as a pass, and the probe to send."
+        placeholder={
+          isSocial
+            ? 'How to grade it: what counts as a pass, specifically enough that two people would agree.'
+            : 'How to grade it: what counts as a pass, and the probe to send.'
+        }
         className="mt-2 w-full font-georgia-pro text-[13px] border border-gray-300 rounded-md p-2 outline-none focus:border-black"
       />
       <div className="mt-3 flex items-center gap-4 flex-wrap">
@@ -434,6 +495,41 @@ function AddCriterion({
           />
           Inverted — doing this is the failure
         </label>
+
+        {isSocial && (
+          <>
+            <label className="flex items-center gap-2 text-xs text-gray-600">
+              Weight
+              <select
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+                className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+              >
+                <option value={1}>1 — minor</option>
+                <option value={2}>2 — matters</option>
+                <option value={3}>3 — decisive</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-600">
+              Applies to
+              <select
+                value={platform ?? ''}
+                onChange={(e) =>
+                  setPlatform(e.target.value ? (e.target.value as SocialPlatform) : null)
+                }
+                className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+              >
+                <option value="">Every platform</option>
+                {SOCIAL_PLATFORMS.map((p) => (
+                  <option key={p} value={p}>
+                    {platformLabel(p)} only
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
         <div className="ml-auto flex gap-2">
           <button
             onClick={() => {
@@ -455,6 +551,7 @@ function AddCriterion({
                   prompt: prompt.trim(),
                   guidance: guidance.trim() || undefined,
                   expectedVerdict: expected,
+                  ...(isSocial ? { weight, platform } : {}),
                 });
                 setPrompt('');
                 setGuidance('');

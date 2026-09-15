@@ -102,6 +102,15 @@ function renderArticle(s: StorySignals, isOurs: boolean, subject: string): strin
     `Subject "${subject}" — title:${s.coverage.inTitle} description:${s.coverage.inDescription} ` +
       `schema.about:${s.coverage.inSchemaAbout} lede:${s.coverage.inOpening} mentions:${s.coverage.mentions}`,
     `Body: ${s.visibleWords} words · ${s.quotedPassages} quoted passages · ${s.specificityMarkers} specificity markers`,
+    // On-page SEO, as facts rather than as a verdict. The analyst is not asked
+    // to grade these — they are already scored deterministically — but a piece
+    // with one H1, twelve internal links and a working social card is shaped
+    // differently from one without, and that shape is part of why one gets
+    // found and the other does not.
+    `On-page: H1 ×${s.seo.h1s.length} · ${s.seo.h2Count} H2s · ${s.seo.internalLinks} internal / ` +
+      `${s.seo.externalLinks} outbound links · ${s.seo.imagesWithAlt}/${s.seo.images} images with alt · ` +
+      `title ${s.seo.titleLength} chars · description ${s.seo.descriptionLength} chars` +
+      (s.seo.noindex ? ' · NOINDEX' : ''),
     '',
     'EXTRACTED TEXT:',
     body || '(no text could be extracted — the page may be client-rendered or gated)',

@@ -80,6 +80,17 @@ export interface AeoSignals {
   };
 
   feeds: string[];
+  /**
+   * On-page SEO facts — title and description lengths, heading structure,
+   * internal and outbound links, alt text, canonical, social cards.
+   *
+   * Kept as its own object rather than flattened in, because SEO and AEO
+   * answer different questions about the same document: whether a search
+   * engine can index it and a person will click it, versus whether an answer
+   * engine can identify and quote it. A reader needs to know which one a
+   * finding belongs to. See ./seo-signals.ts.
+   */
+  seo: SeoSignals;
   visibleWords: number;
   scriptTextRatio: number;
   /**
@@ -297,8 +308,64 @@ const NEWS_ARTICLE_TYPES = ['NewsArticle', 'ReportageNewsArticle', 'Report'];
 
 // ─── The audit ───────────────────────────────────────────────────────────────
 
+import { buildSeoChecks, emptySeoSignals, readSeoSignals, type SeoSignals } from './seo-signals';
+
 /** How much body text a story audit keeps for the analyst to read. */
 export const MAX_EXTRACT_CHARS = 14_000;
+
+/**
+ * An AeoSignals with nothing found — the shape every audit starts from, and
+ * the shape a refused or unreachable URL keeps.
+ *
+ * Exported because two call sites used to hand-roll their own copy of this
+ * object literal, and they drifted: aeo-audit.ts's copy was missing
+ * `extractedText` and stopped type-checking when the field was added. One
+ * factory means a new field is added once and every caller gets it.
+ */
+export function emptyAeoSignals(url: string, error?: string): AeoSignals {
+  return {
+    url,
+    finalUrl: url,
+    ok: false,
+    httpStatus: null,
+    fetchMs: 0,
+    ...(error ? { error } : {}),
+    title: null,
+    metaDescription: null,
+    ogType: null,
+    ogSiteName: null,
+    canonical: null,
+    jsonLdBlocks: 0,
+    jsonLdInvalid: 0,
+    schemaTypes: [],
+    organization: {
+      found: false,
+      isNewsMedia: false,
+      sameAs: [],
+      knowsAbout: [],
+      hasPublishingPrinciples: false,
+    },
+    article: {
+      found: false,
+      typedAsNews: false,
+      hasAuthor: false,
+      authorIsEntity: false,
+      hasDatePublished: false,
+      declaresPaywall: false,
+      hasAbout: false,
+    },
+    feeds: [],
+    seo: emptySeoSignals(),
+    visibleWords: 0,
+    scriptTextRatio: 0,
+    extractedText: '',
+    robots: { exists: false, blocksAiCrawlers: [], declaresSitemap: false },
+    sitemapExists: false,
+    llmsTxtExists: false,
+    checks: [],
+    score: 0,
+  };
+}
 
 export interface AuditOptions {
   /**
@@ -321,39 +388,12 @@ export async function auditUrl(rawUrl: string, options: AuditOptions = {}): Prom
   const page = await fetchText(url.toString());
 
   const base: AeoSignals = {
-    url: url.toString(),
+    ...emptyAeoSignals(url.toString()),
     finalUrl: page.finalUrl,
     ok: page.ok,
     httpStatus: page.status,
     fetchMs: page.ms,
     ...(page.error ? { error: page.error } : {}),
-    title: null,
-    metaDescription: null,
-    ogType: null,
-    ogSiteName: null,
-    canonical: null,
-    jsonLdBlocks: 0,
-    jsonLdInvalid: 0,
-    schemaTypes: [],
-    organization: { found: false, isNewsMedia: false, sameAs: [], knowsAbout: [], hasPublishingPrinciples: false },
-    article: {
-      found: false,
-      typedAsNews: false,
-      hasAuthor: false,
-      authorIsEntity: false,
-      hasDatePublished: false,
-      declaresPaywall: false,
-      hasAbout: false,
-    },
-    feeds: [],
-    visibleWords: 0,
-    scriptTextRatio: 0,
-    extractedText: '',
-    robots: { exists: false, blocksAiCrawlers: [], declaresSitemap: false },
-    sitemapExists: false,
-    llmsTxtExists: false,
-    checks: [],
-    score: 0,
   };
 
   if (!page.ok || !page.text) {
@@ -380,6 +420,16 @@ export async function auditUrl(rawUrl: string, options: AuditOptions = {}): Prom
   base.ogType = metaContent(html, [/<meta[^>]+property=["']og:type["'][^>]+content=["']([^"']*)["']/i]);
   base.ogSiteName = metaContent(html, [/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']*)["']/i]);
   base.canonical = metaContent(html, [/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)["']/i]);
+
+  // On-page SEO. Read after the head signals above so it can reuse the title,
+  // description and canonical rather than re-matching them.
+  base.seo = readSeoSignals({
+    html,
+    finalUrl: base.finalUrl || base.url,
+    title: base.title,
+    metaDescription: base.metaDescription,
+    canonical: base.canonical,
+  });
 
   // Feeds
   const feedRe = /<link[^>]+type=["'](application\/(?:rss\+xml|atom\+xml|feed\+json|json))["'][^>]*>/gi;
@@ -460,7 +510,11 @@ export async function auditUrl(rawUrl: string, options: AuditOptions = {}): Prom
   base.sitemapExists = sitemapRes.ok && /<(urlset|sitemapindex)/i.test(sitemapRes.text);
   base.llmsTxtExists = llmsRes.ok && llmsRes.text.trim().length > 0;
 
-  base.checks = buildChecks(base);
+  // The site audit gets the SEO checks that make sense for a homepage: title,
+  // description, headings, alt text, canonical and social cards. The link and
+  // subject checks are article-scoped and are skipped — a homepage's outbound
+  // link count says nothing about whether the publication sources its work.
+  base.checks = [...buildChecks(base), ...buildSeoChecks(base, { isArticle: false })];
   base.score = scoreOf(base.checks);
   return base;
 }

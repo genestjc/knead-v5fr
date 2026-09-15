@@ -18,35 +18,49 @@ import { RubricTab } from './RubricTab';
 import { AgentTab } from './AgentTab';
 import { AeoAuditTab } from './AeoAuditTab';
 import { DraftCheckTab } from './DraftCheckTab';
+import { SocialAuditTab } from './SocialAuditTab';
 
-type TabId = 'human' | 'agent' | 'aeo' | 'draft';
+type TabId = 'social' | 'aeo' | 'draft' | 'agent' | 'human';
 
+/**
+ * Order is by how often a tab has something new to say.
+ *
+ * Social Audit leads: a different post every time, and the answer changes
+ * weekly. The two AEO/SEO tabs follow, then the two agent-evaluation tabs —
+ * those grade our own products, which change on our schedule rather than the
+ * field's, so they are the ones you open when something shipped.
+ */
 const TABS: { id: TabId; label: string; sub: string }[] = [
   {
-    id: 'human',
-    label: 'Human Evaluation / Rubric Setting',
-    sub: 'Define the test cases. Grade by hand.',
-  },
-  {
-    id: 'agent',
-    label: 'Agent Evaluation',
-    sub: 'Send a persona through. Judge with an LLM.',
+    id: 'social',
+    label: 'Social Audit',
+    sub: 'Our posts against theirs, from screenshots and recordings.',
   },
   {
     id: 'aeo',
-    label: 'AEO Audit',
+    label: 'AEO/SEO Audit',
     sub: 'One subject, our story against the field.',
   },
   {
     id: 'draft',
-    label: 'Draft Check',
+    label: 'AEO/SEO Draft Check',
     sub: 'Grade a story before it publishes.',
+  },
+  {
+    id: 'agent',
+    label: 'Agentic Tools Evaluation',
+    sub: 'Send a persona through. Judge with an LLM.',
+  },
+  {
+    id: 'human',
+    label: 'Human Evaluation/Rubric Setting (Agentic Tools)',
+    sub: 'Define the test cases. Grade by hand.',
   },
 ];
 
 export function ProbatioConsole({ account }: { account: Account | null }) {
-  const [tab, setTab] = useState<TabId>('human');
-  const [surface, setSurface] = useState<EvalSurface>('article-agent');
+  const [tab, setTab] = useState<TabId>('social');
+  const [surface, setSurface] = useState<EvalSurface>('social-audit');
 
   const [criteria, setCriteria] = useState<EvalCriterion[]>([]);
   const [runs, setRuns] = useState<EvalRun[]>([]);
@@ -192,6 +206,8 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4" />
             <p className="font-georgia-pro text-gray-500">Loading the rubric…</p>
           </div>
+        ) : tab === 'social' ? (
+          <SocialAuditTab account={account} onRefreshRuns={loadRuns} />
         ) : tab === 'human' ? (
           <RubricTab
             account={account}
