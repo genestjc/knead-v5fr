@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const judgement = await judgeSocial({ provider, platform, criteria, ours, subject });
+      const judgement = await judgeSocial({ provider, platform, criteria, ours, theirs, subject });
       const summary = renderSocialSummary(judgement, criteria);
 
       // Images are never stored. They are large, they are somebody's private
@@ -322,8 +322,13 @@ export async function POST(req: NextRequest) {
           latencyMs: null,
           metadata: {
             postId: post.postId,
+            label: post.label,
             isOurs: post.isOurs,
             score: post.score,
+            // Stored as well as written into the turn body, so reopening this
+            // run rebuilds the panel from a field rather than by parsing prose
+            // back out of a rendered block. See lib/eval/social-replay.ts.
+            verdict: post.verdict,
             extracted: post.extracted,
             model: judgement.model,
             // Competitors' verdicts live here rather than in eval_results. That

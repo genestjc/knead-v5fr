@@ -206,7 +206,20 @@ export interface SocialJudgeInput {
   platform: SocialPlatform;
   criteria: EvalCriterion[];
   ours: SocialSubmission;
-  theirs?: SocialSubmission[];
+  /**
+   * The competitor posts. REQUIRED — pass [] when there are none.
+   *
+   * This was optional, and the route forgot it. Competitors were collected,
+   * validated, uploaded, sampled into frames and written into the run metadata,
+   * and then never handed to the judge: every audit came back solo and every
+   * downstream feature that depended on a competitor — the per-post grading,
+   * the scoreboard, the four dimensions — was correct code that could not fire.
+   * Nothing caught it, because an omitted optional field is not an error and
+   * the local was used elsewhere in the function.
+   *
+   * Required means the compiler catches the next person who forgets.
+   */
+  theirs: SocialSubmission[];
   /** What the post is about, when naming it helps. */
   subject?: string | null;
 }
@@ -490,7 +503,7 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     });
 
   const ourImages = keepValid(ours.images ?? [], 'Our post');
-  const theirSubmissions = (input.theirs ?? []).map((submission) => ({
+  const theirSubmissions = input.theirs.map((submission) => ({
     submission,
     images: keepValid(submission.images ?? [], submission.label || 'A competitor post'),
   }));
@@ -526,17 +539,7 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     ...theirSubmissions.flatMap((entry, i) => entry.images.slice(0, budget.theirs[i])),
   ];
 
-  // Ids are assigned here, not by the model, so a judge that invents or
-  // reorders them can be caught at parse time rather than silently attaching
-  // our competitor's verdicts to our own post.
-  const roster: { id: string; label: string; isOurs: boolean }[] = [
-    { id: OUR_POST_ID, label: ours.label, isOurs: true },
-    ...theirSubmissions.map((entry, i) => ({
-      id: theirPostId(i),
-      label: entry.submission.label || `Competitor ${i + 1}`,
-      isOurs: false,
-    })),
-  ];
+  const roster = rosterFor(ours, theirSubmissions.map((entry) => entry.submission));
 
   const prompt = [
     subject ? `SUBJECT: ${subject}\n` : '',
@@ -594,6 +597,28 @@ export interface PostRoster {
   id: string;
   label: string;
   isOurs: boolean;
+}
+
+/**
+ * Every post that will be graded, in the order it is presented.
+ *
+ * Ids are assigned here rather than by the model, so a judge that invents one,
+ * reorders the posts or grades one twice is caught at parse time instead of
+ * silently attaching a competitor's verdicts to our own post.
+ *
+ * Extracted so the property that matters can be asserted directly: every
+ * submission handed in appears exactly once. The bug this guards against was
+ * competitors being collected in full and then never reaching the judge at all.
+ */
+export function rosterFor(ours: SocialSubmission, theirs: SocialSubmission[]): PostRoster[] {
+  return [
+    { id: OUR_POST_ID, label: ours.label, isOurs: true },
+    ...theirs.map((submission, i) => ({
+      id: theirPostId(i),
+      label: submission.label || `Competitor ${i + 1}`,
+      isOurs: false,
+    })),
+  ];
 }
 
 export function parseSocialJudgement(

@@ -24,8 +24,10 @@ import {
   oursOf,
   parseSocialJudgement,
   renderSocialSummary,
+  rosterFor,
   theirPostId,
   type PostRoster,
+  type SocialSubmission,
 } from './social-judge';
 import { weightedScore, type EvalCriterion } from './types';
 
@@ -138,6 +140,46 @@ test('inactive rows and rows from other surfaces are left out', () => {
     criteriaFor(rows, 'x').map((c) => c.id),
     ['live'],
   );
+});
+
+// ─── every submission is graded ─────────────────────────────────────────────
+
+function submission(label: string): SocialSubmission {
+  return { label, text: 'a caption' };
+}
+
+test('every submitted post reaches the roster, exactly once', () => {
+  // THE BUG THIS GUARDS. The route collected competitors in full — validated
+  // their images, resolved their Mux assets, sampled their frames, wrote them
+  // into the run metadata — and then called the judge without them. Every audit
+  // came back solo, and every feature built on top of a competitor was correct
+  // code that could never fire.
+  const list = rosterFor(submission('Knead'), [
+    submission('Hyperallergic'),
+    submission('Colossal'),
+  ]);
+
+  assert.equal(list.length, 3, 'ours plus both competitors');
+  assert.deepEqual(
+    list.map((r) => r.label),
+    ['Knead', 'Hyperallergic', 'Colossal'],
+  );
+  assert.deepEqual(
+    list.map((r) => r.isOurs),
+    [true, false, false],
+  );
+  assert.equal(new Set(list.map((r) => r.id)).size, 3, 'ids are unique');
+  assert.equal(list[0].id, OUR_POST_ID);
+});
+
+test('a competitor with no label still gets a name to be reported under', () => {
+  const list = rosterFor(submission('Knead'), [{ label: '', text: 'x' }]);
+  assert.equal(list[1].label, 'Competitor 1');
+});
+
+test('with no competitors the roster is just ours', () => {
+  const list = rosterFor(submission('Knead'), []);
+  assert.deepEqual(list.map((r) => r.id), [OUR_POST_ID]);
 });
 
 // ─── parsing ────────────────────────────────────────────────────────────────
