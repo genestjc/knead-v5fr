@@ -1,27 +1,41 @@
 'use client';
 
 /**
- * One post under audit — as screenshots, as a screen recording, or as text.
+ * One post under audit — as screenshots, as a screen recording, as text, and
+ * as context.
  *
- * All three at once is normal and encouraged. A screenshot carries the image
+ * All of it at once is normal and encouraged. A screenshot carries the image
  * and the reply thread. A recording carries a Story sequence or a scroll
  * through a grid, which no single screenshot can. A paste carries the caption
- * in text the model does not have to read out of pixels. Given several, the
- * judge uses each for what only it shows.
+ * in text the model does not have to read out of pixels. And the CONTEXT — the
+ * story the post points at, the platform, the account, whatever else you know
+ * — is what turns several rubric rows from "could not judge this" into a real
+ * verdict. "Does every claim hold up against the story it points at?" cannot be
+ * answered from a caption alone; given the link, the server fetches the piece
+ * and the judge reads both.
  *
- * Screenshots are read in the browser and sent as base64 with the audit
+ * Screenshots are resized in the browser and sent as base64 with the audit
  * request. Recordings go straight from here to Mux and never touch our server
- * — that difference is the whole reason a sixty-second recording is possible
- * and four large screenshots are not.
+ * — that difference is why a sixty-second recording is possible and four
+ * untouched retina screenshots are not.
  */
 import { useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
+import { formatBytes } from '@/lib/eval/image-fit';
 import { platformLabel, type SocialPlatform } from '@/lib/eval/types';
+import { prepareImage } from './downscale';
 import { uploadRecording, type SocialPostDraft } from './api';
 
-/** Matches the router's per-image cap, checked here so the error is immediate. */
-const MAX_IMAGE_BYTES = 5_000_000;
-const MAX_IMAGES = 4;
+/**
+ * Per-image budget after resizing.
+ *
+ * Well under the provider's 5MB: a screenshot fitted to 1600px lands around
+ * 200-400KB, so anything approaching this is a photograph of something dense,
+ * and four of them still fit the request body.
+ */
+const MAX_IMAGE_BYTES = 800_000;
+/** Raised from four — a resized screenshot is a fraction of what one used to cost. */
+const MAX_IMAGES = 8;
 /**
  * Mux takes far larger files than this. The cap is about the person's time and
  * their upload speed: past a couple of minutes of screen recording the frames
@@ -51,39 +65,52 @@ export function SocialPostInput({
   accent?: boolean;
 }) {
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageNote, setImageNote] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const inputId = label.replace(/\s+/g, '-').toLowerCase();
 
-  const busy = disabled || draft.uploadStatus === 'uploading' || draft.uploadStatus === 'waiting';
+  const busy =
+    disabled ||
+    preparing ||
+    draft.uploadStatus === 'uploading' ||
+    draft.uploadStatus === 'waiting';
 
   async function addFiles(files: FileList | null) {
     if (!files?.length) return;
     setImageError(null);
+    setImageNote(null);
+    setPreparing(true);
 
     const accepted: string[] = [];
-    for (const file of Array.from(files)) {
-      if (draft.images.length + accepted.length >= MAX_IMAGES) {
-        setImageError(`At most ${MAX_IMAGES} screenshots per post — record the screen for more.`);
-        break;
-      }
-      if (file.size > MAX_IMAGE_BYTES) {
-        // Caught here rather than at the provider: a rejection there loses the
-        // whole run with an opaque message.
-        setImageError(
-          `${file.name} is ${(file.size / 1_000_000).toFixed(1)}MB, over the 5MB limit. Crop it, or record the screen instead.`,
-        );
-        continue;
-      }
-      try {
-        accepted.push(await readAsDataUrl(file));
-      } catch {
-        setImageError(`${file.name} could not be read.`);
-      }
-    }
+    const notes: string[] = [];
+    const problems: string[] = [];
 
-    if (accepted.length) onChange({ ...draft, images: [...draft.images, ...accepted] });
-    if (fileRef.current) fileRef.current.value = '';
+    try {
+      for (const file of Array.from(files)) {
+        if (draft.images.length + accepted.length >= MAX_IMAGES) {
+          problems.push(`At most ${MAX_IMAGES} screenshots per post — record the screen for more.`);
+          break;
+        }
+        try {
+          // Everything goes through this, not just the oversized files. A
+          // person should not have to know what a megabyte is to use this tab.
+          const prepared = await prepareImage(file, MAX_IMAGE_BYTES);
+          accepted.push(prepared.dataUrl);
+          if (prepared.note) notes.push(`${file.name}: ${prepared.note}`);
+        } catch (err: any) {
+          problems.push(err.message);
+        }
+      }
+
+      if (accepted.length) onChange({ ...draft, images: [...draft.images, ...accepted] });
+      if (problems.length) setImageError(problems.join(' '));
+      if (notes.length) setImageNote(notes.join(' · '));
+    } finally {
+      setPreparing(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   }
 
   async function addRecording(files: FileList | null) {
@@ -93,7 +120,7 @@ export function SocialPostInput({
 
     if (file.size > MAX_VIDEO_BYTES) {
       setImageError(
-        `${file.name} is ${(file.size / 1_000_000).toFixed(0)}MB. Keep recordings under ${MAX_VIDEO_BYTES / 1_000_000}MB — a minute of screen capture is plenty.`,
+        `${file.name} is ${formatBytes(file.size)}. Keep recordings under ${formatBytes(MAX_VIDEO_BYTES)} — a minute of screen capture is plenty.`,
       );
       return;
     }
@@ -140,6 +167,9 @@ export function SocialPostInput({
     addFiles(list.files);
   }
 
+  const field =
+    'w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs disabled:opacity-50 outline-none focus:border-black';
+
   return (
     <div
       className={`border rounded-md p-4 space-y-3 ${accent ? 'border-gray-900' : 'border-gray-200'}`}
@@ -148,22 +178,6 @@ export function SocialPostInput({
         <span className="text-[11px] uppercase tracking-[0.16em] text-gray-500 font-medium">
           {label}
         </span>
-        {!isOurs && (
-          <input
-            value={draft.label}
-            onChange={(e) => onChange({ ...draft, label: e.target.value })}
-            disabled={busy}
-            placeholder="who (e.g. Hyperallergic)"
-            className="border border-gray-300 rounded-md px-2 py-1 text-xs w-48 disabled:opacity-50"
-          />
-        )}
-        <input
-          value={draft.handle}
-          onChange={(e) => onChange({ ...draft, handle: e.target.value })}
-          disabled={busy}
-          placeholder="handle (optional)"
-          className="border border-gray-300 rounded-md px-2 py-1 text-xs font-mono w-40 disabled:opacity-50"
-        />
         {onRemove && (
           <button
             onClick={onRemove}
@@ -175,6 +189,60 @@ export function SocialPostInput({
         )}
       </div>
 
+      {/* Context. Every field here is something the judge would otherwise have
+          to guess at or abstain on. */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {!isOurs && (
+          <label className="block">
+            <FieldLabel>Publication</FieldLabel>
+            <input
+              value={draft.label}
+              onChange={(e) => onChange({ ...draft, label: e.target.value })}
+              disabled={busy}
+              placeholder="Hyperallergic"
+              className={field}
+            />
+          </label>
+        )}
+        <label className="block">
+          <FieldLabel>Account</FieldLabel>
+          <input
+            value={draft.handle}
+            onChange={(e) => onChange({ ...draft, handle: e.target.value })}
+            disabled={busy}
+            placeholder={isOurs ? 'knead.mag' : 'theirhandle'}
+            className={`${field} font-mono`}
+          />
+        </label>
+        <label className="block">
+          <FieldLabel>Link to the post</FieldLabel>
+          <input
+            value={draft.url}
+            onChange={(e) => onChange({ ...draft, url: e.target.value })}
+            disabled={busy}
+            placeholder="https://instagram.com/p/…"
+            className={`${field} font-mono`}
+          />
+        </label>
+        <label className="block">
+          <FieldLabel>
+            {isOurs ? 'Our story it points at' : 'Their story it points at'}
+          </FieldLabel>
+          <input
+            value={draft.storyUrl}
+            onChange={(e) => onChange({ ...draft, storyUrl: e.target.value })}
+            disabled={busy}
+            placeholder={isOurs ? 'https://kneadmag.com/posts/…' : 'https://…  (if there is one)'}
+            className={`${field} font-mono`}
+          />
+        </label>
+      </div>
+
+      <p className="font-georgia-pro text-[12px] text-gray-400 -mt-1">
+        The story link is fetched and read alongside the post, which is what lets the judge check
+        whether the caption&rsquo;s claims hold up. Without it those rows come back N/A.
+      </p>
+
       <textarea
         value={draft.text}
         onChange={(e) => onChange({ ...draft, text: e.target.value })}
@@ -182,7 +250,7 @@ export function SocialPostInput({
         disabled={busy}
         rows={3}
         placeholder={`Paste the ${platformLabel(platform)} caption if you have it — or paste a screenshot straight in`}
-        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-georgia-pro disabled:opacity-50"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-georgia-pro disabled:opacity-50 outline-none focus:border-black"
       />
 
       <textarea
@@ -192,14 +260,23 @@ export function SocialPostInput({
         disabled={busy}
         rows={2}
         placeholder="Replies, if you have them as text. The judge also reads them out of screenshots and recordings."
-        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-georgia-pro disabled:opacity-50"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-georgia-pro disabled:opacity-50 outline-none focus:border-black"
+      />
+
+      <textarea
+        value={draft.notes}
+        onChange={(e) => onChange({ ...draft, notes: e.target.value })}
+        disabled={busy}
+        rows={2}
+        placeholder="Anything else the judge should know — when it ran, whether it was boosted, who shot the photograph, what you were trying for."
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-georgia-pro disabled:opacity-50 outline-none focus:border-black"
       />
 
       <div className="flex items-center gap-3 flex-wrap">
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
+          accept="image/*"
           multiple
           disabled={busy}
           onChange={(e) => addFiles(e.target.files)}
@@ -233,8 +310,17 @@ export function SocialPostInput({
           {draft.uploadId ? 'Replace recording' : 'Upload recording'}
         </label>
 
-        <span className="font-georgia-pro text-[13px] text-gray-400">or press ⌘V above</span>
+        <span className="font-georgia-pro text-[13px] text-gray-400">
+          or press ⌘V above. Any size — they are resized here before sending.
+        </span>
       </div>
+
+      {preparing && (
+        <p className="font-georgia-pro text-[13px] text-gray-600 flex items-center gap-2">
+          <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-gray-700" />
+          Resizing…
+        </p>
+      )}
 
       {(draft.uploadStatus === 'uploading' || draft.uploadStatus === 'waiting') && (
         <p className="font-georgia-pro text-[13px] text-gray-600 flex items-center gap-2">
@@ -257,6 +343,7 @@ export function SocialPostInput({
         <p className="font-georgia-pro text-[13px] text-red-700">{draft.uploadError}</p>
       )}
       {imageError && <p className="font-georgia-pro text-[13px] text-red-700">{imageError}</p>}
+      {imageNote && <p className="font-georgia-pro text-[12px] text-gray-400">{imageNote}</p>}
 
       {draft.images.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -286,13 +373,12 @@ export function SocialPostInput({
   );
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="block text-[10px] uppercase tracking-[0.14em] text-gray-400 mb-0.5">
+      {children}
+    </span>
+  );
 }
 
 /** Strip empties so the route never receives a post with nothing in it. */
@@ -301,6 +387,8 @@ export function draftToPayload(draft: SocialPostDraft) {
     label: draft.label.trim() || undefined,
     handle: draft.handle.trim() || undefined,
     url: draft.url.trim() || undefined,
+    storyUrl: draft.storyUrl.trim() || undefined,
+    notes: draft.notes.trim() || undefined,
     text: draft.text.trim(),
     comments: draft.comments.trim(),
     images: draft.images,

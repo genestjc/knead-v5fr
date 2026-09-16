@@ -41,27 +41,23 @@ import {
   type SocialPlatform,
 } from '@/lib/eval/types';
 import { MAX_IMAGE_BYTES, type ImageInput } from '@/lib/ai/router';
+// The same constant the browser checks against, so the two can never disagree
+// about what fits. See its comment for the arithmetic.
+import { formatBytes, MAX_INLINE_IMAGE_BYTES } from '@/lib/eval/image-fit';
+import { auditUrl } from '@/lib/eval/aeo-signals';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const MAX_COMPETITORS = 3;
-/**
- * Total inline image payload, across every post in one request.
- *
- * Deliberately well under the platform's body limit. Four 5MB screenshots
- * would be 20MB before base64 and 27MB after — the request would be rejected
- * by the edge with a status nobody can debug from the console. Refusing it
- * here, by name, with the recording path as the alternative, is the difference
- * between a fixable error and a mystery.
- */
-const MAX_INLINE_IMAGE_BYTES = 3_500_000;
 
 interface SubmissionPayload {
   label?: string;
   handle?: string;
   url?: string;
+  storyUrl?: string;
+  notes?: string;
   text?: string;
   comments?: string;
   /** data: URLs from the browser. */
@@ -129,8 +125,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          `The attached screenshots total ${(inlineBytes / 1_000_000).toFixed(1)}MB, over the ` +
-          `${MAX_INLINE_IMAGE_BYTES / 1_000_000}MB this request can carry. Either attach fewer, or ` +
+          `The attached screenshots total ${formatBytes(inlineBytes)}, over the ` +
+          `${formatBytes(MAX_INLINE_IMAGE_BYTES)} this request can carry. Either attach fewer, or ` +
           'record the screen instead — a recording uploads straight to Mux and is not limited this way.',
       },
       { status: 413 },
@@ -188,11 +184,15 @@ export async function POST(req: NextRequest) {
     let ours: SocialSubmission;
     let theirs: SocialSubmission[];
     try {
+      const ourLabel = String(oursPayload.label ?? 'Knead').slice(0, 200);
       const ourFrames = await attachFrames(oursPayload, ourImages, 'Our post');
       ours = {
-        label: String(oursPayload.label ?? 'Knead').slice(0, 200),
+        label: ourLabel,
         handle: cleanHandle(oursPayload.handle),
         url: String(oursPayload.url ?? '').trim() || null,
+        storyUrl: String(oursPayload.storyUrl ?? '').trim() || null,
+        story: await fetchStory(oursPayload.storyUrl, ourLabel, warnings),
+        notes: String(oursPayload.notes ?? ''),
         text: String(oursPayload.text ?? ''),
         comments: String(oursPayload.comments ?? ''),
         images: ourFrames.images,
@@ -210,6 +210,9 @@ export async function POST(req: NextRequest) {
           label,
           handle: cleanHandle(payload.handle),
           url: String(payload.url ?? '').trim() || null,
+          storyUrl: String(payload.storyUrl ?? '').trim() || null,
+          story: await fetchStory(payload.storyUrl, label, warnings),
+          notes: String(payload.notes ?? ''),
           text: String(payload.text ?? ''),
           comments: String(payload.comments ?? ''),
           images: frames.images,
@@ -238,8 +241,13 @@ export async function POST(req: NextRequest) {
         metadata: {
           platform,
           subject,
-          ours: { label: ours.label, handle: ours.handle, url: ours.url },
-          theirs: theirs.map((t) => ({ label: t.label, handle: t.handle, url: t.url })),
+          ours: { label: ours.label, handle: ours.handle, url: ours.url, storyUrl: ours.storyUrl },
+          theirs: theirs.map((t) => ({
+            label: t.label,
+            handle: t.handle,
+            url: t.url,
+            storyUrl: t.storyUrl,
+          })),
         },
       })
       .select()
@@ -354,8 +362,13 @@ export async function POST(req: NextRequest) {
             platform,
             subject,
             score: judgement.score,
-            ours: { label: ours.label, handle: ours.handle, url: ours.url },
-            theirs: theirs.map((t) => ({ label: t.label, handle: t.handle, url: t.url })),
+            ours: { label: ours.label, handle: ours.handle, url: ours.url, storyUrl: ours.storyUrl },
+            theirs: theirs.map((t) => ({
+              label: t.label,
+              handle: t.handle,
+              url: t.url,
+              storyUrl: t.storyUrl,
+            })),
             differences: judgement.differences,
             recommendations: judgement.recommendations,
           },
@@ -412,23 +425,91 @@ function decodeDataUrl(value: string): ImageInput | null {
   return { data, mediaType };
 }
 
+/**
+ * The article a post points at, fetched so the judge can check the caption
+ * against it.
+ *
+ * Without this, "does every claim in the post hold up against the story it
+ * points at" abstains every single time — which is the judge correctly
+ * reporting that nobody ever gave it the piece. Fetching turns one of the
+ * heaviest rubric rows from noise into a verdict.
+ *
+ * Reuses auditUrl rather than a bare fetch, for its SSRF guard: this takes a
+ * URL from the client and fetches it server-side, and that is a request-forgery
+ * primitive if left open — more so while PROBATIO_DEMO_MODE bypasses auth.
+ * `skipSiblings` keeps it to the one request; robots.txt and sitemap.xml say
+ * nothing about whether a caption overstates its article.
+ *
+ * A failure is a WARNING, never an error. A paywalled or bot-blocked competitor
+ * piece is completely normal, and losing an audit someone has just filmed a
+ * screen recording for because their competitor runs Cloudflare would be
+ * absurd. The judge is told the difference between "no link" and "link that
+ * could not be read".
+ */
+async function fetchStory(
+  raw: string | undefined,
+  who: string,
+  warnings: string[],
+): Promise<{ title: string | null; text: string; url: string } | null> {
+  const url = String(raw ?? '').trim();
+  if (!url) return null;
+
+  try {
+    const signals = await auditUrl(url, { keepText: true, skipSiblings: true });
+
+    if (!signals.ok) {
+      warnings.push(
+        `${who}: the story at ${url} returned ${signals.httpStatus ?? 'no response'}, so the post's claims could not be checked against it.`,
+      );
+      return null;
+    }
+    if (!signals.extractedText.trim()) {
+      warnings.push(
+        `${who}: the story at ${url} loaded but no body text could be extracted — it is probably client-rendered or gated. The post's claims could not be checked against it.`,
+      );
+      return null;
+    }
+
+    return {
+      title: signals.title,
+      text: signals.extractedText,
+      url: signals.finalUrl || url,
+    };
+  } catch (err: any) {
+    warnings.push(`${who}: the story at ${url} could not be fetched (${err.message}).`);
+    return null;
+  }
+}
+
 function cleanHandle(value: unknown): string | null {
   const handle = String(value ?? '').trim().replace(/^@/, '').slice(0, 80);
   return handle || null;
 }
 
+type EvidenceSide = {
+  label: string;
+  images?: unknown[];
+  frameTimestamps?: number[];
+  storyUrl?: string | null;
+  story?: { url: string } | null;
+};
+
 function describeEvidence(
-  ours: { label: string; images?: unknown[]; frameTimestamps?: number[] },
-  theirs: { label: string; images?: unknown[]; frameTimestamps?: number[] }[],
+  ours: EvidenceSide,
+  theirs: EvidenceSide[],
   platform: SocialPlatform,
 ): string {
-  const describe = (s: { label: string; images?: unknown[]; frameTimestamps?: number[] }) => {
+  const describe = (s: EvidenceSide) => {
     const frames = s.frameTimestamps?.length ?? 0;
     const total = s.images?.length ?? 0;
     const stills = total - frames;
     const parts = [
       frames ? `${frames} frame(s) from a recording` : '',
       stills > 0 ? `${stills} screenshot(s)` : '',
+      // Whether the linked article was actually read is the difference between
+      // a real accuracy verdict and an abstention, so it belongs in the record
+      // of what the run was given.
+      s.story ? `the linked story (${s.story.url})` : s.storyUrl ? 'a story link that could not be fetched' : '',
     ].filter(Boolean);
     return `  ${s.label}: ${parts.join(' + ') || 'text only'}`;
   };

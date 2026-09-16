@@ -69,7 +69,21 @@ export interface SocialSubmission {
   /** Free-text name for this side — "us", "@love.watts", "Hyperallergic". */
   label: string;
   handle?: string | null;
+  /** Link to the post itself. */
   url?: string | null;
+  /** Link to the article the post points at. */
+  storyUrl?: string | null;
+  /**
+   * The article, fetched server-side from `storyUrl`.
+   *
+   * This is what turns "does every claim in the post hold up against the story
+   * it points at" from a permanent N/A into a real verdict — the criterion is
+   * unanswerable from a caption alone, and abstaining on it every time was the
+   * judge correctly reporting that we had never given it the material.
+   */
+  story?: { title: string | null; text: string; url: string } | null;
+  /** Anything else worth telling the judge, in the person's own words. */
+  notes?: string;
   /** The caption, where it was pasted rather than left to be read from pixels. */
   text?: string;
   /** Replies, where they were pasted. */
@@ -254,9 +268,11 @@ function renderSubmission(
 
   return [
     `=== ${heading} ===`,
+    `Account: ${submission.label}${
+      submission.handle ? ` (@${submission.handle.replace(/^@/, '')})` : ''
+    }`,
     `Platform: ${platformLabel(platform)}`,
-    submission.handle ? `Handle: @${submission.handle.replace(/^@/, '')}` : '',
-    submission.url ? `URL: ${submission.url}` : '',
+    submission.url ? `Link to the post: ${submission.url}` : '',
     frames,
     '',
     submission.text?.trim()
@@ -267,9 +283,53 @@ function renderSubmission(
       ? `REPLIES AS PASTED:\n${submission.comments.trim().slice(0, 6_000)}`
       : '(no replies were pasted — read them from the images if any are visible)',
     '',
+    // Supplied by a person, and marked as such. It is context, not evidence: a
+    // note saying "this one did well" is not a quote and must never end up in
+    // an evidence field.
+    submission.notes?.trim()
+      ? `WHAT WE WERE TOLD ABOUT THIS POST (context from an editor, not evidence — never quote this as though it came from the post):\n${submission.notes
+          .trim()
+          .slice(0, 2_000)}\n`
+      : '',
+    renderStory(submission),
+    '',
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * The article the post points at.
+ *
+ * Three states, and they are not interchangeable. Fetched: the judge can check
+ * the caption against it. Not supplied: say so, so the accuracy rows come back
+ * N/A for the honest reason rather than being guessed at. Supplied but
+ * unreachable: say THAT, because a paywall or a bot block is a different fact
+ * from nobody having pasted a link, and the person can act on it.
+ */
+function renderStory(submission: SocialSubmission): string {
+  if (submission.story?.text) {
+    return [
+      `THE STORY THIS POST POINTS AT — ${submission.story.url}`,
+      submission.story.title ? `Headline: ${submission.story.title}` : '',
+      'Use this to check whether the post overstates, sharpens a hedge into a certainty, or claims',
+      'something the piece does not support. Judge the POST against it — the article itself is not',
+      'under review here.',
+      '',
+      submission.story.text.slice(0, 12_000),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const why = submission.storyUrl
+    ? `THE STORY THIS POST POINTS AT: ${submission.storyUrl} — supplied, but it could not be fetched, so its text is not available here.`
+    : '(no story link was supplied for this post)';
+
+  // Matches the rubric row's own guidance: without the piece, the accuracy
+  // check is partial rather than impossible — a post can still make a claim it
+  // does not itself evidence.
+  return `${why} Judge only whether the post makes claims it does not itself evidence, say the check was partial, and do not assert anything about what the article does or does not say.`;
 }
 
 /**

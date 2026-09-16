@@ -267,7 +267,18 @@ export async function checkDraft(
 export interface SocialPostDraft {
   label: string;
   handle: string;
+  /** Link to the post itself. */
   url: string;
+  /**
+   * Link to the article the post points at.
+   *
+   * Fetched server-side and read alongside the post. Several rubric rows — "do
+   * the claims hold up against the story it points at" chief among them —
+   * cannot be answered from a caption alone and come back N/A without it.
+   */
+  storyUrl: string;
+  /** Anything else worth telling the judge, in the person's own words. */
+  notes: string;
   text: string;
   comments: string;
   /** data: URLs, read in the browser. Sent inline. */
@@ -285,6 +296,8 @@ export function emptyPostDraft(label: string): SocialPostDraft {
     label,
     handle: '',
     url: '',
+    storyUrl: '',
+    notes: '',
     text: '',
     comments: '',
     images: [],

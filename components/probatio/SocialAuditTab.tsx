@@ -23,6 +23,7 @@ import type { EvalProvider, EvalRun } from '@/lib/eval/types';
 import { platformLabel, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/eval/types';
 import type { DifferenceRead, Recommendation } from '@/lib/eval/social-judge';
 import type { ComposerResult, StoryBrief } from '@/lib/eval/social-composer';
+import { base64Bytes, formatBytes, MAX_INLINE_IMAGE_BYTES } from '@/lib/eval/image-fit';
 import {
   composeSocialDrafts,
   emptyPostDraft,
@@ -59,6 +60,14 @@ export function SocialAuditTab({
     ours.uploadStatus === 'uploading' ||
     ours.uploadStatus === 'waiting' ||
     theirs.some((t) => t.uploadStatus === 'uploading' || t.uploadStatus === 'waiting');
+
+  // Screenshots travel inline in the request body, which the platform caps.
+  // Counted here, against the same constant the route enforces, so an overfull
+  // audit is a sentence next to the button rather than a 413 after the wait.
+  const inlineBytes = [ours, ...theirs]
+    .flatMap((post) => post.images)
+    .reduce((total, image) => total + base64Bytes(image.split(',')[1] ?? ''), 0);
+  const overBudget = inlineBytes > MAX_INLINE_IMAGE_BYTES;
 
   async function run() {
     setError(null);
@@ -174,7 +183,7 @@ export function SocialAuditTab({
 
           <button
             onClick={run}
-            disabled={running || anyUploading || postDraftIsEmpty(ours)}
+            disabled={running || anyUploading || overBudget || postDraftIsEmpty(ours)}
             className="px-5 py-2 bg-black text-white text-sm rounded-md hover:bg-gray-800 disabled:opacity-40"
           >
             {running ? 'Reading the pictures…' : 'Run the audit'}
@@ -188,6 +197,13 @@ export function SocialAuditTab({
           {anyUploading && (
             <span className="font-georgia-pro text-[13px] text-gray-400">
               Waiting for a recording to finish processing.
+            </span>
+          )}
+          {overBudget && (
+            <span className="font-georgia-pro text-[13px] text-red-700">
+              The screenshots total {formatBytes(inlineBytes)}, over the{' '}
+              {formatBytes(MAX_INLINE_IMAGE_BYTES)} one request can carry. Remove a few, or upload a
+              recording instead — recordings go straight to Mux and are not limited this way.
             </span>
           )}
         </div>

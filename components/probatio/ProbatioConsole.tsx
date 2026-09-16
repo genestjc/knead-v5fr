@@ -20,22 +20,16 @@ import { AeoAuditTab } from './AeoAuditTab';
 import { DraftCheckTab } from './DraftCheckTab';
 import { SocialAuditTab } from './SocialAuditTab';
 
-type TabId = 'social' | 'aeo' | 'draft' | 'agent' | 'human';
+type TabId = 'aeo' | 'draft' | 'social' | 'agent' | 'human';
 
 /**
- * Order is by how often a tab has something new to say.
- *
- * Social Audit leads: a different post every time, and the answer changes
- * weekly. The two AEO/SEO tabs follow, then the two agent-evaluation tabs —
- * those grade our own products, which change on our schedule rather than the
- * field's, so they are the ones you open when something shipped.
+ * Order follows the life of a story: audit the piece against the field, check
+ * the next draft before it publishes, then audit how it was posted. The two
+ * agent-evaluation tabs come last — they grade our own products, which change
+ * on our schedule rather than the field's, so they are the ones you open when
+ * something shipped rather than the ones you open on a Monday.
  */
 const TABS: { id: TabId; label: string; sub: string }[] = [
-  {
-    id: 'social',
-    label: 'Social Audit',
-    sub: 'Our posts against theirs, from screenshots and recordings.',
-  },
   {
     id: 'aeo',
     label: 'AEO/SEO Audit',
@@ -45,6 +39,11 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
     id: 'draft',
     label: 'AEO/SEO Draft Check',
     sub: 'Grade a story before it publishes.',
+  },
+  {
+    id: 'social',
+    label: 'Social Audit',
+    sub: 'Our posts against theirs, from screenshots and recordings.',
   },
   {
     id: 'agent',
@@ -59,7 +58,7 @@ const TABS: { id: TabId; label: string; sub: string }[] = [
 ];
 
 export function ProbatioConsole({ account }: { account: Account | null }) {
-  const [tab, setTab] = useState<TabId>('social');
+  const [tab, setTab] = useState<TabId>('aeo');
   const [surface, setSurface] = useState<EvalSurface>('social-audit');
 
   const [criteria, setCriteria] = useState<EvalCriterion[]>([]);

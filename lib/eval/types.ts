@@ -22,10 +22,13 @@ export type EvalSurface =
   | 'social-audit';
 
 export const EVAL_SURFACES: { id: EvalSurface; label: string; blurb: string }[] = [
-  // Social Audit leads. It is the only surface graded from IMAGES rather than
-  // text — screenshots and frames pulled from a screen recording — because
-  // Instagram and X serve nothing to an unauthenticated server, and because on
-  // a visual platform the picture is half of what is being judged.
+  // Social Audit leads THIS list, which orders the rubric-editing tab rather
+  // than the console's tabs (see ProbatioConsole.tsx for that order). It leads
+  // here because it is the surface whose rubric gets edited most: it is the
+  // only one graded from IMAGES rather than text — screenshots and frames
+  // pulled from a screen recording — because Instagram and X serve nothing to
+  // an unauthenticated server, and because on a visual platform the picture is
+  // half of what is being judged.
   {
     id: 'social-audit',
     label: 'Social Audit',

@@ -3,14 +3,17 @@
 Knead's internal console for judging things against a rubric. Five tabs, in the
 order they appear:
 
-1. **Social Audit** — our posts against a competitor's, read out of screenshots
+1. **AEO/SEO Audit** — one subject, our story against the field.
+2. **AEO/SEO Draft Check** — grade a story before it publishes.
+3. **Social Audit** — our posts against a competitor's, read out of screenshots
    and screen recordings. Composer underneath.
-2. **AEO/SEO Audit** — one subject, our story against the field.
-3. **AEO/SEO Draft Check** — grade a story before it publishes.
 4. **Agentic Tools Evaluation** — send a persona through a Knead agent, judge
    the transcript with an LLM.
 5. **Human Evaluation/Rubric Setting (Agentic Tools)** — define the test cases,
    grade by hand.
+
+The order follows the life of a story: audit the piece against the field, check
+the next draft before it publishes, then audit how it was posted.
 
 ## Setup
 
@@ -53,6 +56,7 @@ Screenshots work without Mux.
 | `judge.ts` | G-Eval-style LLM judge for transcripts (Opus / Sol) |
 | `social-judge.ts` | The judge for the social audit — grades images, not transcripts |
 | `social-media.ts` | Mux upload and frame sampling for screen recordings |
+| `image-fit.ts` | Screenshot sizing maths and the shared inline-payload budget |
 | `social-composer.ts` | Drafts the next post against what the audit found |
 | `aeo-signals.ts` | Deterministic AEO signal extraction |
 | `seo-signals.ts` | Deterministic on-page SEO extraction and checks |
@@ -95,6 +99,29 @@ caption and a like count and nothing about whether the photograph was any good
 inline with the request; screen recordings go straight from the browser to Mux
 and are sampled into frames at judge time, which is what makes a Story sequence
 or a scroll through a competitor's grid viable at all.
+
+**Screenshots are resized in the browser, every one of them.** A phone
+screenshot is routinely 8-15MB and was being refused at the door, which made
+the most obvious thing a person would try the thing that did not work. Raising
+the limit would not have helped — the request body cap is a few megabytes and
+base64 inflates a file by a third. Downscaling costs nothing: both providers
+resize past ~1568px before the model sees the image, so the large version was
+being uploaded only to be discarded. `components/probatio/downscale.ts` fits to
+1600px and encodes JPEG; `lib/eval/image-fit.ts` holds the maths and the shared
+`MAX_INLINE_IMAGE_BYTES`, which the browser checks before you press the button
+and the route enforces as the authority.
+
+**Context is what turns abstentions into verdicts.** Each post takes the
+account, a link to the post, a link to the story it points at, and free-text
+notes. The story link is the one that matters most: "does every claim in the
+post hold up against the story it points at" is unanswerable from a caption
+alone and abstained every single time until the piece was supplied. The route
+fetches it through `auditUrl` — for the SSRF guard, since this takes a URL from
+the client and fetches it server-side — and hands the text to the judge. A
+fetch failure is a warning, never an error: a paywalled competitor piece is
+normal, and the judge is told the difference between "no link" and "a link that
+could not be read". Notes are labelled as context from an editor, so a note
+saying "this one did well" can never end up in an evidence field.
 
 **It compares on craft, never on reach.** Our accounts are in the hundreds and a
 competitor's may be in the tens of thousands, so a reach comparison would measure
