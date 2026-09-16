@@ -59,7 +59,17 @@ export function SocialPostInput({
   platform: SocialPlatform;
   draft: SocialPostDraft;
   isOurs: boolean;
-  onChange: (next: SocialPostDraft) => void;
+  /**
+   * A PATCH, not a replacement.
+   *
+   * This used to take a whole draft, which meant every caller spread the
+   * `draft` prop captured at the time its handler was created. Across a
+   * multi-minute upload that prop is stale by the time the upload finishes, so
+   * the completion wrote an old draft back over the new one — and two uploads
+   * running at once, each holding its own stale copy, lost whichever finished
+   * first. A patch is applied to whatever the current state is.
+   */
+  onChange: (patch: Partial<SocialPostDraft>) => void;
   onRemove?: () => void;
   disabled?: boolean;
   accent?: boolean;
@@ -104,7 +114,7 @@ export function SocialPostInput({
         }
       }
 
-      if (accepted.length) onChange({ ...draft, images: [...draft.images, ...accepted] });
+      if (accepted.length) onChange({ images: [...draft.images, ...accepted] });
       if (problems.length) setImageError(problems.join(' '));
       if (notes.length) setImageNote(notes.join(' · '));
     } finally {
@@ -125,16 +135,15 @@ export function SocialPostInput({
       return;
     }
 
-    onChange({ ...draft, uploadStatus: 'uploading', uploadError: null });
+    onChange({ uploadStatus: 'uploading', uploadError: null });
     try {
       const media = await uploadRecording(
         account,
         file,
         { label: draft.label || label, platform, isOurs },
-        (status) => onChange({ ...draft, uploadStatus: status, uploadError: null }),
+        (status) => onChange({ uploadStatus: status, uploadError: null }),
       );
       onChange({
-        ...draft,
         uploadId: media.muxUploadId,
         playbackId: media.muxPlaybackId,
         durationSeconds: media.durationSeconds,
@@ -142,7 +151,7 @@ export function SocialPostInput({
         uploadError: null,
       });
     } catch (err: any) {
-      onChange({ ...draft, uploadStatus: 'errored', uploadError: err.message });
+      onChange({ uploadStatus: 'errored', uploadError: err.message });
     } finally {
       if (videoRef.current) videoRef.current.value = '';
     }
@@ -197,7 +206,7 @@ export function SocialPostInput({
             <FieldLabel>Publication</FieldLabel>
             <input
               value={draft.label}
-              onChange={(e) => onChange({ ...draft, label: e.target.value })}
+              onChange={(e) => onChange({ label: e.target.value })}
               disabled={busy}
               placeholder="Hyperallergic"
               className={field}
@@ -208,7 +217,7 @@ export function SocialPostInput({
           <FieldLabel>Account</FieldLabel>
           <input
             value={draft.handle}
-            onChange={(e) => onChange({ ...draft, handle: e.target.value })}
+            onChange={(e) => onChange({ handle: e.target.value })}
             disabled={busy}
             placeholder={isOurs ? 'knead.mag' : 'theirhandle'}
             className={`${field} font-mono`}
@@ -218,7 +227,7 @@ export function SocialPostInput({
           <FieldLabel>Link to the post</FieldLabel>
           <input
             value={draft.url}
-            onChange={(e) => onChange({ ...draft, url: e.target.value })}
+            onChange={(e) => onChange({ url: e.target.value })}
             disabled={busy}
             placeholder="https://instagram.com/p/…"
             className={`${field} font-mono`}
@@ -230,7 +239,7 @@ export function SocialPostInput({
           </FieldLabel>
           <input
             value={draft.storyUrl}
-            onChange={(e) => onChange({ ...draft, storyUrl: e.target.value })}
+            onChange={(e) => onChange({ storyUrl: e.target.value })}
             disabled={busy}
             placeholder={isOurs ? 'https://kneadmag.com/posts/…' : 'https://…  (if there is one)'}
             className={`${field} font-mono`}
@@ -245,7 +254,7 @@ export function SocialPostInput({
 
       <textarea
         value={draft.text}
-        onChange={(e) => onChange({ ...draft, text: e.target.value })}
+        onChange={(e) => onChange({ text: e.target.value })}
         onPaste={onPaste}
         disabled={busy}
         rows={3}
@@ -255,7 +264,7 @@ export function SocialPostInput({
 
       <textarea
         value={draft.comments}
-        onChange={(e) => onChange({ ...draft, comments: e.target.value })}
+        onChange={(e) => onChange({ comments: e.target.value })}
         onPaste={onPaste}
         disabled={busy}
         rows={2}
@@ -265,7 +274,7 @@ export function SocialPostInput({
 
       <textarea
         value={draft.notes}
-        onChange={(e) => onChange({ ...draft, notes: e.target.value })}
+        onChange={(e) => onChange({ notes: e.target.value })}
         disabled={busy}
         rows={2}
         placeholder="Anything else the judge should know — when it ran, whether it was boosted, who shot the photograph, what you were trying for."
@@ -357,7 +366,7 @@ export function SocialPostInput({
               />
               <button
                 onClick={() =>
-                  onChange({ ...draft, images: draft.images.filter((_, index) => index !== i) })
+                  onChange({ images: draft.images.filter((_, index) => index !== i) })
                 }
                 disabled={busy}
                 className="absolute -top-1.5 -right-1.5 bg-white border border-gray-300 rounded-full w-5 h-5 text-[11px] leading-none text-gray-500 hover:text-red-600 disabled:opacity-40"

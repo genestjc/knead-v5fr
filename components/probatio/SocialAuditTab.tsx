@@ -33,7 +33,9 @@ import {
   composeSocialDrafts,
   emptyPostDraft,
   fetchComposerStories,
-  postDraftIsEmpty,
+  postDraftBlocker,
+  postDraftHasEvidence,
+  postDraftIsUntouched,
   runSocialAudit,
   type SocialAuditResult,
   type SocialPostDraft,
@@ -91,6 +93,17 @@ export function SocialAuditTab({
     .reduce((total, image) => total + base64Bytes(image.split(',')[1] ?? ''), 0);
   const overBudget = inlineBytes > MAX_INLINE_IMAGE_BYTES;
 
+  // A competitor row that cannot be sent used to vanish twice over — filtered
+  // out here and skipped again on the server — so a failed upload produced a
+  // solo audit with no competitor and nothing said about why. Now it blocks the
+  // run and names itself. A row nobody has touched is not a problem; a row with
+  // a half-finished upload in it is.
+  const blockedPosts = theirs
+    .filter((t) => !postDraftIsUntouched(t) && !postDraftHasEvidence(t))
+    .map((t, i) => `${t.label.trim() || `Their post ${i + 1}`} — ${postDraftBlocker(t)}`);
+
+  const sendableTheirs = theirs.filter(postDraftHasEvidence);
+
   async function run() {
     setError(null);
     setRunning(true);
@@ -100,7 +113,7 @@ export function SocialAuditTab({
         provider,
         subject: subject.trim() || undefined,
         ours: draftToPayload(ours),
-        theirs: theirs.filter((t) => !postDraftIsEmpty(t)).map(draftToPayload),
+        theirs: sendableTheirs.map(draftToPayload),
       });
       setResult(outcome);
       onRefreshRuns();
@@ -173,21 +186,28 @@ export function SocialAuditTab({
           platform={platform}
           draft={ours}
           isOurs
-          onChange={setOurs}
+          onChange={(patch) => setOurs((prev) => ({ ...prev, ...patch }))}
           disabled={running}
           accent
         />
 
         {theirs.map((draft, i) => (
           <SocialPostInput
-            key={i}
+            key={draft.id}
             account={account}
             label={`Their post ${i + 1}`}
             platform={platform}
             draft={draft}
             isOurs={false}
-            onChange={(next) => setTheirs(theirs.map((t, index) => (index === i ? next : t)))}
-            onRemove={() => setTheirs(theirs.filter((_, index) => index !== i))}
+            // Functional and keyed by id, so an upload that finishes minutes
+            // later patches the row it belongs to rather than writing a stale
+            // copy of the whole list back over everything else.
+            onChange={(patch) =>
+              setTheirs((prev) =>
+                prev.map((t) => (t.id === draft.id ? { ...t, ...patch } : t)),
+              )
+            }
+            onRemove={() => setTheirs((prev) => prev.filter((t) => t.id !== draft.id))}
             disabled={running}
           />
         ))}
@@ -205,15 +225,23 @@ export function SocialAuditTab({
 
           <button
             onClick={run}
-            disabled={running || anyUploading || overBudget || postDraftIsEmpty(ours)}
+            disabled={
+              running ||
+              anyUploading ||
+              overBudget ||
+              blockedPosts.length > 0 ||
+              !postDraftHasEvidence(ours)
+            }
             className="px-5 py-2 bg-black text-white text-sm rounded-md hover:bg-gray-800 disabled:opacity-40"
           >
             {running ? 'Reading the pictures…' : 'Run the audit'}
           </button>
 
-          {postDraftIsEmpty(ours) && (
+          {!postDraftHasEvidence(ours) && (
             <span className="font-georgia-pro text-[13px] text-gray-400">
-              Attach a screenshot or a recording of our post to start.
+              {postDraftBlocker(ours) === 'it has no screenshot, recording or caption'
+                ? 'Attach a screenshot or a recording of our post to start.'
+                : `Our post cannot be sent yet — ${postDraftBlocker(ours)}.`}
             </span>
           )}
           {anyUploading && (
@@ -229,6 +257,21 @@ export function SocialAuditTab({
             </span>
           )}
         </div>
+
+        {blockedPosts.length > 0 && (
+          <Banner tone="error">
+            These posts would not be included, so the audit is held rather than run without them:
+            <ul className="mt-2 space-y-1">
+              {blockedPosts.map((reason, i) => (
+                <li key={i}>• {reason}</li>
+              ))}
+            </ul>
+            <p className="mt-2">
+              Fix or remove them and run again. A row you have not filled in at all is ignored and
+              does not block anything.
+            </p>
+          </Banner>
+        )}
 
         {error && <Banner onDismiss={() => setError(null)}>{error}</Banner>}
 

@@ -204,9 +204,16 @@ export async function POST(req: NextRequest) {
       for (const [i, payload] of theirsPayload.entries()) {
         const label = String(payload.label ?? `Competitor ${i + 1}`).slice(0, 200);
         const frames = await attachFrames(payload, theirImages[i], label);
-        // A competitor entry with nothing in it is a row someone started and
-        // did not fill in — skipping it beats grading a blank.
-        if (frames.images.length === 0 && !String(payload.text ?? '').trim()) continue;
+        // A competitor with nothing to look at cannot be graded. It used to be
+        // skipped silently, which — together with the browser filtering the same
+        // row out — meant a failed upload produced a solo audit and no
+        // explanation for where the competitor went. Skipped, but never quietly.
+        if (frames.images.length === 0 && !String(payload.text ?? '').trim()) {
+          warnings.push(
+            `${label} was left out of this audit: no screenshot, recording or caption reached the server for it.`,
+          );
+          continue;
+        }
         theirs.push({
           label,
           handle: cleanHandle(payload.handle),

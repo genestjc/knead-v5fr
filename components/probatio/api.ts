@@ -263,55 +263,13 @@ export async function checkDraft(
 
 // ─── social audit ───────────────────────────────────────────────────────────
 
-/** One post as the console holds it, before it is turned into a request. */
-export interface SocialPostDraft {
-  label: string;
-  handle: string;
-  /** Link to the post itself. */
-  url: string;
-  /**
-   * Link to the article the post points at.
-   *
-   * Fetched server-side and read alongside the post. Several rubric rows — "do
-   * the claims hold up against the story it points at" chief among them —
-   * cannot be answered from a caption alone and come back N/A without it.
-   */
-  storyUrl: string;
-  /** Anything else worth telling the judge, in the person's own words. */
-  notes: string;
-  text: string;
-  comments: string;
-  /** data: URLs, read in the browser. Sent inline. */
-  images: string[];
-  /** A Mux upload, once one has been filmed and accepted. */
-  uploadId: string | null;
-  uploadStatus: 'idle' | 'uploading' | 'waiting' | 'ready' | 'errored';
-  uploadError: string | null;
-  playbackId: string | null;
-  durationSeconds: number | null;
-}
-
-export function emptyPostDraft(label: string): SocialPostDraft {
-  return {
-    label,
-    handle: '',
-    url: '',
-    storyUrl: '',
-    notes: '',
-    text: '',
-    comments: '',
-    images: [],
-    uploadId: null,
-    uploadStatus: 'idle',
-    uploadError: null,
-    playbackId: null,
-    durationSeconds: null,
-  };
-}
-
-export function postDraftIsEmpty(draft: SocialPostDraft): boolean {
-  return !draft.text.trim() && draft.images.length === 0 && !draft.uploadId;
-}
+export type { SocialPostDraft } from '@/lib/eval/social-draft';
+export {
+  emptyPostDraft,
+  postDraftBlocker,
+  postDraftHasEvidence,
+  postDraftIsUntouched,
+} from '@/lib/eval/social-draft';
 
 /**
  * Upload a screen recording.
