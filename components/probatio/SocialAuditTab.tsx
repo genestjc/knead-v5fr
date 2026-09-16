@@ -21,12 +21,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
 import type { EvalCriterion, EvalProvider, EvalRun } from '@/lib/eval/types';
 import { platformLabel, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/eval/types';
+// From social-types, not social-judge. These are erased either way, but
+// pointing at the pure module means a later edit that needs a VALUE from here
+// does not quietly put two provider SDKs in the browser bundle.
 import type {
   DifferenceRead,
   PostJudgement,
   Recommendation,
   SocialJudgement,
-} from '@/lib/eval/social-judge';
+} from '@/lib/eval/social-types';
 import type { ComposerResult, StoryBrief } from '@/lib/eval/social-composer';
 import { base64Bytes, formatBytes, MAX_INLINE_IMAGE_BYTES } from '@/lib/eval/image-fit';
 import {
@@ -42,6 +45,7 @@ import {
 } from './api';
 import { SocialPostInput, draftToPayload } from './SocialPostInput';
 import { RunDetail } from './RunDetail';
+import { replaySocialRun } from '@/lib/eval/social-replay';
 import { Banner, KNEAD_RED, SectionLabel, VerdictPill } from './shared';
 
 const MAX_COMPETITORS = 3;
@@ -327,6 +331,13 @@ function SavedAudits({
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (selectedRun && selectedRun.surface === 'social-audit') {
+    // Rebuilt from what was saved — the same three analyses the run showed when
+    // it happened, rather than the transcript, which is every finding in the
+    // least readable form it takes. Nothing is re-judged and no model is called.
+    const replayed = selectedRun.turns?.length
+      ? replaySocialRun(selectedRun, selectedRun.turns, criteria)
+      : null;
+
     return (
       <div>
         <div className="flex items-baseline justify-between gap-4 mb-4">
@@ -338,6 +349,29 @@ function SavedAudits({
             Back to all audits
           </button>
         </div>
+
+        {replayed && (
+          <div className="mb-8">
+            <div className="flex items-baseline gap-3 flex-wrap mb-3">
+              <SectionLabel>Rebuilt from this run</SectionLabel>
+              {!replayed.complete && (
+                <span className="text-[11px] text-amber-700 -mt-2">
+                  partial — a post&rsquo;s findings were not stored on this run
+                </span>
+              )}
+            </div>
+            <AuditResult
+              result={{
+                run: selectedRun,
+                turns: selectedRun.turns ?? [],
+                judgement: replayed.judgement,
+                criteria,
+                summary: selectedRun.summary ?? '',
+              }}
+            />
+          </div>
+        )}
+
         <RunDetail
           account={account}
           run={selectedRun}
