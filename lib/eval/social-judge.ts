@@ -805,10 +805,10 @@ export function parseSocialJudgement(
 /**
  * Flatten a judgement into the summary stored on the run.
  *
- * Leads with the scoreboard, because the first question anyone opening an old
- * audit asks is who came out ahead. Ours is detailed row by row; competitors
- * get their score and their verdict, since nobody is going to hand-grade a
- * competitor's post against our rubric line by line.
+ * Laid out as the same three analyses the tab shows, in the same order — ours,
+ * theirs, then the cross-comparison — because this text IS the audit when
+ * somebody reopens it weeks later from the run list, and a summary organised
+ * differently from the screen it came off is a summary nobody trusts.
  */
 export function renderSocialSummary(
   judgement: SocialJudgement,
@@ -817,35 +817,15 @@ export function renderSocialSummary(
   const byId = new Map(criteria.map((c) => [c.id, c]));
   const lines: string[] = [];
   const ours = oursOf(judgement);
+  const theirs = judgement.posts.filter((p) => !p.isOurs);
 
-  // ── the scoreboard ────────────────────────────────────────────────────────
-  if (judgement.posts.length > 1) {
-    lines.push('SCOREBOARD — against Knead\'s rubric, so a competitor\'s number is');
-    lines.push('"how much of what we are trying to do does their post already achieve".');
-    lines.push('');
-    const ranked = [...judgement.posts].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-    for (const post of ranked) {
-      const score = post.score === null ? ' —' : String(post.score).padStart(3);
-      lines.push(`  ${score}  ${post.label}${post.isOurs ? '  ← OURS' : ''}`);
-    }
-    lines.push('');
-  } else if (ours?.score !== null && ours?.score !== undefined) {
-    lines.push(`SCORE: ${ours.score}/100 (weighted)`, '');
-  }
-
-  if (judgement.comparison) {
-    const leader = judgement.posts.find((p) => p.postId === judgement.comparison!.leaderId);
-    if (leader) lines.push(`STRONGEST: ${leader.label}${leader.isOurs ? ' (ours)' : ''}`);
-    if (judgement.comparison.summary) lines.push(judgement.comparison.summary);
-    if (judgement.comparison.toClose.length) {
-      lines.push('', 'TO CLOSE THE GAP:');
-      for (const step of judgement.comparison.toClose) lines.push(`  • ${step}`);
-    }
-    lines.push('');
-  }
-
-  // ── our post, in detail ───────────────────────────────────────────────────
-  if (ours?.verdict) lines.push('OUR POST:', ours.verdict, '');
+  // ── 1 · ours ──────────────────────────────────────────────────────────────
+  lines.push(
+    theirs.length > 0 ? '1 · OUR POST' : 'OUR POST',
+    ours?.score == null ? '(nothing in the material could be scored)' : `${ours.score}/100 weighted`,
+    '',
+  );
+  if (ours?.verdict) lines.push(ours.verdict, '');
 
   const failed = (ours?.scores ?? []).filter((s) => {
     const criterion = byId.get(s.criterionId);
@@ -862,24 +842,55 @@ export function renderSocialSummary(
     lines.push('');
   }
 
-  // ── their posts, briefly ──────────────────────────────────────────────────
-  for (const post of judgement.posts.filter((p) => !p.isOurs)) {
-    if (!post.verdict && post.score === null) continue;
-    lines.push(`${post.label.toUpperCase()}${post.score === null ? '' : ` — ${post.score}/100`}:`);
-    if (post.verdict) lines.push(post.verdict);
-    lines.push('');
+  // ── 2 · theirs ────────────────────────────────────────────────────────────
+  if (theirs.length > 0) {
+    lines.push(theirs.length === 1 ? '2 · THEIR POST' : '2 · THEIR POSTS', '');
+    for (const post of theirs) {
+      lines.push(`${post.label}${post.score === null ? '' : ` — ${post.score}/100`}`);
+      if (post.verdict) lines.push(post.verdict);
+      lines.push('');
+    }
   }
 
-  if (judgement.differences.length) {
-    lines.push('AGAINST THEIRS:');
-    for (const row of judgement.differences) {
-      lines.push(`  ${row.dimension.toUpperCase()} — advantage: ${row.advantage}`);
-      lines.push(`      ${row.difference}`);
-      if (row.evidence) lines.push(`      theirs: "${row.evidence}"`);
+  // ── 3 · the cross-comparison ──────────────────────────────────────────────
+  if (theirs.length > 0) {
+    lines.push('3 · CROSS-COMPARISON', '');
+    lines.push("Scored against Knead's rubric, so a competitor's number reads as");
+    lines.push('"how much of what we are trying to do does their post already achieve".');
+    lines.push('');
+
+    const ranked = [...judgement.posts].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    for (const post of ranked) {
+      const score = post.score === null ? '  —' : String(post.score).padStart(3);
+      lines.push(`  ${score}  ${post.label}${post.isOurs ? '  ← OURS' : ''}`);
     }
     lines.push('');
+
+    if (judgement.comparison) {
+      const leader = judgement.posts.find((p) => p.postId === judgement.comparison!.leaderId);
+      if (leader) lines.push(`STRONGEST: ${leader.label}${leader.isOurs ? ' (ours)' : ''}`);
+      if (judgement.comparison.summary) lines.push(judgement.comparison.summary);
+      lines.push('');
+    }
+
+    if (judgement.differences.length) {
+      lines.push('DIMENSION BY DIMENSION:');
+      for (const row of judgement.differences) {
+        lines.push(`  ${row.dimension.toUpperCase()} — advantage: ${row.advantage}`);
+        lines.push(`      ${row.difference}`);
+        if (row.evidence) lines.push(`      theirs: "${row.evidence}"`);
+      }
+      lines.push('');
+    }
+
+    if (judgement.comparison?.toClose.length) {
+      lines.push('TO CLOSE THE GAP:');
+      for (const step of judgement.comparison.toClose) lines.push(`  • ${step}`);
+      lines.push('');
+    }
   }
 
+  // ── what to do about it ───────────────────────────────────────────────────
   if (judgement.recommendations.length) {
     lines.push('CHANGE THIS:');
     for (const rec of judgement.recommendations) {

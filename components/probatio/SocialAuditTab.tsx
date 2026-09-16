@@ -398,11 +398,24 @@ function SavedAudits({
 
 // ─── the judge's findings ─────────────────────────────────────────────────────
 
+/**
+ * The findings, as three analyses.
+ *
+ * OURS, THEIRS, then the CROSS-COMPARISON — in that order, because that is the
+ * order the reasoning runs in. Each post is graded on its own evidence first;
+ * only then does it mean anything to say one is stronger. An earlier version
+ * led with the scoreboard, which put the conclusion before either of the two
+ * analyses it rests on and made the individual audits read as appendices.
+ *
+ * The three are numbered on screen when there is a field to compare. With only
+ * our post submitted there is nothing to compare against, so the numbering and
+ * the third section both disappear rather than standing there empty.
+ */
 function AuditResult({ result }: { result: SocialAuditResult }) {
   const { judgement, criteria } = result;
   const ours = judgement.posts.find((p) => p.isOurs) ?? null;
   const theirs = judgement.posts.filter((p) => !p.isOurs);
-  const hasField = judgement.posts.length > 1;
+  const hasField = theirs.length > 0;
 
   return (
     <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
@@ -433,32 +446,56 @@ function AuditResult({ result }: { result: SocialAuditResult }) {
         </div>
       )}
 
-      {/* ── the cross-comparison ─────────────────────────────────────────── */}
-      {hasField && <Scoreboard judgement={judgement} />}
-
-      {judgement.differences.length > 0 && (
+      {/* ── 1 · ours ─────────────────────────────────────────────────────── */}
+      {ours && (
         <div className="p-5">
-          <SectionLabel>Ours against theirs, dimension by dimension</SectionLabel>
-          <div className="space-y-4">
-            {judgement.differences.map((row) => (
-              <DifferenceRow key={row.dimension} row={row} />
+          <AnalysisHeading
+            index={hasField ? 1 : null}
+            title="Our post"
+            blurb="Graded against the rubric on its own evidence."
+          />
+          <PostResult post={ours} criteria={criteria} defaultOpen />
+        </div>
+      )}
+
+      {/* ── 2 · theirs ───────────────────────────────────────────────────── */}
+      {hasField && (
+        <div className="p-5">
+          <AnalysisHeading
+            index={2}
+            title={theirs.length === 1 ? 'Their post' : 'Their posts'}
+            blurb="The same rubric, the same way — each on its own evidence, never on ours."
+          />
+          <div className="space-y-6">
+            {theirs.map((post) => (
+              <PostResult key={post.postId} post={post} criteria={criteria} />
             ))}
           </div>
         </div>
       )}
 
-      {/* ── the individual audits ────────────────────────────────────────── */}
-      {ours && (
-        <PostResult post={ours} criteria={criteria} heading="Our post, row by row" defaultOpen />
+      {/* ── 3 · the cross-comparison ─────────────────────────────────────── */}
+      {hasField && (
+        <div className="p-5">
+          <AnalysisHeading
+            index={3}
+            title="Cross-comparison"
+            blurb="What the two graded posts say when read against each other."
+          />
+          <Scoreboard judgement={judgement} />
+
+          {judgement.differences.length > 0 && (
+            <div className="mt-6">
+              <SectionLabel>Dimension by dimension</SectionLabel>
+              <div className="space-y-4">
+                {judgement.differences.map((row) => (
+                  <DifferenceRow key={row.dimension} row={row} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
-      {theirs.map((post) => (
-        <PostResult
-          key={post.postId}
-          post={post}
-          criteria={criteria}
-          heading={`${post.label}, row by row`}
-        />
-      ))}
 
       {judgement.recommendations.length > 0 && (
         <div className="p-5">
@@ -513,6 +550,31 @@ function AuditResult({ result }: { result: SocialAuditResult }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+/** One of the three analyses, numbered so the structure is legible at a glance. */
+function AnalysisHeading({
+  index,
+  title,
+  blurb,
+}: {
+  index: number | null;
+  title: string;
+  blurb: string;
+}) {
+  return (
+    <div className="mb-4 flex items-baseline gap-3">
+      {index !== null && (
+        <span className="font-adonis text-2xl leading-none text-gray-300 tabular-nums">
+          {index}
+        </span>
+      )}
+      <div>
+        <h3 className="font-adonis text-xl leading-none">{title}</h3>
+        <p className="mt-1 font-georgia-pro text-[13px] text-gray-500">{blurb}</p>
+      </div>
     </div>
   );
 }
@@ -603,21 +665,20 @@ function Scoreboard({ judgement }: { judgement: SocialJudgement }) {
 }
 
 /**
- * One post's individual audit.
+ * One post's individual audit — the verdict, then the rubric row by row.
  *
  * Ours opens by default; competitors are collapsed. Their row-by-row grading is
  * real and worth having, but it is reference material — the thing you read
- * every time is the scoreboard and what ours got wrong.
+ * every time is their verdict and how they scored, not which of our seventeen
+ * rows they happened to pass.
  */
 function PostResult({
   post,
   criteria,
-  heading,
   defaultOpen = false,
 }: {
   post: PostJudgement;
   criteria: EvalCriterion[];
-  heading: string;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -629,22 +690,22 @@ function PostResult({
   }).length;
 
   return (
-    <div className="p-5">
+    <div>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-baseline gap-3 flex-wrap text-left group"
+        className="w-full flex items-baseline gap-3 flex-wrap text-left group mb-2"
       >
-        <SectionLabel>{heading}</SectionLabel>
+        <span className="text-[11px] uppercase tracking-[0.16em] text-gray-500 font-medium">
+          {post.label}
+        </span>
         {post.score !== null && (
-          <span className="text-[11px] font-mono text-gray-500 -mt-2">{post.score}/100</span>
+          <span className="text-[11px] font-mono text-gray-500">{post.score}/100</span>
         )}
         {fellShort > 0 && (
-          <span className="text-[11px] font-mono text-red-700 -mt-2">
-            {fellShort} fell short
-          </span>
+          <span className="text-[11px] font-mono text-red-700">{fellShort} fell short</span>
         )}
-        <span className="ml-auto -mt-2 text-[11px] uppercase tracking-[0.12em] text-gray-400 group-hover:text-gray-900">
-          {open ? 'Hide' : 'Show'}
+        <span className="ml-auto text-[11px] uppercase tracking-[0.12em] text-gray-400 group-hover:text-gray-900">
+          {open ? 'Hide the rubric' : 'Show the rubric'}
         </span>
       </button>
 

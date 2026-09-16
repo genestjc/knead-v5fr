@@ -399,40 +399,70 @@ test("the summary names the rows that fell short, in the rubric's own words", ()
   const summary = renderSocialSummary(parsed, c);
   assert.match(summary, /Does the opening carry a fact\?/);
   assert.match(summary, /We sat down with/);
-  assert.match(summary, /SCORE: 0\/100/);
+  assert.match(summary, /0\/100 weighted/);
 });
 
-test('the summary leads with a scoreboard when there is a field to rank', () => {
+test('a solo audit is not numbered as one of three', () => {
+  // With nothing to compare against there is no "2" and no "3", so presenting
+  // our post as step one of three would promise two sections that never come.
+  const c = [criterion({ id: 'a' })];
+  const parsed = parseSocialJudgement(
+    ourReply({ verdict: 'Ours.', scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }] }),
+    c,
+    roster(),
+  );
+  const summary = renderSocialSummary(parsed, c);
+  assert.match(summary, /^OUR POST/);
+  assert.doesNotMatch(summary, /CROSS-COMPARISON/);
+  assert.doesNotMatch(summary, /1 · /);
+});
+
+test('the summary runs ours, theirs, then the cross-comparison', () => {
   const c = [criterion({ id: 'a' })];
   const parsed = parseSocialJudgement(
     reply({
       posts: [
         {
           postId: OUR_POST_ID,
-          verdict: 'Ours.',
+          verdict: 'Ours opens on us.',
           scores: [{ criterionId: 'a', verdict: 'fail', rationale: 'x', evidence: 'q' }],
         },
         {
           postId: theirPostId(0),
-          verdict: 'Theirs.',
+          verdict: 'Theirs opens on the date.',
           scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }],
         },
       ],
-      comparison: { leaderId: theirPostId(0), summary: 'They front-load the fact.', toClose: [] },
+      comparison: {
+        leaderId: theirPostId(0),
+        summary: 'They front-load the fact.',
+        toClose: ['open on the closure date'],
+      },
     }),
     c,
     roster('Hyperallergic'),
   );
 
   const summary = renderSocialSummary(parsed, c);
-  assert.match(summary, /SCOREBOARD/);
-  // Ranked, so the stronger post is listed first whoever it belongs to.
-  assert.ok(
-    summary.indexOf('Hyperallergic') < summary.indexOf('← OURS'),
-    'the field is ranked by score, not by whose it is',
-  );
+
+  // The three analyses, in the order the reasoning runs in: each post graded on
+  // its own evidence before anything is said about which is stronger.
+  const ourIdx = summary.indexOf('1 · OUR POST');
+  const theirIdx = summary.indexOf('2 · THEIR POST');
+  const crossIdx = summary.indexOf('3 · CROSS-COMPARISON');
+  assert.ok(ourIdx >= 0 && theirIdx > ourIdx && crossIdx > theirIdx, summary);
+
   assert.match(summary, /STRONGEST: Hyperallergic/);
   assert.match(summary, /They front-load the fact\./);
+  assert.match(summary, /open on the closure date/);
+
+  // The scoreboard ranks by score, not by whose post it is: theirs scored 100
+  // and ours 0, so theirs is the first row under the cross-comparison heading.
+  const board = summary.slice(crossIdx);
+  assert.ok(
+    board.indexOf('Hyperallergic') < board.indexOf('← OURS'),
+    'the field is ranked by score, not by ownership',
+  );
 });
 
 // ─── image budget ───────────────────────────────────────────────────────────
