@@ -20,8 +20,12 @@ import {
   budgetImages,
   criteriaFor,
   describeImages,
+  OUR_POST_ID,
+  oursOf,
   parseSocialJudgement,
   renderSocialSummary,
+  theirPostId,
+  type PostRoster,
 } from './social-judge';
 import { weightedScore, type EvalCriterion } from './types';
 
@@ -44,6 +48,30 @@ function criterion(overrides: Partial<EvalCriterion> = {}): EvalCriterion {
 
 function score(criterionId: string, verdict: 'pass' | 'fail' | 'na') {
   return { criterionId, verdict, rationale: 'because', evidence: 'a quote' };
+}
+
+/** Ours alone, unless competitors are named. */
+function roster(...theirLabels: string[]): PostRoster[] {
+  return [
+    { id: OUR_POST_ID, label: 'Knead', isOurs: true },
+    ...theirLabels.map((label, i) => ({ id: theirPostId(i), label, isOurs: false })),
+  ];
+}
+
+/** The judge's reply, wrapping one post's scores in the per-post envelope. */
+function reply(body: {
+  posts?: any[];
+  differences?: any[];
+  comparison?: any;
+  sentiment?: any;
+  recommendations?: any[];
+}) {
+  return JSON.stringify(body);
+}
+
+/** Shorthand for a single-post reply, which most parsing cases are. */
+function ourReply(block: Record<string, unknown>) {
+  return reply({ posts: [{ postId: OUR_POST_ID, ...block }] });
 }
 
 // ─── scoring ────────────────────────────────────────────────────────────────
@@ -116,41 +144,45 @@ test('inactive rows and rows from other surfaces are left out', () => {
 
 test('a verdict with no evidence is downgraded, not counted', () => {
   const c = [criterion({ id: 'a' }), criterion({ id: 'b' })];
-  const raw = JSON.stringify({
-    verdict: 'Fine.',
-    scores: [
-      { criterionId: 'a', verdict: 'pass', rationale: 'it does', evidence: 'the 1998 closure' },
-      { criterionId: 'b', verdict: 'pass', rationale: 'trust me', evidence: '' },
-    ],
-  });
+  const parsed = parseSocialJudgement(
+    ourReply({
+      verdict: 'Fine.',
+      scores: [
+        { criterionId: 'a', verdict: 'pass', rationale: 'it does', evidence: 'the 1998 closure' },
+        { criterionId: 'b', verdict: 'pass', rationale: 'trust me', evidence: '' },
+      ],
+    }),
+    c,
+    roster(),
+  );
 
-  const parsed = parseSocialJudgement(raw, c);
-  const b = parsed.scores.find((s) => s.criterionId === 'b');
+  const ours = oursOf(parsed)!;
+  const b = ours.scores.find((s) => s.criterionId === 'b');
   assert.equal(b?.verdict, 'na', 'an unevidenced verdict is an opinion');
   assert.match(b?.rationale ?? '', /Downgraded/);
-  assert.equal(parsed.score, 100, 'and it is excluded rather than dragging the score');
+  assert.equal(ours.score, 100, 'and it is excluded rather than dragging the score');
   assert.ok(parsed.warnings.some((w) => /without a supporting quote/.test(w)));
 });
 
 test('a verdict against an unknown criterion id is discarded', () => {
-  const c = [criterion({ id: 'real' })];
   const parsed = parseSocialJudgement(
-    JSON.stringify({
+    ourReply({
       scores: [
         { criterionId: 'real', verdict: 'pass', rationale: 'x', evidence: 'q' },
         { criterionId: 'invented', verdict: 'fail', rationale: 'x', evidence: 'q' },
       ],
     }),
-    c,
+    [criterion({ id: 'real' })],
+    roster(),
   );
-  assert.equal(parsed.scores.length, 1);
-  assert.equal(parsed.scores[0].criterionId, 'real');
+  assert.equal(oursOf(parsed)!.scores.length, 1);
+  assert.equal(oursOf(parsed)!.scores[0].criterionId, 'real');
 });
 
 test('a repeated criterion is deduped rather than double-counted', () => {
   const c = [criterion({ id: 'a' }), criterion({ id: 'b' })];
   const parsed = parseSocialJudgement(
-    JSON.stringify({
+    ourReply({
       scores: [
         { criterionId: 'a', verdict: 'fail', rationale: 'x', evidence: 'q' },
         { criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' },
@@ -158,30 +190,152 @@ test('a repeated criterion is deduped rather than double-counted', () => {
       ],
     }),
     c,
+    roster(),
   );
-  assert.equal(parsed.scores.length, 2, 'last write wins');
-  assert.equal(parsed.score, 100);
+  assert.equal(oursOf(parsed)!.scores.length, 2, 'last write wins');
+  assert.equal(oursOf(parsed)!.score, 100);
 });
 
 test('missing criteria are reported rather than silently unscored', () => {
   const c = [criterion({ id: 'a' }), criterion({ id: 'b' }), criterion({ id: 'c' })];
   const parsed = parseSocialJudgement(
-    JSON.stringify({ scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }] }),
+    ourReply({ scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }] }),
     c,
+    roster(),
   );
   assert.ok(parsed.warnings.some((w) => /2 of 3 criteria were not returned/.test(w)));
 });
 
 test('an unparseable reply keeps the prose instead of reporting an empty judgement', () => {
-  const parsed = parseSocialJudgement('The caption is weak but I could not format it.', [criterion()]);
-  assert.match(parsed.verdict, /caption is weak/);
+  const parsed = parseSocialJudgement(
+    'The caption is weak but I could not format it.',
+    [criterion()],
+    roster(),
+  );
+  assert.match(oursOf(parsed)!.verdict, /caption is weak/);
   assert.ok(parsed.parseError);
-  assert.equal(parsed.score, null);
+  assert.equal(oursOf(parsed)!.score, null);
+});
+
+// ─── every post is graded, not just ours ────────────────────────────────────
+
+test('each post is scored separately, in roster order', () => {
+  const c = [criterion({ id: 'a' })];
+  const parsed = parseSocialJudgement(
+    reply({
+      posts: [
+        // Deliberately out of order: the roster decides how they are presented,
+        // not the order the model happened to emit them in.
+        {
+          postId: theirPostId(0),
+          verdict: 'Theirs leads on the fact.',
+          scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'the 1998 date' }],
+        },
+        {
+          postId: OUR_POST_ID,
+          verdict: 'Ours opens on us.',
+          scores: [{ criterionId: 'a', verdict: 'fail', rationale: 'x', evidence: 'We sat down' }],
+        },
+      ],
+    }),
+    c,
+    roster('Hyperallergic'),
+  );
+
+  assert.deepEqual(
+    parsed.posts.map((p) => p.label),
+    ['Knead', 'Hyperallergic'],
+  );
+  assert.equal(parsed.posts[0].score, 0, 'ours failed the only row');
+  assert.equal(parsed.posts[1].score, 100, 'theirs passed it');
+  assert.equal(oursOf(parsed)!.postId, OUR_POST_ID);
+});
+
+test("a competitor's verdicts never land on our post", () => {
+  // The failure this guards is invisible in the UI and wrong in the database:
+  // a block against an id nobody sent must not be attached to anything.
+  const parsed = parseSocialJudgement(
+    reply({
+      posts: [
+        {
+          postId: OUR_POST_ID,
+          scores: [{ criterionId: 'a', verdict: 'fail', rationale: 'x', evidence: 'q' }],
+        },
+        {
+          postId: 'theirs-9',
+          scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }],
+        },
+      ],
+    }),
+    [criterion({ id: 'a' })],
+    roster(),
+  );
+
+  assert.equal(parsed.posts.length, 1, 'only the roster decides how many posts there are');
+  assert.equal(oursOf(parsed)!.score, 0, 'ours keeps its own failing verdict');
+  assert.ok(parsed.warnings.some((w) => /never sent/.test(w)));
+});
+
+test('a post the judge skipped is reported rather than passed off as unscored', () => {
+  const parsed = parseSocialJudgement(
+    reply({
+      posts: [
+        {
+          postId: OUR_POST_ID,
+          scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }],
+        },
+      ],
+    }),
+    [criterion({ id: 'a' })],
+    roster('Hyperallergic'),
+  );
+
+  assert.equal(parsed.posts.length, 2, 'the skipped post still appears');
+  assert.equal(parsed.posts[1].score, null, 'with no score, rather than a zero');
+  assert.ok(parsed.warnings.some((w) => /Hyperallergic was not graded/.test(w)));
+});
+
+// ─── the head-to-head ───────────────────────────────────────────────────────
+
+test('the comparison names a leader from the roster', () => {
+  const parsed = parseSocialJudgement(
+    reply({
+      posts: [],
+      comparison: {
+        leaderId: theirPostId(0),
+        summary: 'Theirs front-loads the date.',
+        toClose: ['open on the closure date'],
+      },
+    }),
+    [],
+    roster('Hyperallergic'),
+  );
+  assert.equal(parsed.comparison?.leaderId, theirPostId(0));
+  assert.deepEqual(parsed.comparison?.toClose, ['open on the closure date']);
+});
+
+test('a leader naming a post nobody sent is dropped rather than rendered as a winner', () => {
+  const parsed = parseSocialJudgement(
+    reply({ posts: [], comparison: { leaderId: 'theirs-7', summary: 'x' } }),
+    [],
+    roster('Hyperallergic'),
+  );
+  assert.equal(parsed.comparison?.leaderId, null);
+  assert.equal(parsed.comparison?.summary, 'x', 'the reasoning survives');
+});
+
+test('there is no head-to-head when only our post was submitted', () => {
+  const parsed = parseSocialJudgement(
+    reply({ posts: [], comparison: { leaderId: OUR_POST_ID, summary: 'we win' } }),
+    [],
+    roster(),
+  );
+  assert.equal(parsed.comparison, null, 'a field of one has no head-to-head');
 });
 
 test('the four dimensions come back in a fixed order, one each', () => {
   const parsed = parseSocialJudgement(
-    JSON.stringify({
+    reply({
       differences: [
         { dimension: 'delivery', difference: 'theirs front-loads', advantage: 'theirs' },
         { dimension: 'style', difference: 'ours is flatter', advantage: 'theirs' },
@@ -191,6 +345,7 @@ test('the four dimensions come back in a fixed order, one each', () => {
       ],
     }),
     [],
+    roster('Hyperallergic'),
   );
   assert.deepEqual(
     parsed.differences.map((d) => d.dimension),
@@ -202,17 +357,16 @@ test('the four dimensions come back in a fixed order, one each', () => {
 
 test('a difference with no actual difference stated is dropped', () => {
   const parsed = parseSocialJudgement(
-    JSON.stringify({ differences: [{ dimension: 'tone', ours: 'dry', theirs: 'warm', difference: '' }] }),
+    reply({ differences: [{ dimension: 'tone', ours: 'dry', theirs: 'warm', difference: '' }] }),
     [],
+    roster('Hyperallergic'),
   );
   assert.equal(parsed.differences.length, 0);
 });
 
 test('sentiment survives with its quotes attached', () => {
   const parsed = parseSocialJudgement(
-    JSON.stringify({
-      verdict: 'x',
-      scores: [],
+    reply({
       sentiment: {
         summary: 'Mostly supportive.',
         positiveShare: 70,
@@ -221,25 +375,64 @@ test('sentiment survives with its quotes attached', () => {
       },
     }),
     [],
+    roster(),
   );
   assert.equal(parsed.sentiment?.positiveShare, 70);
   assert.equal(parsed.sentiment?.themes[0].quote, 'where is this?');
   assert.equal(parsed.sentiment?.flags.length, 1);
 });
 
-test('the summary names the rows that fell short, in the rubric\'s own words', () => {
+// ─── the summary ────────────────────────────────────────────────────────────
+
+test("the summary names the rows that fell short, in the rubric's own words", () => {
   const c = [criterion({ id: 'a', prompt: 'Does the opening carry a fact?' })];
   const parsed = parseSocialJudgement(
-    JSON.stringify({
+    ourReply({
       verdict: 'Thin.',
-      scores: [{ criterionId: 'a', verdict: 'fail', rationale: 'it opens on us', evidence: 'We sat down with' }],
+      scores: [
+        { criterionId: 'a', verdict: 'fail', rationale: 'it opens on us', evidence: 'We sat down with' },
+      ],
     }),
     c,
+    roster(),
   );
   const summary = renderSocialSummary(parsed, c);
   assert.match(summary, /Does the opening carry a fact\?/);
   assert.match(summary, /We sat down with/);
   assert.match(summary, /SCORE: 0\/100/);
+});
+
+test('the summary leads with a scoreboard when there is a field to rank', () => {
+  const c = [criterion({ id: 'a' })];
+  const parsed = parseSocialJudgement(
+    reply({
+      posts: [
+        {
+          postId: OUR_POST_ID,
+          verdict: 'Ours.',
+          scores: [{ criterionId: 'a', verdict: 'fail', rationale: 'x', evidence: 'q' }],
+        },
+        {
+          postId: theirPostId(0),
+          verdict: 'Theirs.',
+          scores: [{ criterionId: 'a', verdict: 'pass', rationale: 'x', evidence: 'q' }],
+        },
+      ],
+      comparison: { leaderId: theirPostId(0), summary: 'They front-load the fact.', toClose: [] },
+    }),
+    c,
+    roster('Hyperallergic'),
+  );
+
+  const summary = renderSocialSummary(parsed, c);
+  assert.match(summary, /SCOREBOARD/);
+  // Ranked, so the stronger post is listed first whoever it belongs to.
+  assert.ok(
+    summary.indexOf('Hyperallergic') < summary.indexOf('← OURS'),
+    'the field is ranked by score, not by whose it is',
+  );
+  assert.match(summary, /STRONGEST: Hyperallergic/);
+  assert.match(summary, /They front-load the fact\./);
 });
 
 // ─── image budget ───────────────────────────────────────────────────────────

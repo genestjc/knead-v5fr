@@ -206,7 +206,15 @@ export function ProbatioConsole({ account }: { account: Account | null }) {
             <p className="font-georgia-pro text-gray-500">Loading the rubric…</p>
           </div>
         ) : tab === 'social' ? (
-          <SocialAuditTab account={account} onRefreshRuns={loadRuns} />
+          <SocialAuditTab
+            account={account}
+            criteria={criteria}
+            runs={runs}
+            selectedRun={selectedRun}
+            onSelectRun={selectRun}
+            onRefreshRuns={loadRuns}
+            onRefreshSelected={refreshSelected}
+          />
         ) : tab === 'human' ? (
           <RubricTab
             account={account}

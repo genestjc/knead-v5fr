@@ -26,6 +26,7 @@ import { appendTurns, listCriteria, mapRun, mapTurn, upsertResults } from '@/lib
 import {
   criteriaFor,
   judgeSocial,
+  oursOf,
   renderSocialSummary,
   type SocialSubmission,
 } from '@/lib/eval/social-judge';
@@ -294,26 +295,51 @@ export async function POST(req: NextRequest) {
             })),
           },
         },
-        {
-          turnIndex: 1,
-          role: 'agent',
+        // One turn per post, so reopening a run shows what the judge read out
+        // of each one — not just out of ours.
+        ...judgement.posts.map((post, i) => ({
+          turnIndex: 1 + i,
+          role: 'agent' as const,
           content: [
-            judgement.extracted.text ? `CAPTION AS READ:\n${judgement.extracted.text}` : '',
-            judgement.extracted.comments ? `\nREPLIES AS READ:\n${judgement.extracted.comments}` : '',
+            `${post.label}${post.isOurs ? ' (ours)' : ''}${
+              post.score === null ? '' : ` — ${post.score}/100`
+            }`,
+            '',
+            post.verdict || '(no verdict returned for this post)',
+            '',
+            post.extracted.text ? `CAPTION AS READ:\n${post.extracted.text}` : '',
+            post.extracted.comments ? `\nREPLIES AS READ:\n${post.extracted.comments}` : '',
           ]
             .filter(Boolean)
-            .join('\n') || '(the judge extracted no text from the material)',
+            .join('\n'),
           latencyMs: null,
-          metadata: { extracted: judgement.extracted, model: judgement.model },
-        },
+          metadata: {
+            postId: post.postId,
+            isOurs: post.isOurs,
+            score: post.score,
+            extracted: post.extracted,
+            model: judgement.model,
+            // Competitors' verdicts live here rather than in eval_results. That
+            // table means "verdicts about our work, overridable by hand", and a
+            // competitor's score is context — nobody is going to hand-grade
+            // Hyperallergic against our house voice row by row.
+            ...(post.isOurs ? {} : { scores: post.scores }),
+          },
+        })),
         {
-          turnIndex: 2,
+          turnIndex: 1 + judgement.posts.length,
           role: 'agent',
           content: summary,
           latencyMs: null,
           metadata: {
             model: judgement.model,
-            score: judgement.score,
+            scoreboard: judgement.posts.map((p) => ({
+              postId: p.postId,
+              label: p.label,
+              isOurs: p.isOurs,
+              score: p.score,
+            })),
+            comparison: judgement.comparison,
             differences: judgement.differences,
             recommendations: judgement.recommendations,
             sentiment: judgement.sentiment,
@@ -324,7 +350,7 @@ export async function POST(req: NextRequest) {
 
       if (judgement.warnings.length || warnings.length) {
         turns.push({
-          turnIndex: 3,
+          turnIndex: 2 + judgement.posts.length,
           role: 'system',
           content: [...warnings, ...judgement.warnings].map((w) => `• ${w}`).join('\n'),
           latencyMs: null,
@@ -334,9 +360,10 @@ export async function POST(req: NextRequest) {
 
       await appendTurns(run.id, turns);
 
-      // Verdicts land in eval_results like any other surface, so the Human
+      // OUR verdicts land in eval_results like any other surface, so the Human
       // Evaluation tab can override them by hand and the two sit side by side.
-      const saveable = judgement.scores.filter((s) => s.verdict);
+      // Competitors' are on their turn's metadata — see the comment there.
+      const saveable = (oursOf(judgement)?.scores ?? []).filter((s) => s.verdict);
       if (saveable.length) {
         await upsertResults(
           run.id,
@@ -361,7 +388,18 @@ export async function POST(req: NextRequest) {
           metadata: {
             platform,
             subject,
-            score: judgement.score,
+            // Our score stays top-level: it is what the run list sorts and
+            // shows at a glance, and it is the number the composer reads back.
+            score: oursOf(judgement)?.score ?? null,
+            // The whole field, so a saved run can render its scoreboard without
+            // re-reading every turn.
+            scoreboard: judgement.posts.map((p) => ({
+              postId: p.postId,
+              label: p.label,
+              isOurs: p.isOurs,
+              score: p.score,
+            })),
+            comparison: judgement.comparison,
             ours: { label: ours.label, handle: ours.handle, url: ours.url, storyUrl: ours.storyUrl },
             theirs: theirs.map((t) => ({
               label: t.label,
