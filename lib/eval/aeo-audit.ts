@@ -10,7 +10,7 @@
  * — 61/100 means nothing on its own. "61 against a field median of 44, but
  * last of five on byline entities" tells an editor what to do on Monday.
  */
-import { auditUrl, renderSignalReport, type AeoSignals } from './aeo-signals';
+import { auditUrl, emptyAeoSignals, renderSignalReport, type AeoSignals } from './aeo-signals';
 
 export interface AuditTarget {
   url: string;
@@ -47,54 +47,7 @@ export async function runAeoAudit(targets: AuditTarget[]): Promise<AuditOutcome>
     } catch (err: any) {
       // A malformed or refused URL is a finding, not a crash — record it and
       // keep auditing the rest of the field.
-      const failed: AeoSignals = {
-        url: target.url,
-        finalUrl: target.url,
-        ok: false,
-        httpStatus: null,
-        fetchMs: 0,
-        error: err?.message ?? 'audit failed',
-        title: null,
-        metaDescription: null,
-        ogType: null,
-        ogSiteName: null,
-        canonical: null,
-        jsonLdBlocks: 0,
-        jsonLdInvalid: 0,
-        schemaTypes: [],
-        organization: {
-          found: false,
-          isNewsMedia: false,
-          sameAs: [],
-          knowsAbout: [],
-          hasPublishingPrinciples: false,
-        },
-        article: {
-          found: false,
-          typedAsNews: false,
-          hasAuthor: false,
-          authorIsEntity: false,
-          hasDatePublished: false,
-          declaresPaywall: false,
-          hasAbout: false,
-        },
-        feeds: [],
-        visibleWords: 0,
-        scriptTextRatio: 0,
-        robots: { exists: false, blocksAiCrawlers: [], declaresSitemap: false },
-        sitemapExists: false,
-        llmsTxtExists: false,
-        checks: [
-          {
-            id: 'reachable',
-            label: 'Page is reachable',
-            status: 'fail',
-            detail: err?.message ?? 'audit failed',
-            weight: 1,
-          },
-        ],
-        score: 0,
-      };
+      const failed = emptyAeoSignals(target.url, err?.message ?? 'audit failed');
       signals.push(failed);
       bySubject.set(target.url, target.isSubject);
     }

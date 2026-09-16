@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getOpenAI } from '@/lib/ai/router';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Demeter's narration voice. `nova` is warm and conversational — matches the
 // editorial-companion persona. Swap `voice`/`model` here to retune.
@@ -30,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const speech = await openai.audio.speech.create({
+    const speech = await getOpenAI().audio.speech.create({
       model: TTS_MODEL,
       voice: TTS_VOICE,
       input: text.slice(0, MAX_CHARS),

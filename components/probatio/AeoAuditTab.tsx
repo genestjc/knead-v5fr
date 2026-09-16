@@ -400,6 +400,13 @@ function Scoreboard({
   const labelFor = (id: string) =>
     signals.flatMap((s) => s.checks).find((c) => c.id === id)?.label ?? id;
 
+  // AEO and SEO are scored into one composite but reported apart. They answer
+  // different questions — can an answer engine quote this, versus can a search
+  // engine index it and will a person click it — and a single number tells you
+  // nothing about which of the two a piece is actually losing.
+  const aeoIds = checkIds.filter((id) => !id.startsWith('seo-'));
+  const seoIds = checkIds.filter((id) => id.startsWith('seo-'));
+
   return (
     <div className="space-y-8">
       <div>
@@ -439,47 +446,80 @@ function Scoreboard({
         </div>
       </div>
 
-      <div>
-        <SectionLabel>Check by check</SectionLabel>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-[13px] border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left font-medium text-gray-500 pb-2 pr-4 whitespace-nowrap">
-                  Signal
+      <CheckMatrix
+        heading="AEO — can an engine identify and quote it"
+        ids={aeoIds}
+        ranked={ranked}
+        labelFor={labelFor}
+      />
+
+      {seoIds.length > 0 && (
+        <CheckMatrix
+          heading="SEO — can a search engine index it, and will anyone click it"
+          ids={seoIds}
+          ranked={ranked}
+          labelFor={labelFor}
+        />
+      )}
+
+      <p className="text-[12px] text-gray-500">
+        Hover any mark for what was actually found. Grey means the check did not apply to the page
+        that was fetched.
+      </p>
+    </div>
+  );
+}
+
+function CheckMatrix({
+  heading,
+  ids,
+  ranked,
+  labelFor,
+}: {
+  heading: string;
+  ids: string[];
+  ranked: AeoSignals[];
+  labelFor: (id: string) => string;
+}) {
+  if (ids.length === 0) return null;
+
+  return (
+    <div>
+      <SectionLabel>{heading}</SectionLabel>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-[13px] border-collapse">
+          <thead>
+            <tr>
+              <th className="text-left font-medium text-gray-500 pb-2 pr-4 whitespace-nowrap">
+                Signal
+              </th>
+              {ranked.map((s) => (
+                <th
+                  key={s.url}
+                  className="pb-2 px-2 font-medium text-gray-500 text-[11px] whitespace-nowrap"
+                  title={s.finalUrl || s.url}
+                >
+                  {hostOf(s.finalUrl || s.url).replace(/^www\./, '').slice(0, 16)}
                 </th>
-                {ranked.map((s) => (
-                  <th
-                    key={s.url}
-                    className="pb-2 px-2 font-medium text-gray-500 text-[11px] whitespace-nowrap"
-                    title={s.finalUrl || s.url}
-                  >
-                    {hostOf(s.finalUrl || s.url).replace(/^www\./, '').slice(0, 16)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {checkIds.map((id) => (
-                <tr key={id} className="border-t border-gray-100">
-                  <td className="py-2 pr-4 text-gray-800">{labelFor(id)}</td>
-                  {ranked.map((s) => {
-                    const check = s.checks.find((c) => c.id === id);
-                    return (
-                      <td key={s.url} className="py-2 px-2 text-center">
-                        <StatusDot status={check?.status} detail={check?.detail} />
-                      </td>
-                    );
-                  })}
-                </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-3 text-[12px] text-gray-500">
-          Hover any mark for what was actually found. Grey means the check did not apply to the page
-          that was fetched.
-        </p>
+            </tr>
+          </thead>
+          <tbody>
+            {ids.map((id) => (
+              <tr key={id} className="border-t border-gray-100">
+                <td className="py-2 pr-4 text-gray-800">{labelFor(id)}</td>
+                {ranked.map((s) => {
+                  const check = s.checks.find((c) => c.id === id);
+                  return (
+                    <td key={s.url} className="py-2 px-2 text-center">
+                      <StatusDot status={check?.status} detail={check?.detail} />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -12,7 +12,18 @@
  */
 import type { Account } from 'thirdweb/wallets';
 import { adminFetch } from '@/lib/admin/admin-fetch';
-import type { EvalCriterion, EvalProvider, EvalResult, EvalRun, EvalTurn, Verdict } from '@/lib/eval/types';
+import type {
+  EvalCriterion,
+  EvalProvider,
+  EvalResult,
+  EvalRun,
+  EvalTurn,
+  SocialPlatform,
+  Verdict,
+} from '@/lib/eval/types';
+import type { SocialJudgement } from '@/lib/eval/social-judge';
+import type { SocialMedia } from '@/lib/eval/social-media';
+import type { ComposerResult, StoryBrief } from '@/lib/eval/social-composer';
 import type { AeoSignals } from '@/lib/eval/aeo-signals';
 import type { StorySignals } from '@/lib/eval/aeo-story';
 import type { StoryAnalysis } from '@/lib/eval/aeo-analyst';
@@ -50,7 +61,16 @@ export async function fetchCriteria(
 
 export async function createCriterion(
   account: Account | null,
-  input: { surface: string; prompt: string; guidance?: string; expectedVerdict?: 'pass' | 'fail' },
+  input: {
+    surface: string;
+    prompt: string;
+    guidance?: string;
+    expectedVerdict?: 'pass' | 'fail';
+    /** 1-3. Only the social audit uses the range; everything else is 1. */
+    weight?: number;
+    /** Scopes a social-audit row to one platform. Null applies everywhere. */
+    platform?: SocialPlatform | null;
+  },
 ): Promise<EvalCriterion> {
   const res = await call('/api/probatio/criteria', account, {
     method: 'POST',
@@ -63,7 +83,14 @@ export async function createCriterion(
 export async function updateCriterion(
   account: Account | null,
   id: string,
-  patch: Partial<{ prompt: string; guidance: string | null; expectedVerdict: 'pass' | 'fail'; isActive: boolean }>,
+  patch: Partial<{
+    prompt: string;
+    guidance: string | null;
+    expectedVerdict: 'pass' | 'fail';
+    weight: number;
+    platform: SocialPlatform | null;
+    isActive: boolean;
+  }>,
 ): Promise<EvalCriterion> {
   const res = await call(`/api/probatio/criteria/${id}`, account, {
     method: 'PATCH',
@@ -227,6 +254,171 @@ export async function checkDraft(
   advice: DraftAdvice | null;
 }> {
   const res = await call('/api/probatio/draft-check', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return unwrap(res);
+}
+
+// ─── social audit ───────────────────────────────────────────────────────────
+
+/** One post as the console holds it, before it is turned into a request. */
+export interface SocialPostDraft {
+  label: string;
+  handle: string;
+  /** Link to the post itself. */
+  url: string;
+  /**
+   * Link to the article the post points at.
+   *
+   * Fetched server-side and read alongside the post. Several rubric rows — "do
+   * the claims hold up against the story it points at" chief among them —
+   * cannot be answered from a caption alone and come back N/A without it.
+   */
+  storyUrl: string;
+  /** Anything else worth telling the judge, in the person's own words. */
+  notes: string;
+  text: string;
+  comments: string;
+  /** data: URLs, read in the browser. Sent inline. */
+  images: string[];
+  /** A Mux upload, once one has been filmed and accepted. */
+  uploadId: string | null;
+  uploadStatus: 'idle' | 'uploading' | 'waiting' | 'ready' | 'errored';
+  uploadError: string | null;
+  playbackId: string | null;
+  durationSeconds: number | null;
+}
+
+export function emptyPostDraft(label: string): SocialPostDraft {
+  return {
+    label,
+    handle: '',
+    url: '',
+    storyUrl: '',
+    notes: '',
+    text: '',
+    comments: '',
+    images: [],
+    uploadId: null,
+    uploadStatus: 'idle',
+    uploadError: null,
+    playbackId: null,
+    durationSeconds: null,
+  };
+}
+
+export function postDraftIsEmpty(draft: SocialPostDraft): boolean {
+  return !draft.text.trim() && draft.images.length === 0 && !draft.uploadId;
+}
+
+/**
+ * Upload a screen recording.
+ *
+ * Three steps, all here so a component never has to know the shape: ask our
+ * server for a Mux upload URL, PUT the file straight to Mux, then poll until
+ * the asset is transcoded. The file never passes through our server, which is
+ * the only reason a sixty-second recording works at all.
+ */
+export async function uploadRecording(
+  account: Account | null,
+  file: File,
+  meta: { label?: string; platform?: SocialPlatform | null; isOurs?: boolean },
+  onStatus?: (status: 'uploading' | 'waiting') => void,
+): Promise<SocialMedia> {
+  const res = await call('/api/probatio/social-media', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(meta),
+  });
+  const { media, uploadUrl } = await unwrap<{ media: SocialMedia; uploadUrl: string }>(res);
+
+  onStatus?.('uploading');
+  const put = await fetch(uploadUrl, { method: 'PUT', body: file });
+  if (!put.ok) throw new Error(`The recording could not be uploaded to Mux (${put.status}).`);
+
+  onStatus?.('waiting');
+  return pollRecording(account, media.muxUploadId!);
+}
+
+/**
+ * Wait for Mux to finish transcoding.
+ *
+ * Polled on a fixed two-second interval with a hard ceiling. Transcoding a
+ * short screen recording takes seconds; anything past the ceiling is a problem
+ * the person should be told about rather than a spinner that runs forever.
+ */
+async function pollRecording(
+  account: Account | null,
+  uploadId: string,
+  { intervalMs = 2_000, timeoutMs = 180_000 } = {},
+): Promise<SocialMedia> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const res = await call(
+      `/api/probatio/social-media?uploadId=${encodeURIComponent(uploadId)}`,
+      account,
+    );
+    const body = await unwrap<{ status: string; media: SocialMedia | null; error?: string }>(res);
+
+    if (body.status === 'errored') {
+      throw new Error(body.media?.error || body.error || 'Mux could not process the recording.');
+    }
+    if (body.status === 'ready' && body.media) return body.media;
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(
+    'The recording is still processing after three minutes. It may still finish — reload and check before re-uploading.',
+  );
+}
+
+export interface SocialAuditResult {
+  run: EvalRun;
+  turns: EvalTurn[];
+  judgement: SocialJudgement & { model: string };
+  criteria: EvalCriterion[];
+  summary: string;
+}
+
+export async function runSocialAudit(
+  account: Account | null,
+  input: {
+    platform: SocialPlatform;
+    provider: EvalProvider;
+    subject?: string;
+    title?: string;
+    ours: unknown;
+    theirs: unknown[];
+  },
+): Promise<SocialAuditResult> {
+  const res = await call('/api/probatio/social-audit', account, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return unwrap<SocialAuditResult>(res);
+}
+
+export async function fetchComposerStories(account: Account | null): Promise<StoryBrief[]> {
+  const res = await call('/api/probatio/social-compose', account);
+  return (await unwrap<{ stories: StoryBrief[] }>(res)).stories;
+}
+
+export async function composeSocialDrafts(
+  account: Account | null,
+  input: {
+    slug: string;
+    provider: EvalProvider;
+    platforms?: SocialPlatform[];
+    /** The audit these drafts should answer. */
+    auditRunId?: string | null;
+  },
+): Promise<{ result: ComposerResult; story: StoryBrief; summary: string; auditNote: string | null }> {
+  const res = await call('/api/probatio/social-compose', account, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

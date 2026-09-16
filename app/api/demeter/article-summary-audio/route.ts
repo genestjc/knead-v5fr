@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Vercel's default function duration
 export const maxDuration = 60;
 import { client } from '@/sanity/client';
-import { generateText, openai, OPENAI_SOL } from '@/lib/ai/router';
+import { generateText, getOpenAI, OPENAI_SOL } from '@/lib/ai/router';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
 // Summary text is written by Claude Opus (via lib/ai/router, GPT-5.6 fallback);
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Narrate the summary
-    const speech = await openai.audio.speech.create({
+    const speech = await getOpenAI().audio.speech.create({
       model: TTS_MODEL,
       voice: TTS_VOICE,
       input: summary.slice(0, 4000),
