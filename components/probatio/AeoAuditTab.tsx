@@ -364,16 +364,28 @@ export function AeoAuditTab({
               selects its own run, so rendering both would draw every chart
               twice — once from the response and once from what was saved. */}
           {!signals && !storySignals && <SavedRunCharts run={selectedRun} />}
-          <RunDetail
-            account={account}
-            run={selectedRun}
-            criteria={criteria}
-            onRefresh={() => {
-              onRefreshRuns();
-              onRefreshSelected();
-            }}
-            onClose={() => onSelectRun(null)}
-          />
+
+          {/* Reference material rather than the view. Same reasoning as the
+              Social Audit tab: the transcript is where you trace a number back
+              to the fetch it came from, not what you open a saved audit to
+              read. */}
+          <details className="border-t border-gray-200 pt-6">
+            <summary className="cursor-pointer text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900">
+              The full signal log
+            </summary>
+            <div className="mt-4">
+              <RunDetail
+                account={account}
+                run={selectedRun}
+                criteria={criteria}
+                onRefresh={() => {
+                  onRefreshRuns();
+                  onRefreshSelected();
+                }}
+                onClose={() => onSelectRun(null)}
+              />
+            </div>
+          </details>
         </div>
       )}
     </div>

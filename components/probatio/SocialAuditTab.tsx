@@ -372,16 +372,26 @@ function SavedAudits({
           </div>
         )}
 
-        <RunDetail
-          account={account}
-          run={selectedRun}
-          criteria={criteria}
-          onRefresh={() => {
-            onRefreshRuns();
-            onRefreshSelected();
-          }}
-          onClose={() => onSelectRun(null)}
-        />
+        {/* The transcript is reference material, not the view. It is where you
+            go to trace a verdict back to the turn it came from — useful, and
+            not what you open a saved audit to read. */}
+        <details className="border-t border-gray-200 pt-6">
+          <summary className="cursor-pointer text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900">
+            {replayed ? 'The full log, and hand grading' : 'The full log'}
+          </summary>
+          <div className="mt-4">
+            <RunDetail
+              account={account}
+              run={selectedRun}
+              criteria={criteria}
+              onRefresh={() => {
+                onRefreshRuns();
+                onRefreshSelected();
+              }}
+              onClose={() => onSelectRun(null)}
+            />
+          </div>
+        </details>
       </div>
     );
   }
@@ -390,9 +400,10 @@ function SavedAudits({
     <div>
       <h2 className="font-adonis text-2xl">Audited before</h2>
       <p className="mt-1 font-georgia-pro text-[15px] text-gray-600 max-w-2xl">
-        Every audit is saved with its verdicts, the text the judge read out of the pictures, and the
-        scoreboard. Screenshots are not — they are large, they are your screen, and everything the
-        audit concluded from them is in the summary.
+        Every audit is saved with its verdicts, the text the judge read out of the pictures, and
+        the scoreboard. Expand one for the field and the findings; open it for the whole thing,
+        laid out the way it was when it ran. Screenshots are not kept — they are large, they are
+        your screen, and everything the audit concluded from them is in the record.
       </p>
 
       {runs.length === 0 ? (
@@ -454,21 +465,151 @@ function SavedAudits({
                   </div>
                 )}
 
-                {open && run.summary && (
-                  <pre className="mt-3 ml-[3.25rem] font-georgia-pro text-[14px] leading-relaxed whitespace-pre-wrap text-gray-700">
-                    {run.summary}
-                  </pre>
-                )}
-                {open && !run.summary && (
-                  <p className="mt-3 ml-[3.25rem] font-georgia-pro text-[13px] text-gray-400 italic">
-                    This run has no summary — it may have failed before the judge replied.
-                  </p>
+                {open && (
+                  <div className="mt-3 ml-[3.25rem]">
+                    <SavedAuditPreview run={run} onOpen={() => onSelectRun(run.id)} />
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A saved audit, previewed in the list.
+ *
+ * Built from the run row's own metadata, which carries the scoreboard, the
+ * head-to-head, the four dimensions and the recommendations. That is everything
+ * worth seeing at a glance and it is already loaded, so expanding a row costs
+ * no request.
+ *
+ * What it deliberately cannot show is the rubric row by row — those live in
+ * eval_results and the turns, which the list does not fetch. That is what
+ * "Open" is for, and it is the honest split: a preview that silently omitted
+ * the verdicts would read as an audit with nothing wrong in it.
+ *
+ * This replaced a <pre> of the stored summary. The text was complete and
+ * correct and looked like a log, which is the thing the saved view exists to
+ * not be.
+ */
+function SavedAuditPreview({ run, onOpen }: { run: EvalRun; onOpen: () => void }) {
+  const m = run.metadata ?? {};
+  const board: { postId: string; label: string; isOurs: boolean; score: number | null }[] =
+    Array.isArray(m.scoreboard) ? m.scoreboard : [];
+  const comparison = m.comparison ?? null;
+  const differences: DifferenceRead[] = Array.isArray(m.differences) ? m.differences : [];
+  const recommendations: Recommendation[] = Array.isArray(m.recommendations)
+    ? m.recommendations
+    : [];
+
+  if (board.length === 0 && differences.length === 0 && recommendations.length === 0) {
+    return (
+      <p className="font-georgia-pro text-[13px] text-gray-400 italic">
+        {run.status === 'failed'
+          ? `This audit did not finish${run.summary ? ` — ${run.summary}` : '.'}`
+          : 'Nothing was stored for this run to preview. Open it for the full record.'}
+      </p>
+    );
+  }
+
+  const ranked = [...board].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const leader = board.find((p) => p.postId === comparison?.leaderId) ?? null;
+
+  return (
+    <div className="space-y-4 border-l-2 border-gray-200 pl-4">
+      {ranked.length > 1 && (
+        <div className="space-y-1.5">
+          {ranked.map((post) => (
+            <div key={post.postId} className="flex items-center gap-3">
+              <div className="w-8 text-right font-mono text-[12px] tabular-nums text-gray-600">
+                {post.score ?? '—'}
+              </div>
+              <div className="flex-1 max-w-xs h-4 bg-gray-100 rounded-sm overflow-hidden">
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${Math.max(post.score ?? 0, 2)}%`,
+                    backgroundColor: post.isOurs ? KNEAD_RED : '#D4D4D4',
+                  }}
+                />
+              </div>
+              <span
+                className={`text-[12px] truncate ${
+                  post.isOurs ? 'font-semibold' : 'text-gray-600'
+                }`}
+              >
+                {post.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {leader && (
+        <p className="font-georgia-pro text-[14px]">
+          <span className="text-[10px] uppercase tracking-[0.14em] text-gray-400 mr-2">
+            Strongest
+          </span>
+          <strong>{leader.label}</strong>
+          {leader.isOurs && <span className="text-gray-500"> — ours</span>}
+        </p>
+      )}
+
+      {comparison?.summary && (
+        <p className="font-georgia-pro text-[14px] leading-relaxed text-gray-700">
+          {comparison.summary}
+        </p>
+      )}
+
+      {differences.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {differences.map((row) => (
+            <span key={row.dimension} className="text-[11px] uppercase tracking-[0.12em]">
+              <span className="text-gray-400">{row.dimension}</span>{' '}
+              <span
+                className={
+                  row.advantage === 'ours'
+                    ? 'text-emerald-700'
+                    : row.advantage === 'theirs'
+                    ? 'text-red-700'
+                    : 'text-gray-400'
+                }
+              >
+                {row.advantage}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {recommendations.length > 0 && (
+        <div className="space-y-1">
+          {recommendations.slice(0, 2).map((rec, i) => (
+            <p key={i} className="font-georgia-pro text-[13px] text-gray-700">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-gray-400 mr-2">
+                {rec.priority}
+              </span>
+              {rec.change}
+            </p>
+          ))}
+          {recommendations.length > 2 && (
+            <p className="font-georgia-pro text-[12px] text-gray-400">
+              and {recommendations.length - 2} more
+            </p>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={onOpen}
+        className="text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900"
+      >
+        Open for the rubric, row by row
+      </button>
     </div>
   );
 }
