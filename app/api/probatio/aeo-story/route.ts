@@ -192,6 +192,10 @@ export async function POST(req: NextRequest) {
             metadata: {
               analyst: true,
               model: analysis.model,
+              // Stored structurally as well as inside the rendered content, so
+              // reopening this run rebuilds the analyst panel rather than
+              // falling back to its prose. See lib/eval/aeo-replay.ts.
+              verdict: analysis.verdict,
               advantages: analysis.advantages,
               recommendations: analysis.recommendations,
             },
