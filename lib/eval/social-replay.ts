@@ -20,16 +20,21 @@
  *   THE COMPARISON, the dimensions and the recommendations come off the summary
  *   turn, which is where they were written whole.
  */
-import type {
-  ComparisonRead,
-  CriterionScore,
-  DifferenceRead,
-  PostJudgement,
-  Recommendation,
-  SentimentRead,
-  SocialJudgement,
-} from './social-judge';
-import { DIMENSIONS, type Dimension } from './social-judge';
+// From ./social-types, never ./social-judge. The judge imports lib/ai/router
+// as a value, and this module is reached from a client component — importing a
+// value through it would put the Anthropic and OpenAI SDKs in the browser
+// bundle and fail the build on a missing `fs`.
+import {
+  DIMENSIONS,
+  type ComparisonRead,
+  type CriterionScore,
+  type DifferenceRead,
+  type Dimension,
+  type PostJudgement,
+  type Recommendation,
+  type SentimentRead,
+  type SocialJudgement,
+} from './social-types';
 import { weightedScore, type EvalCriterion, type EvalResult, type EvalRun, type EvalTurn, type Verdict } from './types';
 
 export interface ReplayedSocialRun {

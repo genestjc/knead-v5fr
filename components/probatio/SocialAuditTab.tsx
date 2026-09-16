@@ -21,12 +21,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
 import type { EvalCriterion, EvalProvider, EvalRun } from '@/lib/eval/types';
 import { platformLabel, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/eval/types';
+// From social-types, not social-judge. These are erased either way, but
+// pointing at the pure module means a later edit that needs a VALUE from here
+// does not quietly put two provider SDKs in the browser bundle.
 import type {
   DifferenceRead,
   PostJudgement,
   Recommendation,
   SocialJudgement,
-} from '@/lib/eval/social-judge';
+} from '@/lib/eval/social-types';
 import type { ComposerResult, StoryBrief } from '@/lib/eval/social-composer';
 import { base64Bytes, formatBytes, MAX_INLINE_IMAGE_BYTES } from '@/lib/eval/image-fit';
 import {
