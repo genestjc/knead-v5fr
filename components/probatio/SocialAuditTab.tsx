@@ -19,9 +19,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
-import type { EvalProvider, EvalRun } from '@/lib/eval/types';
+import type { EvalCriterion, EvalProvider, EvalRun } from '@/lib/eval/types';
 import { platformLabel, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/eval/types';
-import type { DifferenceRead, Recommendation } from '@/lib/eval/social-judge';
+import type {
+  DifferenceRead,
+  PostJudgement,
+  Recommendation,
+  SocialJudgement,
+} from '@/lib/eval/social-judge';
 import type { ComposerResult, StoryBrief } from '@/lib/eval/social-composer';
 import { base64Bytes, formatBytes, MAX_INLINE_IMAGE_BYTES } from '@/lib/eval/image-fit';
 import {
@@ -34,17 +39,34 @@ import {
   type SocialPostDraft,
 } from './api';
 import { SocialPostInput, draftToPayload } from './SocialPostInput';
+import { RunDetail } from './RunDetail';
 import { Banner, KNEAD_RED, SectionLabel, VerdictPill } from './shared';
 
 const MAX_COMPETITORS = 3;
 
 export function SocialAuditTab({
   account,
+  criteria,
+  runs,
+  selectedRun,
+  onSelectRun,
   onRefreshRuns,
+  onRefreshSelected,
 }: {
   account: Account | null;
+  criteria: EvalCriterion[];
+  runs: EvalRun[];
+  selectedRun: EvalRun | null;
+  onSelectRun: (id: string | null) => void;
   onRefreshRuns: () => void;
+  onRefreshSelected: () => void;
 }) {
+  // Runs were being saved from the first version of this tab and there was
+  // nowhere to see them: they were only reachable through the Human Evaluation
+  // tab's surface picker, which after the rename reads as a place for agent
+  // evaluations and nothing else. Anyone who ran an audit, navigated away and
+  // came back would reasonably conclude it had not been saved.
+  const savedRuns = runs.filter((run) => run.surface === 'social-audit');
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
   const [provider, setProvider] = useState<EvalProvider>('claude');
   const [subject, setSubject] = useState('');
@@ -217,24 +239,192 @@ export function SocialAuditTab({
       <section className="border-t border-gray-200 pt-10">
         <Composer account={account} provider={provider} auditRun={result?.run ?? null} />
       </section>
+
+      {/* ── what has been audited before ───────────────────────────────────── */}
+      <section className="border-t border-gray-200 pt-10">
+        <SavedAudits
+          account={account}
+          runs={savedRuns}
+          criteria={criteria}
+          selectedRun={selectedRun}
+          onSelectRun={onSelectRun}
+          onRefreshRuns={onRefreshRuns}
+          onRefreshSelected={onRefreshSelected}
+        />
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Past audits, with their summaries.
+ *
+ * Shows the summary inline rather than making you open each one: the summary IS
+ * the audit as far as re-reading goes — it carries the scoreboard, what fell
+ * short and the edits — and a list of bare titles would mean opening four runs
+ * to find the one you meant.
+ */
+function SavedAudits({
+  account,
+  runs,
+  criteria,
+  selectedRun,
+  onSelectRun,
+  onRefreshRuns,
+  onRefreshSelected,
+}: {
+  account: Account | null;
+  runs: EvalRun[];
+  criteria: EvalCriterion[];
+  selectedRun: EvalRun | null;
+  onSelectRun: (id: string | null) => void;
+  onRefreshRuns: () => void;
+  onRefreshSelected: () => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  if (selectedRun && selectedRun.surface === 'social-audit') {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between gap-4 mb-4">
+          <h2 className="font-adonis text-2xl">{selectedRun.title}</h2>
+          <button
+            onClick={() => onSelectRun(null)}
+            className="text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900"
+          >
+            Back to all audits
+          </button>
+        </div>
+        <RunDetail
+          account={account}
+          run={selectedRun}
+          criteria={criteria}
+          onRefresh={() => {
+            onRefreshRuns();
+            onRefreshSelected();
+          }}
+          onClose={() => onSelectRun(null)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="font-adonis text-2xl">Audited before</h2>
+      <p className="mt-1 font-georgia-pro text-[15px] text-gray-600 max-w-2xl">
+        Every audit is saved with its verdicts, the text the judge read out of the pictures, and the
+        scoreboard. Screenshots are not — they are large, they are your screen, and everything the
+        audit concluded from them is in the summary.
+      </p>
+
+      {runs.length === 0 ? (
+        <p className="mt-6 font-georgia-pro text-[15px] text-gray-400 italic">
+          No audits saved yet.
+        </p>
+      ) : (
+        <div className="mt-6 divide-y divide-gray-200 border-t border-gray-200">
+          {runs.map((run) => {
+            const open = expanded === run.id;
+            const score = typeof run.metadata?.score === 'number' ? run.metadata.score : null;
+            const board = Array.isArray(run.metadata?.scoreboard) ? run.metadata.scoreboard : [];
+            return (
+              <div key={run.id} className="py-4">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span className="font-mono text-[13px] tabular-nums w-10 text-right">
+                    {score ?? '—'}
+                  </span>
+                  <button
+                    onClick={() => setExpanded(open ? null : run.id)}
+                    className="font-georgia-pro text-[15px] text-left hover:underline flex-1 min-w-[12rem]"
+                  >
+                    {run.title}
+                  </button>
+                  {run.metadata?.platform && (
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-gray-400">
+                      {platformLabel(String(run.metadata.platform))}
+                    </span>
+                  )}
+                  {run.status === 'failed' && (
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-red-700">
+                      failed
+                    </span>
+                  )}
+                  <span className="text-[11px] text-gray-400 font-mono">
+                    {new Date(run.createdAt).toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={() => onSelectRun(run.id)}
+                    className="text-[11px] uppercase tracking-[0.12em] text-gray-400 hover:text-gray-900"
+                  >
+                    Open
+                  </button>
+                </div>
+
+                {/* The field at a glance, without opening anything. */}
+                {board.length > 1 && (
+                  <div className="mt-2 ml-[3.25rem] flex items-center gap-3 flex-wrap">
+                    {board.map((entry: any) => (
+                      <span
+                        key={entry.postId}
+                        className={`text-[11px] font-mono ${
+                          entry.isOurs ? 'text-gray-900 font-semibold' : 'text-gray-500'
+                        }`}
+                      >
+                        {entry.label} {entry.score ?? '—'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {open && run.summary && (
+                  <pre className="mt-3 ml-[3.25rem] font-georgia-pro text-[14px] leading-relaxed whitespace-pre-wrap text-gray-700">
+                    {run.summary}
+                  </pre>
+                )}
+                {open && !run.summary && (
+                  <p className="mt-3 ml-[3.25rem] font-georgia-pro text-[13px] text-gray-400 italic">
+                    This run has no summary — it may have failed before the judge replied.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── the judge's findings ─────────────────────────────────────────────────────
 
+/**
+ * The findings, as three analyses.
+ *
+ * OURS, THEIRS, then the CROSS-COMPARISON — in that order, because that is the
+ * order the reasoning runs in. Each post is graded on its own evidence first;
+ * only then does it mean anything to say one is stronger. An earlier version
+ * led with the scoreboard, which put the conclusion before either of the two
+ * analyses it rests on and made the individual audits read as appendices.
+ *
+ * The three are numbered on screen when there is a field to compare. With only
+ * our post submitted there is nothing to compare against, so the numbering and
+ * the third section both disappear rather than standing there empty.
+ */
 function AuditResult({ result }: { result: SocialAuditResult }) {
   const { judgement, criteria } = result;
-  const byId = new Map(criteria.map((c) => [c.id, c]));
+  const ours = judgement.posts.find((p) => p.isOurs) ?? null;
+  const theirs = judgement.posts.filter((p) => !p.isOurs);
+  const hasField = theirs.length > 0;
 
   return (
     <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
       <div className="p-5 flex items-baseline gap-4 flex-wrap">
-        {judgement.score !== null ? (
+        {ours?.score != null ? (
           <div className="flex items-baseline gap-2">
-            <span className="font-adonis text-4xl leading-none">{judgement.score}</span>
+            <span className="font-adonis text-4xl leading-none">{ours.score}</span>
             <span className="text-[11px] uppercase tracking-[0.16em] text-gray-400">
-              / 100 weighted
+              / 100 · ours, weighted
             </span>
           </div>
         ) : (
@@ -247,70 +437,63 @@ function AuditResult({ result }: { result: SocialAuditResult }) {
         </span>
       </div>
 
-      {judgement.verdict && (
-        <p className="p-5 font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap">
-          {judgement.verdict}
-        </p>
-      )}
-
       {judgement.parseError && (
         <div className="p-5">
           <Banner tone="error">
-            The judge&rsquo;s reply could not be parsed as JSON, so its prose is shown above rather
+            The judge&rsquo;s reply could not be parsed as JSON, so its prose is kept below rather
             than reported as an empty result. {judgement.parseError}
           </Banner>
         </div>
       )}
 
-      {judgement.differences.length > 0 && (
+      {/* ── 1 · ours ─────────────────────────────────────────────────────── */}
+      {ours && (
         <div className="p-5">
-          <SectionLabel>Ours against theirs</SectionLabel>
-          <div className="space-y-4">
-            {judgement.differences.map((row) => (
-              <DifferenceRow key={row.dimension} row={row} />
+          <AnalysisHeading
+            index={hasField ? 1 : null}
+            title="Our post"
+            blurb="Graded against the rubric on its own evidence."
+          />
+          <PostResult post={ours} criteria={criteria} defaultOpen />
+        </div>
+      )}
+
+      {/* ── 2 · theirs ───────────────────────────────────────────────────── */}
+      {hasField && (
+        <div className="p-5">
+          <AnalysisHeading
+            index={2}
+            title={theirs.length === 1 ? 'Their post' : 'Their posts'}
+            blurb="The same rubric, the same way — each on its own evidence, never on ours."
+          />
+          <div className="space-y-6">
+            {theirs.map((post) => (
+              <PostResult key={post.postId} post={post} criteria={criteria} />
             ))}
           </div>
         </div>
       )}
 
-      {judgement.scores.length > 0 && (
+      {/* ── 3 · the cross-comparison ─────────────────────────────────────── */}
+      {hasField && (
         <div className="p-5">
-          <SectionLabel>The rubric, row by row</SectionLabel>
-          <div className="space-y-3">
-            {judgement.scores.map((score) => {
-              const criterion = byId.get(score.criterionId);
-              const fellShort =
-                criterion && score.verdict !== 'na' && score.verdict !== criterion.expectedVerdict;
-              return (
-                <div
-                  key={score.criterionId}
-                  className={`border-l-2 pl-3 py-1 ${fellShort ? 'border-red-400' : 'border-gray-200'}`}
-                >
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <VerdictPill verdict={score.verdict} />
-                    <span className="font-georgia-pro text-[14px] flex-1 min-w-[12rem]">
-                      {criterion?.prompt ?? score.criterionId}
-                    </span>
-                    {criterion && criterion.weight > 1 && (
-                      <span className="text-[10px] font-mono text-gray-400">
-                        ×{criterion.weight}
-                      </span>
-                    )}
-                  </div>
-                  {score.evidence && (
-                    <p className="mt-1 font-georgia-pro text-[13px] text-gray-500 italic">
-                      &ldquo;{score.evidence}&rdquo;
-                    </p>
-                  )}
-                  {score.rationale && (
-                    <p className="mt-0.5 font-georgia-pro text-[13px] text-gray-600">
-                      {score.rationale}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <AnalysisHeading
+            index={3}
+            title="Cross-comparison"
+            blurb="What the two graded posts say when read against each other."
+          />
+          <Scoreboard judgement={judgement} />
+
+          {judgement.differences.length > 0 && (
+            <div className="mt-6">
+              <SectionLabel>Dimension by dimension</SectionLabel>
+              <div className="space-y-4">
+                {judgement.differences.map((row) => (
+                  <DifferenceRow key={row.dimension} row={row} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -342,7 +525,9 @@ function AuditResult({ result }: { result: SocialAuditResult }) {
                 {theme.valence}
               </span>
               {theme.theme}
-              {theme.quote && <span className="italic text-gray-500"> — &ldquo;{theme.quote}&rdquo;</span>}
+              {theme.quote && (
+                <span className="italic text-gray-500"> — &ldquo;{theme.quote}&rdquo;</span>
+              )}
             </p>
           ))}
           {judgement.sentiment.flags.map((flag, i) => (
@@ -364,6 +549,212 @@ function AuditResult({ result }: { result: SocialAuditResult }) {
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** One of the three analyses, numbered so the structure is legible at a glance. */
+function AnalysisHeading({
+  index,
+  title,
+  blurb,
+}: {
+  index: number | null;
+  title: string;
+  blurb: string;
+}) {
+  return (
+    <div className="mb-4 flex items-baseline gap-3">
+      {index !== null && (
+        <span className="font-adonis text-2xl leading-none text-gray-300 tabular-nums">
+          {index}
+        </span>
+      )}
+      <div>
+        <h3 className="font-adonis text-xl leading-none">{title}</h3>
+        <p className="mt-1 font-georgia-pro text-[13px] text-gray-500">{blurb}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The head-to-head.
+ *
+ * Ranked by score whoever the post belongs to — a scoreboard that always put
+ * ours first would be a chart of nothing. The caveat under it is not decoration:
+ * a competitor scored against Knead's rubric is being measured on our standard,
+ * and a reader who takes 62 as "their post is a 62" has misread it.
+ */
+function Scoreboard({ judgement }: { judgement: SocialJudgement }) {
+  const ranked = [...judgement.posts].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const leader = judgement.posts.find((p) => p.postId === judgement.comparison?.leaderId) ?? null;
+
+  return (
+    <div className="p-5">
+      <SectionLabel>The field</SectionLabel>
+
+      <div className="space-y-2">
+        {ranked.map((post) => (
+          <div key={post.postId} className="flex items-center gap-3">
+            <div className="w-10 text-right font-mono text-[13px] tabular-nums">
+              {post.score ?? '—'}
+            </div>
+            <div className="flex-1 h-6 bg-gray-100 rounded-sm overflow-hidden">
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${Math.max(post.score ?? 0, 2)}%`,
+                  backgroundColor: post.isOurs ? KNEAD_RED : '#D4D4D4',
+                }}
+              />
+            </div>
+            <div className="w-52 truncate text-[13px]">
+              <span className={post.isOurs ? 'font-semibold' : 'text-gray-600'}>{post.label}</span>
+              {post.isOurs && (
+                <span className="ml-2 text-[10px] uppercase tracking-[0.12em] text-gray-400">
+                  ours
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 font-georgia-pro text-[12px] text-gray-400">
+        Scored against Knead&rsquo;s rubric, so a competitor&rsquo;s number reads as &ldquo;how much
+        of what we are trying to do does their post already achieve&rdquo; — not as a verdict on
+        their work. Craft only; nothing here is about reach.
+      </p>
+
+      {judgement.comparison && (
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          {leader && (
+            <p className="font-georgia-pro text-[15px]">
+              <span className="text-[11px] uppercase tracking-[0.14em] text-gray-400 mr-2">
+                Strongest
+              </span>
+              <strong>{leader.label}</strong>
+              {leader.isOurs && <span className="text-gray-500"> — ours</span>}
+            </p>
+          )}
+          {judgement.comparison.summary && (
+            <p className="mt-2 font-georgia-pro text-[15px] leading-relaxed">
+              {judgement.comparison.summary}
+            </p>
+          )}
+          {judgement.comparison.toClose.length > 0 && (
+            <>
+              <div className="mt-3 text-[10px] uppercase tracking-[0.14em] text-gray-400">
+                To close the gap
+              </div>
+              <ul className="mt-1 space-y-1">
+                {judgement.comparison.toClose.map((step, i) => (
+                  <li key={i} className="font-georgia-pro text-[14px] text-gray-700">
+                    • {step}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One post's individual audit — the verdict, then the rubric row by row.
+ *
+ * Ours opens by default; competitors are collapsed. Their row-by-row grading is
+ * real and worth having, but it is reference material — the thing you read
+ * every time is their verdict and how they scored, not which of our seventeen
+ * rows they happened to pass.
+ */
+function PostResult({
+  post,
+  criteria,
+  defaultOpen = false,
+}: {
+  post: PostJudgement;
+  criteria: EvalCriterion[];
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const byId = new Map(criteria.map((c) => [c.id, c]));
+
+  const fellShort = post.scores.filter((s) => {
+    const criterion = byId.get(s.criterionId);
+    return criterion && s.verdict !== 'na' && s.verdict !== criterion.expectedVerdict;
+  }).length;
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-baseline gap-3 flex-wrap text-left group mb-2"
+      >
+        <span className="text-[11px] uppercase tracking-[0.16em] text-gray-500 font-medium">
+          {post.label}
+        </span>
+        {post.score !== null && (
+          <span className="text-[11px] font-mono text-gray-500">{post.score}/100</span>
+        )}
+        {fellShort > 0 && (
+          <span className="text-[11px] font-mono text-red-700">{fellShort} fell short</span>
+        )}
+        <span className="ml-auto text-[11px] uppercase tracking-[0.12em] text-gray-400 group-hover:text-gray-900">
+          {open ? 'Hide the rubric' : 'Show the rubric'}
+        </span>
+      </button>
+
+      {post.verdict && (
+        <p className="font-georgia-pro text-[15px] leading-relaxed whitespace-pre-wrap">
+          {post.verdict}
+        </p>
+      )}
+
+      {open && post.scores.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {post.scores.map((score) => {
+            const criterion = byId.get(score.criterionId);
+            const short =
+              criterion && score.verdict !== 'na' && score.verdict !== criterion.expectedVerdict;
+            return (
+              <div
+                key={score.criterionId}
+                className={`border-l-2 pl-3 py-1 ${short ? 'border-red-400' : 'border-gray-200'}`}
+              >
+                <div className="flex items-start gap-2 flex-wrap">
+                  <VerdictPill verdict={score.verdict} />
+                  <span className="font-georgia-pro text-[14px] flex-1 min-w-[12rem]">
+                    {criterion?.prompt ?? score.criterionId}
+                  </span>
+                  {criterion && criterion.weight > 1 && (
+                    <span className="text-[10px] font-mono text-gray-400">×{criterion.weight}</span>
+                  )}
+                </div>
+                {score.evidence && (
+                  <p className="mt-1 font-georgia-pro text-[13px] text-gray-500 italic">
+                    &ldquo;{score.evidence}&rdquo;
+                  </p>
+                )}
+                {score.rationale && (
+                  <p className="mt-0.5 font-georgia-pro text-[13px] text-gray-600">
+                    {score.rationale}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {open && post.scores.length === 0 && (
+        <p className="mt-3 font-georgia-pro text-[13px] text-gray-400 italic">
+          The judge returned no scores for this post.
+        </p>
       )}
     </div>
   );

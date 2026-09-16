@@ -53,6 +53,18 @@ import {
   type Verdict,
 } from './types';
 
+/**
+ * Post ids, assigned by us rather than by the model.
+ *
+ * The judge echoes them back on each block of scores. Assigning them here is
+ * what lets a judge that invents an id, reorders the posts, or grades the same
+ * post twice be caught at parse time — rather than silently attaching a
+ * competitor's verdicts to our own post, which would be invisible in the UI and
+ * wrong in the database.
+ */
+export const OUR_POST_ID = 'ours';
+export const theirPostId = (index: number) => `theirs-${index + 1}`;
+
 /** The four things the audit compares. Named by the editor, not by us. */
 export const DIMENSIONS = ['style', 'tone', 'content', 'delivery'] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
@@ -128,18 +140,65 @@ export interface SentimentRead {
   flags: string[];
 }
 
-export interface SocialJudgement {
+/**
+ * One post, graded on its own.
+ *
+ * Every submitted post gets one of these — ours and each competitor's — so the
+ * audit answers "how good is this post" for each of them and not only for ours.
+ *
+ * A NOTE ON WHAT A COMPETITOR'S SCORE MEANS, because it is easy to misread.
+ * The rubric is Knead's: it encodes what WE are trying to do, house voice
+ * included. Scoring a competitor against it does not say "their post is a 62
+ * out of 100 post". It says "their post does 62% of the things we are trying
+ * to do". That is a genuinely useful number — if theirs scores higher than
+ * ours on our own rubric, that is worth knowing and hard to argue with — but
+ * it is not a verdict on their work, and the UI says so.
+ */
+export interface PostJudgement {
+  /** 'ours', 'theirs-1', … — assigned by us and echoed back by the judge. */
+  postId: string;
+  label: string;
+  isOurs: boolean;
   scores: CriterionScore[];
   score: number | null;
   verdict: string;
-  differences: DifferenceRead[];
-  recommendations: Recommendation[];
-  sentiment: SentimentRead | null;
   /** Caption and replies as the model read them, from the images where needed. */
   extracted: { text: string; comments: string; handle: string | null };
+}
+
+/** The head-to-head, across every post that was submitted. */
+export interface ComparisonRead {
+  /** postId of the strongest post, or null when the judge declined to pick. */
+  leaderId: string | null;
+  /** Why it leads, and what separates the field. 3-5 sentences. */
+  summary: string;
+  /** What ours would have to do to close the gap. Empty when ours leads. */
+  toClose: string[];
+}
+
+export interface SocialJudgement {
+  /** Ours first, then each competitor in submission order. */
+  posts: PostJudgement[];
+  /** Ours against theirs on style, tone, content and delivery. */
+  differences: DifferenceRead[];
+  /** The head-to-head. Null when only one post was submitted. */
+  comparison: ComparisonRead | null;
+  recommendations: Recommendation[];
+  sentiment: SentimentRead | null;
   parseError: string | null;
   /** Non-fatal: an image too large, a competitor post that was trimmed. */
   warnings: string[];
+}
+
+/**
+ * Our post's judgement.
+ *
+ * Ours is the one whose verdicts go to eval_results and can be overridden by
+ * hand, so enough call sites need it that reaching into the array by predicate
+ * everywhere invites someone to get the predicate wrong.
+ */
+export function oursOf(judgement: SocialJudgement): PostJudgement | null {
+  return judgement.posts.find((p) => p.isOurs) ?? null;
 }
 
 export interface SocialJudgeInput {
@@ -152,13 +211,21 @@ export interface SocialJudgeInput {
   subject?: string | null;
 }
 
-const SYSTEM = `You are the editorial judge for Knead, an independent magazine covering art, music, food, technology, creative culture and independent journalism. You grade social posts against a fixed rubric, and you compare ours against a competitor's.
+const SYSTEM = `You are the editorial judge for Knead, an independent magazine covering art, music, food, technology, creative culture and independent journalism. You grade social posts against a fixed rubric, and you compare them against each other.
 
 Your inputs are PICTURES: screenshots, or frames sampled out of a screen recording. Read the captions and any visible replies out of the images — that is what they are for. Also read what the images SHOW, because on a visual platform the photograph is half the post and several criteria turn on it. Where frames carry timestamps, they are in order: treat them as one sequence, not as separate posts.
 
+YOU ARE DOING TWO JOBS, AND BOTH ARE REQUIRED.
+
+FIRST, grade EVERY post you are given against the full rubric, separately — ours and each competitor's. Each post carries a POST ID; return one entry per post using that id verbatim. Grade each on its own evidence: a verdict about our post may never rest on something only visible in theirs.
+
+Scoring a competitor against our rubric does not mean judging whether their post is good in the abstract. The rubric encodes what WE are trying to do. A competitor's score answers "how much of what we are trying to do does their post already achieve" — which is worth knowing precisely because it is our standard, not theirs. Grade it literally and let the number mean what it means.
+
+SECOND, compare them: the four dimensions, and an overall head-to-head naming which post is strongest and why.
+
 HOW TO GRADE
 
-For every criterion you are given, return exactly one verdict:
+For every criterion, on every post, return exactly one verdict:
 - "pass" — the post does the thing the criterion describes.
 - "fail" — it does not.
 - "na" — THE MATERIAL GAVE YOU NO WAY TO JUDGE IT. Use this and mean it. A criterion about the image on a caption-only submission is "na". A criterion about factual accuracy when the underlying story was not supplied is "na". Guessing here is worse than abstaining, because an invented verdict is indistinguishable from a real one once it is in the table.
@@ -185,13 +252,21 @@ RULES YOU DO NOT BREAK
 
 Return strict JSON only, no markdown fences, in exactly this shape:
 {
-  "extracted": { "text": "our caption as you read it", "comments": "replies as you read them, or empty", "handle": "our account handle if visible, else null" },
-  "verdict": "3-5 sentences: what our post does, what it does not, and the one change that would matter most.",
-  "scores": [ { "criterionId": "the id given", "verdict": "pass|fail|na", "rationale": "one or two sentences", "evidence": "verbatim quote, or a literal description for image criteria" } ],
+  "posts": [
+    {
+      "postId": "the POST ID given, verbatim",
+      "extracted": { "text": "that post's caption as you read it", "comments": "its replies as you read them, or empty", "handle": "its account handle if visible, else null" },
+      "verdict": "3-5 sentences on THIS post: what it does, what it does not, and the one change that would matter most.",
+      "scores": [ { "criterionId": "the id given", "verdict": "pass|fail|na", "rationale": "one or two sentences", "evidence": "verbatim quote, or a literal description for image criteria" } ]
+    }
+  ],
   "differences": [ { "dimension": "style|tone|content|delivery", "ours": "what ours does", "theirs": "what theirs does", "difference": "the difference that matters and what follows from it", "evidence": "verbatim quote or literal description from THEIR post", "advantage": "ours|theirs|neither" } ],
-  "recommendations": [ { "priority": "high|medium|low", "change": "the specific edit", "rationale": "why it matters", "effort": "rewrite|new-asset|new-reporting" } ],
+  "comparison": null or { "leaderId": "the POST ID of the strongest post, or null if you genuinely cannot separate them", "summary": "3-5 sentences: which post is strongest, on what, and what separates the field.", "toClose": ["what ours would have to do to close the gap — empty if ours leads"] },
+  "recommendations": [ { "priority": "high|medium|low", "change": "the specific edit to OUR post", "rationale": "why it matters", "effort": "rewrite|new-asset|new-reporting" } ],
   "sentiment": null or { "summary": "...", "positiveShare": 0-100 or null, "themes": [ { "theme": "...", "valence": "positive|negative|mixed|neutral", "quote": "verbatim" } ], "flags": ["anything an editor should know before tomorrow"] }
-}`;
+}
+
+One "posts" entry per post you were given — every one, including ours. "sentiment" and "recommendations" are about OUR post only.`;
 
 /**
  * Which rubric rows apply to this run.
@@ -256,6 +331,7 @@ export function budgetImages(
 
 function renderSubmission(
   submission: SocialSubmission,
+  postId: string,
   heading: string,
   platform: SocialPlatform,
   imageCount: number,
@@ -268,6 +344,9 @@ function renderSubmission(
 
   return [
     `=== ${heading} ===`,
+    // The id the judge must echo back on this post's scores. Stated first and
+    // on its own line so it cannot be confused with the account name.
+    `POST ID: ${postId}`,
     `Account: ${submission.label}${
       submission.handle ? ` (@${submission.handle.replace(/^@/, '')})` : ''
     }`,
@@ -447,6 +526,18 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     ...theirSubmissions.flatMap((entry, i) => entry.images.slice(0, budget.theirs[i])),
   ];
 
+  // Ids are assigned here, not by the model, so a judge that invents or
+  // reorders them can be caught at parse time rather than silently attaching
+  // our competitor's verdicts to our own post.
+  const roster: { id: string; label: string; isOurs: boolean }[] = [
+    { id: OUR_POST_ID, label: ours.label, isOurs: true },
+    ...theirSubmissions.map((entry, i) => ({
+      id: theirPostId(i),
+      label: entry.submission.label || `Competitor ${i + 1}`,
+      isOurs: false,
+    })),
+  ];
+
   const prompt = [
     subject ? `SUBJECT: ${subject}\n` : '',
     renderCriteria(criteria),
@@ -454,8 +545,12 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     'THE FOUR DIMENSIONS — return one entry for each:',
     ...DIMENSIONS.map((d) => `  • ${d}: ${DIMENSION_BRIEFS[d]}`),
     '',
+    `THE POSTS — grade every one of these against the full rubric, separately, and return one "posts" entry per id:`,
+    ...roster.map((p) => `  • ${p.id} — ${p.label}${p.isOurs ? ' (OURS)' : ''}`),
+    '',
     renderSubmission(
       ours,
+      OUR_POST_ID,
       'OUR POST',
       platform,
       budget.ours,
@@ -464,6 +559,7 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     ...theirSubmissions.map((entry, i) =>
       renderSubmission(
         entry.submission,
+        theirPostId(i),
         `THEIR POST ${i + 1}${entry.submission.label ? ` — ${entry.submission.label}` : ''}`,
         platform,
         budget.theirs[i],
@@ -472,7 +568,7 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     ),
     theirSubmissions.length > 0
       ? '\nCompare on craft only. See rule 4 — say nothing about reach, followers or engagement counts even where a screenshot shows them.'
-      : '\nNo competitor post was supplied: return "differences" as an empty array. Do not compare our post against a remembered one.',
+      : `\nOnly our post was submitted: return "differences" as an empty array and "comparison" as null. Do not compare our post against a remembered one.`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -490,76 +586,143 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     logTag: `probatio/social-judge:${provider}`,
   });
 
-  const parsed = parseSocialJudgement(raw, criteria);
+  const parsed = parseSocialJudgement(raw, criteria, roster);
   return { ...parsed, model, warnings: [...warnings, ...parsed.warnings] };
 }
 
-export function parseSocialJudgement(raw: string, criteria: EvalCriterion[]): SocialJudgement {
+export interface PostRoster {
+  id: string;
+  label: string;
+  isOurs: boolean;
+}
+
+export function parseSocialJudgement(
+  raw: string,
+  criteria: EvalCriterion[],
+  roster: PostRoster[],
+): SocialJudgement {
   const result = parseAgentJson<any>(raw);
+
+  const blank = (entry: PostRoster, verdict = ''): PostJudgement => ({
+    postId: entry.id,
+    label: entry.label,
+    isOurs: entry.isOurs,
+    scores: [],
+    score: null,
+    verdict,
+    extracted: { text: '', comments: '', handle: null },
+  });
 
   if (!result.ok) {
     return {
       // The prose is kept rather than dropped — a failed parse still contains
-      // the analysis, and an empty report would read as "no findings".
-      verdict: result.raw.slice(0, 4_000),
-      scores: [],
-      score: null,
+      // the analysis, and an empty report would read as "no findings". It is
+      // attached to our post, which is the one anybody is reading for.
+      posts: roster.map((entry) =>
+        entry.isOurs ? blank(entry, result.raw.slice(0, 4_000)) : blank(entry),
+      ),
       differences: [],
+      comparison: null,
       recommendations: [],
       sentiment: null,
-      extracted: { text: '', comments: '', handle: null },
       parseError: result.error,
       warnings: [],
     };
   }
 
   const d = result.data;
-  const validIds = new Set(criteria.map((c) => c.id));
+  const validCriteria = new Set(criteria.map((c) => c.id));
+  const validPosts = new Set(roster.map((r) => r.id));
   const warnings: string[] = [];
 
-  const scores = arrayOf<CriterionScore>(d?.scores, (s) => {
-    const criterionId = str(s?.criterionId, 80);
-    // A verdict against an id we did not send is discarded rather than stored:
-    // it would render as a row nobody can trace back to a criterion.
-    if (!criterionId || !validIds.has(criterionId)) return null;
+  // ── one judgement per post ────────────────────────────────────────────────
+  //
+  // Keyed on the id WE assigned. A block against an id nobody sent is dropped
+  // rather than guessed at: attaching a competitor's verdicts to our post would
+  // be invisible in the UI and wrong in eval_results.
+  const byPost = new Map<string, any>();
+  let unknownPosts = 0;
+  for (const block of Array.isArray(d?.posts) ? d.posts : []) {
+    const postId = str(block?.postId, 40);
+    if (!postId || !validPosts.has(postId)) {
+      unknownPosts++;
+      continue;
+    }
+    byPost.set(postId, block);
+  }
+  if (unknownPosts > 0) {
+    warnings.push(
+      `${unknownPosts} block(s) of scores came back against a post id that was never sent, and were discarded.`,
+    );
+  }
+
+  const posts: PostJudgement[] = roster.map((entry) => {
+    const block = byPost.get(entry.id);
+    if (!block) {
+      warnings.push(`${entry.label} was not graded by the judge — it returned no scores for it.`);
+      return blank(entry);
+    }
+
+    const scores = arrayOf<CriterionScore>(block?.scores, (row) => {
+      const criterionId = str(row?.criterionId, 80);
+      // A verdict against an id we did not send is discarded rather than
+      // stored: it would render as a row nobody can trace back to a criterion.
+      if (!criterionId || !validCriteria.has(criterionId)) return null;
+      return {
+        criterionId,
+        verdict: oneOf(row?.verdict, ['pass', 'fail', 'na'] as const, 'na'),
+        rationale: str(row?.rationale, 1_200),
+        evidence: str(row?.evidence, 800),
+      };
+    });
+
+    // Dedupe, last write wins. A repeated criterion would be double-counted by
+    // the weighted score, and eval_results is keyed on (run, criterion, judge)
+    // — Postgres rejects an upsert batch that touches the same row twice.
+    const byCriterion = new Map(scores.map((row) => [row.criterionId, row]));
+    const deduped = [...byCriterion.values()];
+
+    const missing = criteria.filter((c) => !byCriterion.has(c.id)).length;
+    if (missing > 0) {
+      warnings.push(
+        `${entry.label}: ${missing} of ${criteria.length} criteria were not returned and are unscored. Its score is computed from the rest.`,
+      );
+    }
+
+    // A verdict with no evidence is an opinion. Rule 1 says to abstain in that
+    // case, so one that arrives anyway is downgraded rather than trusted.
+    let unevidenced = 0;
+    for (const score of deduped) {
+      if (score.verdict !== 'na' && !score.evidence) {
+        score.verdict = 'na';
+        score.rationale =
+          `${score.rationale} (Downgraded to N/A: the judge returned a verdict with no quoted evidence.)`.trim();
+        unevidenced++;
+      }
+    }
+    if (unevidenced > 0) {
+      warnings.push(
+        `${entry.label}: ${unevidenced} verdict(s) arrived without a supporting quote and were downgraded to N/A rather than counted.`,
+      );
+    }
+
     return {
-      criterionId,
-      verdict: oneOf(s?.verdict, ['pass', 'fail', 'na'] as const, 'na'),
-      rationale: str(s?.rationale, 1_200),
-      evidence: str(s?.evidence, 800),
+      postId: entry.id,
+      label: entry.label,
+      isOurs: entry.isOurs,
+      scores: deduped,
+      score: weightedScore(deduped, criteria),
+      verdict: str(block?.verdict, 4_000),
+      extracted: {
+        text: str(block?.extracted?.text, 6_000),
+        comments: str(block?.extracted?.comments, 8_000),
+        handle: str(block?.extracted?.handle, 80) || null,
+      },
     };
   });
 
-  // Dedupe, last write wins. A repeated criterion would be double-counted by
-  // the weighted score, and eval_results is keyed on (run, criterion, judge) —
-  // Postgres rejects an upsert batch that touches the same row twice.
-  const byCriterion = new Map(scores.map((s) => [s.criterionId, s]));
-  const deduped = [...byCriterion.values()];
-
-  const missing = criteria.filter((c) => !byCriterion.has(c.id)).length;
-  if (missing > 0) {
-    warnings.push(
-      `${missing} of ${criteria.length} criteria were not returned by the judge and are unscored. The score below is computed from the rest.`,
-    );
-  }
-
-  // A verdict with no evidence is an opinion. Rule 1 says to abstain in that
-  // case, so one that arrives anyway is downgraded rather than trusted.
-  let unevidenced = 0;
-  for (const score of deduped) {
-    if (score.verdict !== 'na' && !score.evidence) {
-      score.verdict = 'na';
-      score.rationale =
-        `${score.rationale} (Downgraded to N/A: the judge returned a verdict with no quoted evidence.)`.trim();
-      unevidenced++;
-    }
-  }
-  if (unevidenced > 0) {
-    warnings.push(
-      `${unevidenced} verdict(s) arrived without a supporting quote and were downgraded to N/A rather than counted.`,
-    );
-  }
-
+  // ── the four dimensions ───────────────────────────────────────────────────
+  //
   // One entry per dimension, last write wins. Two readings of "tone" is the
   // judge restating itself, and rendering both invites the reader to average
   // them.
@@ -584,13 +747,26 @@ export function parseSocialJudgement(raw: string, criteria: EvalCriterion[]): So
     (row): row is DifferenceRead => row !== undefined,
   );
 
+  // ── the head-to-head ──────────────────────────────────────────────────────
+  const comparisonRaw = d?.comparison;
+  const leaderId = str(comparisonRaw?.leaderId, 40);
+  const comparison: ComparisonRead | null =
+    comparisonRaw && roster.length > 1
+      ? {
+          // A leader naming a post nobody sent is dropped to null rather than
+          // rendered as a winner that does not exist.
+          leaderId: leaderId && validPosts.has(leaderId) ? leaderId : null,
+          summary: str(comparisonRaw?.summary, 3_000),
+          toClose: arrayOf<string>(comparisonRaw?.toClose, (t) => str(t, 600) || null),
+        }
+      : null;
+
   const sentimentRaw = d?.sentiment;
 
   return {
-    verdict: str(d?.verdict, 4_000),
-    scores: deduped,
-    score: weightedScore(deduped, criteria),
+    posts,
     differences,
+    comparison,
     recommendations: arrayOf<Recommendation>(d?.recommendations, (r) => {
       const change = str(r?.change, 800);
       if (!change) return null;
@@ -621,28 +797,37 @@ export function parseSocialJudgement(raw: string, criteria: EvalCriterion[]): So
           flags: arrayOf<string>(sentimentRaw?.flags, (f) => str(f, 500) || null),
         }
       : null,
-    extracted: {
-      text: str(d?.extracted?.text, 6_000),
-      comments: str(d?.extracted?.comments, 8_000),
-      handle: str(d?.extracted?.handle, 80) || null,
-    },
     parseError: null,
     warnings,
   };
 }
 
-/** Flatten a judgement into the summary stored on the run. */
+/**
+ * Flatten a judgement into the summary stored on the run.
+ *
+ * Laid out as the same three analyses the tab shows, in the same order — ours,
+ * theirs, then the cross-comparison — because this text IS the audit when
+ * somebody reopens it weeks later from the run list, and a summary organised
+ * differently from the screen it came off is a summary nobody trusts.
+ */
 export function renderSocialSummary(
   judgement: SocialJudgement,
   criteria: EvalCriterion[],
 ): string {
   const byId = new Map(criteria.map((c) => [c.id, c]));
   const lines: string[] = [];
+  const ours = oursOf(judgement);
+  const theirs = judgement.posts.filter((p) => !p.isOurs);
 
-  if (judgement.score !== null) lines.push(`SCORE: ${judgement.score}/100 (weighted)`, '');
-  if (judgement.verdict) lines.push(judgement.verdict, '');
+  // ── 1 · ours ──────────────────────────────────────────────────────────────
+  lines.push(
+    theirs.length > 0 ? '1 · OUR POST' : 'OUR POST',
+    ours?.score == null ? '(nothing in the material could be scored)' : `${ours.score}/100 weighted`,
+    '',
+  );
+  if (ours?.verdict) lines.push(ours.verdict, '');
 
-  const failed = judgement.scores.filter((s) => {
+  const failed = (ours?.scores ?? []).filter((s) => {
     const criterion = byId.get(s.criterionId);
     return criterion && s.verdict !== 'na' && s.verdict !== criterion.expectedVerdict;
   });
@@ -657,16 +842,55 @@ export function renderSocialSummary(
     lines.push('');
   }
 
-  if (judgement.differences.length) {
-    lines.push('AGAINST THEIRS:');
-    for (const row of judgement.differences) {
-      lines.push(`  ${row.dimension.toUpperCase()} — advantage: ${row.advantage}`);
-      lines.push(`      ${row.difference}`);
-      if (row.evidence) lines.push(`      theirs: "${row.evidence}"`);
+  // ── 2 · theirs ────────────────────────────────────────────────────────────
+  if (theirs.length > 0) {
+    lines.push(theirs.length === 1 ? '2 · THEIR POST' : '2 · THEIR POSTS', '');
+    for (const post of theirs) {
+      lines.push(`${post.label}${post.score === null ? '' : ` — ${post.score}/100`}`);
+      if (post.verdict) lines.push(post.verdict);
+      lines.push('');
     }
-    lines.push('');
   }
 
+  // ── 3 · the cross-comparison ──────────────────────────────────────────────
+  if (theirs.length > 0) {
+    lines.push('3 · CROSS-COMPARISON', '');
+    lines.push("Scored against Knead's rubric, so a competitor's number reads as");
+    lines.push('"how much of what we are trying to do does their post already achieve".');
+    lines.push('');
+
+    const ranked = [...judgement.posts].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    for (const post of ranked) {
+      const score = post.score === null ? '  —' : String(post.score).padStart(3);
+      lines.push(`  ${score}  ${post.label}${post.isOurs ? '  ← OURS' : ''}`);
+    }
+    lines.push('');
+
+    if (judgement.comparison) {
+      const leader = judgement.posts.find((p) => p.postId === judgement.comparison!.leaderId);
+      if (leader) lines.push(`STRONGEST: ${leader.label}${leader.isOurs ? ' (ours)' : ''}`);
+      if (judgement.comparison.summary) lines.push(judgement.comparison.summary);
+      lines.push('');
+    }
+
+    if (judgement.differences.length) {
+      lines.push('DIMENSION BY DIMENSION:');
+      for (const row of judgement.differences) {
+        lines.push(`  ${row.dimension.toUpperCase()} — advantage: ${row.advantage}`);
+        lines.push(`      ${row.difference}`);
+        if (row.evidence) lines.push(`      theirs: "${row.evidence}"`);
+      }
+      lines.push('');
+    }
+
+    if (judgement.comparison?.toClose.length) {
+      lines.push('TO CLOSE THE GAP:');
+      for (const step of judgement.comparison.toClose) lines.push(`  • ${step}`);
+      lines.push('');
+    }
+  }
+
+  // ── what to do about it ───────────────────────────────────────────────────
   if (judgement.recommendations.length) {
     lines.push('CHANGE THIS:');
     for (const rec of judgement.recommendations) {
