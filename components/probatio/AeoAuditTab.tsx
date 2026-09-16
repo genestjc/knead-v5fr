@@ -10,11 +10,12 @@
  * 61/100 means nothing alone. "61 against a field median of 44, and last of
  * five on byline entities" tells an editor what to do next.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Account } from 'thirdweb/wallets';
 import type { EvalCriterion, EvalProvider, EvalRun, EvalSurface } from '@/lib/eval/types';
 import type { AeoSignals, CheckStatus } from '@/lib/eval/aeo-signals';
 import type { StoryAnalysis } from '@/lib/eval/aeo-analyst';
+import { isReplayable, replayAeoRun } from '@/lib/eval/aeo-replay';
 import { startAeoAudit, startStoryAudit, type StorySignalsLite } from './api';
 import { Banner, KNEAD_RED, SectionLabel } from './shared';
 import { RunDetail } from './RunDetail';
@@ -329,8 +330,8 @@ export function AeoAuditTab({
         <h2 className="font-adonis text-2xl mb-1">Saved runs</h2>
         <p className="font-georgia-pro text-sm text-gray-600 mb-4">
           {mode === 'story'
-            ? 'Every comparison keeps its full signal report and analyst output, so a verdict can be traced back to the pages it was drawn from.'
-            : 'Every audit keeps its full signal report, so a score can be traced back to the checks behind it.'}
+            ? 'Open one to get its scoreboard, check matrix, coverage table and analyst read back — rebuilt from what was saved, not re-fetched. The transcript sits underneath.'
+            : 'Open one to get its scoreboard and check matrix back, rebuilt from what was saved rather than re-fetched. The transcript sits underneath.'}
         </p>
 
         <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
@@ -358,7 +359,11 @@ export function AeoAuditTab({
       </section>
 
       {selectedRun && (
-        <div className="pt-4 border-t border-gray-200">
+        <div className="pt-4 border-t border-gray-200 space-y-6">
+          {/* Only when there is nothing live on screen. A finished audit
+              selects its own run, so rendering both would draw every chart
+              twice — once from the response and once from what was saved. */}
+          {!signals && !storySignals && <SavedRunCharts run={selectedRun} />}
           <RunDetail
             account={account}
             run={selectedRun}
@@ -380,6 +385,77 @@ function splitUrls(raw: string): string[] {
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * A saved audit, rendered as the charts it was rendered as when it ran.
+ *
+ * Reopening a run used to drop you straight into the transcript. Everything was
+ * there — every score, every check, every coverage dot — spread across twenty
+ * log lines in the order they were fetched. The findings had not been lost,
+ * only reduced to the least readable form they take.
+ *
+ * Nothing here re-fetches anything or calls a model. It reads the turns the run
+ * already carries; see lib/eval/aeo-replay.ts for why that beats storing a
+ * second copy on the run row.
+ */
+function SavedRunCharts({ run }: { run: EvalRun }) {
+  const replayed = useMemo(() => {
+    if (!isReplayable(run) || !run.turns?.length) return null;
+    return replayAeoRun(run, run.turns);
+  }, [run]);
+
+  if (!replayed || replayed.signals.length === 0) return null;
+
+  const isStory = run.surface === 'aeo-story';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-baseline gap-3 flex-wrap">
+        <SectionLabel>Rebuilt from this run</SectionLabel>
+        {!replayed.complete && (
+          <span className="text-[11px] text-amber-700 -mt-2">
+            partial — some findings were not stored on this run
+          </span>
+        )}
+      </div>
+
+      {isStory && <ExtractionNotice signals={replayed.signals} />}
+
+      <Scoreboard
+        signals={replayed.signals}
+        subjectScore={replayed.subjectScore}
+        fieldMedian={replayed.fieldMedian}
+        subjectLabel={isStory ? 'ours' : 'subject'}
+      />
+
+      {/* Subject coverage only exists on a story audit — a site audit has no
+          subject to resolve, so the table would be a grid of empty dots. */}
+      {isStory && <CoverageTable signals={replayed.signals} subject={replayed.subject} />}
+
+      {replayed.analysis && replayed.analysis.verdict && (
+        <AnalystPanel analysis={replayed.analysis} />
+      )}
+
+      {/* A run saved before the verdict was stored structurally. Its prose is
+          the part a person reads, so it is shown rather than dropped. */}
+      {replayed.analystText && (
+        <div>
+          <SectionLabel>The analyst, as saved</SectionLabel>
+          <pre className="font-georgia-pro text-[14px] leading-relaxed whitespace-pre-wrap text-gray-700">
+            {replayed.analystText}
+          </pre>
+        </div>
+      )}
+
+      {replayed.analystError && (
+        <Banner tone="info">
+          The analyst pass did not run on this audit: {replayed.analystError} The measured findings
+          above are unaffected.
+        </Banner>
+      )}
+    </div>
+  );
 }
 
 function Scoreboard({
