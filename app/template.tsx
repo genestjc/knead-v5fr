@@ -11,7 +11,8 @@ export default function Template({ children }: { children: React.ReactNode }) {
   const hideFooter =
     pathname?.startsWith('/chat') ||
     pathname?.startsWith('/open-source') ||
-    pathname?.startsWith('/ai-3720-build');
+    pathname?.startsWith('/ai-3720-build') ||
+    pathname?.startsWith('/ai-3720-agency');
 
   return (
     <>

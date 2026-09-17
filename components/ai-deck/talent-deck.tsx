@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * The deck shell for /ai-3720-build.
+ * The deck shell, shared by /ai-3720-build and /ai-3720-agency.
  *
  * Navigation is scroll-snap first, keyboard second: the browser already knows
  * how to do momentum, touch and trackpad, and every hand-rolled wheel handler
@@ -16,12 +16,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { DemoArticle } from '@/lib/deck-demo-article';
 import { buildSlides } from './deck-slides';
+import { buildAgencySlides } from './agency-slides';
 import { ACCENT } from './theme';
 
-export function TalentDeck({ article }: { article: DemoArticle | null }) {
+export function TalentDeck({
+  article,
+  variant = 'media',
+}: {
+  article: DemoArticle | null;
+  /** Which deck this is: the media pitch, or the agency one. */
+  variant?: 'media' | 'agency';
+}) {
   // Built here rather than on the server so the only thing crossing the
   // boundary is the article's plain data, not a tree of slide elements.
-  const SLIDES = useMemo(() => buildSlides(article), [article]);
+  const SLIDES = useMemo(
+    () => (variant === 'agency' ? buildAgencySlides(article) : buildSlides(article)),
+    [article, variant],
+  );
 
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
@@ -161,7 +172,11 @@ export function TalentDeck({ article }: { article: DemoArticle | null }) {
               slideRefs.current[i] = el;
             }}
             aria-label={slide.label}
-            className="deck-slide relative min-h-[100svh] snap-start flex items-center px-6 md:px-20 lg:px-28 pt-28 pb-24 md:pt-24 md:pb-20"
+            className={`deck-slide relative min-h-[100svh] snap-start flex ${
+              slide.bleed
+                ? 'items-stretch'
+                : 'items-center px-6 md:px-20 lg:px-28 pt-28 pb-24 md:pt-24 md:pb-20'
+            }`}
           >
             {slide.content}
           </section>
@@ -170,15 +185,23 @@ export function TalentDeck({ article }: { article: DemoArticle | null }) {
 
       {/* Scrims. A slide taller than the viewport scrolls under the fixed
           chrome; without these, copy passes behind the counter and looks
-          broken rather than layered. */}
-      <div
-        aria-hidden
-        className="deck-chrome fixed top-0 left-0 right-0 h-24 z-20 pointer-events-none bg-gradient-to-b from-black to-transparent"
-      />
-      <div
-        aria-hidden
-        className="deck-chrome fixed bottom-0 left-0 right-0 h-24 z-20 pointer-events-none bg-gradient-to-t from-black to-transparent"
-      />
+          broken rather than layered.
+
+          Off on a bleed slide: there the content is sized to clear the chrome
+          already, and a black gradient over the white console just looks like
+          a smudge along its edges. */}
+      {!SLIDES[index]?.bleed && (
+        <>
+          <div
+            aria-hidden
+            className="deck-chrome fixed top-0 left-0 right-0 h-24 z-20 pointer-events-none bg-gradient-to-b from-black to-transparent"
+          />
+          <div
+            aria-hidden
+            className="deck-chrome fixed bottom-0 left-0 right-0 h-24 z-20 pointer-events-none bg-gradient-to-t from-black to-transparent"
+          />
+        </>
+      )}
 
       {/* Counter + controls */}
       <div className="deck-chrome fixed bottom-0 left-0 right-0 z-30 px-6 md:px-12 py-5 flex items-center justify-between pointer-events-none">

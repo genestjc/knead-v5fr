@@ -647,6 +647,14 @@ html {
     display: none !important;
   }
 
+  /* A full-screen slide is sized to the screen; on paper that pushes it onto a
+     second page, and the console it was making room for doesn't print anyway. */
+  .deck-bleed {
+    height: auto !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
   .deck-scroll,
   .deck-slide {
     -webkit-print-color-adjust: exact;
