@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LiveBadge } from './deck-chat';
 
-export function DemoProbatio() {
+export function DemoProbatio({ fullBleed = false }: { fullBleed?: boolean }) {
   const holderRef = useRef<HTMLDivElement>(null);
   const [load, setLoad] = useState(false);
 
@@ -41,10 +41,21 @@ export function DemoProbatio() {
   }, [load]);
 
   return (
-    <div ref={holderRef} className="border border-white/10 bg-black w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-white/10">
+    <div
+      ref={holderRef}
+      className={
+        fullBleed
+          ? 'border border-white/10 bg-black w-full h-full flex flex-col'
+          : 'border border-white/10 bg-black w-full'
+      }
+    >
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-white/10">
         <div className="min-w-0">
-          <p className="font-adonis text-lg text-white leading-none mb-1.5">Probatio Parsley</p>
+          {/* The slide's own heading already names it, and so does the console
+              inside the frame — three times on one screen is two too many. */}
+          {!fullBleed && (
+            <p className="font-adonis text-lg text-white leading-none mb-1.5">Probatio Parsley</p>
+          )}
           <LiveBadge>Live · the console itself</LiveBadge>
         </div>
         {/* Full width on a phone: a console in a frame is always going to be
@@ -59,13 +70,20 @@ export function DemoProbatio() {
         </a>
       </div>
 
-      {/* Sized in viewport units so the console gets as much room as the
-          screen can spare, on a phone as much as a laptop, without ever
-          pushing the slide past one screen.
+      {/* Full bleed takes whatever height the slide has left; otherwise it is
+          sized in viewport units so the console gets as much room as the screen
+          can spare, on a phone as much as a laptop, without ever pushing the
+          slide past one screen.
 
           An iframe prints as a white rectangle and pushes the slide onto a
           second page — on paper the sentence below stands in for it. */}
-      <div className="relative bg-white h-[54svh] md:h-[52svh] print:hidden">
+      <div
+        className={
+          fullBleed
+            ? 'relative bg-white flex-1 min-h-0 print:hidden'
+            : 'relative bg-white h-[54svh] md:h-[52svh] print:hidden'
+        }
+      >
         {load ? (
           <iframe
             src="/probatio-parsley"
@@ -85,11 +103,15 @@ export function DemoProbatio() {
         kneadmag.com/probatio-parsley.
       </p>
 
-      <p className="px-5 md:px-6 py-3 font-georgia-pro text-[11px] text-white/30 leading-relaxed border-t border-white/10">
-        Set a rubric row, pick a persona, and step a run against a live surface — the transcript
-        and its behavior log build as it goes. Runs spend real model budget and hit production
-        endpoints, because that is the point of them.
-      </p>
+      {/* The explainer is what gets cut when the console takes the screen —
+          on that slide the words above it already say what this is. */}
+      {!fullBleed && (
+        <p className="px-5 md:px-6 py-3 font-georgia-pro text-[11px] text-white/30 leading-relaxed border-t border-white/10">
+          Set a rubric row, pick a persona, and step a run against a live surface — the transcript
+          and its behavior log build as it goes. Runs spend real model budget and hit production
+          endpoints, because that is the point of them.
+        </p>
+      )}
     </div>
   );
 }

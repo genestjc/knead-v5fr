@@ -28,7 +28,13 @@ const STARTERS = [
   'What would I need to build the encrypted chat?',
 ];
 
-export function DemoBuildAssistant() {
+/**
+ * `question` switches the panel to its plainer form: one question, one field,
+ * no recipe chips and no starter pills. On the agency deck the point is that
+ * you could hand this to a client, so the fewer knobs the better — the recipes
+ * still load underneath, they just aren't a decision the visitor has to make.
+ */
+export function DemoBuildAssistant({ question, note }: { question?: string; note?: string }) {
   const [selected, setSelected] = useState<RecipeId[]>(['paywalled-blog', 'agentic-assistance']);
 
   const toggleRecipe = (id: RecipeId) =>
@@ -58,38 +64,55 @@ export function DemoBuildAssistant() {
         </div>
       </div>
 
-      <div className="p-5 md:p-6 grid lg:grid-cols-[200px_1fr] gap-6">
+      <div
+        className={
+          question ? 'p-5 md:p-6' : 'p-5 md:p-6 grid lg:grid-cols-[200px_1fr] gap-6'
+        }
+      >
         {/* min-w-0 on both tracks: chips and starter prompts are wide enough
             to blow the grid past a phone screen otherwise. */}
-        <div className="min-w-0">
-          <p className="font-georgia-pro text-[11px] uppercase tracking-[0.18em] text-white/30 mb-3">
-            Loaded recipes
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {DEMO_RECIPES.map((r) => {
-              const on = selected.includes(r.id);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => toggleRecipe(r.id)}
-                  aria-pressed={on}
-                  className={`font-georgia-pro text-[11px] rounded-full px-3 py-1.5 border transition-colors ${
-                    on
-                      ? 'bg-white text-black border-white'
-                      : 'text-white/50 border-white/15 hover:text-white hover:border-white/40'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              );
-            })}
+        {!question && (
+          <div className="min-w-0">
+            <p className="font-georgia-pro text-[11px] uppercase tracking-[0.18em] text-white/30 mb-3">
+              Loaded recipes
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEMO_RECIPES.map((r) => {
+                const on = selected.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => toggleRecipe(r.id)}
+                    aria-pressed={on}
+                    className={`font-georgia-pro text-[11px] rounded-full px-3 py-1.5 border transition-colors ${
+                      on
+                        ? 'bg-white text-black border-white'
+                        : 'text-white/50 border-white/15 hover:text-white hover:border-white/40'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 font-georgia-pro text-[11px] text-white/30 leading-relaxed">
+              Recipes load build context. The nine retrieval tools fetch the real files either way.
+            </p>
           </div>
-          <p className="mt-3 font-georgia-pro text-[11px] text-white/30 leading-relaxed">
-            Recipes load build context. The nine retrieval tools fetch the real files either way.
-          </p>
-        </div>
+        )}
 
         <div className="flex flex-col min-w-0 min-h-[260px]">
+          {question && chat.messages.length === 0 && !chat.loading && (
+            <div className="mb-4">
+              <p className="font-adonis text-xl md:text-2xl text-white leading-tight">{question}</p>
+              {note && (
+                <p className="mt-2 font-georgia-pro text-sm text-white/45 leading-relaxed max-w-xl">
+                  {note}
+                </p>
+              )}
+            </div>
+          )}
+
           {(chat.messages.length > 0 || chat.loading) && (
             <ChatLog
               messages={chat.messages}
@@ -99,7 +122,7 @@ export function DemoBuildAssistant() {
             />
           )}
 
-          {chat.messages.length === 0 && (
+          {!question && chat.messages.length === 0 && (
             <div className="mt-auto mb-3">
               <Starters prompts={STARTERS} onPick={chat.submit} disabled={chat.loading} />
             </div>
@@ -110,7 +133,13 @@ export function DemoBuildAssistant() {
             onChange={chat.setInput}
             onSubmit={() => chat.submit(chat.input)}
             disabled={chat.loading}
-            placeholder={chat.loading ? 'Reading the repo…' : 'Ask how any of it is built…'}
+            placeholder={
+              chat.loading
+                ? 'Reading the repo…'
+                : question
+                ? 'Ask anything about the stack…'
+                : 'Ask how any of it is built…'
+            }
           />
 
           <a
