@@ -33,7 +33,7 @@
  * floor. Not a tool on a chat bot.
  */
 
-import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA } from '@/lib/ai/router';
+import { runAgentChat } from '@/lib/ai/router';
 import { KNOWLEDGE_TOOLS, executeKnowledgeTool } from '@/lib/demeter-knowledge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -112,8 +112,7 @@ export async function runAgent(
       },
       maxTokens: 1024,
       maxRounds: 5,
-      model: CLAUDE_SONNET,
-      openaiModel: OPENAI_TERRA,
+      profile: 'assistant',
       logTag: `Demeter/chat:${command.senderAddress.slice(0, 10)}`,
     });
 

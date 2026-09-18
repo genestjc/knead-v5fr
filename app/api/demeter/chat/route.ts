@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
-import { runAgentChat, OPENAI_SOL, type AgentTool } from '@/lib/ai/router';
+import { runAgentChat, type AgentTool } from '@/lib/ai/router';
 import { webSearch } from '@/lib/ai/web-search';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -298,10 +298,10 @@ You might also ask:
       },
       maxTokens: 1024,
       maxRounds: 5,
-      // Editorial voice runs Opus; if Claude fails, fall back to OpenAI's
-      // flagship tier rather than the budget default — this traffic only
-      // exists during an outage, so the premium costs nothing normally.
-      openaiModel: OPENAI_SOL,
+      // Editorial voice: Opus, falling back to OpenAI's flagship tier rather
+      // than a budget one — this traffic only exists during an outage, so the
+      // premium costs nothing normally.
+      profile: 'editorial',
       logTag: 'Demeter',
     });
 

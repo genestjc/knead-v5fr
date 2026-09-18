@@ -126,6 +126,7 @@ async function main() {
         system: SYSTEM,
         prompt,
         maxTokens: 200,
+        profile: 'editorial',
         logTag: 'backfill-excerpts',
       });
 

@@ -18,7 +18,7 @@
  *
  * It runs Opus / Sol, matching the judge: this is low-volume and quality-first.
  */
-import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
+import { runAgentChat, modelFor } from '@/lib/ai/router';
 import type { EvalProvider } from './types';
 import type { StorySignals } from './aeo-story';
 
@@ -125,7 +125,7 @@ export async function analyzeStory(opts: {
   competitors: StorySignals[];
 }): Promise<StoryAnalysis> {
   const { provider, subject, ours, competitors } = opts;
-  const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL;
+  const model = modelFor('editorial', provider);
 
   const prompt = [
     `SUBJECT: ${subject}`,
@@ -144,7 +144,7 @@ export async function analyzeStory(opts: {
     maxTokens: Math.min(16_000, 3_000 + competitors.length * 1_200),
     maxRounds: 1,
     preferredProvider: provider,
-    openaiModel: OPENAI_SOL,
+    profile: 'editorial',
     logTag: `probatio/aeo-analyst:${provider}`,
   });
 

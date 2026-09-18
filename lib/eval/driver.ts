@@ -11,14 +11,14 @@
  * driving is high-volume role-play, so it runs Sonnet / Terra. Judging is
  * low-volume and quality-first, so that runs Opus / Sol (see judge.ts).
  */
-import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA } from '@/lib/ai/router';
+import { runAgentChat, modelFor } from '@/lib/ai/router';
 import type { Persona } from './personas';
 import type { EvalCriterion, EvalProvider } from './types';
 import { surfaceLabel } from './types';
 
 export const DRIVER_MODELS: Record<EvalProvider, string> = {
-  claude: CLAUDE_SONNET,
-  openai: OPENAI_TERRA,
+  claude: modelFor('assistant', 'claude'),
+  openai: modelFor('assistant', 'openai'),
 };
 
 /**
@@ -97,8 +97,7 @@ ${context}`;
     maxTokens: 400,
     maxRounds: 1,
     preferredProvider: provider,
-    model: CLAUDE_SONNET,
-    openaiModel: OPENAI_TERRA,
+    profile: 'assistant',
     logTag: `probatio/driver:${persona.id}`,
   });
 

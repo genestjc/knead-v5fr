@@ -18,7 +18,7 @@
  *   • Every verdict must carry a quote from the transcript. No quote, no
  *     finding — that's what makes a failure reproducible.
  */
-import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
+import { runAgentChat, modelFor } from '@/lib/ai/router';
 import type { EvalCriterion, EvalProvider, EvalTurn, Verdict } from './types';
 import { surfaceLabel } from './types';
 import { parseJudgeJSON } from './judge-json';
@@ -150,7 +150,7 @@ Return this exact JSON shape:
 
 Include one entry for every rubric row, using the exact id strings. Use "na" only when the transcript genuinely never exercised the criterion.`;
 
-  const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL;
+  const model = modelFor('editorial', provider);
 
   const raw = await runAgentChat({
     system: JUDGE_SYSTEM,
@@ -162,7 +162,7 @@ Include one entry for every rubric row, using the exact id strings. Use "na" onl
     maxTokens: Math.min(32_000, 4_000 + criteria.length * 700),
     maxRounds: 1,
     preferredProvider: provider,
-    openaiModel: OPENAI_SOL,
+    profile: 'editorial',
     logTag: `probatio/judge:${provider}`,
   });
 

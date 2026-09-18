@@ -28,7 +28,7 @@
  * It returns drafts ready to post, each with the reason it is shaped that way,
  * so an editor can disagree with the reasoning rather than just the words.
  */
-import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router';
+import { runAgentChat, modelFor } from '@/lib/ai/router';
 import { SITE_TOPICS } from '@/lib/constants';
 import { arrayOf, oneOf, parseAgentJson, str } from './json';
 import {
@@ -148,7 +148,7 @@ export async function composeDrafts(opts: {
 }): Promise<ComposerResult> {
   const { provider, story, audit } = opts;
   const platforms = opts.platforms?.length ? opts.platforms : [...SOCIAL_PLATFORMS];
-  const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL;
+  const model = modelFor('editorial', provider);
 
   const prompt = [
     'THE STORY',
@@ -176,7 +176,7 @@ export async function composeDrafts(opts: {
     maxTokens: Math.min(12_000, 2_500 + platforms.length * 1_200),
     maxRounds: 1,
     preferredProvider: provider,
-    openaiModel: OPENAI_SOL,
+    profile: 'editorial',
     logTag: `probatio/social-composer:${provider}`,
   });
 

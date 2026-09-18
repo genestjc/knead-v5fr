@@ -38,9 +38,8 @@
 import {
   runAgentChat,
   checkImages,
-  CLAUDE_OPUS,
+  modelFor,
   MAX_IMAGES_PER_REQUEST,
-  OPENAI_SOL,
   type ImageInput,
 } from '@/lib/ai/router';
 import { arrayOf, numberInRange, oneOf, parseAgentJson, str } from './json';
@@ -356,7 +355,7 @@ export interface SocialJudgeOutcome extends SocialJudgement {
 
 export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeOutcome> {
   const { provider, platform, criteria, ours, subject } = input;
-  const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL;
+  const model = modelFor('editorial', provider);
   const warnings: string[] = [];
 
   if (criteria.length === 0) {
@@ -459,7 +458,7 @@ export async function judgeSocial(input: SocialJudgeInput): Promise<SocialJudgeO
     maxTokens: Math.min(24_000, 4_000 + criteria.length * 500),
     maxRounds: 1,
     preferredProvider: provider,
-    openaiModel: OPENAI_SOL,
+    profile: 'editorial',
     logTag: `probatio/social-judge:${provider}`,
   });
 

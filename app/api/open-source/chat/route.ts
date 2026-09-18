@@ -20,7 +20,7 @@ import {
   KNEAD_REPO,
   type RepoFetchFailure,
 } from '@/lib/github';
-import { runAgentChat, CLAUDE_SONNET, OPENAI_TERRA, type AgentTool } from '@/lib/ai/router';
+import { runAgentChat, type AgentTool } from '@/lib/ai/router';
 import { webSearch } from '@/lib/ai/web-search';
 import { readMemberSession, verifyMemberRequest } from '@/lib/auth/member-session';
 import { isExportBlockedPath } from '@/lib/open-source-starter-kit';
@@ -937,13 +937,10 @@ export async function POST(req: NextRequest) {
       // physically possible before the prompt can ask for it.
       maxTokens: 4000,
       maxRounds: 5,
-      // GPT-5.6 Terra is the default; users can pick Sonnet 5 instead, and
-      // the unpicked provider is the fallback. Terra is OpenAI's balanced
-      // tier and Sonnet 5 holds near-Opus coding quality at ~60% of the
-      // price, so build reasoning stays Sonnet-class whether a provider is
-      // picked or covering an outage.
-      model: CLAUDE_SONNET,
-      openaiModel: OPENAI_TERRA,
+      // Sonnet 5 / Terra. Users pick one from the model picker and the
+      // unpicked provider is the fallback, so build reasoning stays
+      // Sonnet-class whether a provider is picked or covering an outage.
+      profile: 'assistant',
       preferredProvider: pickedModel === 'gpt-5' ? 'openai' : 'claude',
       logTag: `build/chat:${pickedModel}`,
     });

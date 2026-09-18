@@ -19,7 +19,7 @@
  * Runs Opus / Sol, matching the judge and the story analyst: low volume,
  * quality first.
  */
-import { runAgentChat, CLAUDE_OPUS, OPENAI_SOL } from '@/lib/ai/router'
+import { runAgentChat, modelFor } from '@/lib/ai/router'
 import type { EvalProvider } from './types'
 import type { DraftReport } from './draft-check'
 
@@ -69,7 +69,7 @@ export async function adviseDraft(opts: {
   precedent?: string[]
 }): Promise<DraftAdvice> {
   const { provider, report, reportText, precedent = [] } = opts
-  const model = provider === 'claude' ? CLAUDE_OPUS : OPENAI_SOL
+  const model = modelFor('editorial', provider)
 
   const prompt = [
     reportText,
@@ -91,7 +91,7 @@ export async function adviseDraft(opts: {
     maxTokens: 8_000,
     maxRounds: 1,
     preferredProvider: provider,
-    openaiModel: OPENAI_SOL,
+    profile: 'editorial',
     logTag: `probatio/draft-advisor:${provider}`,
   })
 
