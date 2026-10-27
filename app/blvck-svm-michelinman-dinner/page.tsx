@@ -301,7 +301,7 @@ const PasswordProtection = ({ onSuccess }: { onSuccess: () => void }) => {
           transition={{ delay: 0.8, duration: 0.6 }}
           className="text-center mt-8"
         >
-          <p className="text-sm text-gray-400 font-georgia-pro">Blvck Svm michelinman Dinner in Richmond, VA</p>
+          <p className="text-sm text-gray-400 font-georgia-pro">Blvck Svm michelinman Dinner in New York, NY</p>
         </motion.div>
       </motion.div>
     </div>
@@ -699,9 +699,6 @@ export default function PurpleBlackSvmPage() {
           <p className="text-xl md:text-2xl font-georgia-pro">
             By perfectly blending fine dining and music in an intimate way, this dinner sets a precedent for how
             artists, chefs, creatives, and brands can reach their audience through groundbreaking memorable experiences.
-          </p>
-          <p className="text-xl md:text-2xl font-georgia-pro">
-            If successful, we're looking to expand this series to other cities as well.
           </p>
         </motion.div>
       </Slide>
