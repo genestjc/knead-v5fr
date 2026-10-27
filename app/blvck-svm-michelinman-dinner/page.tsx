@@ -60,34 +60,6 @@ const coverStories = [
   },
 ]
 
-// Venue data with real images
-const venues = [
-  {
-    id: 1,
-    name: "Virginia Museum of Fine Arts",
-    description: "A grand space with modern architecture and world-class exhibitions.",
-    image: "/vmfa.jpg",
-  },
-  {
-    id: 2,
-    name: "Virginia Museum of History & Culture",
-    description: "Rich historical setting with beautiful event spaces for intimate gatherings.",
-    image: "/virginia-museum-history-culture.jpg",
-  },
-  {
-    id: 3,
-    name: "Branch Museum of Design",
-    description: "Unique architectural gem perfect for creative culinary experiences.",
-    image: "/branch-museum-design.jpg",
-  },
-]
-
-// Chef Manning photos for slideshow - removed image #3 (andrew-food-2.jpg)
-const chefManningPhotos = ["/andrew-profile.jpg", "/andrew-food-1.jpg", "/andrew-food-3.jpg", "/andrew-food-4.jpg"]
-
-// Chance Fischer photos for slideshow
-const chanceFischerPhotos = ["/chance1.jpg", "/chance2.jpg", "/chance3.jpg", "/chance4.jpg"]
-
 // Swipeable carousel component
 interface SwipeableCarouselProps {
   images: string[]
@@ -340,9 +312,6 @@ export default function PurpleBlackSvmPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const slideRefs = useRef<(HTMLDivElement | null)[]>([])
-  const [currentChefPhoto, setCurrentChefPhoto] = useState(0) // Back to starting with first photo
-  const [currentChancePhoto, setCurrentChancePhoto] = useState(0) // For Chance Fischer photos
-  const [currentVenue, setCurrentVenue] = useState(0)
   const [animateSlide, setAnimateSlide] = useState(0) // Track which slide to animate
   const dinnerPartyPhotos = Array.from({ length: 7 }).map((_, i) => `/dinner-party-${i + 1}.jpg`)
   const [currentDinnerPhoto, setCurrentDinnerPhoto] = useState(0)
@@ -466,7 +435,7 @@ export default function PurpleBlackSvmPage() {
       {/* Navigation dots */}
       <div className="fixed right-8 top-1/2 transform -translate-y-1/2 z-50 hidden md:block">
         <div className="flex flex-col space-y-4">
-          {Array.from({ length: 13 }).map((_, i) => (
+          {Array.from({ length: 8 }).map((_, i) => (
             <button
               key={i}
               onClick={(e) => scrollToSlide(i, e)}
@@ -496,9 +465,6 @@ export default function PurpleBlackSvmPage() {
             >
               Blvck Svm michelinman Dinner
             </motion.h1>
-            <motion.h2 variants={fadeIn} className="text-2xl md:text-3xl font-georgia-pro tracking-wide text-shadow-md">
-              in Richmond, VA
-            </motion.h2>
             <motion.div variants={fadeIn} className="pt-8">
               <p className="text-xl md:text-2xl font-georgia-pro">Presented by</p>
               <p className="text-3xl md:text-4xl font-adonis mt-2 tracking-wider">Knead Magazine</p>
@@ -615,7 +581,7 @@ export default function PurpleBlackSvmPage() {
             </motion.div>
             <div className="space-y-4">
               <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-                Kicking off 2025, Blvck Svm has been collaborating with chefs across the country for michelinman dinner
+                Starting in 2025, Blvck Svm has been collaborating with chefs across the country for michelinman dinner
                 parties.
               </motion.p>
               <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
@@ -724,223 +690,8 @@ export default function PurpleBlackSvmPage() {
         </div>
       </Slide>
 
-      {/* Slide 6 - The Event */}
+      {/* Slide 6 - Vision Statement */}
       <Slide id={6}>
-        <div className="space-y-8">
-          <motion.h2 variants={fadeIn} className="text-3xl md:text-4xl font-adonis text-center">
-            The Event: michelinman Dinner Party in Richmond, Virginia
-          </motion.h2>
-          <motion.div variants={fadeIn} className="max-w-4xl mx-auto space-y-6">
-            <p className="text-lg md:text-xl font-georgia-pro text-center">
-              Knead would like to bring Blvck Svm for a dinner party with Chef Andrew Manning and Maitre'd Chance
-              Fischer.
-            </p>
-            <p className="text-lg md:text-xl font-georgia-pro text-center">
-              We're talking with many of the museums around Richmond, including the Virginia Museum of Fine Arts,
-              Virginia Museum of History & Culture, and the Branch Museum of Design.
-            </p>
-            <p className="text-lg md:text-xl font-georgia-pro text-center">
-              The event could potentially be two nights.
-            </p>
-          </motion.div>
-        </div>
-      </Slide>
-
-      {/* Slide 7 - Chef Andrew Manning */}
-      <Slide id={7}>
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <motion.h2 variants={fadeIn} className="text-3xl md:text-4xl font-adonis">
-              Chef Andrew Manning
-            </motion.h2>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Chef Manning is based out of Richmond, VA.
-            </motion.p>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Spending a lot of his career cooking in Northern Italy, Chef Manning moved back and cofounded Longoven,
-              which Bon Appétit twice named one of the best new restaurants in America (2016, 2019). The team also
-              cofounded the Italian restaurant, Lost Letter, where he served as Head Chef for both.
-            </motion.p>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Manning currently runs Nokoribi, which is a Japanese pub-inspired restaurant.
-            </motion.p>
-          </div>
-          <motion.div variants={fadeIn} className="relative">
-            <SwipeableCarousel
-              images={chefManningPhotos}
-              currentIndex={currentChefPhoto}
-              setCurrentIndex={setCurrentChefPhoto}
-              height="400px"
-            />
-            <p className="text-sm text-gray-400 mt-2 text-center font-georgia-pro italic">
-              Photos:{" "}
-              <a
-                href="https://www.starchefs.com/on-the-ground/andrew-manning"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline"
-              >
-                Will Blunt via StarChef
-              </a>
-            </p>
-          </motion.div>
-        </div>
-      </Slide>
-
-      {/* Slide 8 - Maitre'd Chance Fischer */}
-      <Slide id={8}>
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <motion.h2 variants={fadeIn} className="text-3xl md:text-4xl font-adonis">
-              Maitre'd Chance Fischer
-            </motion.h2>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Chance Fischer has been managing restaurants and pop-ups in Richmond for nearly two decades.
-            </motion.p>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Previously, Fischer was GM at the social club Common House, as well as Lemaire, the restaurant inside The
-              Jefferson (a five-star luxury hotel).
-            </motion.p>
-            <motion.p variants={fadeIn} className="text-lg md:text-xl font-georgia-pro">
-              Fischer has most recently worked on Secret Super Society, a private dinner tasting menu series.
-            </motion.p>
-          </div>
-          <motion.div variants={fadeIn} className="relative">
-            <SwipeableCarousel
-              images={chanceFischerPhotos}
-              currentIndex={currentChancePhoto}
-              setCurrentIndex={setCurrentChancePhoto}
-              height="400px"
-            />
-            <p className="text-sm text-gray-400 mt-2 text-center font-georgia-pro italic">
-              Photos via{" "}
-              <a
-                href="https://www.thesecretss.com/gallery"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline"
-              >
-                Secret Super Society
-              </a>
-            </p>
-          </motion.div>
-        </div>
-      </Slide>
-
-      {/* Slide 9 - The Venues */}
-      <Slide id={9}>
-        <div className="space-y-8">
-          <motion.h2 variants={fadeIn} className="text-3xl md:text-4xl font-adonis text-center">
-            The Venues
-          </motion.h2>
-          <motion.div variants={fadeIn} className="relative max-w-4xl mx-auto">
-            <SwipeableCarousel
-              images={venues.map((venue) => venue.image)}
-              currentIndex={currentVenue}
-              setCurrentIndex={setCurrentVenue}
-              height="500px"
-            >
-              <div className="absolute bottom-0 left-0 right-0 p-8 text-white z-10">
-                <h3 className="text-2xl font-adonis mb-2">{venues[currentVenue].name}</h3>
-                <p className="text-lg font-georgia-pro">{venues[currentVenue].description}</p>
-              </div>
-            </SwipeableCarousel>
-          </motion.div>
-        </div>
-      </Slide>
-
-      {/* Slide 10 - What We're Asking For */}
-      <Slide id={10}>
-        <div className="max-w-4xl mx-auto space-y-8">
-          <motion.h2 variants={fadeIn} className="text-3xl md:text-4xl font-adonis text-center mb-6">
-            What We're Asking For
-          </motion.h2>
-          <motion.p variants={fadeIn} className="text-xl md:text-2xl font-georgia-pro font-bold mb-4">
-            We're looking to raise $13,200 in sponsorship for the event.
-          </motion.p>
-
-          <div className="flex flex-col md:flex-row gap-8 items-start">
-            {/* Bullet points */}
-            <motion.div variants={fadeIn} className="w-full md:w-1/2 space-y-4">
-              <ul className="list-disc pl-6 space-y-4">
-                <li className="text-lg md:text-xl font-georgia-pro">
-                  <span className="font-bold">Blvck Svm Overhead + Content Team</span>
-                  <br />
-                  <span className="text-gray-300">(Incl. Travel/Lodging):</span> $4,000
-                </li>
-                <li className="text-lg md:text-xl font-georgia-pro">
-                  <span className="font-bold">Knead</span>
-                  <br />
-                  <span className="text-gray-300">(Production/Talent):</span> $3,000
-                </li>
-                <li className="text-lg md:text-xl font-georgia-pro">
-                  <span className="font-bold">Venue:</span> $5,000
-                </li>
-                <li className="text-lg md:text-xl font-georgia-pro">
-                  <span className="font-bold">Supplies/Incidentals:</span> $1,200
-                </li>
-              </ul>
-              <p className="text-lg md:text-xl font-georgia-pro italic pt-4">
-                Would love to hear about product offerings to help offset supply costs.
-              </p>
-            </motion.div>
-
-            {/* Visual breakdown */}
-            <motion.div variants={fadeIn} className="w-full md:w-1/2">
-              <div className="bg-white/5 backdrop-blur-sm p-6 rounded-xl">
-                <h3 className="text-xl font-bold mb-4 text-center">Cost Breakdown</h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Blvck Svm + Content Team</span>
-                      <span>$4,000</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-3">
-                      <div className="bg-blue-500 h-3 rounded-full" style={{ width: "30%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Knead</span>
-                      <span>$3,000</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-3">
-                      <div className="bg-purple-500 h-3 rounded-full" style={{ width: "23%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Venue</span>
-                      <span>$5,000</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-3">
-                      <div className="bg-green-500 h-3 rounded-full" style={{ width: "38%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Supplies/Incidentals</span>
-                      <span>$1,200</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-3">
-                      <div className="bg-yellow-500 h-3 rounded-full" style={{ width: "9%" }}></div>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-white/20 mt-4">
-                    <div className="flex justify-between font-bold">
-                      <span>Total</span>
-                      <span>$13,200</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </Slide>
-
-      {/* Slide 11 - Vision Statement */}
-      <Slide id={11}>
         <motion.div variants={fadeIn} className="max-w-4xl mx-auto text-center space-y-8">
           <p className="text-xl md:text-2xl font-georgia-pro">
             The michelinman dinner party series is creating a new type of culturally-rich experience.
@@ -955,8 +706,8 @@ export default function PurpleBlackSvmPage() {
         </motion.div>
       </Slide>
 
-      {/* Slide 12 - Thank You */}
-      <Slide id={12}>
+      {/* Slide 7 - Thank You */}
+      <Slide id={7}>
         <motion.div variants={fadeIn} className="flex items-center justify-center min-h-[60vh]">
           <h2 className="text-4xl md:text-6xl font-adonis text-center">Thanks for reading.</h2>
         </motion.div>
